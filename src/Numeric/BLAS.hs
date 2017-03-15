@@ -16,6 +16,7 @@ module Numeric.BLAS (
   , BShape(..)
   , Sing(SBV, SBM)
   , SBShape
+  , BIndex(..)
   ) where
 
 import           Data.Finite
@@ -29,6 +30,10 @@ $(singletons [d|
   data BShape a = BV !a | BM !a !a
     deriving (Show, Eq, Ord, Functor)
   |])
+
+data BIndex :: BShape Nat -> Type where
+    BVIx :: Finite n -> BIndex ('BV n)
+    BMIx :: Finite m -> Finite n -> BIndex ('BM m n)
 
 class BLAS (b :: BShape Nat -> Type) where
     type Scalar b :: Type

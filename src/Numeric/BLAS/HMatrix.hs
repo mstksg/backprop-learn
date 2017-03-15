@@ -1,4 +1,6 @@
 {-# LANGUAGE GADTs               #-}
+{-# LANGUAGE InstanceSigs        #-}
+{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeFamilies        #-}
@@ -12,12 +14,14 @@ module Numeric.BLAS.HMatrix (
 import           Data.Finite.Internal
 import           Data.Foldable
 import           Data.Kind
+import           Data.Maybe
 import           Data.MonoTraversable
 import           Data.Singletons
 import           Data.Singletons.TypeLits
 import           Numeric.BLAS
 import           Numeric.LinearAlgebra.Static
-import qualified Numeric.LinearAlgebra        as LA
+import           Numeric.Tensor
+import qualified Numeric.LinearAlgebra          as LA
 
 type family HM' (s :: BShape Nat) :: Type where
     HM' ('BV n  ) = R n
@@ -46,6 +50,51 @@ instance BLAS HM where
     syr  α (HM x) (HM a)          = HM (konst α * outer x x + a)
     gemm α (HM a) (HM b) β (HM c) = HM (konst α * (a <> b) + konst β * c)
     syrk α (HM a) β (HM c)        = HM (konst α * (a <> tr a) + konst β * c)
+
+instance Tensor HM where
+    type IndexT HM = BIndex
+    type ElemT  HM = Double
+
+    gen = \case
+      SBV n@SNat -> \f -> HM . fromJust . create $
+        LA.build (fromIntegral (fromSing n))
+          (f . BVIx . Finite . round)
+      SBM m@SNat n@SNat -> \f -> HM . fromJust . create $
+        LA.build (fromIntegral (fromSing m), fromIntegral (fromSing n))
+          (\i j -> f (BMIx (Finite (round i)) (Finite (round j))))
+
+    genA = \case
+      SBV n@SNat -> \f ->
+        fmap (HM . vector) . traverse (f . BVIx . Finite) $
+          [0 .. fromSing n - 1]
+      SBM m@SNat n@SNat -> \f ->
+        fmap (HM . matrix) . traverse f $
+          [ BMIx (Finite i) (Finite j) | j <- [0 .. fromSing m - 1]
+                                       , i <- [0 .. fromSing n - 1]
+          ]
+
+    tkonst = \case
+      SBV SNat      -> HM . konst
+      SBM SNat SNat -> HM . konst
+
+    tsum :: forall s. SingI s => HM s -> Double
+    tsum = case sing @_ @s of
+      SBV SNat      -> LA.sumElements . extract . getHM
+      SBM SNat SNat -> LA.sumElements . extract . getHM
+
+    tmap :: forall s. SingI s => (Double -> Double) -> HM s -> HM s
+    tmap = omap
+
+    tzip
+        :: forall s. SingI s
+        => (Double -> Double -> Double)
+        -> HM s -> HM s -> HM s
+    tzip f (HM x) (HM y) = case sing @_ @s of
+      SBV SNat      -> HM $ zipWithVector f x y
+      SBM SNat SNat -> HM $ matrix (zipWith f (concat . LA.toLists . extract $ x)
+                                              (concat . LA.toLists . extract $ y)
+                                   )
+
 
 instance SingI s => MonoFunctor (HM s) where
     omap f (HM x) = case sing @_ @s of
@@ -82,5 +131,3 @@ instance SingI s => MonoFoldable (HM s) where
     lastEx         = lastEx . hmElems
     maximumByEx f  = maximumByEx f . hmElems
     minimumByEx f  = minimumByEx f . hmElems
-
-

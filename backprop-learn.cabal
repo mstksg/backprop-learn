@@ -18,6 +18,7 @@ library
   hs-source-dirs:      src
   exposed-modules:     Numeric.BLAS
                        Numeric.BLAS.HMatrix
+                       Numeric.Tensor
   build-depends:       base >= 4.7 && < 5
                      , finite-typelits
                      , hmatrix    >= 0.18
