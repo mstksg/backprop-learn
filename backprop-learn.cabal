@@ -16,26 +16,33 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Lib
+  exposed-modules:     Numeric.BLAS
+                       Numeric.BLAS.HMatrix
   build-depends:       base >= 4.7 && < 5
+                     , finite-typelits
+                     , hmatrix    >= 0.18
+                     , mono-traversable
+                     , singletons
+                     , vector
   default-language:    Haskell2010
+  ghc-options:         -Wall
 
-executable backprop-learn-exe
-  hs-source-dirs:      app
-  main-is:             Main.hs
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
-  build-depends:       base
-                     , backprop-learn
-  default-language:    Haskell2010
+-- executable backprop-learn-exe
+--   hs-source-dirs:      app
+--   main-is:             Main.hs
+--   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+--   build-depends:       base
+--                      , backprop-learn
+--   default-language:    Haskell2010
 
-test-suite backprop-learn-test
-  type:                exitcode-stdio-1.0
-  hs-source-dirs:      test
-  main-is:             Spec.hs
-  build-depends:       base
-                     , backprop-learn
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
-  default-language:    Haskell2010
+-- test-suite backprop-learn-test
+--   type:                exitcode-stdio-1.0
+--   hs-source-dirs:      test
+--   main-is:             Spec.hs
+--   build-depends:       base
+--                      , backprop-learn
+--   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+--   default-language:    Haskell2010
 
 source-repository head
   type:     git
