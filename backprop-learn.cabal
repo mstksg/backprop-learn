@@ -19,11 +19,17 @@ library
   exposed-modules:     Numeric.BLAS
                        Numeric.BLAS.HMatrix
                        Numeric.Tensor
+                       Learn.Neural
   build-depends:       base >= 4.7 && < 5
+                     , backprop
                      , finite-typelits
                      , hmatrix    >= 0.18
                      , mono-traversable
+                     , mwc-random
+                     , primitive
                      , singletons
+                     , statistics
+                     , type-combinators
                      , vector
   default-language:    Haskell2010
   ghc-options:         -Wall
