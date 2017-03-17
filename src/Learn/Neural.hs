@@ -9,6 +9,7 @@
 {-# LANGUAGE RankNTypes             #-}
 {-# LANGUAGE ScopedTypeVariables    #-}
 {-# LANGUAGE TupleSections          #-}
+{-# LANGUAGE TypeApplications       #-}
 {-# LANGUAGE TypeFamilies           #-}
 {-# LANGUAGE TypeInType             #-}
 {-# LANGUAGE TypeOperators          #-}
@@ -66,33 +67,67 @@ data NetComponent
         -> BShape Nat
         -> BShape Nat
         -> Type where
-    NCPure     :: (Num (c b i o), ComponentP c) => c b i o -> NetComponent c b i o
-    NCStateful :: (Num (c b i o), ComponentS c) => c b i o -> CState c b i o -> NetComponent c b i o
+    NCPure
+        :: (Num (c b i o), ComponentP c)
+        => c b i o
+        -> NetComponent c b i o
+    NCStateful
+        :: (Num (c b i o), Num (CState c b i o), ComponentS c)
+        => c b i o
+        -> CState c b i o
+        -> NetComponent c b i o
+
+-- netComponentOp
+--     :: forall s c b i o. Num (b i)
+--     => OpB s '[ b i, NetComponent c b i o ] '[b o, NetComponent c b i o]
+-- netComponentOp = OpM $ \(I x :< I c :< Ø) ->
+--     case c of
+--       n@(NCPure p) -> do
+--         (I y :< Ø, gF) <- runOpM' runComponentP (x ::< p ::< Ø)
+--         let out = y ::< n ::< Ø
+--             gF' = fmap (\case I gX :< I gP :< Ø -> gX ::< NCPure gP ::< Ø)
+--                 . gF
+--                 . (\case gX :< _ -> gX :< Ø)
+--         return (out, gF')
+--       NCStateful p s0 -> do
+--         (I y :< I s1 :< Ø, gF) <- runOpM' runComponentS (x ::< p ::< s0 ::< Ø)
+--         let out = y ::< NCStateful p s1 ::< Ø
+--             gF' = fmap (\case I gX :< I gP :< I gS :< Ø -> gX ::< NCStateful gP gS ::< Ø)
+--                 . gF
+--                 . (\case
+--                       gX :< gC :< Ø ->
+--                         case gC of
+--                           Just (NCStateful gP gS) -> gX :< Just gS :< Ø
+--                           _                       -> gX :< Nothing :< Ø
+--                   )
+--         return (out, gF')
 
 netComponentOp
-    :: forall s c b i o. Num (b i)
-    => OpB s '[ b i, NetComponent c b i o ] '[b o, NetComponent c b i o]
-netComponentOp = OpM $ \(I x :< I c :< Ø) ->
-    case c of
-      n@(NCPure p) -> do
-        (I y :< Ø, gF) <- runOpM' runComponentP (x ::< p ::< Ø)
-        let out = y ::< n ::< Ø
-            gF' = fmap (\case I gX :< I gP :< Ø -> gX ::< NCPure gP ::< Ø)
-                . gF
-                . (\case gX :< _ -> gX :< Ø)
-        return (out, gF')
-      NCStateful p s0 -> do
-        (I y :< I s1 :< Ø, gF) <- runOpM' runComponentS (x ::< p ::< s0 ::< Ø)
-        let out = y ::< NCStateful p s1 ::< Ø
-            gF' = fmap (\case I gX :< I gP :< I gS :< Ø -> gX ::< NCStateful gP gS ::< Ø)
-                . gF
-                . (\case
-                      gX :< gC :< Ø ->
-                        case gC of
-                          Just (NCStateful gP gS) -> gX :< Just gS :< Ø
-                          _                       -> gX :< Nothing :< Ø
-                  )
-        return (out, gF')
+    :: forall s c b i o. (Num (b o), Num (NetComponent c b i o))
+    => BPOp s '[ b i, NetComponent c b i o ] '[b o, NetComponent c b i o]
+netComponentOp = withInps $ \(x :< c :< Ø) ->
+    withGADT c $ \case
+      NCPure p -> BPC (only_ p) (NCPure . getI . head') $ \(pVar :< Ø) -> do
+        y :< Ø <- runComponentP ~$$ (x :< pVar :< Ø)
+        c' :< Ø <- isoVar (iso (\case I p' :< Ø -> only_ (NCPure p'))
+                               (\case I gC :< Ø -> case gC of
+                                        NCPure p' -> only_ p'
+                               )
+                          )
+                          (pVar :< Ø)
+        return $ y :< c' :< Ø
+      NCStateful p s -> BPC (p ::< s ::< Ø) (\case I p' :< I s' :< Ø -> NCStateful p' s') $
+                                \(pVar :< sVar :< Ø) -> do
+        y :< sVar' :< Ø <- runComponentS ~$$ (x :< pVar :< sVar :< Ø)
+        c' :< Ø <- isoVar @s @_ @'[c b i o, CState c b i o] @'[NetComponent c b i o]
+                          (iso (\case I p' :< I s' :< Ø -> only_ (NCStateful p' s'))
+                               (\case I gC :< Ø -> case gC of
+                                        NCStateful p' s' -> p' ::< s' ::< Ø
+                               )
+                          )
+                          (pVar :< sVar' :< Ø)
+        return $ y :< c' :< Ø
+
 
 -- runNetComponent
 --     :: Num (b o)
