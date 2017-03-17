@@ -39,7 +39,7 @@ packages:
 - '.'
 - location:
     git: https://github.com/mstksg/backprop.git
-    commit: 442ec33c509eea26272e82c827505f8dfac94b5a
+    commit: 14f60076cecce0071ff679de40aa151d5d6af837
   extra-dep: true
 
 # Dependency packages to be pulled from upstream that are not in the resolver
