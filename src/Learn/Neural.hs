@@ -44,7 +44,7 @@ type family MaybeToList (a :: Maybe k) = (b :: [k]) where
 -- data Statefulness = Stateful
 --                   | NonStateful
 
-class Component c where
+class Component (c :: (BShape Nat -> Type) -> BShape Nat -> BShape Nat -> Type) where
     initComponent
         :: ContGen d
         => Sing i
@@ -54,24 +54,55 @@ class Component c where
         -> m (c b i o)
 
 class Component c => ComponentP c where
-    runComponentP :: OpB t '[b i, c b i o] (b o)
+    runComponentP :: OpB t '[b i, c b i o] '[b o]
 
 class Component c => ComponentS c where
-    runComponentS :: OpB t '[b i, c b i o] (Tuple '[b o, c b i o])
+    type CState c (b :: BShape Nat -> Type) (i :: BShape Nat) (o :: BShape Nat) :: Type
+    runComponentS :: OpB t '[b i, c b i o, CState c b i o] '[b o, CState c b i o]
 
-data NetComponent :: (BShape Nat -> Type) -> BShape Nat -> BShape Nat -> Type where
-    NCPure     :: (Num (c b i o), ComponentP c) => c b i o -> NetComponent b i o
-    NCStateful :: ComponentS c => c b i o -> NetComponent b i o
+data NetComponent
+        :: ((BShape Nat -> Type) -> BShape Nat -> BShape Nat -> Type)
+        -> (BShape Nat -> Type)
+        -> BShape Nat
+        -> BShape Nat
+        -> Type where
+    NCPure     :: (Num (c b i o), ComponentP c) => c b i o -> NetComponent c b i o
+    NCStateful :: (Num (c b i o), ComponentS c) => c b i o -> CState c b i o -> NetComponent c b i o
 
-runNetComponent
-    :: Num (b o)
-    => BPOp s '[b i, NetComponent b i o] (Tuple '[ b o, NetComponent b i o ])
-runNetComponent = withInps $ \(x :< c :< Ø) ->
-    withGADT c $ \case
-      c'@(NCPure p) -> BPC (only_ p) (NCPure . getI . head') $ \(pVar :< Ø) -> do
-        y   <- runComponentP ~$ (x :< pVar :< Ø)
-        out :< Ø <- isoVar _ (y :< constVar c' :< Ø)
-        return out
+netComponentOp
+    :: forall s c b i o. Num (b i)
+    => OpB s '[ b i, NetComponent c b i o ] '[b o, NetComponent c b i o]
+netComponentOp = OpM $ \(I x :< I c :< Ø) ->
+    case c of
+      n@(NCPure p) -> do
+        (I y :< Ø, gF) <- runOpM' runComponentP (x ::< p ::< Ø)
+        let out = y ::< n ::< Ø
+            gF' = fmap (\case I gX :< I gP :< Ø -> gX ::< NCPure gP ::< Ø)
+                . gF
+                . (\case gX :< _ -> gX :< Ø)
+        return (out, gF')
+      NCStateful p s0 -> do
+        (I y :< I s1 :< Ø, gF) <- runOpM' runComponentS (x ::< p ::< s0 ::< Ø)
+        let out = y ::< NCStateful p s1 ::< Ø
+            gF' = fmap (\case I gX :< I gP :< I gS :< Ø -> gX ::< NCStateful gP gS ::< Ø)
+                . gF
+                . (\case
+                      gX :< gC :< Ø ->
+                        case gC of
+                          Just (NCStateful gP gS) -> gX :< Just gS :< Ø
+                          _                       -> gX :< Nothing :< Ø
+                  )
+        return (out, gF')
+
+-- runNetComponent
+--     :: Num (b o)
+--     => BPOp s '[b i, NetComponent b i o] (Tuple '[ b o, NetComponent b i o ])
+-- runNetComponent = withInps $ \(x :< c :< Ø) ->
+--     withGADT c $ \case
+--       c'@(NCPure p) -> BPC (only_ p) (NCPure . getI . head') $ \(pVar :< Ø) -> do
+--         y   <- runComponentP ~$ (x :< pVar :< Ø)
+--         out :< Ø <- isoVar _ (y :< constVar c' :< Ø)
+--         return out
 
 -- --       c'@(NCPure p) -> BPC (p ::< Ø) (NCPure . getI . head') $ \(pVar :< Ø) -> do
 -- --         y :< Ø <- runComponent ~$$ (x :< pVar :< Ø)
