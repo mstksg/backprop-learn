@@ -1,62 +1,55 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DataKinds              #-}</span><span>
-</span><a name="line-2"></a><span class="hs-pragma">{-# LANGUAGE FlexibleContexts       #-}</span><span>
-</span><a name="line-3"></a><span class="hs-pragma">{-# LANGUAGE FlexibleInstances      #-}</span><span>
-</span><a name="line-4"></a><span class="hs-pragma">{-# LANGUAGE FunctionalDependencies #-}</span><span>
-</span><a name="line-5"></a><span class="hs-pragma">{-# LANGUAGE GADTs                  #-}</span><span>
-</span><a name="line-6"></a><span class="hs-pragma">{-# LANGUAGE LambdaCase             #-}</span><span>
-</span><a name="line-7"></a><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses  #-}</span><span>
-</span><a name="line-8"></a><span class="hs-pragma">{-# LANGUAGE PolyKinds              #-}</span><span>
-</span><a name="line-9"></a><span class="hs-pragma">{-# LANGUAGE RankNTypes             #-}</span><span>
-</span><a name="line-10"></a><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables    #-}</span><span>
-</span><a name="line-11"></a><span class="hs-pragma">{-# LANGUAGE TupleSections          #-}</span><span>
-</span><a name="line-12"></a><span class="hs-pragma">{-# LANGUAGE TypeApplications       #-}</span><span>
-</span><a name="line-13"></a><span class="hs-pragma">{-# LANGUAGE TypeFamilies           #-}</span><span>
-</span><a name="line-14"></a><span class="hs-pragma">{-# LANGUAGE TypeFamilyDependencies #-}</span><span>
-</span><a name="line-15"></a><span class="hs-pragma">{-# LANGUAGE TypeInType             #-}</span><span>
-</span><a name="line-16"></a><span class="hs-pragma">{-# LANGUAGE TypeOperators          #-}</span><span>
-</span><a name="line-17"></a><span class="hs-pragma">{-# LANGUAGE TypeSynonymInstances   #-}</span><span>
-</span><a name="line-18"></a><span class="hs-pragma">{-# LANGUAGE UndecidableInstances   #-}</span><span>
-</span><a name="line-19"></a><span>
-</span><a name="line-20"></a><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Learn</span><span class="hs-operator">.</span><span class="hs-identifier">Neural</span><span>
-</span><a name="line-21"></a><span>  </span><span class="hs-keyword">where</span><span>
-</span><a name="line-22"></a><span>
-</span><a name="line-23"></a><span class="hs-comment">-- import           Type.Family.List</span><span>
-</span><a name="line-24"></a><span class="hs-comment">-- import           Type.Family.Maybe</span><span>
-</span><a name="line-25"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Control</span><span class="hs-operator">.</span><span class="hs-identifier">Monad</span><span class="hs-operator">.</span><span class="hs-identifier">Primitive</span><span>
-</span><a name="line-26"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Control</span><span class="hs-operator">.</span><span class="hs-identifier">Monad</span><span class="hs-operator">.</span><span class="hs-identifier">ST</span><span>
-</span><a name="line-27"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Bifunctor</span><span>
-</span><a name="line-28"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Kind</span><span>
-</span><a name="line-29"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Singletons</span><span class="hs-operator">.</span><span class="hs-identifier">Prelude</span><span>
-</span><a name="line-30"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Index</span><span>
-</span><a name="line-31"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Option</span><span>
-</span><a name="line-32"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">GHC</span><span class="hs-operator">.</span><span class="hs-identifier">TypeLits</span><span>
-</span><a name="line-33"></a><span class="hs-keyword">import</span><span>           </span><a href="Numeric.BLAS.html"><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">BLAS</span></a><span>
-</span><a name="line-34"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Backprop</span><span>
-</span><a name="line-35"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Backprop</span><span class="hs-operator">.</span><span class="hs-identifier">Iso</span><span>    </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Iso'</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-var">iso</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-var">from</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-var">tup1</span><span class="hs-special">)</span><span>
-</span><a name="line-36"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Backprop</span><span class="hs-operator">.</span><span class="hs-identifier">Op</span><span>
-</span><a name="line-37"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Statistics</span><span class="hs-operator">.</span><span class="hs-identifier">Distribution</span><span>
-</span><a name="line-38"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">System</span><span class="hs-operator">.</span><span class="hs-identifier">Random</span><span class="hs-operator">.</span><span class="hs-identifier">MWC</span><span>
-</span><a name="line-39"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Family</span><span class="hs-operator">.</span><span class="hs-identifier">Bool</span><span>
-</span><a name="line-40"></a><span>
-</span><a name="line-41"></a><span class="hs-keyword">type</span><span> </span><span class="hs-keyword">family</span><span> </span><a name="MaybeToList"><a href="Learn.Neural.html#MaybeToList"><span class="hs-identifier">MaybeToList</span></a></a><span> </span><span class="hs-special">(</span><a name="local-6989586621679229045"><a href="#local-6989586621679229045"><span class="hs-identifier">a</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Maybe</span><span> </span><a href="#local-6989586621679229044"><span class="hs-identifier hs-type">k</span></a><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><a name="local-6989586621679229046"><a href="#local-6989586621679229046"><span class="hs-identifier">b</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><a href="#local-6989586621679229044"><span class="hs-identifier hs-type">k</span></a><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">b</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-keyword">where</span><span>
-</span><a name="line-42"></a><span>    </span><span class="hs-identifier">MaybeToList</span><span> </span><span class="hs-special">(</span><span class="hs-char">'Just a ) = '[a]
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE AllowAmbiguousTypes    #-}</span><span>
+</span><a name="line-2"></a><span class="hs-pragma">{-# LANGUAGE DataKinds              #-}</span><span>
+</span><a name="line-3"></a><span class="hs-pragma">{-# LANGUAGE FlexibleContexts       #-}</span><span>
+</span><a name="line-4"></a><span class="hs-pragma">{-# LANGUAGE FlexibleInstances      #-}</span><span>
+</span><a name="line-5"></a><span class="hs-pragma">{-# LANGUAGE FunctionalDependencies #-}</span><span>
+</span><a name="line-6"></a><span class="hs-pragma">{-# LANGUAGE GADTs                  #-}</span><span>
+</span><a name="line-7"></a><span class="hs-pragma">{-# LANGUAGE LambdaCase             #-}</span><span>
+</span><a name="line-8"></a><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses  #-}</span><span>
+</span><a name="line-9"></a><span class="hs-pragma">{-# LANGUAGE PolyKinds              #-}</span><span>
+</span><a name="line-10"></a><span class="hs-pragma">{-# LANGUAGE RankNTypes             #-}</span><span>
+</span><a name="line-11"></a><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables    #-}</span><span>
+</span><a name="line-12"></a><span class="hs-pragma">{-# LANGUAGE TupleSections          #-}</span><span>
+</span><a name="line-13"></a><span class="hs-pragma">{-# LANGUAGE TypeApplications       #-}</span><span>
+</span><a name="line-14"></a><span class="hs-pragma">{-# LANGUAGE TypeFamilies           #-}</span><span>
+</span><a name="line-15"></a><span class="hs-pragma">{-# LANGUAGE TypeFamilyDependencies #-}</span><span>
+</span><a name="line-16"></a><span class="hs-pragma">{-# LANGUAGE TypeInType             #-}</span><span>
+</span><a name="line-17"></a><span class="hs-pragma">{-# LANGUAGE TypeOperators          #-}</span><span>
+</span><a name="line-18"></a><span class="hs-pragma">{-# LANGUAGE TypeSynonymInstances   #-}</span><span>
+</span><a name="line-19"></a><span class="hs-pragma">{-# LANGUAGE UndecidableInstances   #-}</span><span>
+</span><a name="line-20"></a><span>
+</span><a name="line-21"></a><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Learn</span><span class="hs-operator">.</span><span class="hs-identifier">Neural</span><span>
+</span><a name="line-22"></a><span>  </span><span class="hs-keyword">where</span><span>
+</span><a name="line-23"></a><span>
+</span><a name="line-24"></a><span class="hs-comment">-- import           Type.Family.List</span><span>
+</span><a name="line-25"></a><span class="hs-comment">-- import           Type.Family.Maybe</span><span>
+</span><a name="line-26"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Control</span><span class="hs-operator">.</span><span class="hs-identifier">Monad</span><span class="hs-operator">.</span><span class="hs-identifier">Primitive</span><span>
+</span><a name="line-27"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Control</span><span class="hs-operator">.</span><span class="hs-identifier">Monad</span><span class="hs-operator">.</span><span class="hs-identifier">ST</span><span>
+</span><a name="line-28"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Bifunctor</span><span>
+</span><a name="line-29"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Kind</span><span>
+</span><a name="line-30"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Singletons</span><span class="hs-operator">.</span><span class="hs-identifier">Prelude</span><span>
+</span><a name="line-31"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Index</span><span>
+</span><a name="line-32"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Option</span><span>
+</span><a name="line-33"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">GHC</span><span class="hs-operator">.</span><span class="hs-identifier">TypeLits</span><span>
+</span><a name="line-34"></a><span class="hs-keyword">import</span><span>           </span><a href="Numeric.BLAS.html"><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">BLAS</span></a><span>
+</span><a name="line-35"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Backprop</span><span>
+</span><a name="line-36"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Backprop</span><span class="hs-operator">.</span><span class="hs-identifier">Iso</span><span>    </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Iso'</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-var">iso</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-var">from</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-var">tup1</span><span class="hs-special">)</span><span>
+</span><a name="line-37"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Backprop</span><span class="hs-operator">.</span><span class="hs-identifier">Op</span><span>
+</span><a name="line-38"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Statistics</span><span class="hs-operator">.</span><span class="hs-identifier">Distribution</span><span>
+</span><a name="line-39"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">System</span><span class="hs-operator">.</span><span class="hs-identifier">Random</span><span class="hs-operator">.</span><span class="hs-identifier">MWC</span><span>
+</span><a name="line-40"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Family</span><span class="hs-operator">.</span><span class="hs-identifier">Bool</span><span>
+</span><a name="line-41"></a><span>
+</span><a name="line-42"></a><span class="hs-keyword">type</span><span> </span><span class="hs-keyword">family</span><span> </span><a name="MaybeToList"><a href="Learn.Neural.html#MaybeToList"><span class="hs-identifier">MaybeToList</span></a></a><span> </span><span class="hs-special">(</span><a name="local-6989586621679229045"><a href="#local-6989586621679229045"><span class="hs-identifier">a</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Maybe</span><span> </span><a href="#local-6989586621679229044"><span class="hs-identifier hs-type">k</span></a><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><a name="local-6989586621679229046"><a href="#local-6989586621679229046"><span class="hs-identifier">b</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><a href="#local-6989586621679229044"><span class="hs-identifier hs-type">k</span></a><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">b</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-43"></a><span>    </span><span class="hs-identifier">MaybeToList</span><span> </span><span class="hs-special">(</span><span class="hs-char">'Just a ) = '[a]
     MaybeToList 'Nothing   = '[]
 
-type family IsJust (a :: Maybe k) = (b :: Bool) where
-    IsJust ('Just a) = 'True
-    IsJust 'Nothing  = 'False
+class Component c where
+    type CParam c (b :: BShape Nat -&gt; Type) (i :: BShape Nat) (o :: BShape Nat) = (p :: Type      ) | p -&gt; c
+    type CState c (b :: BShape Nat -&gt; Type) (i :: BShape Nat) (o :: BShape Nat) = (s :: Maybe Type) | s -&gt; c
 
-
--- type family StateInp (a :: Maybe (BShape Nat -&gt; Type)) (s :: BShape Nat) = (b :: [Type]) where
---     StateInp ('Just t) s = StateInp
-
-data Statefulness = Stateful
-                  | NonStateful
-
-class Component (c :: (BShape Nat -&gt; Type) -&gt; BShape Nat -&gt; BShape Nat -&gt; Type) where
-    type CState c (b :: BShape Nat -&gt; Type) (i :: BShape Nat) (o :: BShape Nat) :: Maybe Type
     runComponent
-        :: OpB t (b i ': c b i o ': MaybeToList (CState c b i o))
+        :: forall s b i o. ()
+        =&gt; OpB s (b i ': CParam c b i o ': MaybeToList (CState c b i o))
                  (b o ': MaybeToList (CState c b i o))
     initComponent
         :: ContGen d
@@ -64,115 +57,101 @@ class Component (c :: (BShape Nat -&gt; Type) -&gt; BShape Nat -&gt; BShape Nat 
         -&gt; Sing o
         -&gt; d
         -&gt; Gen (PrimState m)
-        -&gt; m (c b i o, Option I (CState c b i o))
+        -&gt; m (Tuple (CParam c b i o ': MaybeToList (CState c b i o)))
 
-data Params
-        :: Statefulness
-        -&gt; ((BShape Nat -&gt; Type) -&gt; BShape Nat -&gt; BShape Nat -&gt; Type)
-        -&gt; (BShape Nat -&gt; Type)
-        -&gt; BShape Nat
-        -&gt; BShape Nat
-        -&gt; Type where
-    PPure
-        :: (Num (c b i o), Component c, CState c b i o ~ 'Nothing)
-        =&gt; c b i o
-        -&gt; Params s c b i o
-    PStateful
-        :: (Num (c b i o), Num st, Component c, CState c b i o ~ 'Just st)
-        =&gt; c b i o
-        -&gt; st
-        -&gt; Params Stateful c b i o
+data HasState = NoState
+              | SomeState
 
-instance Component c =&gt; Num (Params s c b i o) where
-    (+) = \case
-      PPure x -&gt; \case
-        PPure y -&gt; PPure (x + y)
-      PStateful x s -&gt; \case
-        PStateful y t -&gt; PStateful (x + y) (s + t)
+data Layer :: Type -&gt; HasState -&gt; (BShape Nat -&gt; Type) -&gt; BShape Nat -&gt; BShape Nat -&gt; Type where
+    LPure  :: (CState c b i o ~ 'Nothing) =&gt; CParam c b i o -&gt; Layer c r b i o
+    LState :: (CState c b i o ~ 'Just s ) =&gt; CParam c b i o -&gt; s -&gt; Layer c 'SomeState b i o
 
-pPure
-    :: (CState c b i o ~ 'Nothing, Num (c b i o), Component c)
-    =&gt; Iso' (Params s c b i o) (c b i o)
-pPure = iso (\case PPure p -&gt; p) PPure
+instance Num (Layer c r b i o)
 
-pStateful
-    :: (CState c b i o ~ 'Just st, Num (c b i o), Num st, Component c)
-    =&gt; Iso' (Params Stateful c b i o) (Tuple '[c b i o, st])
-pStateful = iso (\case PStateful p s   -&gt; p ::&lt; s ::&lt; &#216;)
-                (\case I p :&lt; I s :&lt; &#216; -&gt; PStateful p s)
+layerOp
+    :: forall s c r b i o. Component c
+    =&gt; OpB s '[ b i, Layer c r b i o ] '[ b o, Layer c r b i o ]
+layerOp = OpM $ \(I x :&lt; I l :&lt; &#216;) -&gt; case l of
+    LPure p -&gt; do
+      (I y :&lt; &#216;, gF) &lt;- runOpM' (runComponent @_ @_ @_ @_ @o) (x ::&lt; p ::&lt; &#216;)
+      let gF' = fmap (\case I dX :&lt; I dP :&lt; &#216; -&gt; I dX :&lt; I (LPure dP) :&lt; &#216;)
+              . gF
+              . (\case dY :&lt; _ :&lt; &#216; -&gt; dY :&lt; &#216;)
+      return (y ::&lt; LPure p ::&lt; &#216;, gF')
+    LState p s -&gt; do
+      (I y :&lt; I s' :&lt; &#216;, gF) &lt;- runOpM' (runComponent @_ @_ @_ @_ @o) (x ::&lt; p ::&lt; s ::&lt; &#216;)
+      let gF' = fmap (\case I dX :&lt; I dP :&lt; I dS :&lt; &#216; -&gt; dX ::&lt; LState dP dS ::&lt; &#216;)
+              . gF
+              . (\case dY :&lt; Just (LState dP dS) :&lt; &#216; -&gt; dY :&lt; Just dS :&lt; &#216;
+                       dY :&lt; Nothing             :&lt; &#216; -&gt; dY :&lt; Nothing :&lt; &#216;
+                )
+      return (y ::&lt; LState p s' ::&lt; &#216;, gF')
 
-paramsOpPure
-    :: forall s sf c b i o.
-     ( Num (b o)
-     , CState c b i o ~ 'Nothing
-     , Component c
-     , Num (c b i o)
-     )
-    =&gt; BPOp s '[ b i, Params sf c b i o ] '[ b o ]
-paramsOpPure = withInps $ \(x :&lt; p :&lt; &#216;) -&gt; do
-    c &lt;- opIso pPure ~$ (p :&lt; &#216;)
-    y &lt;- runComponent ~$ (x :&lt; c :&lt; &#216;)
-    return $ only y
+layerOpPure
+    :: forall s c b i o. Component c
+    =&gt; OpB s '[ b i, Layer c 'NoState b i o ] '[ b o ]
+layerOpPure = OpM $ \(I x :&lt; I l :&lt; &#216;) -&gt; case l of
+    LPure p -&gt; do
+      (I y :&lt; &#216;, gF) &lt;- runOpM' (runComponent @_ @_ @_ @_ @o) (x ::&lt; p ::&lt; &#216;)
+      let gF' = fmap (\case I dX :&lt; I dP :&lt; &#216; -&gt; I dX :&lt; I (LPure dP) :&lt; &#216;)
+              . gF
+      return (y ::&lt; &#216;, gF')
 
-paramsOp
-    :: forall s sf c b i o. Num (b o)
-    =&gt; BPOp s '[ b i, Params sf c b i o ] '[ b o, Params sf c b i o ]
-paramsOp = withInps $ \(x :&lt; c :&lt; &#216;) -&gt;
-    withGADT c $ \case
-      PPure p -&gt; BPC (only_ p) (PPure . getI . head') $ \(pVar :&lt; &#216;) -&gt; do
-        y &lt;- runComponent ~$ (x :&lt; pVar :&lt; &#216;)
-        c' &lt;- opIso (from pPure) ~$ (pVar :&lt; &#216;)
-        return $ y :&lt; c' :&lt; &#216;
-      PStateful p (s :: st) -&gt; BPC (p ::&lt; s ::&lt; &#216;)
-                                   (\case I p' :&lt; I s' :&lt; &#216; -&gt; PStateful p' s')
-                                      $ \(pVar :&lt; sVar :&lt; &#216;) -&gt; do
-        y :&lt; sVar' :&lt; &#216; &lt;- runComponent ~$$ (x :&lt; pVar :&lt; sVar :&lt; &#216;)
-        c' :&lt; &#216; &lt;- isoVar (from pStateful . tup1) (pVar :&lt; sVar' :&lt; &#216;)
-        return $ y :&lt; c' :&lt; &#216;
+data LChain :: Type where
+    (:~) :: BShape Nat -&gt; Type -&gt; LChain
 
-data Network
-        :: Statefulness
-        -&gt; (BShape Nat -&gt; Type)
-        -&gt; (BShape Nat, ((BShape Nat -&gt; Type) -&gt; BShape Nat -&gt; BShape Nat -&gt; Type))
-        -&gt; [(BShape Nat, (BShape Nat -&gt; Type) -&gt; BShape Nat -&gt; BShape Nat -&gt; Type)]
-        -&gt; BShape Nat
-        -&gt; Type
-        where
-    NetExt
-        :: Params s c b i o
-        -&gt; Network s b '(i, c) '[] o
-    (:&amp;)
-        :: (Num (b h), Component d)
-        =&gt; Params s c b i h
-        -&gt; Network s b '(h, d) hs o
-        -&gt; Network s b '(i, c) ( '(h, d) ': hs ) o
-
-instance Num (Network s b i hs o)
-
-netExt :: Iso' (Network s b '(i, c) '[] o) (Params s c b i o)
-netExt = iso (\case NetExt p -&gt; p) NetExt
-
-netInt
-    :: (Num (b h), Component d)
-    =&gt; Iso' (Network s b '(i, c) ( '(h, d) ': hs ) o) (Tuple '[Params s c b i h, Network s b '(h, d) hs o])
-netInt = iso (\case p :&amp; n          -&gt; p ::&lt; n ::&lt; &#216;)
-             (\case I p :&lt; I n :&lt; &#216; -&gt; p :&amp; n       )
-
+data Network :: HasState -&gt; (BShape Nat -&gt; Type) -&gt; LChain -&gt; [LChain] -&gt; BShape Nat -&gt; Type where
+    NetExt :: Layer c r b i o
+           -&gt; Network r b (i ':~ c) '[] o
+    (:&amp;)   :: Component d
+           =&gt; Layer c r b i h
+           -&gt; Network r b (h ':~ d) hs               o
+           -&gt; Network r b (i ':~ c) ((h ':~ d) ': hs) o
 
 networkOp
-    :: (Num (b i), Component c, Num (b o))
-    =&gt; BPOp s '[ b i, Network sf b '(i, c) hs o] '[ b o, Network sf b '(i, c) hs o ]
-networkOp = withInps $ \(x :&lt; n :&lt; &#216;) -&gt; do
-    withGADT n $ \case
-      NetExt p -&gt; BPC (only_ p) (NetExt . getI . head') $ \(pVar :&lt; &#216;) -&gt; do
-        y :&lt; pVar' :&lt; &#216; &lt;- paramsOp -$$ (x :&lt; pVar :&lt; &#216;)
-        n' &lt;- opIso (from netExt) ~$ (pVar' :&lt; &#216;)
-        return $ y :&lt; n' :&lt; &#216;
-      p :&amp; n' -&gt; BPC (p ::&lt; n' ::&lt; &#216;) (\case I p' :&lt; I n'' :&lt; &#216; -&gt; p' :&amp; n'')
-                       $ \(pVar :&lt; nVar :&lt; &#216;) -&gt; do
-        y :&lt; pVar' :&lt; &#216; &lt;- paramsOp -$$ (x :&lt; pVar :&lt; &#216;)
-        z :&lt; nVar' :&lt; &#216; &lt;- networkOp -$$ (y :&lt; nVar :&lt; &#216;)
-        newNet :&lt; &#216; &lt;- isoVar (from netInt . tup1) (pVar' :&lt; nVar' :&lt; &#216;)
-        return $ z :&lt; newNet :&lt; &#216;
+    :: forall s r b i c hs o. Component c
+    =&gt; OpB s '[ b i, Network r b (i ':~ c) hs o ] '[ b o, Network r b (i ':~ c) hs o ]
+networkOp = OpM $ \(I x :&lt; I n :&lt; &#216;) -&gt; case n of
+    NetExt l -&gt; do
+      (I y :&lt; I l' :&lt; &#216;, gF) &lt;- runOpM' layerOp (x ::&lt; l ::&lt; &#216;)
+      let gF' = fmap (\case I dX :&lt; I dL :&lt; &#216; -&gt; dX ::&lt; NetExt dL ::&lt; &#216;)
+              . gF
+              . (\case dY :&lt; Just (NetExt dL) :&lt; &#216; -&gt; dY :&lt; Just dL :&lt; &#216;
+                       dY :&lt; Nothing          :&lt; &#216; -&gt; dY :&lt; Nothing :&lt; &#216;
+                )
+      return (y ::&lt; NetExt l' ::&lt; &#216;, gF')
+    (l :: Layer c r b i h) :&amp; (n2 :: Network r b (h ':~ d) js o) -&gt; do
+      (I y :&lt; I l'  :&lt; &#216;, gF ) &lt;- runOpM' layerOp   (x ::&lt; l ::&lt; &#216;)
+      (I z :&lt; I n2' :&lt; &#216;, gF') &lt;- runOpM' networkOp (y ::&lt; n2 ::&lt; &#216;)
+      let gF'' :: Prod Maybe '[ b o, Network r b (i ':~ c) ((h ':~ d) ': js) o]
+               -&gt; ST s (Tuple '[ b i, Network r b (i ':~ c) ((h ':~ d) ': js) o])
+          gF'' = \case dZ :&lt; Just (dL :&amp; dN) :&lt; &#216; -&gt; do
+                         I dY :&lt; I dN2 :&lt; &#216; &lt;- gF' (dZ :&lt; Just dN :&lt; &#216;)
+                         I dX :&lt; I dL0 :&lt; &#216; &lt;- gF  (Just dY :&lt; Just dL :&lt; &#216;)
+                         return $ dX ::&lt; (dL0 :&amp; dN2) ::&lt; &#216;
+                       dZ :&lt; Nothing   :&lt; &#216; -&gt; do
+                         I dY :&lt; I dN2 :&lt; &#216; &lt;- gF' (dZ :&lt; Nothing :&lt; &#216;)
+                         I dX :&lt; I dL0 :&lt; &#216; &lt;- gF  (Just dY :&lt; Nothing :&lt; &#216;)
+                         return $ dX ::&lt; (dL0 :&amp; dN2) ::&lt; &#216;
+      return (z ::&lt; (l' :&amp; n2') ::&lt; &#216;, gF'')
 
+networkOpPure
+    :: forall s b i c hs o. Component c
+    =&gt; OpB s '[ b i, Network 'NoState b (i ':~ c) hs o ] '[ b o ]
+networkOpPure = OpM $ \(I x :&lt; I n :&lt; &#216;) -&gt; case n of
+    NetExt l -&gt; do
+      (I y :&lt; &#216;, gF) &lt;- runOpM' layerOpPure (x ::&lt; l ::&lt; &#216;)
+      let gF' = fmap (\case I dX :&lt; I dL :&lt; &#216; -&gt; dX ::&lt; NetExt dL ::&lt; &#216;)
+              . gF
+      return (y ::&lt; &#216;, gF')
+    (l :: Layer c 'NoState b i h) :&amp; (n2 :: Network 'NoState b (h ':~ d) js o) -&gt; do
+      (I y :&lt; &#216;, gF ) &lt;- runOpM' layerOpPure   (x ::&lt; l ::&lt; &#216;)
+      (I z :&lt; &#216;, gF') &lt;- runOpM' networkOpPure (y ::&lt; n2 ::&lt; &#216;)
+      let gF'' :: Prod Maybe '[ b o ]
+               -&gt; ST s (Tuple '[ b i, Network 'NoState b (i ':~ c) ((h ':~ d) ': js) o])
+          gF'' dZ = do
+            I dY :&lt; I dN2 :&lt; &#216; &lt;- gF' dZ
+            I dX :&lt; I dL0 :&lt; &#216; &lt;- gF  (Just dY :&lt; &#216;)
+            return $ dX ::&lt; (dL0 :&amp; dN2) ::&lt; &#216;
+      return (z ::&lt; &#216;, gF'')
 </span></pre></body></html>

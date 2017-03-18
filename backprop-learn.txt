@@ -71,29 +71,31 @@ instance Data.Singletons.SingI s => Data.MonoTraversable.MonoFunctor (Numeric.BL
 instance Data.Singletons.SingI s => Data.MonoTraversable.MonoFoldable (Numeric.BLAS.HMatrix.HM s)
 
 module Learn.Neural
-data Statefulness
-Stateful :: Statefulness
-NonStateful :: Statefulness
-class Component (c :: (BShape Nat -> Type) -> BShape Nat -> BShape Nat -> Type) where type CState c (b :: BShape Nat -> Type) (i :: BShape Nat) (o :: BShape Nat) :: Maybe Type where {
+class Component c where type CParam c (b :: BShape Nat -> Type) (i :: BShape Nat) (o :: BShape Nat) = (p :: Type) | p -> c type CState c (b :: BShape Nat -> Type) (i :: BShape Nat) (o :: BShape Nat) = (s :: Maybe Type) | s -> c where {
+    type family CParam c
+                       (b :: BShape Nat -> Type)
+                       (i :: BShape Nat)
+                       (o :: BShape Nat) = (p :: Type) | p -> c;
     type family CState c
                        (b :: BShape Nat -> Type)
                        (i :: BShape Nat)
-                       (o :: BShape Nat) :: Maybe Type;
+                       (o :: BShape Nat) = (s :: Maybe Type) | s -> c;
 }
-runComponent :: Component c => OpB t (b i : (c b i o : MaybeToList (CState c b i o))) (b o : MaybeToList (CState c b i o))
-initComponent :: (Component c, ContGen d) => Sing i -> Sing o -> d -> Gen (PrimState m) -> m (c b i o, Option I (CState c b i o))
-data Params :: Statefulness -> ((BShape Nat -> Type) -> BShape Nat -> BShape Nat -> Type) -> (BShape Nat -> Type) -> BShape Nat -> BShape Nat -> Type
-[PPure] :: (Num (c b i o), Component c, CState c b i o ~ Nothing) => c b i o -> Params s c b i o
-[PStateful] :: (Num (c b i o), Num st, Component c, CState c b i o ~ Just st) => c b i o -> st -> Params Stateful c b i o
-pPure :: (CState c b i o ~ Nothing, Num (c b i o), Component c) => Iso' (Params s c b i o) (c b i o)
-pStateful :: (CState c b i o ~ Just st, Num (c b i o), Num st, Component c) => Iso' (Params Stateful c b i o) (Tuple '[c b i o, st])
-paramsOpPure :: forall s sf c b i o. (Num (b o), CState c b i o ~ Nothing, Component c, Num (c b i o)) => BPOp s '[b i, Params sf c b i o] '[b o]
-paramsOp :: forall s sf c b i o. Num (b o) => BPOp s '[b i, Params sf c b i o] '[b o, Params sf c b i o]
-data Network :: Statefulness -> (BShape Nat -> Type) -> (BShape Nat, (BShape Nat -> Type) -> BShape Nat -> BShape Nat -> Type) -> [(BShape Nat, (BShape Nat -> Type) -> BShape Nat -> BShape Nat -> Type)] -> BShape Nat -> Type
-[NetExt] :: Params s c b i o -> Network s b '(i, c) '[] o
-[:&] :: (Num (b h), Component d) => Params s c b i h -> Network s b '(h, d) hs o -> Network s b '(i, c) ('(h, d) : hs) o
-netExt :: Iso' (Network s b '(i, c) '[] o) (Params s c b i o)
-netInt :: (Num (b h), Component d) => Iso' (Network s b '(i, c) ('(h, d) : hs) o) (Tuple '[Params s c b i h, Network s b '(h, d) hs o])
-networkOp :: (Num (b i), Component c, Num (b o)) => BPOp s '[b i, Network sf b '(i, c) hs o] '[b o, Network sf b '(i, c) hs o]
-instance Learn.Neural.Component c => GHC.Num.Num (Learn.Neural.Params s c b i o)
-instance GHC.Num.Num (Learn.Neural.Network s b i hs o)
+runComponent :: forall s b i o. Component c => OpB s (b i : (CParam c b i o : MaybeToList (CState c b i o))) (b o : MaybeToList (CState c b i o))
+initComponent :: (Component c, ContGen d) => Sing i -> Sing o -> d -> Gen (PrimState m) -> m (Tuple (CParam c b i o : MaybeToList (CState c b i o)))
+data HasState
+NoState :: HasState
+SomeState :: HasState
+data Layer :: Type -> HasState -> (BShape Nat -> Type) -> BShape Nat -> BShape Nat -> Type
+[LPure] :: (CState c b i o ~ Nothing) => CParam c b i o -> Layer c r b i o
+[LState] :: (CState c b i o ~ Just s) => CParam c b i o -> s -> Layer c SomeState b i o
+layerOp :: forall s c r b i o. Component c => OpB s '[b i, Layer c r b i o] '[b o, Layer c r b i o]
+layerOpPure :: forall s c b i o. Component c => OpB s '[b i, Layer c NoState b i o] '[b o]
+data LChain :: Type
+[:~] :: BShape Nat -> Type -> LChain
+data Network :: HasState -> (BShape Nat -> Type) -> LChain -> [LChain] -> BShape Nat -> Type
+[NetExt] :: Layer c r b i o -> Network r b (i :~ c) '[] o
+[:&] :: Component d => Layer c r b i h -> Network r b (h :~ d) hs o -> Network r b (i :~ c) ((h :~ d) : hs) o
+networkOp :: forall s r b i c hs o. Component c => OpB s '[b i, Network r b (i :~ c) hs o] '[b o, Network r b (i :~ c) hs o]
+networkOpPure :: forall s b i c hs o. Component c => OpB s '[b i, Network NoState b (i :~ c) hs o] '[b o]
+instance GHC.Num.Num (Learn.Neural.Layer c r b i o)
