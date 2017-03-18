@@ -4,7 +4,7 @@
 
 -- | Combinators and useful tools for ANNs using the backprop library
 --   
---   Combinators and useful tools for ANNs using the backprop library
+--   See README.md
 @package backprop-learn
 @version 0.1.0.0
 
@@ -35,12 +35,12 @@ ger :: (BLAS b, KnownNat m, KnownNat n) => Scalar b -> b (BV m) -> b (BV n) -> b
 syr :: (BLAS b, KnownNat n) => Scalar b -> b (BV n) -> b (BM n n) -> b (BM n n)
 gemm :: (BLAS b, KnownNat m, KnownNat o, KnownNat n) => Scalar b -> b (BM m o) -> b (BM o n) -> Scalar b -> b (BM m n) -> b (BM m n)
 syrk :: (BLAS b, KnownNat m, KnownNat n) => Scalar b -> b (BM m n) -> Scalar b -> b (BM m m) -> b (BM m m)
-data BShape a_akvg
-BV :: !a_akvg -> BShape a_akvg
-BM :: !a_akvg -> !a_akvg -> BShape a_akvg
+data BShape a_anhz
+BV :: !a_anhz -> BShape a_anhz
+BM :: !a_anhz -> !a_anhz -> BShape a_anhz
 
 -- | The singleton kind-indexed data family.
-type SBShape = (Sing :: BShape a_akvg -> Type)
+type SBShape = (Sing :: BShape a_anhz -> Type)
 data BIndex :: BShape Nat -> Type
 [BVIx] :: Finite n -> BIndex (BV n)
 [BMIx] :: Finite m -> Finite n -> BIndex (BM m n)
@@ -52,8 +52,8 @@ instance Data.Singletons.Prelude.Eq.PEq 'Data.Proxy.Proxy
 instance Data.Singletons.SuppressUnusedWarnings.SuppressUnusedWarnings Numeric.BLAS.BVSym0
 instance Data.Singletons.SuppressUnusedWarnings.SuppressUnusedWarnings Numeric.BLAS.BMSym1
 instance Data.Singletons.SuppressUnusedWarnings.SuppressUnusedWarnings Numeric.BLAS.BMSym0
-instance Data.Singletons.SuppressUnusedWarnings.SuppressUnusedWarnings Numeric.BLAS.Compare_6989586621679095562Sym1
-instance Data.Singletons.SuppressUnusedWarnings.SuppressUnusedWarnings Numeric.BLAS.Compare_6989586621679095562Sym0
+instance Data.Singletons.SuppressUnusedWarnings.SuppressUnusedWarnings Numeric.BLAS.Compare_6989586621679106245Sym1
+instance Data.Singletons.SuppressUnusedWarnings.SuppressUnusedWarnings Numeric.BLAS.Compare_6989586621679106245Sym0
 instance Data.Singletons.Prelude.Ord.POrd 'Data.Proxy.Proxy
 instance Data.Singletons.SingKind a0 => Data.Singletons.SingKind (Numeric.BLAS.BShape a0)
 instance Data.Singletons.Prelude.Eq.SEq a0 => Data.Singletons.Prelude.Eq.SEq (Numeric.BLAS.BShape a0)
@@ -69,3 +69,7 @@ instance Numeric.BLAS.BLAS Numeric.BLAS.HMatrix.HM
 instance Numeric.Tensor.Tensor Numeric.BLAS.HMatrix.HM
 instance Data.Singletons.SingI s => Data.MonoTraversable.MonoFunctor (Numeric.BLAS.HMatrix.HM s)
 instance Data.Singletons.SingI s => Data.MonoTraversable.MonoFoldable (Numeric.BLAS.HMatrix.HM s)
+
+module Learn.Neural
+instance Learn.Neural.Component c => GHC.Num.Num (Learn.Neural.Params s c b i o)
+instance GHC.Num.Num (Learn.Neural.Network s b i hs o)
