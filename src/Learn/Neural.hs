@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes    #-}
 {-# LANGUAGE DataKinds              #-}
 {-# LANGUAGE FlexibleContexts       #-}
 {-# LANGUAGE FlexibleInstances      #-}
@@ -17,8 +18,8 @@
 {-# LANGUAGE TypeSynonymInstances   #-}
 {-# LANGUAGE UndecidableInstances   #-}
 
-module Learn.Neural (
-  ) where
+module Learn.Neural
+  where
 
 -- import           Type.Family.List
 -- import           Type.Family.Maybe
@@ -42,21 +43,13 @@ type family MaybeToList (a :: Maybe k) = (b :: [k]) | b -> a where
     MaybeToList ('Just a ) = '[a]
     MaybeToList 'Nothing   = '[]
 
-type family IsJust (a :: Maybe k) = (b :: Bool) where
-    IsJust ('Just a) = 'True
-    IsJust 'Nothing  = 'False
+class Component c where
+    type CParam c (b :: BShape Nat -> Type) (i :: BShape Nat) (o :: BShape Nat) = (p :: Type      ) | p -> c
+    type CState c (b :: BShape Nat -> Type) (i :: BShape Nat) (o :: BShape Nat) = (s :: Maybe Type) | s -> c
 
-
--- type family StateInp (a :: Maybe (BShape Nat -> Type)) (s :: BShape Nat) = (b :: [Type]) where
---     StateInp ('Just t) s = StateInp
-
-data Statefulness = Stateful
-                  | NonStateful
-
-class Component (c :: (BShape Nat -> Type) -> BShape Nat -> BShape Nat -> Type) where
-    type CState c (b :: BShape Nat -> Type) (i :: BShape Nat) (o :: BShape Nat) :: Maybe Type
     runComponent
-        :: OpB t (b i ': c b i o ': MaybeToList (CState c b i o))
+        :: forall s b i o. ()
+        => OpB s (b i ': CParam c b i o ': MaybeToList (CState c b i o))
                  (b o ': MaybeToList (CState c b i o))
     initComponent
         :: ContGen d
@@ -64,114 +57,100 @@ class Component (c :: (BShape Nat -> Type) -> BShape Nat -> BShape Nat -> Type) 
         -> Sing o
         -> d
         -> Gen (PrimState m)
-        -> m (c b i o, Option I (CState c b i o))
+        -> m (Tuple (CParam c b i o ': MaybeToList (CState c b i o)))
 
-data Params
-        :: Statefulness
-        -> ((BShape Nat -> Type) -> BShape Nat -> BShape Nat -> Type)
-        -> (BShape Nat -> Type)
-        -> BShape Nat
-        -> BShape Nat
-        -> Type where
-    PPure
-        :: (Num (c b i o), Component c, CState c b i o ~ 'Nothing)
-        => c b i o
-        -> Params s c b i o
-    PStateful
-        :: (Num (c b i o), Num st, Component c, CState c b i o ~ 'Just st)
-        => c b i o
-        -> st
-        -> Params Stateful c b i o
+data HasState = NoState
+              | SomeState
 
-instance Component c => Num (Params s c b i o) where
-    (+) = \case
-      PPure x -> \case
-        PPure y -> PPure (x + y)
-      PStateful x s -> \case
-        PStateful y t -> PStateful (x + y) (s + t)
+data Layer :: Type -> HasState -> (BShape Nat -> Type) -> BShape Nat -> BShape Nat -> Type where
+    LPure  :: (CState c b i o ~ 'Nothing) => CParam c b i o -> Layer c r b i o
+    LState :: (CState c b i o ~ 'Just s ) => CParam c b i o -> s -> Layer c 'SomeState b i o
 
-pPure
-    :: (CState c b i o ~ 'Nothing, Num (c b i o), Component c)
-    => Iso' (Params s c b i o) (c b i o)
-pPure = iso (\case PPure p -> p) PPure
+instance Num (Layer c r b i o)
 
-pStateful
-    :: (CState c b i o ~ 'Just st, Num (c b i o), Num st, Component c)
-    => Iso' (Params Stateful c b i o) (Tuple '[c b i o, st])
-pStateful = iso (\case PStateful p s   -> p ::< s ::< Ø)
-                (\case I p :< I s :< Ø -> PStateful p s)
+layerOp
+    :: forall s c r b i o. Component c
+    => OpB s '[ b i, Layer c r b i o ] '[ b o, Layer c r b i o ]
+layerOp = OpM $ \(I x :< I l :< Ø) -> case l of
+    LPure p -> do
+      (I y :< Ø, gF) <- runOpM' (runComponent @_ @_ @_ @_ @o) (x ::< p ::< Ø)
+      let gF' = fmap (\case I dX :< I dP :< Ø -> I dX :< I (LPure dP) :< Ø)
+              . gF
+              . (\case dY :< _ :< Ø -> dY :< Ø)
+      return (y ::< LPure p ::< Ø, gF')
+    LState p s -> do
+      (I y :< I s' :< Ø, gF) <- runOpM' (runComponent @_ @_ @_ @_ @o) (x ::< p ::< s ::< Ø)
+      let gF' = fmap (\case I dX :< I dP :< I dS :< Ø -> dX ::< LState dP dS ::< Ø)
+              . gF
+              . (\case dY :< Just (LState dP dS) :< Ø -> dY :< Just dS :< Ø
+                       dY :< Nothing             :< Ø -> dY :< Nothing :< Ø
+                )
+      return (y ::< LState p s' ::< Ø, gF')
 
-paramsOpPure
-    :: forall s sf c b i o.
-     ( Num (b o)
-     , CState c b i o ~ 'Nothing
-     , Component c
-     , Num (c b i o)
-     )
-    => BPOp s '[ b i, Params sf c b i o ] '[ b o ]
-paramsOpPure = withInps $ \(x :< p :< Ø) -> do
-    c <- opIso pPure ~$ (p :< Ø)
-    y <- runComponent ~$ (x :< c :< Ø)
-    return $ only y
+layerOpPure
+    :: forall s c b i o. Component c
+    => OpB s '[ b i, Layer c 'NoState b i o ] '[ b o ]
+layerOpPure = OpM $ \(I x :< I l :< Ø) -> case l of
+    LPure p -> do
+      (I y :< Ø, gF) <- runOpM' (runComponent @_ @_ @_ @_ @o) (x ::< p ::< Ø)
+      let gF' = fmap (\case I dX :< I dP :< Ø -> I dX :< I (LPure dP) :< Ø)
+              . gF
+      return (y ::< Ø, gF')
 
-paramsOp
-    :: forall s sf c b i o. Num (b o)
-    => BPOp s '[ b i, Params sf c b i o ] '[ b o, Params sf c b i o ]
-paramsOp = withInps $ \(x :< c :< Ø) ->
-    withGADT c $ \case
-      PPure p -> BPC (only_ p) (PPure . getI . head') $ \(pVar :< Ø) -> do
-        y <- runComponent ~$ (x :< pVar :< Ø)
-        c' <- opIso (from pPure) ~$ (pVar :< Ø)
-        return $ y :< c' :< Ø
-      PStateful p (s :: st) -> BPC (p ::< s ::< Ø)
-                                   (\case I p' :< I s' :< Ø -> PStateful p' s')
-                                      $ \(pVar :< sVar :< Ø) -> do
-        y :< sVar' :< Ø <- runComponent ~$$ (x :< pVar :< sVar :< Ø)
-        c' :< Ø <- isoVar (from pStateful . tup1) (pVar :< sVar' :< Ø)
-        return $ y :< c' :< Ø
+data LChain :: Type where
+    (:~) :: BShape Nat -> Type -> LChain
 
-data Network
-        :: Statefulness
-        -> (BShape Nat -> Type)
-        -> (BShape Nat, ((BShape Nat -> Type) -> BShape Nat -> BShape Nat -> Type))
-        -> [(BShape Nat, (BShape Nat -> Type) -> BShape Nat -> BShape Nat -> Type)]
-        -> BShape Nat
-        -> Type
-        where
-    NetExt
-        :: Params s c b i o
-        -> Network s b '(i, c) '[] o
-    (:&)
-        :: (Num (b h), Component d)
-        => Params s c b i h
-        -> Network s b '(h, d) hs o
-        -> Network s b '(i, c) ( '(h, d) ': hs ) o
-
-instance Num (Network s b i hs o)
-
-netExt :: Iso' (Network s b '(i, c) '[] o) (Params s c b i o)
-netExt = iso (\case NetExt p -> p) NetExt
-
-netInt
-    :: (Num (b h), Component d)
-    => Iso' (Network s b '(i, c) ( '(h, d) ': hs ) o) (Tuple '[Params s c b i h, Network s b '(h, d) hs o])
-netInt = iso (\case p :& n          -> p ::< n ::< Ø)
-             (\case I p :< I n :< Ø -> p :& n       )
-
+data Network :: HasState -> (BShape Nat -> Type) -> LChain -> [LChain] -> BShape Nat -> Type where
+    NetExt :: Layer c r b i o
+           -> Network r b (i ':~ c) '[] o
+    (:&)   :: Component d
+           => Layer c r b i h
+           -> Network r b (h ':~ d) hs               o
+           -> Network r b (i ':~ c) ((h ':~ d) ': hs) o
 
 networkOp
-    :: (Num (b i), Component c, Num (b o))
-    => BPOp s '[ b i, Network sf b '(i, c) hs o] '[ b o, Network sf b '(i, c) hs o ]
-networkOp = withInps $ \(x :< n :< Ø) -> do
-    withGADT n $ \case
-      NetExt p -> BPC (only_ p) (NetExt . getI . head') $ \(pVar :< Ø) -> do
-        y :< pVar' :< Ø <- paramsOp -$$ (x :< pVar :< Ø)
-        n' <- opIso (from netExt) ~$ (pVar' :< Ø)
-        return $ y :< n' :< Ø
-      p :& n' -> BPC (p ::< n' ::< Ø) (\case I p' :< I n'' :< Ø -> p' :& n'')
-                       $ \(pVar :< nVar :< Ø) -> do
-        y :< pVar' :< Ø <- paramsOp -$$ (x :< pVar :< Ø)
-        z :< nVar' :< Ø <- networkOp -$$ (y :< nVar :< Ø)
-        newNet :< Ø <- isoVar (from netInt . tup1) (pVar' :< nVar' :< Ø)
-        return $ z :< newNet :< Ø
+    :: forall s r b i c hs o. Component c
+    => OpB s '[ b i, Network r b (i ':~ c) hs o ] '[ b o, Network r b (i ':~ c) hs o ]
+networkOp = OpM $ \(I x :< I n :< Ø) -> case n of
+    NetExt l -> do
+      (I y :< I l' :< Ø, gF) <- runOpM' layerOp (x ::< l ::< Ø)
+      let gF' = fmap (\case I dX :< I dL :< Ø -> dX ::< NetExt dL ::< Ø)
+              . gF
+              . (\case dY :< Just (NetExt dL) :< Ø -> dY :< Just dL :< Ø
+                       dY :< Nothing          :< Ø -> dY :< Nothing :< Ø
+                )
+      return (y ::< NetExt l' ::< Ø, gF')
+    (l :: Layer c r b i h) :& (n2 :: Network r b (h ':~ d) js o) -> do
+      (I y :< I l'  :< Ø, gF ) <- runOpM' layerOp   (x ::< l ::< Ø)
+      (I z :< I n2' :< Ø, gF') <- runOpM' networkOp (y ::< n2 ::< Ø)
+      let gF'' :: Prod Maybe '[ b o, Network r b (i ':~ c) ((h ':~ d) ': js) o]
+               -> ST s (Tuple '[ b i, Network r b (i ':~ c) ((h ':~ d) ': js) o])
+          gF'' = \case dZ :< Just (dL :& dN) :< Ø -> do
+                         I dY :< I dN2 :< Ø <- gF' (dZ :< Just dN :< Ø)
+                         I dX :< I dL0 :< Ø <- gF  (Just dY :< Just dL :< Ø)
+                         return $ dX ::< (dL0 :& dN2) ::< Ø
+                       dZ :< Nothing   :< Ø -> do
+                         I dY :< I dN2 :< Ø <- gF' (dZ :< Nothing :< Ø)
+                         I dX :< I dL0 :< Ø <- gF  (Just dY :< Nothing :< Ø)
+                         return $ dX ::< (dL0 :& dN2) ::< Ø
+      return (z ::< (l' :& n2') ::< Ø, gF'')
 
+networkOpPure
+    :: forall s b i c hs o. Component c
+    => OpB s '[ b i, Network 'NoState b (i ':~ c) hs o ] '[ b o ]
+networkOpPure = OpM $ \(I x :< I n :< Ø) -> case n of
+    NetExt l -> do
+      (I y :< Ø, gF) <- runOpM' layerOpPure (x ::< l ::< Ø)
+      let gF' = fmap (\case I dX :< I dL :< Ø -> dX ::< NetExt dL ::< Ø)
+              . gF
+      return (y ::< Ø, gF')
+    (l :: Layer c 'NoState b i h) :& (n2 :: Network 'NoState b (h ':~ d) js o) -> do
+      (I y :< Ø, gF ) <- runOpM' layerOpPure   (x ::< l ::< Ø)
+      (I z :< Ø, gF') <- runOpM' networkOpPure (y ::< n2 ::< Ø)
+      let gF'' :: Prod Maybe '[ b o ]
+               -> ST s (Tuple '[ b i, Network 'NoState b (i ':~ c) ((h ':~ d) ': js) o])
+          gF'' dZ = do
+            I dY :< I dN2 :< Ø <- gF' dZ
+            I dX :< I dL0 :< Ø <- gF  (Just dY :< Ø)
+            return $ dX ::< (dL0 :& dN2) ::< Ø
+      return (z ::< Ø, gF'')
