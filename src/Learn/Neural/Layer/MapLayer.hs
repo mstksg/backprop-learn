@@ -22,30 +22,24 @@ import           Data.Kind
 import           Data.Proxy
 import           Data.Reflection
 import           Data.Singletons
-import           Data.Singletons.TypeLits
 import           Data.Traversable
 import           Data.Type.Combinator
 import           Data.Type.Conjunction
-import           Data.Type.Index
-import           Data.Type.Length
 import           Data.Type.Util
 import           Data.Type.Vector
 import           Learn.Neural
-import           Numeric.AD
-import           Numeric.AD.Internal.Reverse
-import           Numeric.AD.Mode.Forward
-import           Numeric.AD.Mode.Reverse
 import           Numeric.BLAS
 import           Numeric.Backprop
 import           Numeric.Backprop.Iso
 import           Numeric.Backprop.Op
 import           Numeric.Tensor
 import           Statistics.Distribution
+import           Statistics.Distribution.Uniform
 import           Type.Class.Higher
 import           Type.Class.Known
 import           Type.Class.Witness
-import qualified Data.Type.Nat               as TCN
-import qualified Type.Family.Nat             as TCN
+import qualified Data.Type.Nat                   as TCN
+import qualified Type.Family.Nat                 as TCN
 
 data MapLayer :: k -> Type
 
@@ -77,34 +71,34 @@ instance (Reifies s MapFunc, SingI i) => Component (MapLayer s) i i where
     initComponent _ _ _ = return $ only_ MapParams
 
 data CommonMap :: Type where
-    MFLogit :: CommonMap
-    MFReLU  :: CommonMap
-    MFReLUp :: a -> CommonMap
-    MFELU   :: CommonMap
-    MFELUp  :: a -> CommonMap
+    MF_Logit :: CommonMap
+    MF_ReLU  :: CommonMap
+    MF_ReLUp :: a -> CommonMap
+    MF_ELU   :: CommonMap
+    MF_ELUp  :: a -> CommonMap
 
-instance Reifies 'MFLogit MapFunc where
+instance Reifies 'MF_Logit MapFunc where
     reflect _ = MF $ \x -> 1 / (1 + exp (-x))
-instance Reifies 'MFReLU MapFunc where
+instance Reifies 'MF_ReLU MapFunc where
     reflect _ = MF $ \x -> if x < 0 then 0 else x
-instance Reifies s Double => Reifies ('MFReLUp s) MapFunc where
+instance Reifies s Double => Reifies ('MF_ReLUp s) MapFunc where
     reflect _ = MF $ \x -> if x < 0 then realToFrac α * x else x
       where
         α :: Double
         α = reflect (Proxy @s)
-instance Reifies 'MFELU MapFunc where
+instance Reifies 'MF_ELU MapFunc where
     reflect _ = MF $ \x -> if x < 0 then exp x - 1 else x
-instance Reifies s Double => Reifies ('MFELUp s) MapFunc where
-    reflect _ = MF $ \x -> if x < 0 then realToFrac α * exp x - 1 else x
+instance Reifies s Double => Reifies ('MF_ELUp s) MapFunc where
+    reflect _ = MF $ \x -> if x < 0 then realToFrac α * (exp x - 1) else x
       where
         α :: Double
         α = reflect (Proxy @s)
 
-type Logit  = MapLayer 'MFLogit
-type ReLU   = MapLayer 'MFReLU
-type ReLUp  = MapLayer 'MFReLUp
-type ELU    = MapLayer 'MFELU
-type ELUp s = MapLayer ('MFELUp s)
+type Logit   = MapLayer 'MF_Logit
+type ReLU    = MapLayer 'MF_ReLU
+type ReLUp s = MapLayer ('MF_ReLUp s)
+type ELU     = MapLayer 'MF_ELU
+type ELUp s  = MapLayer ('MF_ELUp s)
 
 data PMapLayer :: k -> TCN.N -> Type
 
@@ -114,7 +108,14 @@ data PMapFunc :: TCN.N -> Type where
            }
         -> PMapFunc n
 
-instance Num (CParam (PMapLayer s n) b i i) where
+instance (Tensor b, Known TCN.Nat n) => Num (CParam (PMapLayer s n) b i i) where
+    PMapParams x + PMapParams y = PMapParams $ x + y
+    PMapParams x - PMapParams y = PMapParams $ x - y
+    PMapParams x * PMapParams y = PMapParams $ x * y
+    negate (PMapParams x) = PMapParams (negate x)
+    abs    (PMapParams x) = PMapParams (abs    x)
+    signum (PMapParams x) = PMapParams (signum x)
+    fromInteger x         = PMapParams (fromInteger x)
 
 pMapParams :: Iso' (CParam (PMapLayer s n) b i i) (Tuple (Replicate n (ElemT b)))
 pMapParams = iso undefined undefined
@@ -131,7 +132,7 @@ instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => Component (PMapLa
         ps :: Prod (BVar q '[b i, CParam (PMapLayer s n) b i i]) (Replicate n (ElemT b))
           <- replWit @n @Num @(ElemT b) n Wit //
              replLen @n @(ElemT b) n //
-               (pMapParams #<~ mp)
+               pMapParams #<~ mp
         let psV :: VecT n (BVar q '[b i, CParam (PMapLayer s n) b i i]) (ElemT b)
             psV = prodToVec' n ps
         psTV :: VecT n (BVar q '[b i, CParam (PMapLayer s n) b i i]) (b i)
@@ -154,3 +155,20 @@ instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => Component (PMapLa
       where
         pmf :: PMapFunc n
         pmf = reflect (Proxy @s)
+
+data CommonPMap :: Type where
+    PMF_PReLU :: CommonPMap
+    PMF_PELU  :: CommonPMap
+
+instance Reifies 'PMF_PReLU (PMapFunc TCN.N1) where
+    reflect _ = PMF (\case I x :&: (I α :* ØV) ->
+                            if x < 0 then α * x else x)
+                    (SomeC (I (uniformDistr 0 1)) :+ ØV)
+
+instance Reifies 'PMF_PELU (PMapFunc TCN.N1) where
+    reflect _ = PMF (\case I x :&: (I α :* ØV) ->
+                            if x < 0 then α * (exp x - 1) else x)
+                    (SomeC (I (uniformDistr 0 1)) :+ ØV)
+
+type PReLU = PMapLayer 'PMF_PReLU
+type PELU  = PMapLayer 'PMF_PELU

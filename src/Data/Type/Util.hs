@@ -4,6 +4,7 @@
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE TypeOperators       #-}
 
 module Data.Type.Util (
     replWit
@@ -11,8 +12,10 @@ module Data.Type.Util (
   , prodToVec'
   , vecToProd
   , vtraverse
+  , zipP
   ) where
 
+import           Data.Type.Conjunction
 import           Data.Type.Index
 import           Data.Type.Length
 import           Data.Type.Nat
@@ -66,3 +69,13 @@ vtraverse
 vtraverse f = \case
     ØV      -> pure ØV
     x :* xs -> (:*) <$> f x <*> vtraverse f xs
+
+zipP
+    :: Prod f as
+    -> Prod g as
+    -> Prod (f :&: g) as
+zipP = \case
+    Ø -> \case
+      Ø -> Ø
+    x :< xs -> \case
+      y:< ys -> (x :&: y) :< zipP xs ys

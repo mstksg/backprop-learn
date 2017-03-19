@@ -19,7 +19,7 @@ module Numeric.Tensor (
 import           Data.Kind
 import           Data.Reflection
 import           Data.Singletons
-import           Data.Type.Conjunction
+import           Data.Type.Util
 import           Data.Type.Vector hiding     (head')
 import           Numeric.AD
 import           Numeric.AD.Internal.Reverse
@@ -89,28 +89,3 @@ tkonstOp :: forall t s. Tensor t => Sing s -> Op '[ElemT t] '[t s]
 tkonstOp s = withSingI s $ op1' $ \x ->
     let res = tkonst s x
     in  (only_ res, maybe (fromIntegral (tsize res)) tsum . head')
-
-prodToVec'
-    :: TCN.Nat n
-    -> Prod f (Replicate n a)
-    -> VecT n f a
-prodToVec' = \case
-    TCN.Z_ -> \case
-      Ø -> ØV
-
-vecToProd
-    :: VecT n f a
-    -> Prod f (Replicate n a)
-vecToProd = \case
-    ØV      -> Ø
-    x :* xs -> x :< vecToProd xs
-
-zipP
-    :: Prod f as
-    -> Prod g as
-    -> Prod (f :&: g) as
-zipP = \case
-    Ø -> \case
-      Ø -> Ø
-    x :< xs -> \case
-      y:< ys -> (x :&: y) :< zipP xs ys
