@@ -21,8 +21,6 @@
 module Learn.Neural
   where
 
--- import           Type.Family.List
--- import           Type.Family.Maybe
 import           Control.Monad.Primitive
 import           Control.Monad.ST
 import           Data.Bifunctor
@@ -35,6 +33,7 @@ import           Numeric.BLAS
 import           Numeric.Backprop
 import           Numeric.Backprop.Iso    (Iso', iso, from, tup1)
 import           Numeric.Backprop.Op
+import           Numeric.Tensor
 import           Statistics.Distribution
 import           System.Random.MWC
 import           Type.Family.Bool
@@ -43,21 +42,32 @@ type family MaybeToList (a :: Maybe k) = (b :: [k]) | b -> a where
     MaybeToList ('Just a ) = '[a]
     MaybeToList 'Nothing   = '[]
 
-class Component c where
-    type CParam c (b :: BShape Nat -> Type) (i :: BShape Nat) (o :: BShape Nat) = (p :: Type      ) | p -> c
-    type CState c (b :: BShape Nat -> Type) (i :: BShape Nat) (o :: BShape Nat) = (s :: Maybe Type) | s -> c
+class (SingI i, SingI o) => Component c i o where
+    data CParam c (b :: BShape Nat -> Type) (i :: BShape Nat) (o :: BShape Nat) :: Type
+    type CState c (b :: BShape Nat -> Type) (i :: BShape Nat) (o :: BShape Nat) :: Maybe Type
 
-    runComponent
-        :: forall s b i o. ()
+    componentOp
+        :: forall s b. (BLAS b, Tensor b, Num (b i), Num (b o))
         => OpB s (b i ': CParam c b i o ': MaybeToList (CState c b i o))
                  (b o ': MaybeToList (CState c b i o))
     initComponent
-        :: ContGen d
+        :: (PrimMonad m, BLAS b, Tensor b)
         => Sing i
         -> Sing o
-        -> d
         -> Gen (PrimState m)
         -> m (Tuple (CParam c b i o ': MaybeToList (CState c b i o)))
+
+componentOpPure
+    :: forall c i o s b.
+     ( Component c i o
+     , CState c b i o ~ 'Nothing
+     , BLAS b
+     , Tensor b
+     , Num (b i)
+     , Num (b o)
+     )
+    => OpB s '[ b i, CParam c b i o ] '[ b o ]
+componentOpPure = componentOp
 
 data HasState = NoState
               | SomeState
@@ -69,30 +79,31 @@ data Layer :: Type -> HasState -> (BShape Nat -> Type) -> BShape Nat -> BShape N
 instance Num (Layer c r b i o)
 
 layerOp
-    :: forall s c r b i o. Component c
+    :: forall s c r b i o. (Component c i o, BLAS b, Tensor b, Num (b i), Num (b o))
     => OpB s '[ b i, Layer c r b i o ] '[ b o, Layer c r b i o ]
 layerOp = OpM $ \(I x :< I l :< Ø) -> case l of
     LPure p -> do
-      (I y :< Ø, gF) <- runOpM' (runComponent @_ @_ @_ @_ @o) (x ::< p ::< Ø)
+      (I y :< Ø, gF) <- runOpM' (componentOp @_ @_ @o) (x ::< p ::< Ø)
+      -- let gF' = _ . lPure . _ $ gF
       let gF' = fmap (\case I dX :< I dP :< Ø -> I dX :< I (LPure dP) :< Ø)
               . gF
               . (\case dY :< _ :< Ø -> dY :< Ø)
       return (y ::< LPure p ::< Ø, gF')
     LState p s -> do
-      (I y :< I s' :< Ø, gF) <- runOpM' (runComponent @_ @_ @_ @_ @o) (x ::< p ::< s ::< Ø)
+      (I y :< I s' :< Ø, gF) <- runOpM' (componentOp @_ @_ @o) (x ::< p ::< s ::< Ø)
       let gF' = fmap (\case I dX :< I dP :< I dS :< Ø -> dX ::< LState dP dS ::< Ø)
               . gF
-              . (\case dY :< Just (LState dP dS) :< Ø -> dY :< Just dS :< Ø
-                       dY :< Nothing             :< Ø -> dY :< Nothing :< Ø
+              . (\case dY :< Just (LState _ dS) :< Ø -> dY :< Just dS :< Ø
+                       dY :< Nothing            :< Ø -> dY :< Nothing :< Ø
                 )
       return (y ::< LState p s' ::< Ø, gF')
 
 layerOpPure
-    :: forall s c b i o. Component c
+    :: forall s c b i o. (Component c i o, BLAS b, Tensor b, Num (b i), Num (b o))
     => OpB s '[ b i, Layer c 'NoState b i o ] '[ b o ]
 layerOpPure = OpM $ \(I x :< I l :< Ø) -> case l of
     LPure p -> do
-      (I y :< Ø, gF) <- runOpM' (runComponent @_ @_ @_ @_ @o) (x ::< p ::< Ø)
+      (I y :< Ø, gF) <- runOpM' (componentOp @_ @_ @o) (x ::< p ::< Ø)
       let gF' = fmap (\case I dX :< I dP :< Ø -> I dX :< I (LPure dP) :< Ø)
               . gF
       return (y ::< Ø, gF')
@@ -103,13 +114,13 @@ data LChain :: Type where
 data Network :: HasState -> (BShape Nat -> Type) -> LChain -> [LChain] -> BShape Nat -> Type where
     NetExt :: Layer c r b i o
            -> Network r b (i ':~ c) '[] o
-    (:&)   :: Component d
+    (:&)   :: (Num (b h), Component c i h, Component d h o)
            => Layer c r b i h
            -> Network r b (h ':~ d) hs               o
            -> Network r b (i ':~ c) ((h ':~ d) ': hs) o
 
 networkOp
-    :: forall s r b i c hs o. Component c
+    :: forall s r b i c hs o. (Component c i o, BLAS b, Tensor b, Num (b i), Num (b o))
     => OpB s '[ b i, Network r b (i ':~ c) hs o ] '[ b o, Network r b (i ':~ c) hs o ]
 networkOp = OpM $ \(I x :< I n :< Ø) -> case n of
     NetExt l -> do
@@ -136,7 +147,7 @@ networkOp = OpM $ \(I x :< I n :< Ø) -> case n of
       return (z ::< (l' :& n2') ::< Ø, gF'')
 
 networkOpPure
-    :: forall s b i c hs o. Component c
+    :: forall s b i c hs o. (Component c i o, BLAS b, Tensor b, Num (b i), Num (b o))
     => OpB s '[ b i, Network 'NoState b (i ':~ c) hs o ] '[ b o ]
 networkOpPure = OpM $ \(I x :< I n :< Ø) -> case n of
     NetExt l -> do

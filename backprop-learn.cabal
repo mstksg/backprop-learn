@@ -20,13 +20,17 @@ library
                        Numeric.BLAS.HMatrix
                        Numeric.Tensor
                        Learn.Neural
+                       Learn.Neural.Layer.MapLayer
+  other-modules:       Data.Type.Util
   build-depends:       base >= 4.7 && < 5
+                     , ad
                      , backprop
                      , finite-typelits
                      , hmatrix    >= 0.18
                      , mono-traversable
                      , mwc-random
                      , primitive
+                     , reflection
                      , singletons
                      , statistics
                      , type-combinators

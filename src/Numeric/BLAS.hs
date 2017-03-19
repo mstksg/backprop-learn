@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds              #-}
 {-# LANGUAGE DeriveFunctor          #-}
+{-# LANGUAGE FlexibleContexts       #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GADTs                  #-}
 {-# LANGUAGE InstanceSigs           #-}
@@ -29,13 +30,17 @@ import           GHC.TypeLits
 $(singletons [d|
   data BShape a = BV !a | BM !a !a
     deriving (Show, Eq, Ord, Functor)
+
+  bshapeSize :: Num a => BShape a -> a
+  bshapeSize (BV x  ) = x
+  bshapeSize (BM x y) = x * y
   |])
 
 data BIndex :: BShape Nat -> Type where
     BVIx :: Finite n -> BIndex ('BV n)
     BMIx :: Finite m -> Finite n -> BIndex ('BM m n)
 
-class BLAS (b :: BShape Nat -> Type) where
+class RealFloat (Scalar b) => BLAS (b :: BShape Nat -> Type) where
     type Scalar b :: Type
 
     -- Level 1
