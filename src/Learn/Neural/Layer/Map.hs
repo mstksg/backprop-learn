@@ -37,6 +37,7 @@ import           Numeric.Backprop.Iso
 import           Numeric.Backprop.Op
 import           Numeric.Tensor
 import           Statistics.Distribution
+import           Statistics.Distribution.Uniform
 import           Type.Class.Higher
 import           Type.Class.Known
 import           Type.Class.Witness
@@ -63,7 +64,7 @@ instance Num (CParam (MapLayer s) b i i) where
 instance (Reifies s MapFunc, SingI i) => Component (MapLayer s) i i where
     data CParam (MapLayer s) b i i = MapP
     type CState (MapLayer s) b i i = 'Nothing
-    data CConf  (MapLayer s) = MapC
+    data CConf  (MapLayer s)   i i = MapC
 
     componentOp = bpOp . withInps $ \(x :< _ :< Ø) -> do
         y <- tmapOp (runMapFunc mf) ~$ (x :< Ø)
@@ -73,6 +74,8 @@ instance (Reifies s MapFunc, SingI i) => Component (MapLayer s) i i where
         mf = reflect (Proxy @s)
 
     initComponent _ _ _ _ = return $ only_ MapP
+
+    defConf = MapC
 
 data CommonMap :: Type where
     MF_Logit :: CommonMap
@@ -107,7 +110,8 @@ type ELUp s  = MapLayer ('MF_ELUp s)
 data PMapLayer :: k -> TCN.N -> Type
 
 data PMapFunc :: TCN.N -> Type where
-    PMF :: { runPMapFunc  :: (forall a. RealFloat a => (I :&: Vec n) a -> a)
+    PMF :: { runPMapFunc :: (forall a. RealFloat a => (I :&: Vec n) a -> a)
+           , getPMapDef  :: Vec n (SomeC ContGen I)
            }
         -> PMapFunc n
 
@@ -129,7 +133,7 @@ instance SOP.Generic (CParam (PMapLayer s n) b i i)
 instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => Component (PMapLayer s n) i i where
     data CParam (PMapLayer s n) b i i = PMapP { getPMapP :: !(Vec n (ElemT b)) }
     type CState (PMapLayer s n) b i i = 'Nothing
-    data CConf  (PMapLayer s n) = PMapC { getPMapC :: !(Vec n (SomeC ContGen I)) }
+    data CConf  (PMapLayer s n)   i i = PMapC { getPMapC :: !(Vec n (SomeC ContGen I)) }
 
     componentOp
         :: forall q b. (BLAS b, Tensor b, Num (b i))
@@ -160,6 +164,11 @@ instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => Component (PMapLa
           realToFrac <$> genContVar d g
         return $ only_ (PMapP ps)
 
+    defConf = PMapC (getPMapDef pmf)
+      where
+        pmf :: PMapFunc n
+        pmf = reflect (Proxy @s)
+
 data CommonPMap :: Type where
     PMF_PReLU :: CommonPMap
     PMF_PELU  :: CommonPMap
@@ -167,10 +176,12 @@ data CommonPMap :: Type where
 instance Reifies 'PMF_PReLU (PMapFunc TCN.N1) where
     reflect _ = PMF (\case I x :&: (I α :* ØV) ->
                             if x < 0 then α * x else x)
+                    (SomeC (I (uniformDistr 0 1)) :+ ØV)
 
 instance Reifies 'PMF_PELU (PMapFunc TCN.N1) where
     reflect _ = PMF (\case I x :&: (I α :* ØV) ->
                             if x < 0 then α * (exp x - 1) else x)
+                    (SomeC (I (uniformDistr 0 1)) :+ ØV)
 
 type PReLU = PMapLayer 'PMF_PReLU
 type PELU  = PMapLayer 'PMF_PELU

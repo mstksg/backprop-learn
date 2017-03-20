@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes    #-}
 {-# LANGUAGE DataKinds              #-}
 {-# LANGUAGE GADTs                  #-}
 {-# LANGUAGE KindSignatures         #-}
@@ -20,6 +21,8 @@ module Learn.Neural.Layer (
   , layerOpPure
   , LayerConf(..)
   , initLayer
+  , defLCPure
+  , defLCState
   ) where
 
 
@@ -42,7 +45,7 @@ class (SingI i, SingI o) => Component c i o where
     type CState  c (b :: BShape Nat -> Type) (i :: BShape Nat) (o :: BShape Nat) :: Maybe Type
     type CConstr c (b :: BShape Nat -> Type) (i :: BShape Nat) (o :: BShape Nat) :: Constraint
     type CConstr c b i o = ØC
-    data CConf   c :: Type
+    data CConf   c i o :: Type
 
     componentOp
         :: forall s b. (BLAS b, Tensor b, Num (b i), Num (b o), CConstr c b i o)
@@ -52,9 +55,11 @@ class (SingI i, SingI o) => Component c i o where
         :: forall m b. (PrimMonad m, BLAS b, Tensor b, CConstr c b i o)
         => Sing i
         -> Sing o
-        -> CConf c
+        -> CConf c i o
         -> Gen (PrimState m)
         -> m (Tuple (CParam c b i o ': MaybeToList (CState c b i o)))
+
+    defConf :: CConf c i o
 
 componentOpPure
     :: forall c i o s b.
@@ -109,8 +114,8 @@ layerOpPure = OpM $ \(I x :< I l :< Ø) -> case l of
       return (y ::< Ø, gF')
 
 data LayerConf :: Type -> HasState -> (BShape Nat -> Type) -> BShape Nat -> BShape Nat -> Type where
-    LCPure  :: (CState c b i o ~ 'Nothing) => CConf c -> LayerConf c r b i o
-    LCState :: (CState c b i o ~ 'Just s ) => CConf c -> LayerConf c 'SomeState b i o
+    LCPure  :: (CState c b i o ~ 'Nothing) => CConf c i o -> LayerConf c r b i o
+    LCState :: (CState c b i o ~ 'Just s ) => CConf c i o -> LayerConf c 'SomeState b i o
 
 initLayer
     :: forall c i o m b r. (PrimMonad m, BLAS b, Tensor b, CConstr c b i o, Component c i o)
@@ -124,3 +129,9 @@ initLayer si so = \case
     LCState conf -> \g -> do
       I p :< I s :< Ø <- initComponent @_ @_ @_ @_ @b si so conf g
       return $ LState p s
+
+defLCPure :: (CState c b i o ~ 'Nothing, Component c i o) => LayerConf c r b i o
+defLCPure = LCPure defConf 
+
+defLCState :: (CState c b i o ~ 'Just st, Component c i o) => LayerConf c 'SomeState b i o
+defLCState = LCState defConf
