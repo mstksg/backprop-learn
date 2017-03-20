@@ -56,3 +56,6 @@ instance (KnownNat i, KnownNat o) => Component FCLayer ('BV i) ('BV o) where
             return . only_ $ FCP w b
 
     defConf = FCC (normalDistr 0 0.5)
+
+instance (KnownNat i, KnownNat o) => DefLayerConf FCLayer r b ('BV i) ('BV o) where
+    defLayerConf = defLCPure

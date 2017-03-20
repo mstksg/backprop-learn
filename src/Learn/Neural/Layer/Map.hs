@@ -77,6 +77,9 @@ instance (Reifies s MapFunc, SingI i) => Component (MapLayer s) i i where
 
     defConf = MapC
 
+instance (Reifies s MapFunc, SingI i) => DefLayerConf (MapLayer s) r b i i where
+    defLayerConf = defLCPure
+
 data CommonMap :: Type where
     MF_Logit :: CommonMap
     MF_ReLU  :: CommonMap
@@ -168,6 +171,9 @@ instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => Component (PMapLa
       where
         pmf :: PMapFunc n
         pmf = reflect (Proxy @s)
+
+instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => DefLayerConf (PMapLayer s n) r b i i where
+    defLayerConf = defLCPure
 
 data CommonPMap :: Type where
     PMF_PReLU :: CommonPMap

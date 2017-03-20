@@ -1,5 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes    #-}
 {-# LANGUAGE DataKinds              #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GADTs                  #-}
 {-# LANGUAGE KindSignatures         #-}
 {-# LANGUAGE LambdaCase             #-}
@@ -23,6 +24,7 @@ module Learn.Neural.Layer (
   , initLayer
   , defLCPure
   , defLCState
+  , DefLayerConf(..)
   ) where
 
 
@@ -130,8 +132,12 @@ initLayer si so = \case
       I p :< I s :< Ø <- initComponent @_ @_ @_ @_ @b si so conf g
       return $ LState p s
 
+class Component c i o => DefLayerConf c r b i o where
+    defLayerConf :: LayerConf c r b i o
+
 defLCPure :: (CState c b i o ~ 'Nothing, Component c i o) => LayerConf c r b i o
 defLCPure = LCPure defConf 
 
 defLCState :: (CState c b i o ~ 'Just st, Component c i o) => LayerConf c 'SomeState b i o
 defLCState = LCState defConf
+
