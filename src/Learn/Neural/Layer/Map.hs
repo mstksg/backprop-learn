@@ -63,7 +63,7 @@ instance Num (CParam (MapLayer s) b i i) where
 instance (Reifies s MapFunc, SingI i) => Component (MapLayer s) i i where
     data CParam (MapLayer s) b i i = MapP
     type CState (MapLayer s) b i i = 'Nothing
-    data CConf  (MapLayer s) b i i = MapC
+    data CConf  (MapLayer s) = MapC
 
     componentOp = bpOp . withInps $ \(x :< _ :< Ø) -> do
         y <- tmapOp (runMapFunc mf) ~$ (x :< Ø)
@@ -129,7 +129,7 @@ instance SOP.Generic (CParam (PMapLayer s n) b i i)
 instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => Component (PMapLayer s n) i i where
     data CParam (PMapLayer s n) b i i = PMapP { getPMapP :: !(Vec n (ElemT b)) }
     type CState (PMapLayer s n) b i i = 'Nothing
-    data CConf  (PMapLayer s n) b i i = PMapC { getPMapC :: !(Vec n (SomeC ContGen I)) }
+    data CConf  (PMapLayer s n) = PMapC { getPMapC :: !(Vec n (SomeC ContGen I)) }
 
     componentOp
         :: forall q b. (BLAS b, Tensor b, Num (b i))

@@ -18,15 +18,18 @@ module Learn.Neural.Layer (
   , Layer(..)
   , layerOp
   , layerOpPure
+  , LayerConf(..)
+  , initLayer
   ) where
 
 
 import           Control.Monad.Primitive
 import           Data.Kind
 import           Data.Singletons.Prelude
+import           Data.Type.Option
+import           Data.Type.Util
 import           GHC.TypeLits
 import           Numeric.BLAS
-import           Data.Type.Util
 import           Numeric.Backprop
 import           Numeric.Backprop.Op
 import           Numeric.Tensor
@@ -39,17 +42,17 @@ class (SingI i, SingI o) => Component c i o where
     type CState  c (b :: BShape Nat -> Type) (i :: BShape Nat) (o :: BShape Nat) :: Maybe Type
     type CConstr c (b :: BShape Nat -> Type) (i :: BShape Nat) (o :: BShape Nat) :: Constraint
     type CConstr c b i o = ØC
-    data CConf   c (b :: BShape Nat -> Type) (i :: BShape Nat) (o :: BShape Nat) :: Type
+    data CConf   c :: Type
 
     componentOp
         :: forall s b. (BLAS b, Tensor b, Num (b i), Num (b o), CConstr c b i o)
         => OpB s (b i ': CParam c b i o ': MaybeToList (CState c b i o))
                  (b o ': MaybeToList (CState c b i o))
     initComponent
-        :: (PrimMonad m, BLAS b, Tensor b, CConstr c b i o)
+        :: forall m b. (PrimMonad m, BLAS b, Tensor b, CConstr c b i o)
         => Sing i
         -> Sing o
-        -> CConf c b i o
+        -> CConf c
         -> Gen (PrimState m)
         -> m (Tuple (CParam c b i o ': MaybeToList (CState c b i o)))
 
@@ -105,3 +108,19 @@ layerOpPure = OpM $ \(I x :< I l :< Ø) -> case l of
               . gF
       return (y ::< Ø, gF')
 
+data LayerConf :: Type -> HasState -> (BShape Nat -> Type) -> BShape Nat -> BShape Nat -> Type where
+    LCPure  :: (CState c b i o ~ 'Nothing) => CConf c -> LayerConf c r b i o
+    LCState :: (CState c b i o ~ 'Just s ) => CConf c -> LayerConf c 'SomeState b i o
+
+initLayer
+    :: forall c i o m b r. (PrimMonad m, BLAS b, Tensor b, CConstr c b i o, Component c i o)
+    => Sing i
+    -> Sing o
+    -> LayerConf c r b i o
+    -> Gen (PrimState m)
+    -> m (Layer c r b i o)
+initLayer si so = \case
+    LCPure  conf -> \g -> LPure . getI . head' <$> initComponent si so conf g
+    LCState conf -> \g -> do
+      I p :< I s :< Ø <- initComponent @_ @_ @_ @_ @b si so conf g
+      return $ LState p s

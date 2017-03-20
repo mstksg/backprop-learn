@@ -87,3 +87,4 @@ zipP = \case
       Ø -> Ø
     x :< xs -> \case
       y:< ys -> (x :&: y) :< zipP xs ys
+

@@ -36,7 +36,7 @@ instance (KnownNat i, KnownNat o) => Component FCLayer ('BV i) ('BV o) where
                 }
     type CState  FCLayer b ('BV i) ('BV o) = 'Nothing
     type CConstr FCLayer b ('BV i) ('BV o) = Num (b ('BM o i))
-    data CConf   FCLayer b ('BV i) ('BV o) = forall d. ContGen d => FCI d
+    data CConf   FCLayer = forall d. ContGen d => FCI d
 
     componentOp = bpOp . withInps $ \(x :< p :< Ø) -> do
         w :< b :< Ø <- gTuple #<~ p
