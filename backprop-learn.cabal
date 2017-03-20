@@ -19,7 +19,8 @@ library
   exposed-modules:     Numeric.BLAS
                        Numeric.BLAS.HMatrix
                        Numeric.Tensor
-                       Learn.Neural
+                       Learn.Neural.Layer
+                       Learn.Neural.Network
                        Learn.Neural.Layer.Map
                        Learn.Neural.Layer.FullyConnected
   other-modules:       Data.Type.Util

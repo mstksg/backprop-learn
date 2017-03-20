@@ -15,7 +15,7 @@ import           Data.Kind
 import           Data.Singletons
 import           Data.Singletons.TypeLits
 import           GHC.Generics                   (Generic)
-import           Learn.Neural
+import           Learn.Neural.Layer
 import           Numeric.BLAS
 import           Numeric.Backprop
 import           Numeric.Backprop.Iso
@@ -46,8 +46,8 @@ instance (KnownNat i, KnownNat o) => Component FCLayer ('BV i) ('BV o) where
         return $ only z
 
     initComponent = \case
-      SBV i@SNat -> \case
-        so@(SBV o@SNat) -> \g -> do
+      SBV i -> \case
+        so@(SBV o) -> \g -> do
           w <- genA (SBM o i) $ \_ ->
             realToFrac <$> genContVar (normalDistr 0 0.5) g
           b <- genA so $ \_ ->

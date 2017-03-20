@@ -30,7 +30,7 @@ import           Data.Type.Conjunction
 import           Data.Type.Util
 import           Data.Type.Vector hiding         (head')
 import           GHC.Generics                    (Generic)
-import           Learn.Neural
+import           Learn.Neural.Layer
 import           Numeric.BLAS
 import           Numeric.Backprop
 import           Numeric.Backprop.Iso

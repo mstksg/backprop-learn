@@ -1,13 +1,18 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE GADTs               #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE AllowAmbiguousTypes    #-}
+{-# LANGUAGE DataKinds              #-}
+{-# LANGUAGE GADTs                  #-}
+{-# LANGUAGE KindSignatures         #-}
+{-# LANGUAGE LambdaCase             #-}
+{-# LANGUAGE PolyKinds              #-}
+{-# LANGUAGE RankNTypes             #-}
+{-# LANGUAGE ScopedTypeVariables    #-}
+{-# LANGUAGE TypeApplications       #-}
+{-# LANGUAGE TypeFamilyDependencies #-}
+{-# LANGUAGE TypeOperators          #-}
 
 module Data.Type.Util (
-    replWit
+    MaybeToList
+  , replWit
   , replLen
   , prodToVec'
   , vecToProd
@@ -24,6 +29,9 @@ import           Data.Type.Vector
 import           Numeric.Backprop.Op (Replicate)
 import           Type.Class.Witness
 
+type family MaybeToList (a :: Maybe k) = (b :: [k]) | b -> a where
+    MaybeToList ('Just a ) = '[a]
+    MaybeToList 'Nothing   = '[]
 
 replWit
     :: forall n c a. ()
