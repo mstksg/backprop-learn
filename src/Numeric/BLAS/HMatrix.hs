@@ -18,10 +18,10 @@ import           Data.Maybe
 import           Data.MonoTraversable
 import           Data.Singletons
 import           Data.Singletons.TypeLits
-import           Numeric.BLAS
+import           Numeric.BLAS hiding          (outer)
 import           Numeric.LinearAlgebra.Static
 import           Numeric.Tensor
-import qualified Numeric.LinearAlgebra          as LA
+import qualified Numeric.LinearAlgebra        as LA
 
 type family HM' (s :: BShape Nat) :: Type where
     HM' ('BV n  ) = R n
@@ -36,6 +36,12 @@ type instance Element (HM s) = Double
 instance BLAS HM where
     type Scalar HM = Double
 
+    bkonst = \case
+      SBV SNat      -> HM . konst
+      SBM SNat SNat -> HM . konst
+
+    transp (HM x) = HM (tr x)
+
     scal α (HM x)        = HM (konst α * x)
     axpy α (HM x) (HM y) = HM (konst α * x + y)
     dot    (HM x) (HM y) = x <.> y
@@ -45,10 +51,16 @@ instance BLAS HM where
                          . LA.maxIndex . extract
                          $ abs x
 
-    gemv α (HM a) (HM x) β (HM y) = HM (konst α * (a #> x) + konst β * y)
-    ger  α (HM x) (HM y) (HM a)   = HM (konst α * outer x y + a)
+    gemv α (HM a) (HM x) = \case
+        Just (β, HM y) -> HM (konst α * (a #> x) + konst β * y)
+        Nothing        -> HM (konst α * (a #> x))
+    ger  α (HM x) (HM y) = \case
+        Just (HM a) -> HM (konst α * outer x y + a)
+        Nothing     -> HM (konst α * outer x y)
     syr  α (HM x) (HM a)          = HM (konst α * outer x x + a)
-    gemm α (HM a) (HM b) β (HM c) = HM (konst α * (a <> b) + konst β * c)
+    gemm α (HM a) (HM b) = \case
+        Just (β, HM c) -> HM (konst α * (a <> b) + konst β * c)
+        Nothing        -> HM (konst α * (a <> b))
     syrk α (HM a) β (HM c)        = HM (konst α * (a <> tr a) + konst β * c)
 
 instance Tensor HM where
@@ -94,7 +106,6 @@ instance Tensor HM where
       SBM SNat SNat -> HM $ matrix (zipWith f (concat . LA.toLists . extract $ x)
                                               (concat . LA.toLists . extract $ y)
                                    )
-
 
 instance SingI s => MonoFunctor (HM s) where
     omap f (HM x) = case sing @_ @s of

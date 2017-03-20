@@ -1,6 +1,7 @@
 {-# LANGUAGE AllowAmbiguousTypes   #-}
 {-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
@@ -9,12 +10,13 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE StandaloneDeriving    #-}
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeInType            #-}
 {-# LANGUAGE TypeOperators         #-}
 
-module Learn.Neural.Layer.MapLayer
+module Learn.Neural.Layer.Map
   where
 
 
@@ -26,7 +28,8 @@ import           Data.Traversable
 import           Data.Type.Combinator
 import           Data.Type.Conjunction
 import           Data.Type.Util
-import           Data.Type.Vector
+import           Data.Type.Vector hiding         (head')
+import           GHC.Generics                    (Generic)
 import           Learn.Neural
 import           Numeric.BLAS
 import           Numeric.Backprop
@@ -39,6 +42,7 @@ import           Type.Class.Higher
 import           Type.Class.Known
 import           Type.Class.Witness
 import qualified Data.Type.Nat                   as TCN
+import qualified Generics.SOP                    as SOP
 import qualified Type.Family.Nat                 as TCN
 
 data MapLayer :: k -> Type
@@ -49,16 +53,16 @@ data MapFunc :: Type where
        -> MapFunc
 
 instance Num (CParam (MapLayer s) b i i) where
-    _ + _         = MapParams
-    _ * _         = MapParams
-    _ - _         = MapParams
-    negate _      = MapParams
-    abs    _      = MapParams
-    signum _      = MapParams
-    fromInteger _ = MapParams
+    _ + _         = MapP
+    _ * _         = MapP
+    _ - _         = MapP
+    negate _      = MapP
+    abs    _      = MapP
+    signum _      = MapP
+    fromInteger _ = MapP
 
 instance (Reifies s MapFunc, SingI i) => Component (MapLayer s) i i where
-    data CParam (MapLayer s) b i i = MapParams
+    data CParam (MapLayer s) b i i = MapP
     type CState (MapLayer s) b i i = 'Nothing
 
     componentOp = bpOp . withInps $ \(x :< _ :< Ø) -> do
@@ -68,7 +72,7 @@ instance (Reifies s MapFunc, SingI i) => Component (MapLayer s) i i where
         mf :: MapFunc
         mf = reflect (Proxy @s)
 
-    initComponent _ _ _ = return $ only_ MapParams
+    initComponent _ _ _ = return $ only_ MapP
 
 data CommonMap :: Type where
     MF_Logit :: CommonMap
@@ -109,19 +113,22 @@ data PMapFunc :: TCN.N -> Type where
         -> PMapFunc n
 
 instance (Tensor b, Known TCN.Nat n) => Num (CParam (PMapLayer s n) b i i) where
-    PMapParams x + PMapParams y = PMapParams $ x + y
-    PMapParams x - PMapParams y = PMapParams $ x - y
-    PMapParams x * PMapParams y = PMapParams $ x * y
-    negate (PMapParams x) = PMapParams (negate x)
-    abs    (PMapParams x) = PMapParams (abs    x)
-    signum (PMapParams x) = PMapParams (signum x)
-    fromInteger x         = PMapParams (fromInteger x)
+    PMapP x + PMapP y = PMapP $ x + y
+    PMapP x - PMapP y = PMapP $ x - y
+    PMapP x * PMapP y = PMapP $ x * y
+    negate (PMapP x) = PMapP (negate x)
+    abs    (PMapP x) = PMapP (abs    x)
+    signum (PMapP x) = PMapP (signum x)
+    fromInteger x         = PMapP (fromInteger x)
 
-pMapParams :: Iso' (CParam (PMapLayer s n) b i i) (Tuple (Replicate n (ElemT b)))
-pMapParams = iso undefined undefined
+pMapP :: Known TCN.Nat n => Iso' (CParam (PMapLayer s n) b i i) (Tuple (Replicate n (ElemT b)))
+pMapP = gTuple . iso (vecToProd . getI . head') (only_ . prodToVec' known)
+
+deriving instance Generic (CParam (PMapLayer s n) b i i)
+instance SOP.Generic (CParam (PMapLayer s n) b i i)
 
 instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => Component (PMapLayer s n) i i where
-    data CParam (PMapLayer s n) b i i = PMapParams { getPMapParams :: !(Vec n (ElemT b)) }
+    data CParam (PMapLayer s n) b i i = PMapP { getPMapP :: !(Vec n (ElemT b)) }
     type CState (PMapLayer s n) b i i = 'Nothing
 
     componentOp
@@ -132,7 +139,7 @@ instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => Component (PMapLa
         ps :: Prod (BVar q '[b i, CParam (PMapLayer s n) b i i]) (Replicate n (ElemT b))
           <- replWit @n @Num @(ElemT b) n Wit //
              replLen @n @(ElemT b) n //
-               pMapParams #<~ mp
+               pMapP #<~ mp
         let psV :: VecT n (BVar q '[b i, CParam (PMapLayer s n) b i i]) (ElemT b)
             psV = prodToVec' n ps
         psTV :: VecT n (BVar q '[b i, CParam (PMapLayer s n) b i i]) (b i)
@@ -151,7 +158,7 @@ instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => Component (PMapLa
     initComponent _ _ g = do
         ps <- forM (initPMapFunc pmf) $ \(SomeC (I d)) ->
           realToFrac <$> genContVar d g
-        return $ only_ (PMapParams ps)
+        return $ only_ (PMapP ps)
       where
         pmf :: PMapFunc n
         pmf = reflect (Proxy @s)

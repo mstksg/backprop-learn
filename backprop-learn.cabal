@@ -20,11 +20,13 @@ library
                        Numeric.BLAS.HMatrix
                        Numeric.Tensor
                        Learn.Neural
-                       Learn.Neural.Layer.MapLayer
+                       Learn.Neural.Layer.Map
+                       Learn.Neural.Layer.FullyConnected
   other-modules:       Data.Type.Util
   build-depends:       base >= 4.7 && < 5
                      , ad
                      , backprop
+                     , generics-sop
                      , finite-typelits
                      , hmatrix    >= 0.18
                      , mono-traversable

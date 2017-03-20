@@ -5,9 +5,12 @@
 {-# LANGUAGE GADTs                  #-}
 {-# LANGUAGE InstanceSigs           #-}
 {-# LANGUAGE KindSignatures         #-}
+{-# LANGUAGE LambdaCase             #-}
 {-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE PolyKinds              #-}
 {-# LANGUAGE ScopedTypeVariables    #-}
 {-# LANGUAGE TemplateHaskell        #-}
+{-# LANGUAGE TypeApplications       #-}
 {-# LANGUAGE TypeFamilies           #-}
 {-# LANGUAGE TypeInType             #-}
 {-# LANGUAGE UndecidableInstances   #-}
@@ -18,14 +21,21 @@ module Numeric.BLAS (
   , Sing(SBV, SBM)
   , SBShape
   , BIndex(..)
+  , matVec
+  , vecMat
+  , outer
+  , matVecOp
+  , dotOp
   ) where
 
 import           Data.Finite
 import           Data.Kind
+import           Data.Maybe
 import           Data.Singletons
 import           Data.Singletons.Prelude
 import           Data.Singletons.TH
 import           GHC.TypeLits
+import           Numeric.Backprop.Op
 
 $(singletons [d|
   data BShape a = BV !a | BM !a !a
@@ -42,6 +52,17 @@ data BIndex :: BShape Nat -> Type where
 
 class RealFloat (Scalar b) => BLAS (b :: BShape Nat -> Type) where
     type Scalar b :: Type
+
+    bkonst
+        :: Sing s
+        -> Scalar b
+        -> b s
+
+    transp
+        :: (KnownNat m, KnownNat n)
+        => b ('BM m n)
+        -> b ('BM n m)
+
 
     -- Level 1
     scal
@@ -83,15 +104,14 @@ class RealFloat (Scalar b) => BLAS (b :: BShape Nat -> Type) where
         => Scalar b     -- ^ α
         -> b ('BM m n)  -- ^ A
         -> b ('BV n)    -- ^ x
-        -> Scalar b     -- ^ β
-        -> b ('BV m)    -- ^ y
+        -> Maybe (Scalar b, b ('BV m))    -- ^ β, y
         -> b ('BV m)    -- ^ α A x + β y
 
     ger :: (KnownNat m, KnownNat n)
         => Scalar b     -- ^ α
         -> b ('BV m)    -- ^ x
         -> b ('BV n)    -- ^ y
-        -> b ('BM m n)  -- ^ A
+        -> Maybe (b ('BM m n))  -- ^ A
         -> b ('BM m n)  -- ^ x y' + A
 
     syr :: KnownNat n
@@ -106,8 +126,7 @@ class RealFloat (Scalar b) => BLAS (b :: BShape Nat -> Type) where
         => Scalar b     -- ^ α
         -> b ('BM m o)  -- ^ A
         -> b ('BM o n)  -- ^ B
-        -> Scalar b     -- ^ β
-        -> b ('BM m n)  -- ^ C
+        -> Maybe (Scalar b, b ('BM m n))  -- ^ β, C
         -> b ('BM m n)  -- ^ α A B + β C
 
     syrk
@@ -117,3 +136,43 @@ class RealFloat (Scalar b) => BLAS (b :: BShape Nat -> Type) where
         -> Scalar b     -- ^ β
         -> b ('BM m m)  -- ^ C
         -> b ('BM m m)  -- ^ α A A' + β C
+
+matVec
+    :: (KnownNat m, KnownNat n, BLAS b)
+    => b ('BM m n)
+    -> b ('BV n)
+    -> b ('BV m)
+matVec a x = gemv 1 a x Nothing
+
+vecMat
+    :: (KnownNat m, KnownNat n, BLAS b)
+    => b ('BV m)
+    -> b ('BM m n)
+    -> b ('BV n)
+vecMat x a = gemv 1 (transp a) x Nothing
+
+outer
+    :: (KnownNat m, KnownNat n, BLAS b)
+    => b ('BV m)
+    -> b ('BV n)
+    -> b ('BM m n)
+outer x y = ger 1 x y Nothing
+
+matVecOp
+    :: (KnownNat m, KnownNat n, BLAS b)
+    => Op '[ b ('BM m n), b ('BV n) ] '[ b ('BV m) ]
+matVecOp = op2' $ \a x ->
+    ( only_ (matVec a x)
+    , (\g -> (outer g x, vecMat g a))
+    . fromMaybe (bkonst sing 1)
+    . head'
+    )
+
+dotOp
+    :: forall b n. (KnownNat n, BLAS b)
+    => Op '[ b ('BV n), b ('BV n) ] '[ Scalar b ]
+dotOp = op2' $ \x y ->
+    ( only_ (dot x y)
+    , \case Nothing :< Ø -> (y       , x       )
+            Just g  :< Ø -> (scal g y, scal g x)
+    )
