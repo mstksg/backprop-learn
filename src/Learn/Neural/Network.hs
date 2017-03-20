@@ -14,7 +14,7 @@ module Learn.Neural.Network (
   , NetConf(..)
   , initNet
   , NetStruct(..)
-  , defNetConf(..)
+  , defNetConf
   ) where
 
 import           Control.Monad.Primitive
