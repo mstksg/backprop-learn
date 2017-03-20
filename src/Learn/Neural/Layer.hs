@@ -39,6 +39,7 @@ class (SingI i, SingI o) => Component c i o where
     type CState  c (b :: BShape Nat -> Type) (i :: BShape Nat) (o :: BShape Nat) :: Maybe Type
     type CConstr c (b :: BShape Nat -> Type) (i :: BShape Nat) (o :: BShape Nat) :: Constraint
     type CConstr c b i o = ØC
+    data CConf   c (b :: BShape Nat -> Type) (i :: BShape Nat) (o :: BShape Nat) :: Type
 
     componentOp
         :: forall s b. (BLAS b, Tensor b, Num (b i), Num (b o), CConstr c b i o)
@@ -48,6 +49,7 @@ class (SingI i, SingI o) => Component c i o where
         :: (PrimMonad m, BLAS b, Tensor b, CConstr c b i o)
         => Sing i
         -> Sing o
+        -> CConf c b i o
         -> Gen (PrimState m)
         -> m (Tuple (CParam c b i o ': MaybeToList (CState c b i o)))
 
