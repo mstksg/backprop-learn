@@ -11,6 +11,10 @@ module Learn.Neural.Network (
   , Network(..)
   , networkOp
   , networkOpPure
+  , NetConf(..)
+  , initNet
+  , NetStruct(..)
+  , defNetConf(..)
   ) where
 
 import           Control.Monad.Primitive
@@ -104,3 +108,27 @@ initNet = \case
       l <- initLayer sing sing c g
       n <- initNet cN g
       return $ l :& n
+
+data NetStruct :: HasState -> (BShape Nat -> Type) -> LChain -> [LChain] -> BShape Nat -> Type where
+    NSExt :: ( Component c i o
+             , CConstr c b i o
+             , DefLayerConf c r b i o
+             )
+          => NetStruct r b (i ':~ c) '[] o
+    NSInt :: ( SingI h
+             , Num (b h)
+             , Component c i h
+             , Component d h o
+             , CConstr c b i h
+             , CConstr d b h o
+             , DefLayerConf c r b i h
+             )
+          => NetStruct r b (h ':~ d) hs               o
+          -> NetStruct r b (i ':~ c) ((h ':~ d) ': hs) o
+
+defNetConf
+    :: NetStruct r b i hs o
+    -> NetConf r b i hs o
+defNetConf = \case
+    NSExt   -> NCExt defLayerConf
+    NSInt c -> defLayerConf :&~ defNetConf c
