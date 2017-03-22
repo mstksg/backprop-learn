@@ -17,9 +17,10 @@
 
 module Numeric.BLAS (
     BLAS(..)
-  , BShape(..)
+  , BShape'(..)
+  , BShape, BV, BM
   , Sing(SBV, SBM)
-  , SBShape
+  , SBShape'
   , BIndex(..)
   , matVec
   , vecMat
@@ -38,19 +39,23 @@ import           GHC.TypeLits
 import           Numeric.Backprop.Op
 
 $(singletons [d|
-  data BShape a = BV !a | BM !a !a
+  data BShape' a = BV !a | BM !a !a
     deriving (Show, Eq, Ord, Functor)
 
-  bshapeSize :: Num a => BShape a -> a
+  bshapeSize :: Num a => BShape' a -> a
   bshapeSize (BV x  ) = x
   bshapeSize (BM x y) = x * y
   |])
 
-data BIndex :: BShape Nat -> Type where
-    BVIx :: Finite n -> BIndex ('BV n)
-    BMIx :: Finite m -> Finite n -> BIndex ('BM m n)
+type BShape = BShape' Nat
+type BV = 'BV
+type BM = 'BM
 
-class RealFloat (Scalar b) => BLAS (b :: BShape Nat -> Type) where
+data BIndex :: BShape -> Type where
+    BVIx :: Finite n -> BIndex (BV n)
+    BMIx :: Finite m -> Finite n -> BIndex (BM m n)
+
+class RealFloat (Scalar b) => BLAS (b :: BShape -> Type) where
     type Scalar b :: Type
 
     bkonst
@@ -60,107 +65,107 @@ class RealFloat (Scalar b) => BLAS (b :: BShape Nat -> Type) where
 
     transp
         :: (KnownNat m, KnownNat n)
-        => b ('BM m n)
-        -> b ('BM n m)
+        => b (BM m n)
+        -> b (BM n m)
 
 
     -- Level 1
     scal
         :: KnownNat n
         => Scalar b     -- ^ α
-        -> b ('BV n)    -- ^ x
-        -> b ('BV n)    -- ^ α x
+        -> b (BV n)    -- ^ x
+        -> b (BV n)    -- ^ α x
 
     axpy
         :: KnownNat n
         => Scalar b     -- ^ α
-        -> b ('BV n)    -- ^ x
-        -> b ('BV n)    -- ^ y
-        -> b ('BV n)    -- ^ α x + y
+        -> b (BV n)    -- ^ x
+        -> b (BV n)    -- ^ y
+        -> b (BV n)    -- ^ α x + y
 
     dot :: KnownNat n
-        => b ('BV n)    -- ^ x
-        -> b ('BV n)    -- ^ y
+        => b (BV n)    -- ^ x
+        -> b (BV n)    -- ^ y
         -> Scalar b     -- ^ x' y
 
     norm2
         :: KnownNat n
-        => b ('BV n)    -- ^ x
+        => b (BV n)    -- ^ x
         -> Scalar b     -- ^ ||x||
 
     asum
         :: KnownNat n
-        => b ('BV n)    -- ^ x
+        => b (BV n)    -- ^ x
         -> Scalar b     -- ^ sum_i |x_i|
 
     iamax
         :: KnownNat n
-        => b ('BV n)    -- ^ x
+        => b (BV n)    -- ^ x
         -> Finite n     -- ^ argmax_i |x_i|
 
     -- Level 2
     gemv
         :: (KnownNat m, KnownNat n)
         => Scalar b     -- ^ α
-        -> b ('BM m n)  -- ^ A
-        -> b ('BV n)    -- ^ x
-        -> Maybe (Scalar b, b ('BV m))    -- ^ β, y
-        -> b ('BV m)    -- ^ α A x + β y
+        -> b (BM m n)  -- ^ A
+        -> b (BV n)    -- ^ x
+        -> Maybe (Scalar b, b (BV m))    -- ^ β, y
+        -> b (BV m)    -- ^ α A x + β y
 
     ger :: (KnownNat m, KnownNat n)
         => Scalar b     -- ^ α
-        -> b ('BV m)    -- ^ x
-        -> b ('BV n)    -- ^ y
-        -> Maybe (b ('BM m n))  -- ^ A
-        -> b ('BM m n)  -- ^ x y' + A
+        -> b (BV m)    -- ^ x
+        -> b (BV n)    -- ^ y
+        -> Maybe (b (BM m n))  -- ^ A
+        -> b (BM m n)  -- ^ x y' + A
 
     syr :: KnownNat n
         => Scalar b     -- ^ α
-        -> b ('BV n)    -- ^ x
-        -> b ('BM n n)  -- ^ A
-        -> b ('BM n n)  -- ^ x x' + A
+        -> b (BV n)    -- ^ x
+        -> b (BM n n)  -- ^ A
+        -> b (BM n n)  -- ^ x x' + A
 
     -- Level 3
     gemm
         :: (KnownNat m, KnownNat o, KnownNat n)
         => Scalar b     -- ^ α
-        -> b ('BM m o)  -- ^ A
-        -> b ('BM o n)  -- ^ B
-        -> Maybe (Scalar b, b ('BM m n))  -- ^ β, C
-        -> b ('BM m n)  -- ^ α A B + β C
+        -> b (BM m o)  -- ^ A
+        -> b (BM o n)  -- ^ B
+        -> Maybe (Scalar b, b (BM m n))  -- ^ β, C
+        -> b (BM m n)  -- ^ α A B + β C
 
     syrk
         :: (KnownNat m, KnownNat n)
         => Scalar b     -- ^ α
-        -> b ('BM m n)  -- ^ A
+        -> b (BM m n)  -- ^ A
         -> Scalar b     -- ^ β
-        -> b ('BM m m)  -- ^ C
-        -> b ('BM m m)  -- ^ α A A' + β C
+        -> b (BM m m)  -- ^ C
+        -> b (BM m m)  -- ^ α A A' + β C
 
 matVec
     :: (KnownNat m, KnownNat n, BLAS b)
-    => b ('BM m n)
-    -> b ('BV n)
-    -> b ('BV m)
+    => b (BM m n)
+    -> b (BV n)
+    -> b (BV m)
 matVec a x = gemv 1 a x Nothing
 
 vecMat
     :: (KnownNat m, KnownNat n, BLAS b)
-    => b ('BV m)
-    -> b ('BM m n)
-    -> b ('BV n)
+    => b (BV m)
+    -> b (BM m n)
+    -> b (BV n)
 vecMat x a = gemv 1 (transp a) x Nothing
 
 outer
     :: (KnownNat m, KnownNat n, BLAS b)
-    => b ('BV m)
-    -> b ('BV n)
-    -> b ('BM m n)
+    => b (BV m)
+    -> b (BV n)
+    -> b (BM m n)
 outer x y = ger 1 x y Nothing
 
 matVecOp
     :: (KnownNat m, KnownNat n, BLAS b)
-    => Op '[ b ('BM m n), b ('BV n) ] '[ b ('BV m) ]
+    => Op '[ b (BM m n), b (BV n) ] '[ b (BV m) ]
 matVecOp = op2' $ \a x ->
     ( only_ (matVec a x)
     , (\g -> (outer g x, vecMat g a))
@@ -170,7 +175,7 @@ matVecOp = op2' $ \a x ->
 
 dotOp
     :: forall b n. (KnownNat n, BLAS b)
-    => Op '[ b ('BV n), b ('BV n) ] '[ Scalar b ]
+    => Op '[ b (BV n), b (BV n) ] '[ Scalar b ]
 dotOp = op2' $ \x y ->
     ( only_ (dot x y)
     , \case Nothing :< Ø -> (y       , x       )

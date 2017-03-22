@@ -61,10 +61,10 @@ instance Num (CParam (MapLayer s) b i i) where
     signum _      = MapP
     fromInteger _ = MapP
 
-instance (Reifies s MapFunc, SingI i) => Component (MapLayer s) i i where
+instance (Reifies s MapFunc, SingI i) => Component (MapLayer s) b i i where
     data CParam (MapLayer s) b i i = MapP
     type CState (MapLayer s) b i i = 'Nothing
-    data CConf  (MapLayer s)   i i = MapC
+    data CConf  (MapLayer s) b i i = MapC
 
     componentOp = bpOp . withInps $ \(x :< _ :< Ø) -> do
         y <- tmapOp (runMapFunc mf) ~$ (x :< Ø)
@@ -77,8 +77,7 @@ instance (Reifies s MapFunc, SingI i) => Component (MapLayer s) i i where
 
     defConf = MapC
 
-instance (Reifies s MapFunc, SingI i) => DefLayerConf (MapLayer s) r b i i where
-    defLayerConf = defLCPure
+    componentStateWit = SWPure
 
 data CommonMap :: Type where
     MF_Logit :: CommonMap
@@ -133,13 +132,13 @@ pMapP = gTuple . iso (vecToProd . getI . head') (only_ . prodToVec' known)
 deriving instance Generic (CParam (PMapLayer s n) b i i)
 instance SOP.Generic (CParam (PMapLayer s n) b i i)
 
-instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => Component (PMapLayer s n) i i where
+instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => Component (PMapLayer s n) b i i where
     data CParam (PMapLayer s n) b i i = PMapP { getPMapP :: !(Vec n (ElemT b)) }
     type CState (PMapLayer s n) b i i = 'Nothing
-    data CConf  (PMapLayer s n)   i i = PMapC { getPMapC :: !(Vec n (SomeC ContGen I)) }
+    data CConf  (PMapLayer s n) b i i = PMapC { getPMapC :: !(Vec n (SomeC ContGen I)) }
 
     componentOp
-        :: forall q b. (BLAS b, Tensor b, Num (b i))
+        :: forall q. (BLAS b, Tensor b, Num (b i))
         => OpB q '[b i, CParam (PMapLayer s n) b i i] '[b i]
     componentOp = bpOp . withInps $ \(x :< mp :< Ø) -> replWit @n @Num @(ElemT b) n Wit //
                                                        replLen @n @(ElemT b) n          // do
@@ -172,8 +171,7 @@ instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => Component (PMapLa
         pmf :: PMapFunc n
         pmf = reflect (Proxy @s)
 
-instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => DefLayerConf (PMapLayer s n) r b i i where
-    defLayerConf = defLCPure
+    componentStateWit = SWPure
 
 data CommonPMap :: Type where
     PMF_PReLU :: CommonPMap

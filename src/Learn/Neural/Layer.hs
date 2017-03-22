@@ -1,5 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes    #-}
 {-# LANGUAGE DataKinds              #-}
+{-# LANGUAGE FlexibleInstances      #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GADTs                  #-}
 {-# LANGUAGE KindSignatures         #-}
@@ -10,62 +11,78 @@
 {-# LANGUAGE ScopedTypeVariables    #-}
 {-# LANGUAGE TypeApplications       #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
+{-# LANGUAGE TypeInType             #-}
 {-# LANGUAGE TypeOperators          #-}
 
 module Learn.Neural.Layer (
     MaybeToList
   , Component(..)
+  , StateWit(..)
   , componentOpPure
   , HasState(..)
   , Layer(..)
   , layerOp
   , layerOpPure
-  , LayerConf(..)
   , initLayer
-  , defLCPure
-  , defLCState
-  , DefLayerConf(..)
   ) where
 
 
 import           Control.Monad.Primitive
 import           Data.Kind
 import           Data.Singletons.Prelude
-import           Data.Type.Option
 import           Data.Type.Util
-import           GHC.TypeLits
 import           Numeric.BLAS
 import           Numeric.Backprop
 import           Numeric.Backprop.Op
 import           Numeric.Tensor
 import           System.Random.MWC
+import           Type.Class.Known
 import           Type.Family.Constraint
 
+data HasState = NoState
+              | SomeState
 
-class (SingI i, SingI o) => Component c i o where
-    data CParam  c (b :: BShape Nat -> Type) (i :: BShape Nat) (o :: BShape Nat) :: Type
-    type CState  c (b :: BShape Nat -> Type) (i :: BShape Nat) (o :: BShape Nat) :: Maybe Type
-    type CConstr c (b :: BShape Nat -> Type) (i :: BShape Nat) (o :: BShape Nat) :: Constraint
+data StateWit :: Maybe k -> HasState -> Type where
+    SWPure  :: StateWit 'Nothing  r
+    SWState :: StateWit ('Just a) 'SomeState
+
+class (SingI i, SingI o)
+      => Component (c :: Type)
+                   (b :: BShape -> Type)
+                   (i :: BShape)
+                   (o :: BShape)
+        where
+    data CParam  c b i o :: Type
+    type CState  c b i o :: Maybe Type
+    type CConstr c b i o :: Constraint
     type CConstr c b i o = ØC
-    data CConf   c i o :: Type
+    data CConf   c b i o :: Type
 
     componentOp
-        :: forall s b. (BLAS b, Tensor b, Num (b i), Num (b o), CConstr c b i o)
+        :: forall s. (BLAS b, Tensor b, Num (b i), Num (b o), CConstr c b i o)
         => OpB s (b i ': CParam c b i o ': MaybeToList (CState c b i o))
                  (b o ': MaybeToList (CState c b i o))
     initComponent
-        :: forall m b. (PrimMonad m, BLAS b, Tensor b, CConstr c b i o)
+        :: forall m. (PrimMonad m, BLAS b, Tensor b, CConstr c b i o)
         => Sing i
         -> Sing o
-        -> CConf c i o
+        -> CConf c b i o
         -> Gen (PrimState m)
         -> m (Tuple (CParam c b i o ': MaybeToList (CState c b i o)))
 
-    defConf :: CConf c i o
+    defConf :: CConf c b i o
+
+    componentStateWit :: forall r. StateWit (CState c b i o) r
+
+instance Known (StateWit 'Nothing) r where
+    known = SWPure
+
+instance Known (StateWit ('Just a)) 'SomeState where
+    known = SWState
 
 componentOpPure
-    :: forall c i o s b.
-     ( Component c i o
+    :: forall c b i o s.
+     ( Component c b i o
      , CState c b i o ~ 'Nothing
      , BLAS b
      , Tensor b
@@ -74,30 +91,27 @@ componentOpPure
      , CConstr c b i o
      )
     => OpB s '[ b i, CParam c b i o ] '[ b o ]
-componentOpPure = componentOp
+componentOpPure = componentOp @c @b @i @o
 
-data HasState = NoState
-              | SomeState
+data Layer :: HasState -> Type -> (BShape -> Type) -> BShape -> BShape -> Type where
+    LPure  :: (CState c b i o ~ 'Nothing) => CParam c b i o -> Layer r c b i o
+    LState :: (CState c b i o ~ 'Just s ) => CParam c b i o -> s -> Layer 'SomeState c b i o
 
-data Layer :: Type -> HasState -> (BShape Nat -> Type) -> BShape Nat -> BShape Nat -> Type where
-    LPure  :: (CState c b i o ~ 'Nothing) => CParam c b i o -> Layer c r b i o
-    LState :: (CState c b i o ~ 'Just s ) => CParam c b i o -> s -> Layer c 'SomeState b i o
-
-instance Num (Layer c r b i o)
+instance Num (Layer r c b i o)
 
 layerOp
-    :: forall s c r b i o. (Component c i o, BLAS b, Tensor b, Num (b i), Num (b o), CConstr c b i o)
-    => OpB s '[ b i, Layer c r b i o ] '[ b o, Layer c r b i o ]
+    :: forall c b i o r s. (Component c b i o, BLAS b, Tensor b, Num (b i), Num (b o), CConstr c b i o)
+    => OpB s '[ b i, Layer r c b i o ] '[ b o, Layer r c b i o ]
 layerOp = OpM $ \(I x :< I l :< Ø) -> case l of
     LPure p -> do
-      (I y :< Ø, gF) <- runOpM' (componentOp @_ @_ @o) (x ::< p ::< Ø)
+      (I y :< Ø, gF) <- runOpM' (componentOp @_ @b) (x ::< p ::< Ø)
       -- let gF' = _ . lPure . _ $ gF
       let gF' = fmap (\case I dX :< I dP :< Ø -> I dX :< I (LPure dP) :< Ø)
               . gF
               . (\case dY :< _ :< Ø -> dY :< Ø)
       return (y ::< LPure p ::< Ø, gF')
     LState p s -> do
-      (I y :< I s' :< Ø, gF) <- runOpM' (componentOp @_ @_ @o) (x ::< p ::< s ::< Ø)
+      (I y :< I s' :< Ø, gF) <- runOpM' (componentOp @_ @b) (x ::< p ::< s ::< Ø)
       let gF' = fmap (\case I dX :< I dP :< I dS :< Ø -> dX ::< LState dP dS ::< Ø)
               . gF
               . (\case dY :< Just (LState _ dS) :< Ø -> dY :< Just dS :< Ø
@@ -106,38 +120,25 @@ layerOp = OpM $ \(I x :< I l :< Ø) -> case l of
       return (y ::< LState p s' ::< Ø, gF')
 
 layerOpPure
-    :: forall s c b i o. (Component c i o, BLAS b, Tensor b, Num (b i), Num (b o), CConstr c b i o)
-    => OpB s '[ b i, Layer c 'NoState b i o ] '[ b o ]
+    :: forall c b i o s. (Component c b i o, BLAS b, Tensor b, Num (b i), Num (b o), CConstr c b i o)
+    => OpB s '[ b i, Layer 'NoState c b i o ] '[ b o ]
 layerOpPure = OpM $ \(I x :< I l :< Ø) -> case l of
     LPure p -> do
-      (I y :< Ø, gF) <- runOpM' (componentOp @_ @_ @o) (x ::< p ::< Ø)
+      (I y :< Ø, gF) <- runOpM' (componentOp @_ @b) (x ::< p ::< Ø)
       let gF' = fmap (\case I dX :< I dP :< Ø -> I dX :< I (LPure dP) :< Ø)
               . gF
       return (y ::< Ø, gF')
 
-data LayerConf :: Type -> HasState -> (BShape Nat -> Type) -> BShape Nat -> BShape Nat -> Type where
-    LCPure  :: (CState c b i o ~ 'Nothing) => CConf c i o -> LayerConf c r b i o
-    LCState :: (CState c b i o ~ 'Just s ) => CConf c i o -> LayerConf c 'SomeState b i o
-
 initLayer
-    :: forall c i o m b r. (PrimMonad m, BLAS b, Tensor b, CConstr c b i o, Component c i o)
+    :: forall c b i o m r. (PrimMonad m, BLAS b, Tensor b, CConstr c b i o, Component c b i o)
     => Sing i
     -> Sing o
-    -> LayerConf c r b i o
+    -> CConf c b i o
     -> Gen (PrimState m)
-    -> m (Layer c r b i o)
-initLayer si so = \case
-    LCPure  conf -> \g -> LPure . getI . head' <$> initComponent si so conf g
-    LCState conf -> \g -> do
-      I p :< I s :< Ø <- initComponent @_ @_ @_ @_ @b si so conf g
+    -> m (Layer r c b i o)
+initLayer si so conf = case componentStateWit @c @b @i @o @r of
+    SWPure  -> \g -> LPure . getI . head' <$> initComponent @_ @b si so conf g
+    SWState -> \g -> do
+      I p :< I s :< Ø <- initComponent @_ @b si so conf g
       return $ LState p s
-
-class Component c i o => DefLayerConf c r b i o where
-    defLayerConf :: LayerConf c r b i o
-
-defLCPure :: (CState c b i o ~ 'Nothing, Component c i o) => LayerConf c r b i o
-defLCPure = LCPure defConf 
-
-defLCState :: (CState c b i o ~ 'Just st, Component c i o) => LayerConf c 'SomeState b i o
-defLCState = LCState defConf
 

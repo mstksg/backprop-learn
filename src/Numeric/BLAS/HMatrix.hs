@@ -23,11 +23,11 @@ import           Numeric.LinearAlgebra.Static
 import           Numeric.Tensor
 import qualified Numeric.LinearAlgebra        as LA
 
-type family HM' (s :: BShape Nat) :: Type where
+type family HM' (s :: BShape) :: Type where
     HM' ('BV n  ) = R n
     HM' ('BM m n) = L m n
 
-newtype HM :: BShape Nat -> Type where
+newtype HM :: BShape -> Type where
     HM  :: { getHM :: HM' b }
         -> HM b
 

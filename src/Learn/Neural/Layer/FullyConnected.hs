@@ -25,19 +25,19 @@ import qualified Generics.SOP                   as SOP
 
 data FCLayer :: Type
 
-instance Num (CParam FCLayer b ('BV i) ('BV o))
+instance Num (CParam FCLayer b (BV i) (BV o))
 
-deriving instance Generic (CParam FCLayer b ('BV i) ('BV o))
-instance SOP.Generic (CParam FCLayer b ('BV i) ('BV o))
+deriving instance Generic (CParam FCLayer b (BV i) (BV o))
+instance SOP.Generic (CParam FCLayer b (BV i) (BV o))
 
-instance (KnownNat i, KnownNat o) => Component FCLayer ('BV i) ('BV o) where
-    data CParam  FCLayer b ('BV i) ('BV o) =
-            FCP { fcWeights :: !(b ('BM o i))
-                , fcBiases  :: !(b ('BV o))
+instance (KnownNat i, KnownNat o) => Component FCLayer b (BV i) (BV o) where
+    data CParam  FCLayer b (BV i) (BV o) =
+            FCP { fcWeights :: !(b (BM o i))
+                , fcBiases  :: !(b (BV o))
                 }
-    type CState  FCLayer b ('BV i) ('BV o) = 'Nothing
-    type CConstr FCLayer b ('BV i) ('BV o) = Num (b ('BM o i))
-    data CConf   FCLayer   ('BV i) ('BV o) = forall d. ContGen d => FCC d
+    type CState  FCLayer b (BV i) (BV o) = 'Nothing
+    type CConstr FCLayer b (BV i) (BV o) = Num (b (BM o i))
+    data CConf   FCLayer b (BV i) (BV o) = forall d. ContGen d => FCC d
 
     componentOp = bpOp . withInps $ \(x :< p :< Ø) -> do
         w :< b :< Ø <- gTuple #<~ p
@@ -57,5 +57,4 @@ instance (KnownNat i, KnownNat o) => Component FCLayer ('BV i) ('BV o) where
 
     defConf = FCC (normalDistr 0 0.5)
 
-instance (KnownNat i, KnownNat o) => DefLayerConf FCLayer r b ('BV i) ('BV o) where
-    defLayerConf = defLCPure
+    componentStateWit = SWPure
