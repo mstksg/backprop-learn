@@ -35,7 +35,7 @@ import           System.Random.MWC
 data LChain :: Type where
     (:~) :: BShape -> Type -> LChain
 
-data Network :: HasState -> (BShape -> Type) -> LChain -> [LChain] -> BShape -> Type where
+data Network :: RunMode -> (BShape -> Type) -> LChain -> [LChain] -> BShape -> Type where
     NetExt :: (Component c b i o, CConstr c b i o)
            => Layer r c b i o
            -> Network r b (i ':~ c) '[] o
@@ -73,29 +73,29 @@ networkOp = OpM $ \(I x :< I n :< Ø) -> case n of
 
 networkOpPure
     :: forall b i c hs o s. (BLAS b, Tensor b, Num (b i), Num (b o))
-    => OpB s '[ b i, Network 'NoState b (i ':~ c) hs o ] '[ b o ]
+    => OpB s '[ b i, Network 'FeedForward b (i ':~ c) hs o ] '[ b o ]
 networkOpPure = OpM $ \(I x :< I n :< Ø) -> case n of
     NetExt l -> do
       (I y :< Ø, gF) <- runOpM' layerOpPure (x ::< l ::< Ø)
       let gF' = fmap (\case I dX :< I dL :< Ø -> dX ::< NetExt dL ::< Ø)
               . gF
       return (y ::< Ø, gF')
-    (l :: Layer 'NoState c b i h) :& (n2 :: Network 'NoState b (h ':~ d) js o) -> do
+    (l :: Layer 'FeedForward c b i h) :& (n2 :: Network 'FeedForward b (h ':~ d) js o) -> do
       (I y :< Ø, gF ) <- runOpM' layerOpPure   (x ::< l ::< Ø)
       (I z :< Ø, gF') <- runOpM' networkOpPure (y ::< n2 ::< Ø)
       let gF'' :: Prod Maybe '[ b o ]
-               -> ST s (Tuple '[ b i, Network 'NoState b (i ':~ c) ((h ':~ d) ': js) o])
+               -> ST s (Tuple '[ b i, Network 'FeedForward b (i ':~ c) ((h ':~ d) ': js) o])
           gF'' dZ = do
             I dY :< I dN2 :< Ø <- gF' dZ
             I dX :< I dL0 :< Ø <- gF  (Just dY :< Ø)
             return $ dX ::< (dL0 :& dN2) ::< Ø
       return (z ::< Ø, gF'')
 
-data NetConf :: HasState -> (BShape -> Type) -> LChain -> [LChain] -> BShape -> Type where
-    NCExt :: (Component c b i o, CConstr c b i o)
+data NetConf :: RunMode -> (BShape -> Type) -> LChain -> [LChain] -> BShape -> Type where
+    NCExt :: (Component c b i o, CConstr c b i o, ComponentRunMode r c b i o)
           => CConf c b i o
           -> NetConf r b (i ':~ c) '[] o
-    (:&~) :: (SingI h, Num (b h), Component c b i h, Component d b h o, CConstr c b i h, CConstr d b h o)
+    (:&~) :: (SingI h, Num (b h), Component c b i h, Component d b h o, CConstr c b i h, CConstr d b h o, ComponentRunMode r c b i h, ComponentRunMode r d b h o)
           => CConf c b i h
           -> NetConf r b (h ':~ d) hs               o
           -> NetConf r b (i ':~ c) ((h ':~ d) ': hs) o
@@ -112,9 +112,10 @@ initNet = \case
       n <- initNet cN g
       return $ l :& n
 
-data NetStruct :: HasState -> (BShape -> Type) -> LChain -> [LChain] -> BShape -> Type where
+data NetStruct :: RunMode -> (BShape -> Type) -> LChain -> [LChain] -> BShape -> Type where
     NSExt :: ( Component c b i o
              , CConstr c b i o
+             , ComponentRunMode r c b i o
              )
           => NetStruct r b (i ':~ c) '[] o
     NSInt :: ( SingI h
@@ -123,6 +124,8 @@ data NetStruct :: HasState -> (BShape -> Type) -> LChain -> [LChain] -> BShape -
              , Component d b h o
              , CConstr c b i h
              , CConstr d b h o
+             , ComponentRunMode r c b i h
+             , ComponentRunMode r d b h o
              )
           => NetStruct r b (h ':~ d) hs               o
           -> NetStruct r b (i ':~ c) ((h ':~ d) ': hs) o

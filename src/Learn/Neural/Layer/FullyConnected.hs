@@ -10,7 +10,8 @@
 {-# LANGUAGE TypeInType                #-}
 
 module Learn.Neural.Layer.FullyConnected (
-) where
+    FCLayer
+  ) where
 
 import           Data.Kind
 import           Data.Singletons.TypeLits
@@ -57,4 +58,5 @@ instance (KnownNat i, KnownNat o) => Component FCLayer b (BV i) (BV o) where
 
     defConf = FCC (normalDistr 0 0.5)
 
-    componentStateWit = SWPure
+instance ComponentRunMode r FCLayer b (BV i) (BV o) where
+    componentRunMode = RMWPure

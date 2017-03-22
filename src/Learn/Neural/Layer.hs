@@ -13,13 +13,15 @@
 {-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE TypeInType             #-}
 {-# LANGUAGE TypeOperators          #-}
+{-# LANGUAGE UndecidableInstances   #-}
 
 module Learn.Neural.Layer (
     MaybeToList
+  , RunMode(..)
   , Component(..)
-  , StateWit(..)
+  , RunModeWit(..)
+  , ComponentRunMode(..)
   , componentOpPure
-  , HasState(..)
   , Layer(..)
   , layerOp
   , layerOpPure
@@ -36,15 +38,14 @@ import           Numeric.Backprop
 import           Numeric.Backprop.Op
 import           Numeric.Tensor
 import           System.Random.MWC
-import           Type.Class.Known
 import           Type.Family.Constraint
 
-data HasState = NoState
-              | SomeState
+data RunMode = FeedForward
+             | Recurrent
 
-data StateWit :: Maybe k -> HasState -> Type where
-    SWPure  :: StateWit 'Nothing  r
-    SWState :: StateWit ('Just a) 'SomeState
+data RunModeWit :: RunMode -> Type -> (BShape -> Type) -> BShape -> BShape -> Type where
+    RMWPure  :: (CState c b i o ~ 'Nothing) => RunModeWit r c b i o
+    RMWState :: (CState c b i o ~ 'Just s)  => RunModeWit 'Recurrent c b i o
 
 class (SingI i, SingI o)
       => Component (c :: Type)
@@ -72,13 +73,8 @@ class (SingI i, SingI o)
 
     defConf :: CConf c b i o
 
-    componentStateWit :: forall r. StateWit (CState c b i o) r
-
-instance Known (StateWit 'Nothing) r where
-    known = SWPure
-
-instance Known (StateWit ('Just a)) 'SomeState where
-    known = SWState
+class ComponentRunMode r c b i o where
+    componentRunMode :: RunModeWit r c b i o
 
 componentOpPure
     :: forall c b i o s.
@@ -93,9 +89,9 @@ componentOpPure
     => OpB s '[ b i, CParam c b i o ] '[ b o ]
 componentOpPure = componentOp @c @b @i @o
 
-data Layer :: HasState -> Type -> (BShape -> Type) -> BShape -> BShape -> Type where
+data Layer :: RunMode -> Type -> (BShape -> Type) -> BShape -> BShape -> Type where
     LPure  :: (CState c b i o ~ 'Nothing) => CParam c b i o -> Layer r c b i o
-    LState :: (CState c b i o ~ 'Just s ) => CParam c b i o -> s -> Layer 'SomeState c b i o
+    LState :: (CState c b i o ~ 'Just s ) => CParam c b i o -> s -> Layer 'Recurrent c b i o
 
 instance Num (Layer r c b i o)
 
@@ -121,7 +117,7 @@ layerOp = OpM $ \(I x :< I l :< Ø) -> case l of
 
 layerOpPure
     :: forall c b i o s. (Component c b i o, BLAS b, Tensor b, Num (b i), Num (b o), CConstr c b i o)
-    => OpB s '[ b i, Layer 'NoState c b i o ] '[ b o ]
+    => OpB s '[ b i, Layer 'FeedForward c b i o ] '[ b o ]
 layerOpPure = OpM $ \(I x :< I l :< Ø) -> case l of
     LPure p -> do
       (I y :< Ø, gF) <- runOpM' (componentOp @_ @b) (x ::< p ::< Ø)
@@ -130,15 +126,22 @@ layerOpPure = OpM $ \(I x :< I l :< Ø) -> case l of
       return (y ::< Ø, gF')
 
 initLayer
-    :: forall c b i o m r. (PrimMonad m, BLAS b, Tensor b, CConstr c b i o, Component c b i o)
+    :: forall c b i o m r.
+     ( PrimMonad m
+     , BLAS b
+     , Tensor b
+     , CConstr c b i o
+     , Component c b i o
+     , ComponentRunMode r c b i o
+     )
     => Sing i
     -> Sing o
     -> CConf c b i o
     -> Gen (PrimState m)
     -> m (Layer r c b i o)
-initLayer si so conf = case componentStateWit @c @b @i @o @r of
-    SWPure  -> \g -> LPure . getI . head' <$> initComponent @_ @b si so conf g
-    SWState -> \g -> do
+initLayer si so conf = case componentRunMode @r @c @b @i @o of
+    RMWPure  -> \g -> LPure . getI . head' <$> initComponent @_ @b si so conf g
+    RMWState -> \g -> do
       I p :< I s :< Ø <- initComponent @_ @b si so conf g
       return $ LState p s
 

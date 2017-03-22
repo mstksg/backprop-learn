@@ -16,8 +16,16 @@
 {-# LANGUAGE TypeInType            #-}
 {-# LANGUAGE TypeOperators         #-}
 
-module Learn.Neural.Layer.Map
-  where
+module Learn.Neural.Layer.Map (
+    MapLayer
+  , CommonMap(..)
+  , Logit, ReLU, ReLUp, ELU, ELUp
+  , MapFunc(..)
+  , PMapLayer
+  , CommonPMap(..)
+  , PReLU, PELU
+  , PMapFunc(..)
+  ) where
 
 
 import           Data.Kind
@@ -77,7 +85,7 @@ instance (Reifies s MapFunc, SingI i) => Component (MapLayer s) b i i where
 
     defConf = MapC
 
-    componentStateWit = SWPure
+    -- componentStateWit = SWPure
 
 data CommonMap :: Type where
     MF_Logit :: CommonMap
@@ -171,7 +179,6 @@ instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => Component (PMapLa
         pmf :: PMapFunc n
         pmf = reflect (Proxy @s)
 
-    componentStateWit = SWPure
 
 data CommonPMap :: Type where
     PMF_PReLU :: CommonPMap
