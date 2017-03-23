@@ -41,23 +41,28 @@ instance (KnownNat i, KnownNat o) => Component FCLayer (BV i) (BV o) where
     type CConstr FCLayer b (BV i) (BV o) = Num (b (BM o i))
     data CConf   FCLayer   (BV i) (BV o) = forall d. ContGen d => FCC d
 
-    componentOp = bpOp . withInps $ \(x :< p :< s :< Ø) -> do
-        w :< b :< Ø <- gTuple #<~ p
-        y <- matVecOp ~$ (w :< x :< Ø)
-        z <- (+.)     ~$ (y :< b :< Ø)
-        return $ z :< s :< Ø
+    componentOp = componentOpDefault
 
-    -- initComponent = \case
-    --   SBV i -> \case
-    --     so@(SBV o) -> \case
-    --       FCC d -> \g -> do
-    --         w <- genA (SBM o i) $ \_ ->
-    --           realToFrac <$> genContVar d g
-    --         b <- genA so $ \_ ->
-    --           realToFrac <$> genContVar d g
-    --         return . only_ $ FCP w b
+    initParam = \case
+      SBV i -> \case
+        so@(SBV o) -> \case
+          FCC d -> \g -> do
+            w <- genA (SBM o i) $ \_ ->
+              realToFrac <$> genContVar d g
+            b <- genA so $ \_ ->
+              realToFrac <$> genContVar d g
+            return $ FCP w b
+
+    initState _ _ _ _ = return FCS
 
     defConf = FCC (normalDistr 0 0.5)
 
--- instance ComponentRunMode r FCLayer b (BV i) (BV o) where
---     componentRunMode = RMWPure
+instance (KnownNat i, KnownNat o) => ComponentFF FCLayer (BV i) (BV o) where
+    componentOpFF = bpOp . withInps $ \(x :< p :< Ø) -> do
+        w :< b :< Ø <- gTuple #<~ p
+        y <- matVecOp ~$ (w :< x :< Ø)
+        z <- (+.)     ~$ (y :< b :< Ø)
+        return . only $ z
+
+instance (KnownNat i, KnownNat o) => ComponentLayer r FCLayer (BV i) (BV o) where
+    componentRunMode = RMIsFF

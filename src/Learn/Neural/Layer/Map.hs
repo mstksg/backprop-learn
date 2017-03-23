@@ -83,18 +83,22 @@ instance (Reifies s MapFunc, SingI i) => Component (MapLayer s) i i where
     data CState (MapLayer s) b i i = MapS
     data CConf  (MapLayer s)   i i = MapC
 
-    componentOp = bpOp . withInps $ \(x :< _ :< s :< Ø) -> do
+    componentOp = componentOpDefault
+
+    initParam _ _ _ _ = return MapP
+    initState _ _ _ _ = return MapS
+    defConf = MapC
+
+instance (Reifies s MapFunc, SingI i) => ComponentFF (MapLayer s) i i where
+    componentOpFF = bpOp . withInps $ \(x :< _ :< Ø) -> do
         y <- tmapOp (runMapFunc mf) ~$ (x :< Ø)
-        return $ y :< s :< Ø
+        return . only $ y
       where
         mf :: MapFunc
         mf = reflect (Proxy @s)
 
-    -- initComponent _ _ _ _ = return $ only_ MapP
-
-    defConf = MapC
-
-    -- componentStateWit = SWPure
+instance (Reifies s MapFunc, SingI i) => ComponentLayer r (MapLayer s) i i where
+    componentRunMode = RMIsFF
 
 data CommonMap :: Type where
     MF_Logit :: CommonMap
@@ -143,6 +147,16 @@ instance (Tensor b, Known TCN.Nat n) => Num (CParam (PMapLayer s n) b i i) where
     signum (PMapP x) = PMapP (signum x)
     fromInteger x         = PMapP (fromInteger x)
 
+instance Num (CState (PMapLayer s n) b i i) where
+    _ + _         = PMapS
+    _ * _         = PMapS
+    _ - _         = PMapS
+    negate _      = PMapS
+    abs    _      = PMapS
+    signum _      = PMapS
+    fromInteger _ = PMapS
+
+
 pMapP :: Known TCN.Nat n => Iso' (CParam (PMapLayer s n) b i i) (Tuple (Replicate n (ElemT b)))
 pMapP = gTuple . iso (vecToProd . getI . head') (only_ . prodToVec' known)
 
@@ -154,40 +168,46 @@ instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => Component (PMapLa
     data CState (PMapLayer s n) b i i = PMapS
     data CConf  (PMapLayer s n)   i i = PMapC { getPMapC :: !(Vec n (SomeC ContGen I)) }
 
-    -- componentOp
-    --     :: forall q. (BLAS b, Tensor b, Num (b i))
-    --     => OpB q '[b i, CParam (PMapLayer s n) b i i] '[b i]
-    -- componentOp = bpOp . withInps $ \(x :< mp :< Ø) -> replWit @n @Num @(ElemT b) n Wit //
-    --                                                    replLen @n @(ElemT b) n          // do
-    --     ps :: Prod (BVar q '[b i, CParam (PMapLayer s n) b i i]) (Replicate n (ElemT b))
-    --       <- replWit @n @Num @(ElemT b) n Wit //
-    --          replLen @n @(ElemT b) n //
-    --            pMapP #<~ mp
-    --     let psV :: VecT n (BVar q '[b i, CParam (PMapLayer s n) b i i]) (ElemT b)
-    --         psV = prodToVec' n ps
-    --     psTV :: VecT n (BVar q '[b i, CParam (PMapLayer s n) b i i]) (b i)
-    --       <- vtraverse (\p -> tkonstOp sing ~$ (p :< Ø)) psV
-    --     let psT :: Prod (BVar q '[b i, CParam (PMapLayer s n) b i i]) (Replicate n (b i))
-    --         psT = vecToProd psTV
-    --     y <- tzipNOp @_ @_ @_ @('TCN.S n) (\case x' :* psT' -> runPMapFunc pmf (x' :&: psT'))
-    --            ~$ (x :< psT)
-    --     return $ only y
-    --   where
-    --     n :: TCN.Nat n
-    --     n = known
-    --     pmf :: PMapFunc n
-    --     pmf = reflect (Proxy @s)
+    componentOp = componentOpDefault
 
-    -- initComponent _ _ c g = do
-    --     ps <- forM (getPMapC c) $ \(SomeC (I d)) ->
-    --       realToFrac <$> genContVar d g
-    --     return $ only_ (PMapP ps)
+    initParam _ _ c g = do
+        ps <- forM (getPMapC c) $ \(SomeC (I d)) ->
+          realToFrac <$> genContVar d g
+        return $ PMapP ps
+    initState _ _ _ _ = return PMapS
 
     defConf = PMapC (getPMapDef pmf)
       where
         pmf :: PMapFunc n
         pmf = reflect (Proxy @s)
 
+instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => ComponentFF (PMapLayer s n) i i where
+    componentOpFF
+        :: forall b q. (BLAS b, Tensor b, Num (b i))
+        => OpB q '[b i, CParam (PMapLayer s n) b i i] '[b i]
+    componentOpFF = bpOp . withInps $ \(x :< mp :< Ø) -> replWit @n @Num @(ElemT b) n Wit //
+                                                         replLen @n @(ElemT b) n          // do
+        ps :: Prod (BVar q '[b i, CParam (PMapLayer s n) b i i]) (Replicate n (ElemT b))
+          <- replWit @n @Num @(ElemT b) n Wit //
+             replLen @n @(ElemT b) n //
+               pMapP #<~ mp
+        let psV :: VecT n (BVar q '[b i, CParam (PMapLayer s n) b i i]) (ElemT b)
+            psV = prodToVec' n ps
+        psTV :: VecT n (BVar q '[b i, CParam (PMapLayer s n) b i i]) (b i)
+          <- vtraverse (\p -> tkonstOp sing ~$ (p :< Ø)) psV
+        let psT :: Prod (BVar q '[b i, CParam (PMapLayer s n) b i i]) (Replicate n (b i))
+            psT = vecToProd psTV
+        y <- tzipNOp @_ @_ @_ @('TCN.S n) (\case x' :* psT' -> runPMapFunc pmf (x' :&: psT'))
+               ~$ (x :< psT)
+        return $ only y
+      where
+        n :: TCN.Nat n
+        n = known
+        pmf :: PMapFunc n
+        pmf = reflect (Proxy @s)
+
+instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => ComponentLayer r (PMapLayer s n) i i where
+    componentRunMode = RMIsFF
 
 data CommonPMap :: Type where
     PMF_PReLU :: CommonPMap

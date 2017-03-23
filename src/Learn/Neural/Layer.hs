@@ -1,5 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes    #-}
 {-# LANGUAGE DataKinds              #-}
+{-# LANGUAGE FlexibleContexts       #-}
 {-# LANGUAGE FlexibleInstances      #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GADTs                  #-}
@@ -18,21 +19,14 @@
 module Learn.Neural.Layer (
     Component(..)
   , ComponentFF(..)
+  , componentOpDefault
   , RunMode(..)
   , Layer(..)
+  , RunModeWit(..)
   , ComponentLayer(..)
   , layerOp
   , layerOpPure
-    -- MaybeToList
-  -- , RunMode(..)
-  -- , Component(..)
-  -- , RunModeWit(..)
-  -- , ComponentRunMode(..)
-  -- , componentOpPure
-  -- , Layer(..)
-  -- , layerOp
-  -- , layerOpPure
-  -- , initLayer
+  , initLayer
   ) where
 
 
@@ -49,9 +43,9 @@ import           Type.Family.Constraint
 data RunMode = FeedForward
              | Recurrent
 
--- data RunModeWit :: RunMode -> Type -> (BShape -> Type) -> BShape -> BShape -> Type where
---     RMWPure  :: (CState c b i o ~ 'Nothing) => RunModeWit r c b i o
---     RMWState :: (CState c b i o ~ 'Just s)  => RunModeWit 'Recurrent c b i o
+data RunModeWit :: RunMode -> Type -> BShape -> BShape -> Type where
+    RMIsFF  :: ComponentFF c i o => RunModeWit r c i o
+    RMNotFF :: RunModeWit 'Recurrent c i o
 
 class Component (c :: Type) (i :: BShape) (o :: BShape) where
     data CParam  c (b :: BShape -> Type) i o :: Type
@@ -65,7 +59,7 @@ class Component (c :: Type) (i :: BShape) (o :: BShape) where
         => OpB s '[ b i, CParam c b i o, CState c b i o ]
                  '[ b o, CState c b i o ]
 
-    initParams
+    initParam
         :: forall b m. (PrimMonad m, BLAS b, Tensor b, CConstr c b i o)
         => Sing i
         -> Sing o
@@ -88,19 +82,25 @@ class ComponentFF (c :: Type) (i :: BShape) (o :: BShape) where
         :: forall b s. (BLAS b, Tensor b, Num (b i), Num (b o), CConstr c b i o)
         => OpB s '[ b i, CParam c b i o ] '[ b o ]
 
+componentOpDefault
+    :: forall c i o b s.
+     ( ComponentFF c i o
+     , BLAS b
+     , Tensor b
+     , Num (b i)
+     , Num (b o)
+     , CConstr c b i o
+     , Num (CParam c b i o)
+     , Num (CState c b i o)
+     )
+    => OpB s '[ b i, CParam c b i o, CState c b i o ]
+             '[ b o, CState c b i o ]
+componentOpDefault = bpOp . withInps $ \(x :< p :< s :< Ø) -> do
+    y <- componentOpFF ~$ (x :< p :< Ø)
+    return $ y :< s :< Ø
+
 class Component c i o => ComponentLayer (r :: RunMode) (c :: Type) (i :: BShape) (o :: BShape) where
-    initLayer
-        :: forall b m.
-         ( PrimMonad m
-         , BLAS b
-         , Tensor b
-         , CConstr c b i o
-         )
-        => Sing i
-        -> Sing o
-        -> CConf c i o
-        -> Gen (PrimState m)
-        -> m (Layer r c b i o)
+    componentRunMode :: RunModeWit r c i o
 
 data Layer :: RunMode -> Type -> (BShape -> Type) -> BShape -> BShape -> Type where
     LFeedForward :: ComponentFF c i o => CParam c b i o -> Layer r c b i o
@@ -109,7 +109,7 @@ data Layer :: RunMode -> Type -> (BShape -> Type) -> BShape -> BShape -> Type wh
 instance Num (Layer r c b i o)
 
 layerOp
-    :: forall c b i o r s. (Component c i o, BLAS b, Tensor b, Num (b i), Num (b o), CConstr c b i o)
+    :: forall r c i o b s. (Component c i o, BLAS b, Tensor b, Num (b i), Num (b o), CConstr c b i o)
     => OpB s '[ b i, Layer r c b i o ] '[ b o, Layer r c b i o ]
 layerOp = OpM $ \(I x :< I l :< Ø) -> case l of
     LFeedForward p -> do
@@ -129,7 +129,7 @@ layerOp = OpM $ \(I x :< I l :< Ø) -> case l of
       return (y ::< LRecurrent p s' ::< Ø, gF')
 
 layerOpPure
-    :: forall c b i o s. (Component c i o, BLAS b, Tensor b, Num (b i), Num (b o), CConstr c b i o)
+    :: forall c i o b s. (Component c i o, BLAS b, Tensor b, Num (b i), Num (b o), CConstr c b i o)
     => OpB s '[ b i, Layer 'FeedForward c b i o ] '[ b o ]
 layerOpPure = OpM $ \(I x :< I l :< Ø) -> case l of
     LFeedForward p -> do
@@ -138,3 +138,22 @@ layerOpPure = OpM $ \(I x :< I l :< Ø) -> case l of
               . gF
       return (y ::< Ø, gF')
 
+initLayer
+    :: forall r c i o b m.
+     ( PrimMonad m
+     , BLAS b
+     , Tensor b
+     , ComponentLayer r c i o
+     , CConstr c b i o
+     )
+    => Sing i
+    -> Sing o
+    -> CConf c i o
+    -> Gen (PrimState m)
+    -> m (Layer r c b i o)
+initLayer si so conf g = case componentRunMode @r @c @i @o of
+    RMIsFF  -> LFeedForward <$> initParam si so conf g
+    RMNotFF -> do
+      p <- initParam si so conf g
+      s <- initState si so conf g
+      return $ LRecurrent p s
