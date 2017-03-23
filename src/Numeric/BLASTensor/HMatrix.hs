@@ -1,14 +1,15 @@
-{-# LANGUAGE DeriveGeneric        #-}
-{-# LANGUAGE FlexibleContexts     #-}
-{-# LANGUAGE GADTs                #-}
-{-# LANGUAGE InstanceSigs         #-}
-{-# LANGUAGE LambdaCase           #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
-{-# LANGUAGE StandaloneDeriving   #-}
-{-# LANGUAGE TypeApplications     #-}
-{-# LANGUAGE TypeFamilies         #-}
-{-# LANGUAGE TypeInType           #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE DeriveGeneric          #-}
+{-# LANGUAGE FlexibleContexts       #-}
+{-# LANGUAGE GADTs                  #-}
+{-# LANGUAGE InstanceSigs           #-}
+{-# LANGUAGE LambdaCase             #-}
+{-# LANGUAGE ScopedTypeVariables    #-}
+{-# LANGUAGE StandaloneDeriving     #-}
+{-# LANGUAGE TypeApplications       #-}
+{-# LANGUAGE TypeFamilies           #-}
+{-# LANGUAGE TypeFamilyDependencies #-}
+{-# LANGUAGE TypeInType             #-}
+{-# LANGUAGE UndecidableInstances   #-}
 
 module Numeric.BLASTensor.HMatrix (
     HM(..)
@@ -28,7 +29,7 @@ import           Numeric.BLASTensor hiding    (outer)
 import           Numeric.LinearAlgebra.Static
 import qualified Numeric.LinearAlgebra        as LA
 
-type family HM' (s :: BShape) :: Type where
+type family HM' (s :: BShape) = (h :: Type) | h -> s where
     HM' ('BV n  ) = R n
     HM' ('BM m n) = L m n
 
