@@ -1,0 +1,186 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveGeneric        #-}</span><span>
+</span><a name="line-2"></a><span class="hs-pragma">{-# LANGUAGE FlexibleContexts     #-}</span><span>
+</span><a name="line-3"></a><span class="hs-pragma">{-# LANGUAGE GADTs                #-}</span><span>
+</span><a name="line-4"></a><span class="hs-pragma">{-# LANGUAGE InstanceSigs         #-}</span><span>
+</span><a name="line-5"></a><span class="hs-pragma">{-# LANGUAGE LambdaCase           #-}</span><span>
+</span><a name="line-6"></a><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables  #-}</span><span>
+</span><a name="line-7"></a><span class="hs-pragma">{-# LANGUAGE StandaloneDeriving   #-}</span><span>
+</span><a name="line-8"></a><span class="hs-pragma">{-# LANGUAGE TypeApplications     #-}</span><span>
+</span><a name="line-9"></a><span class="hs-pragma">{-# LANGUAGE TypeFamilies         #-}</span><span>
+</span><a name="line-10"></a><span class="hs-pragma">{-# LANGUAGE TypeInType           #-}</span><span>
+</span><a name="line-11"></a><span class="hs-pragma">{-# LANGUAGE UndecidableInstances #-}</span><span>
+</span><a name="line-12"></a><span>
+</span><a name="line-13"></a><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">BLASTensor</span><span class="hs-operator">.</span><span class="hs-identifier">HMatrix</span><span> </span><span class="hs-special">(</span><span>
+</span><a name="line-14"></a><span>    </span><a href="Numeric.BLASTensor.HMatrix.html#HM"><span class="hs-identifier hs-type">HM</span></a><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><a name="line-15"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Numeric.BLASTensor.HMatrix.html#HM%27"><span class="hs-identifier hs-type">HM'</span></a><span>
+</span><a name="line-16"></a><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-17"></a><span>
+</span><a name="line-18"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Control</span><span class="hs-operator">.</span><span class="hs-identifier">DeepSeq</span><span>
+</span><a name="line-19"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Finite</span><span class="hs-operator">.</span><span class="hs-identifier">Internal</span><span>
+</span><a name="line-20"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Foldable</span><span>
+</span><a name="line-21"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Kind</span><span>
+</span><a name="line-22"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Maybe</span><span>
+</span><a name="line-23"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">MonoTraversable</span><span>
+</span><a name="line-24"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Singletons</span><span>
+</span><a name="line-25"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Singletons</span><span class="hs-operator">.</span><span class="hs-identifier">TypeLits</span><span>
+</span><a name="line-26"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">GHC</span><span class="hs-operator">.</span><span class="hs-identifier">Generics</span><span>                 </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Generic</span><span class="hs-special">)</span><span>
+</span><a name="line-27"></a><span class="hs-keyword">import</span><span>           </span><a href="Numeric.BLASTensor.html"><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">BLASTensor</span></a><span> </span><span class="hs-keyword">hiding</span><span>    </span><span class="hs-special">(</span><a href="Numeric.BLAS.html#outer"><span class="hs-identifier hs-var">outer</span></a><span class="hs-special">)</span><span>
+</span><a name="line-28"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">LinearAlgebra</span><span class="hs-operator">.</span><span class="hs-identifier">Static</span><span>
+</span><a name="line-29"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">LinearAlgebra</span><span>        </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">LA</span><span>
+</span><a name="line-30"></a><span>
+</span><a name="line-31"></a><span class="hs-keyword">type</span><span> </span><span class="hs-keyword">family</span><span> </span><a name="HM%27"><a href="Numeric.BLASTensor.HMatrix.html#HM%27"><span class="hs-identifier">HM'</span></a></a><span> </span><span class="hs-special">(</span><a name="local-6989586621679358606"><a href="#local-6989586621679358606"><span class="hs-identifier">s</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><a href="Numeric.BLAS.html#BShape"><span class="hs-identifier hs-type">BShape</span></a><span class="hs-special">)</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Type</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-32"></a><span>    </span><span class="hs-identifier">HM'</span><span> </span><span class="hs-special">(</span><span class="hs-char">'BV n  ) = R n
+    HM' ('BM m n) = L m n
+
+newtype HM :: BShape -&gt; Type where
+    HM  :: { getHM :: HM' b }
+        -&gt; HM b
+  deriving (Generic)
+
+type instance Element (HM s) = Double
+
+instance BLAS HM where
+    type Scalar HM = Double
+
+    bkonst = \case
+      SBV SNat      -&gt; HM . konst
+      SBM SNat SNat -&gt; HM . konst
+
+    transp (HM x) = HM (tr x)
+
+    scal &#945; (HM x)        = HM (konst &#945; * x)
+    axpy &#945; (HM x) (HM y) = HM (konst &#945; * x + y)
+    dot    (HM x) (HM y) = x &lt;.&gt; y
+    norm2  (HM x)        = norm_2 x
+    asum   (HM x)        = norm_1 x
+    iamax  (HM x)        = Finite . fromIntegral
+                         . LA.maxIndex . extract
+                         $ abs x
+
+    gemv &#945; (HM a) (HM x) = \case
+        Just (&#946;, HM y) -&gt; HM (konst &#945; * (a #&gt; x) + konst &#946; * y)
+        Nothing        -&gt; HM (konst &#945; * (a #&gt; x))
+    ger  &#945; (HM x) (HM y) = \case
+        Just (HM a) -&gt; HM (konst &#945; * outer x y + a)
+        Nothing     -&gt; HM (konst &#945; * outer x y)
+    syr  &#945; (HM x) (HM a)          = HM (konst &#945; * outer x x + a)
+    gemm &#945; (HM a) (HM b) = \case
+        Just (&#946;, HM c) -&gt; HM (konst &#945; * (a &lt;&gt; b) + konst &#946; * c)
+        Nothing        -&gt; HM (konst &#945; * (a &lt;&gt; b))
+    syrk &#945; (HM a) &#946; (HM c)        = HM (konst &#945; * (a &lt;&gt; tr a) + konst &#946; * c)
+
+instance Tensor HM where
+    type IndexT HM = BIndex
+    type ElemT  HM = Double
+
+    gen = \case
+      SBV n@SNat -&gt; \f -&gt; HM . fromJust . create $
+        LA.build (fromIntegral (fromSing n))
+          (f . BVIx . Finite . round)
+      SBM m@SNat n@SNat -&gt; \f -&gt; HM . fromJust . create $
+        LA.build (fromIntegral (fromSing m), fromIntegral (fromSing n))
+          (\i j -&gt; f (BMIx (Finite (round i)) (Finite (round j))))
+
+    genA = \case
+      SBV n@SNat -&gt; \f -&gt;
+        fmap (HM . vector) . traverse (f . BVIx . Finite) $
+          [0 .. fromSing n - 1]
+      SBM m@SNat n@SNat -&gt; \f -&gt;
+        fmap (HM . matrix) . traverse f $
+          [ BMIx (Finite i) (Finite j) | j &lt;- [0 .. fromSing m - 1]
+                                       , i &lt;- [0 .. fromSing n - 1]
+          ]
+
+    tkonst = \case
+      SBV SNat      -&gt; HM . konst
+      SBM SNat SNat -&gt; HM . konst
+
+    tsum :: forall s. SingI s =&gt; HM s -&gt; Double
+    tsum = case sing @_ @s of
+      SBV SNat      -&gt; LA.sumElements . extract . getHM
+      SBM SNat SNat -&gt; LA.sumElements . extract . getHM
+
+    tmap :: forall s. SingI s =&gt; (Double -&gt; Double) -&gt; HM s -&gt; HM s
+    tmap = omap
+
+    tzip
+        :: forall s. SingI s
+        =&gt; (Double -&gt; Double -&gt; Double)
+        -&gt; HM s -&gt; HM s -&gt; HM s
+    tzip f (HM x) (HM y) = case sing @_ @s of
+      SBV SNat      -&gt; HM $ zipWithVector f x y
+      SBM SNat SNat -&gt; HM $ matrix (zipWith f (concat . LA.toLists . extract $ x)
+                                              (concat . LA.toLists . extract $ y)
+                                   )
+
+    tsize
+        :: forall s. SingI s
+        =&gt; HM s
+        -&gt; Int
+    tsize _ = fromIntegral $ bshapeSize (fromSing (sing @_ @s))
+
+    tindex
+        :: forall s. SingI s
+        =&gt; BIndex s
+        -&gt; HM s
+        -&gt; Double
+    tindex = case sing @_ @s of
+      SBV SNat -&gt; \case
+        BVIx i -&gt; \case
+          HM x -&gt; extract x `LA.atIndex` fromIntegral i
+      SBM SNat SNat -&gt; \case
+        BMIx i j -&gt; \case
+          HM x -&gt; extract x `LA.atIndex` (fromIntegral i, fromIntegral j)
+
+instance BLASTensor HM
+
+instance SingI s =&gt; MonoFunctor (HM s) where
+    omap f (HM x) = case sing @_ @s of
+      SBV SNat      -&gt; HM (dvmap f x)
+      SBM SNat SNat -&gt; HM (dmmap f x)
+
+hmElems :: forall s. SingI s =&gt; HM s -&gt; [Double]
+hmElems = case sing @_ @s of
+    SBV SNat      -&gt; LA.toList . extract . getHM
+    SBM SNat SNat -&gt; concat . LA.toLists . extract . getHM
+
+instance SingI s =&gt; MonoFoldable (HM s) where
+    ofoldMap f     = foldMap f . hmElems
+    ofoldr f z     = foldr f z . hmElems
+    ofoldl' f z    = foldl' f z . hmElems
+    otoList        = hmElems
+    oall f         = all f . hmElems
+    oany f         = any f . hmElems
+    onull          = (== 0) . olength
+    olength        = case sing @_ @s of
+      SBV SNat      -&gt; size . getHM
+      SBM SNat SNat -&gt; uncurry (*) . size . getHM
+    olength64      = fromIntegral . olength
+    ocompareLength = ocompareLength . hmElems
+    otraverse_ f   = traverse_ f . hmElems
+    ofor_ x        = for_ (hmElems x)
+    omapM_ f       = traverse_ f . hmElems
+    oforM_ x       = for_ (hmElems x)
+    ofoldlM f x    = foldlM f x . hmElems
+    ofoldMap1Ex f  = ofoldMap1Ex f . hmElems
+    ofoldr1Ex f    = ofoldr1Ex f . hmElems
+    ofoldl1Ex' f   = ofoldl1Ex' f . hmElems
+    headEx         = headEx . hmElems
+    lastEx         = lastEx . hmElems
+    maximumByEx f  = maximumByEx f . hmElems
+    minimumByEx f  = minimumByEx f . hmElems
+
+instance Num (HM' s) =&gt; Num (HM s) where
+    HM x + HM y = HM (x + y)
+    HM x - HM y = HM (x - y)
+    HM x * HM y = HM (x * y)
+    negate (HM x) = HM (negate x)
+    signum (HM x) = HM (signum x)
+    abs    (HM x) = HM (abs    x)
+    fromInteger x = HM (fromInteger x)
+
+instance NFData (HM' s) =&gt; NFData (HM s)
+
+deriving instance Show (HM' s) =&gt; Show (HM s)
+
+</span></pre></body></html>

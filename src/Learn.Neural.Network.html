@@ -1,0 +1,173 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DataKinds             #-}</span><span>
+</span><a name="line-2"></a><span class="hs-pragma">{-# LANGUAGE FlexibleContexts      #-}</span><span>
+</span><a name="line-3"></a><span class="hs-pragma">{-# LANGUAGE FlexibleInstances     #-}</span><span>
+</span><a name="line-4"></a><span class="hs-pragma">{-# LANGUAGE GADTs                 #-}</span><span>
+</span><a name="line-5"></a><span class="hs-pragma">{-# LANGUAGE KindSignatures        #-}</span><span>
+</span><a name="line-6"></a><span class="hs-pragma">{-# LANGUAGE LambdaCase            #-}</span><span>
+</span><a name="line-7"></a><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses #-}</span><span>
+</span><a name="line-8"></a><span class="hs-pragma">{-# LANGUAGE RankNTypes            #-}</span><span>
+</span><a name="line-9"></a><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables   #-}</span><span>
+</span><a name="line-10"></a><span class="hs-pragma">{-# LANGUAGE TypeFamilies          #-}</span><span>
+</span><a name="line-11"></a><span class="hs-pragma">{-# LANGUAGE TypeInType            #-}</span><span>
+</span><a name="line-12"></a><span class="hs-pragma">{-# LANGUAGE TypeOperators         #-}</span><span>
+</span><a name="line-13"></a><span>
+</span><a name="line-14"></a><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Learn</span><span class="hs-operator">.</span><span class="hs-identifier">Neural</span><span class="hs-operator">.</span><span class="hs-identifier">Network</span><span> </span><span class="hs-special">(</span><span>
+</span><a name="line-15"></a><span>    </span><a href="Learn.Neural.Network.html#LChain"><span class="hs-identifier hs-type">LChain</span></a><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><a name="line-16"></a><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><a href="Learn.Neural.Network.html#%3A~"><span class="hs-operator hs-type">:~</span></a><span class="hs-special">)</span><span>
+</span><a name="line-17"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#Network"><span class="hs-identifier hs-type">Network</span></a><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><a name="line-18"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#networkOp"><span class="hs-identifier hs-var">networkOp</span></a><span>
+</span><a name="line-19"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#networkOpPure"><span class="hs-identifier hs-var">networkOpPure</span></a><span>
+</span><a name="line-20"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#NetConf"><span class="hs-identifier hs-type">NetConf</span></a><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><a name="line-21"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#initNet"><span class="hs-identifier hs-var">initNet</span></a><span>
+</span><a name="line-22"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#NetStruct"><span class="hs-identifier hs-type">NetStruct</span></a><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><a name="line-23"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#defNetConf%27"><span class="hs-identifier hs-var">defNetConf'</span></a><span>
+</span><a name="line-24"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#defNetConf"><span class="hs-identifier hs-var">defNetConf</span></a><span>
+</span><a name="line-25"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#initDefNet%27"><span class="hs-identifier hs-var">initDefNet'</span></a><span>
+</span><a name="line-26"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#initDefNet"><span class="hs-identifier hs-var">initDefNet</span></a><span>
+</span><a name="line-27"></a><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-28"></a><span>
+</span><a name="line-29"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Control</span><span class="hs-operator">.</span><span class="hs-identifier">Monad</span><span class="hs-operator">.</span><span class="hs-identifier">Primitive</span><span>
+</span><a name="line-30"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Control</span><span class="hs-operator">.</span><span class="hs-identifier">Monad</span><span class="hs-operator">.</span><span class="hs-identifier">ST</span><span>
+</span><a name="line-31"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Kind</span><span>
+</span><a name="line-32"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Singletons</span><span>
+</span><a name="line-33"></a><span class="hs-keyword">import</span><span>           </span><a href="Learn.Neural.Layer.html"><span class="hs-identifier">Learn</span><span class="hs-operator">.</span><span class="hs-identifier">Neural</span><span class="hs-operator">.</span><span class="hs-identifier">Layer</span></a><span>
+</span><a name="line-34"></a><span class="hs-keyword">import</span><span>           </span><a href="Numeric.BLASTensor.html"><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">BLASTensor</span></a><span>
+</span><a name="line-35"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Backprop</span><span>
+</span><a name="line-36"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Backprop</span><span class="hs-operator">.</span><span class="hs-identifier">Op</span><span>
+</span><a name="line-37"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">System</span><span class="hs-operator">.</span><span class="hs-identifier">Random</span><span class="hs-operator">.</span><span class="hs-identifier">MWC</span><span>
+</span><a name="line-38"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Class</span><span class="hs-operator">.</span><span class="hs-identifier">Known</span><span>
+</span><a name="line-39"></a><span>
+</span><a name="line-40"></a><span>
+</span><a name="line-41"></a><span class="hs-keyword">data</span><span> </span><a name="LChain"><a href="Learn.Neural.Network.html#LChain"><span class="hs-identifier">LChain</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Type</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-42"></a><span>    </span><span class="hs-special">(</span><a name="%3A~"><a href="Learn.Neural.Network.html#%3A~"><span class="hs-operator">:~</span></a></a><span class="hs-special">)</span><span> </span><span class="hs-glyph">::</span><span> </span><a href="Numeric.BLAS.html#BShape"><span class="hs-identifier hs-type">BShape</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Type</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Learn.Neural.Network.html#LChain"><span class="hs-identifier hs-type">LChain</span></a><span>
+</span><a name="line-43"></a><span>
+</span><a name="line-44"></a><span class="hs-keyword">type</span><span> </span><a name="local-6989586621679319934"><a href="#local-6989586621679319934"><span class="hs-identifier">s</span></a></a><span> </span><a name="%3A~"><a href="Learn.Neural.Network.html#%3A~"><span class="hs-operator">:~</span></a></a><span> </span><a name="local-6989586621679319935"><a href="#local-6989586621679319935"><span class="hs-identifier">c</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a href="#local-6989586621679319934"><span class="hs-identifier hs-type">s</span></a><span> </span><span class="hs-char">':~ c
+
+data Network :: RunMode -&gt; (BShape -&gt; Type) -&gt; LChain -&gt; [LChain] -&gt; BShape -&gt; Type where
+    NetExt :: (Component c i o, CConstr c b i o)
+           =&gt; Layer r c b i o
+           -&gt; Network r b (i :~ c) '[] o
+    (:&amp;)   :: (Num (b h), Component c i h, CConstr c b i h)
+           =&gt; Layer r c b i h
+           -&gt; Network r b (h :~ d) hs               o
+           -&gt; Network r b (i :~ c) ((h :~ d) ': hs) o
+
+networkOp
+    :: forall b i c hs o r s. (BLASTensor b, Num (b i), Num (b o))
+    =&gt; OpB s '[ b i, Network r b (i :~ c) hs o ] '[ b o, Network r b (i :~ c) hs o ]
+networkOp = OpM $ \(I x :&lt; I n :&lt; &#216;) -&gt; case n of
+    NetExt l -&gt; do
+      (I y :&lt; I l' :&lt; &#216;, gF) &lt;- runOpM' layerOp (x ::&lt; l ::&lt; &#216;)
+      let gF' = fmap (\case I dX :&lt; I dL :&lt; &#216; -&gt; dX ::&lt; NetExt dL ::&lt; &#216;)
+              . gF
+              . (\case dY :&lt; Just (NetExt dL) :&lt; &#216; -&gt; dY :&lt; Just dL :&lt; &#216;
+                       dY :&lt; Nothing          :&lt; &#216; -&gt; dY :&lt; Nothing :&lt; &#216;
+                )
+      return (y ::&lt; NetExt l' ::&lt; &#216;, gF')
+    (l :: Layer r c b i h) :&amp; (n2 :: Network r b (h ':~ d) js o) -&gt; do
+      (I y :&lt; I l'  :&lt; &#216;, gF ) &lt;- runOpM' layerOp   (x ::&lt; l ::&lt; &#216;)
+      (I z :&lt; I n2' :&lt; &#216;, gF') &lt;- runOpM' networkOp (y ::&lt; n2 ::&lt; &#216;)
+      let gF'' :: Prod Maybe '[ b o, Network r b (i ':~ c) ((h ':~ d) ': js) o]
+               -&gt; ST s (Tuple '[ b i, Network r b (i ':~ c) ((h ':~ d) ': js) o])
+          gF'' = \case dZ :&lt; Just (dL :&amp; dN) :&lt; &#216; -&gt; do
+                         I dY :&lt; I dN2 :&lt; &#216; &lt;- gF' (dZ :&lt; Just dN :&lt; &#216;)
+                         I dX :&lt; I dL0 :&lt; &#216; &lt;- gF  (Just dY :&lt; Just dL :&lt; &#216;)
+                         return $ dX ::&lt; (dL0 :&amp; dN2) ::&lt; &#216;
+                       dZ :&lt; Nothing   :&lt; &#216; -&gt; do
+                         I dY :&lt; I dN2 :&lt; &#216; &lt;- gF' (dZ :&lt; Nothing :&lt; &#216;)
+                         I dX :&lt; I dL0 :&lt; &#216; &lt;- gF  (Just dY :&lt; Nothing :&lt; &#216;)
+                         return $ dX ::&lt; (dL0 :&amp; dN2) ::&lt; &#216;
+      return (z ::&lt; (l' :&amp; n2') ::&lt; &#216;, gF'')
+
+networkOpPure
+    :: forall b i c hs o s. (BLASTensor b, Num (b i), Num (b o))
+    =&gt; OpB s '[ b i, Network 'FeedForward b (i :~ c) hs o ] '[ b o ]
+networkOpPure = OpM $ \(I x :&lt; I n :&lt; &#216;) -&gt; case n of
+    NetExt l -&gt; do
+      (I y :&lt; &#216;, gF) &lt;- runOpM' layerOpPure (x ::&lt; l ::&lt; &#216;)
+      let gF' = fmap (\case I dX :&lt; I dL :&lt; &#216; -&gt; dX ::&lt; NetExt dL ::&lt; &#216;)
+              . gF
+      return (y ::&lt; &#216;, gF')
+    (l :: Layer 'FeedForward c b i h) :&amp; (n2 :: Network 'FeedForward b (h ':~ d) js o) -&gt; do
+      (I y :&lt; &#216;, gF ) &lt;- runOpM' layerOpPure   (x ::&lt; l ::&lt; &#216;)
+      (I z :&lt; &#216;, gF') &lt;- runOpM' networkOpPure (y ::&lt; n2 ::&lt; &#216;)
+      let gF'' :: Prod Maybe '[ b o ]
+               -&gt; ST s (Tuple '[ b i, Network 'FeedForward b (i ':~ c) ((h ':~ d) ': js) o])
+          gF'' dZ = do
+            I dY :&lt; I dN2 :&lt; &#216; &lt;- gF' dZ
+            I dX :&lt; I dL0 :&lt; &#216; &lt;- gF  (Just dY :&lt; &#216;)
+            return $ dX ::&lt; (dL0 :&amp; dN2) ::&lt; &#216;
+      return (z ::&lt; &#216;, gF'')
+
+data NetConf :: RunMode -&gt; (BShape -&gt; Type) -&gt; LChain -&gt; [LChain] -&gt; BShape -&gt; Type where
+    NCExt :: (ComponentLayer r c i o, CConstr c b i o)
+          =&gt; CConf c i o
+          -&gt; NetConf r b (i :~ c) '[] o
+    (:&amp;~) :: (SingI h, Num (b h), ComponentLayer r c i h, CConstr c b i h)
+          =&gt; CConf c i h
+          -&gt; NetConf r b (h :~ d) hs               o
+          -&gt; NetConf r b (i :~ c) ((h :~ d) ': hs) o
+
+initNet
+    :: forall b i c hs o m r. (PrimMonad m, BLASTensor b, SingI i, SingI o)
+    =&gt; NetConf r b (i :~ c) hs o
+    -&gt; Gen (PrimState m)
+    -&gt; m (Network r b (i :~ c) hs o)
+initNet = \case
+    NCExt c -&gt; \g -&gt; NetExt &lt;$&gt; initLayer sing sing c g
+    c :&amp;~ cN -&gt; \g -&gt; do
+      l &lt;- initLayer sing sing c g
+      n &lt;- initNet cN g
+      return $ l :&amp; n
+
+data NetStruct :: RunMode -&gt; (BShape -&gt; Type) -&gt; LChain -&gt; [LChain] -&gt; BShape -&gt; Type where
+    NSExt :: ( ComponentLayer r c i o
+             , CConstr c b i o
+             )
+          =&gt; NetStruct r b (i :~ c) '[] o
+    NSInt :: ( SingI h
+             , Num (b h)
+             , ComponentLayer r c i h
+             , CConstr c b i h
+             )
+          =&gt; NetStruct r b (h :~ d) hs               o
+          -&gt; NetStruct r b (i :~ c) ((h :~ d) ': hs) o
+
+defNetConf'
+    :: NetStruct r b i hs o
+    -&gt; NetConf r b i hs o
+defNetConf' = \case
+    NSExt   -&gt; NCExt defConf
+    NSInt c -&gt; defConf :&amp;~ defNetConf' c
+
+defNetConf
+    :: Known (NetStruct r b i hs) o
+    =&gt; NetConf r b i hs o
+defNetConf = defNetConf' known
+
+initDefNet'
+    :: forall b i c hs o m r. (PrimMonad m, BLASTensor b, SingI i, SingI o)
+    =&gt; NetStruct r b (i :~ c) hs o
+    -&gt; Gen (PrimState m)
+    -&gt; m (Network r b (i :~ c) hs o)
+initDefNet' = initNet . defNetConf'
+
+initDefNet
+    :: (PrimMonad m, BLASTensor b, SingI i, SingI o, Known (NetStruct r b (i :~ c) hs) o)
+    =&gt; Gen (PrimState m)
+    -&gt; m (Network r b (i :~ c) hs o)
+initDefNet = initDefNet' known
+
+instance (ComponentLayer r c i o, CConstr c b i o)
+        =&gt; Known (NetStruct r b (i :~ c) '[]) o where
+    known = NSExt
+
+instance ( SingI h
+         , Num (b h)
+         , ComponentLayer r c i h
+         , CConstr c b i h
+         , Known (NetStruct r b (h :~ d) hs) o
+         )
+        =&gt; Known (NetStruct r b (i :~ c) ((h :~ d) ': hs)) o where
+    known = NSInt known
+</span></pre></body></html>
