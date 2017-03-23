@@ -106,7 +106,41 @@ data Layer :: RunMode -> Type -> (BShape -> Type) -> BShape -> BShape -> Type wh
     LFeedForward :: ComponentFF c i o => CParam c b i o -> Layer r c b i o
     LRecurrent   :: Component c i o   => CParam c b i o -> CState c b i o -> Layer 'Recurrent c b i o
 
-instance Num (Layer r c b i o)
+instance (Num (CParam c b i o), Num (CState c b i o), ComponentLayer r c i o) => Num (Layer r c b i o) where
+    (+) = \case
+      LFeedForward p1 -> \case
+        LFeedForward p2 -> LFeedForward (p1 + p2)
+        LRecurrent p2 _ -> LFeedForward (p1 + p2)
+      LRecurrent p1 s1 -> \case
+        LFeedForward p2  -> LFeedForward (p1 + p2)
+        LRecurrent p2 s2 -> LRecurrent (p1 + p2) (s1 + s2)
+    (-) = \case
+      LFeedForward p1 -> \case
+        LFeedForward p2 -> LFeedForward (p1 - p2)
+        LRecurrent p2 _ -> LFeedForward (p1 - p2)
+      LRecurrent p1 s1 -> \case
+        LFeedForward p2  -> LFeedForward (p1 - p2)
+        LRecurrent p2 s2 -> LRecurrent (p1 - p2) (s1 - s2)
+    (*) = \case
+      LFeedForward p1 -> \case
+        LFeedForward p2 -> LFeedForward (p1 * p2)
+        LRecurrent p2 _ -> LFeedForward (p1 * p2)
+      LRecurrent p1 s1 -> \case
+        LFeedForward p2  -> LFeedForward (p1 * p2)
+        LRecurrent p2 s2 -> LRecurrent (p1 * p2) (s1 * s2)
+    negate = \case
+      LFeedForward p   -> LFeedForward (negate p)
+      LRecurrent   p s -> LRecurrent (negate p) (negate s)
+    signum = \case
+      LFeedForward p -> LFeedForward (signum p)
+      LRecurrent   p s -> LRecurrent (signum p) (signum s)
+    abs    = \case
+      LFeedForward p -> LFeedForward (abs    p)
+      LRecurrent   p s -> LRecurrent (abs    p) (abs    s)
+    fromInteger x  = case componentRunMode @r @c @i @o of
+      RMIsFF  -> LFeedForward (fromInteger x)
+      RMNotFF -> LRecurrent   (fromInteger x) (fromInteger x)
+
 
 layerOp
     :: forall r c i o b s. (Component c i o, BLAS b, Tensor b, Num (b i), Num (b o), CConstr c b i o)
