@@ -20,15 +20,15 @@ import           Statistics.Distribution.Normal
 data RFCLayer :: Type
 
 
-instance (KnownNat i, KnownNat o) => Component RFCLayer b (BV i) (BV o) where
+instance (KnownNat i, KnownNat o) => Component RFCLayer (BV i) (BV o) where
     data CParam  RFCLayer b (BV i) (BV o) =
             RFCP { rfcInpWeights   :: !(b (BM o i))
                  , rfcStateWeights :: !(b (BM o o))
                  , rfcBiases       :: !(b (BV o))
                  }
-    type CState  RFCLayer b (BV i) (BV o) = 'Just (b (BV o))
+    data CState  RFCLayer b (BV i) (BV o) = RFCS (b (BV o))
     type CConstr RFCLayer b (BV i) (BV o) = (Num (b (BM o i)), Num (b (BM o o)))
-    data CConf   RFCLayer b (BV i) (BV o) = forall d. ContGen d => RFCC d
+    data CConf   RFCLayer   (BV i) (BV o) = forall d. ContGen d => RFCC d
 
     defConf = RFCC (normalDistr 0 0.5)
 

@@ -27,36 +27,37 @@ import qualified Generics.SOP                   as SOP
 data FCLayer :: Type
 
 instance Num (CParam FCLayer b (BV i) (BV o))
+instance Num (CState FCLayer b (BV i) (BV o))
 
 deriving instance Generic (CParam FCLayer b (BV i) (BV o))
 instance SOP.Generic (CParam FCLayer b (BV i) (BV o))
 
-instance (KnownNat i, KnownNat o) => Component FCLayer b (BV i) (BV o) where
+instance (KnownNat i, KnownNat o) => Component FCLayer (BV i) (BV o) where
     data CParam  FCLayer b (BV i) (BV o) =
             FCP { fcWeights :: !(b (BM o i))
                 , fcBiases  :: !(b (BV o))
                 }
-    type CState  FCLayer b (BV i) (BV o) = 'Nothing
+    data CState  FCLayer b (BV i) (BV o) = FCS
     type CConstr FCLayer b (BV i) (BV o) = Num (b (BM o i))
-    data CConf   FCLayer b (BV i) (BV o) = forall d. ContGen d => FCC d
+    data CConf   FCLayer   (BV i) (BV o) = forall d. ContGen d => FCC d
 
-    componentOp = bpOp . withInps $ \(x :< p :< Ø) -> do
+    componentOp = bpOp . withInps $ \(x :< p :< s :< Ø) -> do
         w :< b :< Ø <- gTuple #<~ p
         y <- matVecOp ~$ (w :< x :< Ø)
         z <- (+.)     ~$ (y :< b :< Ø)
-        return $ only z
+        return $ z :< s :< Ø
 
-    initComponent = \case
-      SBV i -> \case
-        so@(SBV o) -> \case
-          FCC d -> \g -> do
-            w <- genA (SBM o i) $ \_ ->
-              realToFrac <$> genContVar d g
-            b <- genA so $ \_ ->
-              realToFrac <$> genContVar d g
-            return . only_ $ FCP w b
+    -- initComponent = \case
+    --   SBV i -> \case
+    --     so@(SBV o) -> \case
+    --       FCC d -> \g -> do
+    --         w <- genA (SBM o i) $ \_ ->
+    --           realToFrac <$> genContVar d g
+    --         b <- genA so $ \_ ->
+    --           realToFrac <$> genContVar d g
+    --         return . only_ $ FCP w b
 
     defConf = FCC (normalDistr 0 0.5)
 
-instance ComponentRunMode r FCLayer b (BV i) (BV o) where
-    componentRunMode = RMWPure
+-- instance ComponentRunMode r FCLayer b (BV i) (BV o) where
+--     componentRunMode = RMWPure

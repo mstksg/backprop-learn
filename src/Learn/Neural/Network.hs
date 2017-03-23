@@ -36,10 +36,10 @@ data LChain :: Type where
     (:~) :: BShape -> Type -> LChain
 
 data Network :: RunMode -> (BShape -> Type) -> LChain -> [LChain] -> BShape -> Type where
-    NetExt :: (Component c b i o, CConstr c b i o)
+    NetExt :: (Component c i o, CConstr c b i o)
            => Layer r c b i o
            -> Network r b (i ':~ c) '[] o
-    (:&)   :: (Num (b h), Component c b i h, Component d b h o, CConstr c b i h, CConstr d b h o)
+    (:&)   :: (Num (b h), Component c i h, Component d h o, CConstr c b i h, CConstr d b h o)
            => Layer r c b i h
            -> Network r b (h ':~ d) hs               o
            -> Network r b (i ':~ c) ((h ':~ d) ': hs) o
@@ -92,11 +92,11 @@ networkOpPure = OpM $ \(I x :< I n :< Ø) -> case n of
       return (z ::< Ø, gF'')
 
 data NetConf :: RunMode -> (BShape -> Type) -> LChain -> [LChain] -> BShape -> Type where
-    NCExt :: (Component c b i o, CConstr c b i o, ComponentRunMode r c b i o)
-          => CConf c b i o
+    NCExt :: (ComponentLayer r c i o, CConstr c b i o)
+          => CConf c i o
           -> NetConf r b (i ':~ c) '[] o
-    (:&~) :: (SingI h, Num (b h), Component c b i h, Component d b h o, CConstr c b i h, CConstr d b h o, ComponentRunMode r c b i h, ComponentRunMode r d b h o)
-          => CConf c b i h
+    (:&~) :: (SingI h, Num (b h), ComponentLayer r c i h, ComponentLayer r d h o, CConstr c b i h, CConstr d b h o)
+          => CConf c i h
           -> NetConf r b (h ':~ d) hs               o
           -> NetConf r b (i ':~ c) ((h ':~ d) ': hs) o
 
@@ -113,19 +113,16 @@ initNet = \case
       return $ l :& n
 
 data NetStruct :: RunMode -> (BShape -> Type) -> LChain -> [LChain] -> BShape -> Type where
-    NSExt :: ( Component c b i o
+    NSExt :: ( ComponentLayer r c i o
              , CConstr c b i o
-             , ComponentRunMode r c b i o
              )
           => NetStruct r b (i ':~ c) '[] o
     NSInt :: ( SingI h
              , Num (b h)
-             , Component c b i h
-             , Component d b h o
+             , ComponentLayer r c i h
+             , ComponentLayer r d h o
              , CConstr c b i h
              , CConstr d b h o
-             , ComponentRunMode r c b i h
-             , ComponentRunMode r d b h o
              )
           => NetStruct r b (h ':~ d) hs               o
           -> NetStruct r b (i ':~ c) ((h ':~ d) ': hs) o
