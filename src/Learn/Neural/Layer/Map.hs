@@ -17,13 +17,13 @@
 {-# LANGUAGE TypeOperators         #-}
 
 module Learn.Neural.Layer.Map (
-    MapLayer
+    Mapping
   , CommonMap(..)
-  , Logit, ReLU, ReLUp, ELU, ELUp
+  , LogitMap, ReLUMap, ReLUpMap, ELUMap, ELUpMap
   , MapFunc(..)
-  , PMapLayer
+  , PMapping
   , CommonPMap(..)
-  , PReLU, PELU
+  , PReLUMap, PELUMap
   , PMapFunc(..)
   ) where
 
@@ -53,14 +53,14 @@ import qualified Data.Type.Nat                   as TCN
 import qualified Generics.SOP                    as SOP
 import qualified Type.Family.Nat                 as TCN
 
-data MapLayer :: k -> Type
+data Mapping :: k -> Type
 
 data MapFunc :: Type where
     MF :: { runMapFunc :: (forall a. RealFloat a => a -> a)
           }
        -> MapFunc
 
-instance Num (CParam (MapLayer s) b i i) where
+instance Num (CParam (Mapping s) b i i) where
     _ + _         = MapP
     _ * _         = MapP
     _ - _         = MapP
@@ -69,7 +69,7 @@ instance Num (CParam (MapLayer s) b i i) where
     signum _      = MapP
     fromInteger _ = MapP
 
-instance Num (CState (MapLayer s) b i i) where
+instance Num (CState (Mapping s) b i i) where
     _ + _         = MapS
     _ * _         = MapS
     _ - _         = MapS
@@ -78,10 +78,10 @@ instance Num (CState (MapLayer s) b i i) where
     signum _      = MapS
     fromInteger _ = MapS
 
-instance (Reifies s MapFunc, SingI i) => Component (MapLayer s) i i where
-    data CParam (MapLayer s) b i i = MapP
-    data CState (MapLayer s) b i i = MapS
-    data CConf  (MapLayer s)   i i = MapC
+instance (Reifies s MapFunc, SingI i) => Component (Mapping s) i i where
+    data CParam (Mapping s) b i i = MapP
+    data CState (Mapping s) b i i = MapS
+    data CConf  (Mapping s)   i i = MapC
 
     componentOp = componentOpDefault
 
@@ -89,7 +89,7 @@ instance (Reifies s MapFunc, SingI i) => Component (MapLayer s) i i where
     initState _ _ _ _ = return MapS
     defConf = MapC
 
-instance (Reifies s MapFunc, SingI i) => ComponentFF (MapLayer s) i i where
+instance (Reifies s MapFunc, SingI i) => ComponentFF (Mapping s) i i where
     componentOpFF = bpOp . withInps $ \(x :< _ :< Ø) -> do
         y <- tmapOp (runMapFunc mf) ~$ (x :< Ø)
         return . only $ y
@@ -97,16 +97,19 @@ instance (Reifies s MapFunc, SingI i) => ComponentFF (MapLayer s) i i where
         mf :: MapFunc
         mf = reflect (Proxy @s)
 
-instance (Reifies s MapFunc, SingI i) => ComponentLayer r (MapLayer s) i i where
+instance (Reifies s MapFunc, SingI i) => ComponentLayer r (Mapping s) i i where
     componentRunMode = RMIsFF
 
 data CommonMap :: Type where
+    MF_Ident :: CommonMap
     MF_Logit :: CommonMap
     MF_ReLU  :: CommonMap
     MF_ReLUp :: a -> CommonMap
     MF_ELU   :: CommonMap
     MF_ELUp  :: a -> CommonMap
 
+instance Reifies 'MF_Ident MapFunc where
+    reflect _ = MF id
 instance Reifies 'MF_Logit MapFunc where
     reflect _ = MF $ \x -> 1 / (1 + exp (-x))
 instance Reifies 'MF_ReLU MapFunc where
@@ -124,13 +127,14 @@ instance Reifies s Double => Reifies ('MF_ELUp s) MapFunc where
         α :: Double
         α = reflect (Proxy @s)
 
-type Logit   = MapLayer 'MF_Logit
-type ReLU    = MapLayer 'MF_ReLU
-type ReLUp s = MapLayer ('MF_ReLUp s)
-type ELU     = MapLayer 'MF_ELU
-type ELUp s  = MapLayer ('MF_ELUp s)
+type IdentMap   = Mapping 'MF_Ident
+type LogitMap   = Mapping 'MF_Logit
+type ReLUMap    = Mapping 'MF_ReLU
+type ReLUpMap s = Mapping ('MF_ReLUp s)
+type ELUMap     = Mapping 'MF_ELU
+type ELUpMap s  = Mapping ('MF_ELUp s)
 
-data PMapLayer :: k -> TCN.N -> Type
+data PMapping :: k -> TCN.N -> Type
 
 data PMapFunc :: TCN.N -> Type where
     PMF :: { runPMapFunc :: (forall a. RealFloat a => (I :&: Vec n) a -> a)
@@ -138,7 +142,7 @@ data PMapFunc :: TCN.N -> Type where
            }
         -> PMapFunc n
 
-instance (Tensor b, Known TCN.Nat n) => Num (CParam (PMapLayer s n) b i i) where
+instance (Tensor b, Known TCN.Nat n) => Num (CParam (PMapping s n) b i i) where
     PMapP x + PMapP y = PMapP $ x + y
     PMapP x - PMapP y = PMapP $ x - y
     PMapP x * PMapP y = PMapP $ x * y
@@ -147,7 +151,7 @@ instance (Tensor b, Known TCN.Nat n) => Num (CParam (PMapLayer s n) b i i) where
     signum (PMapP x) = PMapP (signum x)
     fromInteger x         = PMapP (fromInteger x)
 
-instance Num (CState (PMapLayer s n) b i i) where
+instance Num (CState (PMapping s n) b i i) where
     _ + _         = PMapS
     _ * _         = PMapS
     _ - _         = PMapS
@@ -157,16 +161,16 @@ instance Num (CState (PMapLayer s n) b i i) where
     fromInteger _ = PMapS
 
 
-pMapP :: Known TCN.Nat n => Iso' (CParam (PMapLayer s n) b i i) (Tuple (Replicate n (ElemT b)))
+pMapP :: Known TCN.Nat n => Iso' (CParam (PMapping s n) b i i) (Tuple (Replicate n (ElemT b)))
 pMapP = gTuple . iso (vecToProd . getI . head') (only_ . prodToVec' known)
 
-deriving instance Generic (CParam (PMapLayer s n) b i i)
-instance SOP.Generic (CParam (PMapLayer s n) b i i)
+deriving instance Generic (CParam (PMapping s n) b i i)
+instance SOP.Generic (CParam (PMapping s n) b i i)
 
-instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => Component (PMapLayer s n) i i where
-    data CParam (PMapLayer s n) b i i = PMapP { getPMapP :: !(Vec n (ElemT b)) }
-    data CState (PMapLayer s n) b i i = PMapS
-    data CConf  (PMapLayer s n)   i i = PMapC { getPMapC :: !(Vec n (SomeC ContGen I)) }
+instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => Component (PMapping s n) i i where
+    data CParam (PMapping s n) b i i = PMapP { getPMapP :: !(Vec n (ElemT b)) }
+    data CState (PMapping s n) b i i = PMapS
+    data CConf  (PMapping s n)   i i = PMapC { getPMapC :: !(Vec n (SomeC ContGen I)) }
 
     componentOp = componentOpDefault
 
@@ -181,21 +185,21 @@ instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => Component (PMapLa
         pmf :: PMapFunc n
         pmf = reflect (Proxy @s)
 
-instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => ComponentFF (PMapLayer s n) i i where
+instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => ComponentFF (PMapping s n) i i where
     componentOpFF
         :: forall b q. (BLAS b, Tensor b, Num (b i))
-        => OpB q '[b i, CParam (PMapLayer s n) b i i] '[b i]
+        => OpB q '[b i, CParam (PMapping s n) b i i] '[b i]
     componentOpFF = bpOp . withInps $ \(x :< mp :< Ø) -> replWit @n @Num @(ElemT b) n Wit //
                                                          replLen @n @(ElemT b) n          // do
-        ps :: Prod (BVar q '[b i, CParam (PMapLayer s n) b i i]) (Replicate n (ElemT b))
+        ps :: Prod (BVar q '[b i, CParam (PMapping s n) b i i]) (Replicate n (ElemT b))
           <- replWit @n @Num @(ElemT b) n Wit //
              replLen @n @(ElemT b) n //
                pMapP #<~ mp
-        let psV :: VecT n (BVar q '[b i, CParam (PMapLayer s n) b i i]) (ElemT b)
+        let psV :: VecT n (BVar q '[b i, CParam (PMapping s n) b i i]) (ElemT b)
             psV = prodToVec' n ps
-        psTV :: VecT n (BVar q '[b i, CParam (PMapLayer s n) b i i]) (b i)
+        psTV :: VecT n (BVar q '[b i, CParam (PMapping s n) b i i]) (b i)
           <- vtraverse (\p -> tkonstOp sing ~$ (p :< Ø)) psV
-        let psT :: Prod (BVar q '[b i, CParam (PMapLayer s n) b i i]) (Replicate n (b i))
+        let psT :: Prod (BVar q '[b i, CParam (PMapping s n) b i i]) (Replicate n (b i))
             psT = vecToProd psTV
         y <- tzipNOp @_ @_ @_ @('TCN.S n) (\case x' :* psT' -> runPMapFunc pmf (x' :&: psT'))
                ~$ (x :< psT)
@@ -206,7 +210,7 @@ instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => ComponentFF (PMap
         pmf :: PMapFunc n
         pmf = reflect (Proxy @s)
 
-instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => ComponentLayer r (PMapLayer s n) i i where
+instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => ComponentLayer r (PMapping s n) i i where
     componentRunMode = RMIsFF
 
 data CommonPMap :: Type where
@@ -223,5 +227,5 @@ instance Reifies 'PMF_PELU (PMapFunc TCN.N1) where
                             if x < 0 then α * (exp x - 1) else x)
                     (SomeC (I (uniformDistr 0 1)) :+ ØV)
 
-type PReLU = PMapLayer 'PMF_PReLU
-type PELU  = PMapLayer 'PMF_PELU
+type PReLUMap = PMapping 'PMF_PReLU
+type PELUMap  = PMapping 'PMF_PELU

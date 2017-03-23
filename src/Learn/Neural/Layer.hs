@@ -157,3 +157,4 @@ initLayer si so conf g = case componentRunMode @r @c @i @o of
       p <- initParam si so conf g
       s <- initState si so conf g
       return $ LRecurrent p s
+

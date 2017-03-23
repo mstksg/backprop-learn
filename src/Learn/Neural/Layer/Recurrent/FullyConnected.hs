@@ -10,7 +10,7 @@
 {-# LANGUAGE TypeSynonymInstances      #-}
 
 module Learn.Neural.Layer.Recurrent.FullyConnected (
-    RFCLayer
+    RFullyConnected
   ) where
 
 import           Data.Kind
@@ -26,23 +26,23 @@ import           Statistics.Distribution
 import           Statistics.Distribution.Normal
 import qualified Generics.SOP                   as SOP
 
-data RFCLayer :: Type
+data RFullyConnected :: Type
 
-deriving instance Generic (CParam RFCLayer b (BV i) (BV o))
-instance SOP.Generic (CParam RFCLayer b (BV i) (BV o))
+deriving instance Generic (CParam RFullyConnected b (BV i) (BV o))
+instance SOP.Generic (CParam RFullyConnected b (BV i) (BV o))
 
-instance Num (CParam RFCLayer b (BV i) (BV o))
-instance Num (CState RFCLayer b (BV i) (BV o))
+instance Num (CParam RFullyConnected b (BV i) (BV o))
+instance Num (CState RFullyConnected b (BV i) (BV o))
 
-instance (KnownNat i, KnownNat o) => Component RFCLayer (BV i) (BV o) where
-    data CParam  RFCLayer b (BV i) (BV o) =
+instance (KnownNat i, KnownNat o) => Component RFullyConnected (BV i) (BV o) where
+    data CParam  RFullyConnected b (BV i) (BV o) =
             RFCP { rfcInpWeights   :: !(b (BM o i))
                  , rfcStateWeights :: !(b (BM o o))
                  , rfcBiases       :: !(b (BV o))
                  }
-    data CState  RFCLayer b (BV i) (BV o) = RFCS { rfcState :: !(b (BV o)) }
-    type CConstr RFCLayer b (BV i) (BV o) = (Num (b (BM o i)), Num (b (BM o o)))
-    data CConf   RFCLayer   (BV i) (BV o) = forall d. ContGen d => RFCC d
+    data CState  RFullyConnected b (BV i) (BV o) = RFCS { rfcState :: !(b (BV o)) }
+    type CConstr RFullyConnected b (BV i) (BV o) = (Num (b (BM o i)), Num (b (BM o o)))
+    data CConf   RFullyConnected   (BV i) (BV o) = forall d. ContGen d => RFCC d
 
     componentOp = bpOp . withInps $ \(x :< p :< s :< Ø) -> do
         wI :< wS :< b :< Ø <- gTuple #<~ p
@@ -65,5 +65,5 @@ instance (KnownNat i, KnownNat o) => Component RFCLayer (BV i) (BV o) where
     initState _ so (RFCC d) g =
         RFCS <$> genA so (\_ -> realToFrac <$> genContVar d g)
 
-instance (KnownNat i, KnownNat o) => ComponentLayer 'Recurrent RFCLayer (BV i) (BV o) where
+instance (KnownNat i, KnownNat o) => ComponentLayer 'Recurrent RFullyConnected (BV i) (BV o) where
     componentRunMode = RMNotFF

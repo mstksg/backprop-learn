@@ -20,6 +20,7 @@ library
                        Numeric.BLAS.HMatrix
                        Numeric.Tensor
                        Learn.Neural.Layer
+                       Learn.Neural.Layer.Identity
                        Learn.Neural.Network
                        Learn.Neural.Layer.Map
                        Learn.Neural.Layer.FullyConnected
