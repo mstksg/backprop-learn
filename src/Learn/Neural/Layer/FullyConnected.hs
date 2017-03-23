@@ -43,15 +43,12 @@ instance (KnownNat i, KnownNat o) => Component FCLayer (BV i) (BV o) where
 
     componentOp = componentOpDefault
 
-    initParam = \case
-      SBV i -> \case
-        so@(SBV o) -> \case
-          FCC d -> \g -> do
-            w <- genA (SBM o i) $ \_ ->
-              realToFrac <$> genContVar d g
-            b <- genA so $ \_ ->
-              realToFrac <$> genContVar d g
-            return $ FCP w b
+    initParam (SBV i) so@(SBV o) (FCC d) g = do
+        w <- genA (SBM o i) $ \_ ->
+          realToFrac <$> genContVar d g
+        b <- genA so $ \_ ->
+          realToFrac <$> genContVar d g
+        return $ FCP w b
 
     initState _ _ _ _ = return FCS
 
