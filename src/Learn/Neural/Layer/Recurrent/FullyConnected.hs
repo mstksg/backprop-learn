@@ -8,6 +8,7 @@
 {-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE StandaloneDeriving        #-}
+{-# LANGUAGE TypeApplications          #-}
 {-# LANGUAGE TypeFamilies              #-}
 {-# LANGUAGE TypeInType                #-}
 {-# LANGUAGE TypeSynonymInstances      #-}
@@ -18,6 +19,7 @@ module Learn.Neural.Layer.Recurrent.FullyConnected (
   ) where
 
 import           Data.Kind
+import           Data.Proxy
 import           Data.Reflection
 import           GHC.Generics                   (Generic)
 import           GHC.TypeLits
@@ -74,63 +76,56 @@ instance (KnownNat i, KnownNat o) => Component FullyConnectedR (BV i) (BV o) whe
 instance (KnownNat i, KnownNat o) => ComponentLayer 'Recurrent FullyConnectedR (BV i) (BV o) where
     componentRunMode = RMNotFF
 
-data FullyConnectedR' :: Type -> Type
+data FullyConnectedR' :: k -> Type
 
 deriving instance Generic (CParam (FullyConnectedR' c) b (BV i) (BV o))
 instance SOP.Generic (CParam (FullyConnectedR' c) b (BV i) (BV o))
 
-instance Num (CParam (FullyConnectedR' c) b (BV i) (BV o))
-instance Num (CState (FullyConnectedR' c) b (BV i) (BV o))
+instance Num (CParam (FullyConnectedR' s) b (BV i) (BV o))
+instance Num (CState (FullyConnectedR' s) b (BV i) (BV o))
 
-
-instance (KnownNat i, KnownNat o, ComponentFF c (BV o) (BV o))
-      => Component (FullyConnectedR' c) (BV i) (BV o) where
+instance (KnownNat i, KnownNat o, Reifies s MapFunc)
+      => Component (FullyConnectedR' s) (BV i) (BV o) where
     data CParam  (FullyConnectedR' c) b (BV i) (BV o) =
             FCRP' { fcrInpWeights'   :: !(b (BM o i))
                   , fcrStateWeights' :: !(b (BM o o))
                   , fcrBiases'       :: !(b (BV o))
-                  , fcrInternal'     :: !(CParam c b (BV o) (BV o))
                   }
     data CState  (FullyConnectedR' c) b (BV i) (BV o) = FCRS' { fcrState' :: !(b (BV o)) }
     type CConstr (FullyConnectedR' c) b (BV i) (BV o) =
       ( Num (b (BM o i))
       , Num (b (BM o o))
-      , CConstr c b (BV o) (BV o)
-      , Num (CParam c b (BV o) (BV o))
       )
-    data CConf   (FullyConnectedR' c)   (BV i) (BV o) where
-        FCRC' :: ContGen d
-              => { fcrConf'    :: d 
-                 , fcrConfInt' :: CConf c (BV o) (BV o)
-                 }
-              -> CConf (FullyConnectedR' c) (BV i) (BV o)
+    data CConf   (FullyConnectedR' c)   (BV i) (BV o) = forall d. ContGen d => FCRC' d
 
     componentOp = bpOp . withInps $ \(x :< p :< s :< Ø) -> do
-        wI :< wS :< b :< pI :< Ø <- gTuple #<~ p
+        wI :< wS :< b :< Ø <- gTuple #<~ p
         s0 <- opIso (iso fcrState' FCRS') ~$ (s :< Ø)
         y  <- matVecOp ~$ (wI :< x  :< Ø)
         s1 <- matVecOp ~$ (wS :< s0 :< Ø)
         z  <- bindVar $ y + s1 + b
-        s2 <- componentOpFF ~$ (s1 :< pI :< Ø)
+        s2 <- tmapOp (runMapFunc mf) ~$ (s1 :< Ø)
         s' <- opIso (iso FCRS' fcrState') ~$ (s2 :< Ø)
         return $ z :< s' :< Ø
+      where
+        mf :: MapFunc
+        mf = reflect (Proxy @s)
 
-    defConf = FCRC' (normalDistr 0 0.5) defConf
+    defConf = FCRC' (normalDistr 0 0.5)
 
-    initParam (SBV i) so@(SBV o) (FCRC' d c) g = do
+    initParam (SBV i) so@(SBV o) (FCRC' d) g = do
         wI <- genA (SBM o i) $ \_ ->
           realToFrac <$> genContVar d g
         wS <- genA (SBM o o) $ \_ ->
           realToFrac <$> genContVar d g
         b <- genA so $ \_ ->
           realToFrac <$> genContVar d g
-        p <- initParam so so c g
-        return $ FCRP' wI wS b p
+        return $ FCRP' wI wS b
 
-    initState _ so (FCRC' d _) g =
+    initState _ so (FCRC' d) g =
         FCRS' <$> genA so (\_ -> realToFrac <$> genContVar d g)
 
-instance (KnownNat i, KnownNat o, ComponentFF c (BV o) (BV o))
-      => ComponentLayer 'Recurrent (FullyConnectedR' c) (BV i) (BV o) where
+instance (KnownNat i, KnownNat o, Reifies s MapFunc)
+      => ComponentLayer 'Recurrent (FullyConnectedR' s) (BV i) (BV o) where
     componentRunMode = RMNotFF
 
