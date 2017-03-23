@@ -103,8 +103,12 @@ class Component c i o => ComponentLayer (r :: RunMode) (c :: Type) (i :: BShape)
     componentRunMode :: RunModeWit r c i o
 
 data Layer :: RunMode -> Type -> (BShape -> Type) -> BShape -> BShape -> Type where
-    LFeedForward :: ComponentFF c i o => CParam c b i o -> Layer r c b i o
-    LRecurrent   :: Component c i o   => CParam c b i o -> CState c b i o -> Layer 'Recurrent c b i o
+    LFeedForward :: ComponentFF c i o
+                 => CParam c b i o
+                 -> Layer r c b i o
+    LRecurrent   :: CParam c b i o
+                 -> CState c b i o
+                 -> Layer 'Recurrent c b i o
 
 instance (Num (CParam c b i o), Num (CState c b i o), ComponentLayer r c i o) => Num (Layer r c b i o) where
     (+) = \case

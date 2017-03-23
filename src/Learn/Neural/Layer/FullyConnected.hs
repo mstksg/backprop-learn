@@ -26,16 +26,32 @@ import qualified Generics.SOP                   as SOP
 
 data FullyConnected :: Type
 
-instance Num (CParam FullyConnected b (BV i) (BV o))
-instance Num (CState FullyConnected b (BV i) (BV o))
+instance (Num (b (BM o i)), Num (b (BV o))) => Num (CParam FullyConnected b (BV i) (BV o)) where
+    FCP w1 b1 + FCP w2 b2 = FCP (w1 + w2) (b1 + b2)
+    FCP w1 b1 - FCP w2 b2 = FCP (w1 - w2) (b1 - b2)
+    FCP w1 b1 * FCP w2 b2 = FCP (w1 * w2) (b1 * b2)
+    negate (FCP w b) = FCP (negate w) (negate b)
+    signum (FCP w b) = FCP (signum w) (signum b)
+    abs    (FCP w b) = FCP (abs    w) (abs    b)
+    fromInteger x = FCP (fromInteger x) (fromInteger x)
+
+instance Num (CState FullyConnected b (BV i) (BV o)) where
+    _ + _         = FCS
+    _ * _         = FCS
+    _ - _         = FCS
+    negate _      = FCS
+    abs    _      = FCS
+    signum _      = FCS
+    fromInteger _ = FCS
+
 
 deriving instance Generic (CParam FullyConnected b (BV i) (BV o))
 instance SOP.Generic (CParam FullyConnected b (BV i) (BV o))
 
 instance (KnownNat i, KnownNat o) => Component FullyConnected (BV i) (BV o) where
     data CParam  FullyConnected b (BV i) (BV o) =
-            FCP { fcWeights :: !(b (BM o i))
-                , fcBiases  :: !(b (BV o))
+            FCP { _fcWeights :: !(b (BM o i))
+                , _fcBiases  :: !(b (BV o))
                 }
     data CState  FullyConnected b (BV i) (BV o) = FCS
     type CConstr FullyConnected b (BV i) (BV o) = Num (b (BM o i))

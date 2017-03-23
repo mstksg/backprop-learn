@@ -6,6 +6,7 @@
 
 
 module Learn.Neural.Layer.Identity (
+    Ident
   ) where
 
 import           Data.Kind

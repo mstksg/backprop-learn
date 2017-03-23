@@ -64,21 +64,21 @@ instance Num (b (BV o)) => Num (CState FullyConnectedR b (BV i) (BV o)) where
 
 instance (KnownNat i, KnownNat o) => Component FullyConnectedR (BV i) (BV o) where
     data CParam  FullyConnectedR b (BV i) (BV o) =
-            FCRP { fcrInpWeights   :: !(b (BM o i))
-                 , fcrStateWeights :: !(b (BM o o))
-                 , fcrBiases       :: !(b (BV o))
+            FCRP { _fcrInpWeights   :: !(b (BM o i))
+                 , _fcrStateWeights :: !(b (BM o o))
+                 , _fcrBiases       :: !(b (BV o))
                  }
-    data CState  FullyConnectedR b (BV i) (BV o) = FCRS { fcrState :: !(b (BV o)) }
+    data CState  FullyConnectedR b (BV i) (BV o) = FCRS { _fcrState :: !(b (BV o)) }
     type CConstr FullyConnectedR b (BV i) (BV o) = (Num (b (BM o i)), Num (b (BM o o)))
     data CConf   FullyConnectedR   (BV i) (BV o) = forall d. ContGen d => FCRC d
 
     componentOp = bpOp . withInps $ \(x :< p :< s :< Ø) -> do
         wI :< wS :< b :< Ø <- gTuple #<~ p
-        s0 <- opIso (iso fcrState FCRS) ~$ (s :< Ø)
+        s0 <- opIso (iso _fcrState FCRS) ~$ (s :< Ø)
         y  <- matVecOp ~$ (wI :< x  :< Ø)
         s1 <- matVecOp ~$ (wS :< s0 :< Ø)
         z  <- bindVar $ y + s1 + b
-        s' <- opIso (iso FCRS fcrState) ~$ (s1 :< Ø)
+        s' <- opIso (iso FCRS _fcrState) ~$ (s1 :< Ø)
         return $ z :< s' :< Ø
 
     defConf = FCRC (normalDistr 0 0.5)
@@ -124,11 +124,11 @@ instance Num (b (BV o)) => Num (CState (FullyConnectedR' s) b (BV i) (BV o)) whe
 instance (KnownNat i, KnownNat o, Reifies s MapFunc)
       => Component (FullyConnectedR' s) (BV i) (BV o) where
     data CParam  (FullyConnectedR' c) b (BV i) (BV o) =
-            FCRP' { fcrInpWeights'   :: !(b (BM o i))
-                  , fcrStateWeights' :: !(b (BM o o))
-                  , fcrBiases'       :: !(b (BV o))
+            FCRP' { _fcrInpWeights'   :: !(b (BM o i))
+                  , _fcrStateWeights' :: !(b (BM o o))
+                  , _fcrBiases'       :: !(b (BV o))
                   }
-    data CState  (FullyConnectedR' c) b (BV i) (BV o) = FCRS' { fcrState' :: !(b (BV o)) }
+    data CState  (FullyConnectedR' c) b (BV i) (BV o) = FCRS' { _fcrState' :: !(b (BV o)) }
     type CConstr (FullyConnectedR' c) b (BV i) (BV o) =
       ( Num (b (BM o i))
       , Num (b (BM o o))
@@ -137,12 +137,12 @@ instance (KnownNat i, KnownNat o, Reifies s MapFunc)
 
     componentOp = bpOp . withInps $ \(x :< p :< s :< Ø) -> do
         wI :< wS :< b :< Ø <- gTuple #<~ p
-        s0 <- opIso (iso fcrState' FCRS') ~$ (s :< Ø)
+        s0 <- opIso (iso _fcrState' FCRS') ~$ (s :< Ø)
         y  <- matVecOp ~$ (wI :< x  :< Ø)
         s1 <- matVecOp ~$ (wS :< s0 :< Ø)
         z  <- bindVar $ y + s1 + b
         s2 <- tmapOp (runMapFunc mf) ~$ (s1 :< Ø)
-        s' <- opIso (iso FCRS' fcrState') ~$ (s2 :< Ø)
+        s' <- opIso (iso FCRS' _fcrState') ~$ (s2 :< Ø)
         return $ z :< s' :< Ø
       where
         mf :: MapFunc

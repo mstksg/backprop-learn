@@ -19,7 +19,7 @@
 module Learn.Neural.Layer.Mapping (
     Mapping
   , CommonMap(..)
-  , LogitMap, ReLUMap, ReLUpMap, ELUMap, ELUpMap
+  , IdentMap, LogitMap, ReLUMap, ReLUpMap, ELUMap, ELUpMap
   , MapFunc(..)
   , PMapping
   , CommonPMap(..)
@@ -168,14 +168,14 @@ deriving instance Generic (CParam (PMapping s n) b i i)
 instance SOP.Generic (CParam (PMapping s n) b i i)
 
 instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => Component (PMapping s n) i i where
-    data CParam (PMapping s n) b i i = PMapP { getPMapP :: !(Vec n (ElemT b)) }
+    data CParam (PMapping s n) b i i = PMapP { _getPMapP :: !(Vec n (ElemT b)) }
     data CState (PMapping s n) b i i = PMapS
-    data CConf  (PMapping s n)   i i = PMapC { getPMapC :: !(Vec n (SomeC ContGen I)) }
+    data CConf  (PMapping s n)   i i = PMapC { _getPMapC :: !(Vec n (SomeC ContGen I)) }
 
     componentOp = componentOpDefault
 
     initParam _ _ c g = do
-        ps <- forM (getPMapC c) $ \(SomeC (I d)) ->
+        ps <- forM (_getPMapC c) $ \(SomeC (I d)) ->
           realToFrac <$> genContVar d g
         return $ PMapP ps
     initState _ _ _ _ = return PMapS
