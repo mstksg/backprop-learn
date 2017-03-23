@@ -41,28 +41,43 @@ class (SingKind k, RealFloat (ElemT t)) => Tensor (t :: k -> Type) where
     gen :: Sing s
         -> (IndexT t s -> ElemT t)
         -> t s
+    gen s f = getI $ genA s (I . f)
 
     tkonst :: Sing s -> ElemT t -> t s
+    tkonst s x = gen s $ \_ -> x
 
     tsum :: SingI s => t s -> ElemT t
     tmap :: SingI s => (ElemT t -> ElemT t) -> t s -> t s
+    tmap f x = tzipN (\case I x' :* ØV -> f x') (x :* ØV)
+
     tzip
         :: SingI s
         => (ElemT t -> ElemT t -> ElemT t)
         -> t s
         -> t s
         -> t s
+    tzip f x y = tzipN (\case I x' :* I y' :* ØV -> f x' y') (x :* y :* ØV)
 
     tzipN
         :: SingI s
         => (Vec n (ElemT t) -> ElemT t)
         -> VecT n t s
         -> t s
+    tzipN f xs = gen sing $ \i ->
+        f $ vmap (I . tindex i) xs
 
     tsize
         :: SingI s
         => t s
         -> Int
+
+    tindex
+        :: SingI s
+        => IndexT t s
+        -> t s
+        -> ElemT t
+
+    {-# MINIMAL genA, tsum, tsize, tindex #-}
 
 tmapOp
     :: (Tensor t, SingI s)

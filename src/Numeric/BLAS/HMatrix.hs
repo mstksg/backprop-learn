@@ -1,10 +1,12 @@
-{-# LANGUAGE GADTs               #-}
-{-# LANGUAGE InstanceSigs        #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE TypeFamilies        #-}
-{-# LANGUAGE TypeInType          #-}
+{-# LANGUAGE FlexibleContexts     #-}
+{-# LANGUAGE GADTs                #-}
+{-# LANGUAGE InstanceSigs         #-}
+{-# LANGUAGE LambdaCase           #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE TypeApplications     #-}
+{-# LANGUAGE TypeFamilies         #-}
+{-# LANGUAGE TypeInType           #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Numeric.BLAS.HMatrix (
     HM(..)
@@ -107,6 +109,26 @@ instance Tensor HM where
                                               (concat . LA.toLists . extract $ y)
                                    )
 
+    tsize
+        :: forall s. SingI s
+        => HM s
+        -> Int
+    tsize _ = fromIntegral $ bshapeSize (fromSing (sing @_ @s))
+
+    tindex
+        :: forall s. SingI s
+        => BIndex s
+        -> HM s
+        -> Double
+    tindex = case sing @_ @s of
+      SBV SNat -> \case
+        BVIx i -> \case
+          HM x -> extract x `LA.atIndex` fromIntegral i
+      SBM SNat SNat -> \case
+        BMIx i j -> \case
+          HM x -> extract x `LA.atIndex` (fromIntegral i, fromIntegral j)
+
+
 instance SingI s => MonoFunctor (HM s) where
     omap f (HM x) = case sing @_ @s of
       SBV SNat      -> HM (dvmap f x)
@@ -142,3 +164,12 @@ instance SingI s => MonoFoldable (HM s) where
     lastEx         = lastEx . hmElems
     maximumByEx f  = maximumByEx f . hmElems
     minimumByEx f  = minimumByEx f . hmElems
+
+instance Num (HM' s) => Num (HM s) where
+    HM x + HM y = HM (x + y)
+    HM x - HM y = HM (x - y)
+    HM x * HM y = HM (x * y)
+    negate (HM x) = HM (negate x)
+    signum (HM x) = HM (signum x)
+    abs    (HM x) = HM (abs    x)
+    fromInteger x = HM (fromInteger x)

@@ -22,6 +22,8 @@ module Numeric.BLAS (
   , Sing(SBV, SBM)
   , SBShape'
   , BIndex(..)
+  , sBshapeSize
+  , bshapeSize
   , matVec
   , vecMat
   , outer
