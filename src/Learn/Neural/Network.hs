@@ -1,22 +1,28 @@
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE GADTs               #-}
-{-# LANGUAGE KindSignatures      #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeInType          #-}
-{-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeInType            #-}
+{-# LANGUAGE TypeOperators         #-}
 
 module Learn.Neural.Network (
     LChain(..)
+  , (:~)
   , Network(..)
   , networkOp
   , networkOpPure
   , NetConf(..)
   , initNet
   , NetStruct(..)
+  , defNetConf'
   , defNetConf
+  , initDefNet'
   , initDefNet
   ) where
 
@@ -30,23 +36,26 @@ import           Numeric.Backprop
 import           Numeric.Backprop.Op
 import           Numeric.Tensor
 import           System.Random.MWC
+import           Type.Class.Known
 
 
 data LChain :: Type where
     (:~) :: BShape -> Type -> LChain
 
+type s :~ c = s ':~ c
+
 data Network :: RunMode -> (BShape -> Type) -> LChain -> [LChain] -> BShape -> Type where
     NetExt :: (Component c i o, CConstr c b i o)
            => Layer r c b i o
-           -> Network r b (i ':~ c) '[] o
-    (:&)   :: (Num (b h), Component c i h, Component d h o, CConstr c b i h, CConstr d b h o)
+           -> Network r b (i :~ c) '[] o
+    (:&)   :: (Num (b h), Component c i h, CConstr c b i h)
            => Layer r c b i h
-           -> Network r b (h ':~ d) hs               o
-           -> Network r b (i ':~ c) ((h ':~ d) ': hs) o
+           -> Network r b (h :~ d) hs               o
+           -> Network r b (i :~ c) ((h :~ d) ': hs) o
 
 networkOp
     :: forall b i c hs o r s. (BLAS b, Tensor b, Num (b i), Num (b o))
-    => OpB s '[ b i, Network r b (i ':~ c) hs o ] '[ b o, Network r b (i ':~ c) hs o ]
+    => OpB s '[ b i, Network r b (i :~ c) hs o ] '[ b o, Network r b (i :~ c) hs o ]
 networkOp = OpM $ \(I x :< I n :< Ø) -> case n of
     NetExt l -> do
       (I y :< I l' :< Ø, gF) <- runOpM' layerOp (x ::< l ::< Ø)
@@ -73,7 +82,7 @@ networkOp = OpM $ \(I x :< I n :< Ø) -> case n of
 
 networkOpPure
     :: forall b i c hs o s. (BLAS b, Tensor b, Num (b i), Num (b o))
-    => OpB s '[ b i, Network 'FeedForward b (i ':~ c) hs o ] '[ b o ]
+    => OpB s '[ b i, Network 'FeedForward b (i :~ c) hs o ] '[ b o ]
 networkOpPure = OpM $ \(I x :< I n :< Ø) -> case n of
     NetExt l -> do
       (I y :< Ø, gF) <- runOpM' layerOpPure (x ::< l ::< Ø)
@@ -94,17 +103,17 @@ networkOpPure = OpM $ \(I x :< I n :< Ø) -> case n of
 data NetConf :: RunMode -> (BShape -> Type) -> LChain -> [LChain] -> BShape -> Type where
     NCExt :: (ComponentLayer r c i o, CConstr c b i o)
           => CConf c i o
-          -> NetConf r b (i ':~ c) '[] o
-    (:&~) :: (SingI h, Num (b h), ComponentLayer r c i h, ComponentLayer r d h o, CConstr c b i h, CConstr d b h o)
+          -> NetConf r b (i :~ c) '[] o
+    (:&~) :: (SingI h, Num (b h), ComponentLayer r c i h, CConstr c b i h)
           => CConf c i h
-          -> NetConf r b (h ':~ d) hs               o
-          -> NetConf r b (i ':~ c) ((h ':~ d) ': hs) o
+          -> NetConf r b (h :~ d) hs               o
+          -> NetConf r b (i :~ c) ((h :~ d) ': hs) o
 
 initNet
     :: forall b i c hs o m r. (PrimMonad m, BLAS b, Tensor b, SingI i, SingI o)
-    => NetConf r b (i ':~ c) hs o
+    => NetConf r b (i :~ c) hs o
     -> Gen (PrimState m)
-    -> m (Network r b (i ':~ c) hs o)
+    -> m (Network r b (i :~ c) hs o)
 initNet = \case
     NCExt c -> \g -> NetExt <$> initLayer sing sing c g
     c :&~ cN -> \g -> do
@@ -116,27 +125,49 @@ data NetStruct :: RunMode -> (BShape -> Type) -> LChain -> [LChain] -> BShape ->
     NSExt :: ( ComponentLayer r c i o
              , CConstr c b i o
              )
-          => NetStruct r b (i ':~ c) '[] o
+          => NetStruct r b (i :~ c) '[] o
     NSInt :: ( SingI h
              , Num (b h)
              , ComponentLayer r c i h
-             , ComponentLayer r d h o
              , CConstr c b i h
-             , CConstr d b h o
              )
-          => NetStruct r b (h ':~ d) hs               o
-          -> NetStruct r b (i ':~ c) ((h ':~ d) ': hs) o
+          => NetStruct r b (h :~ d) hs               o
+          -> NetStruct r b (i :~ c) ((h :~ d) ': hs) o
 
-defNetConf
+defNetConf'
     :: NetStruct r b i hs o
     -> NetConf r b i hs o
-defNetConf = \case
+defNetConf' = \case
     NSExt   -> NCExt defConf
-    NSInt c -> defConf :&~ defNetConf c
+    NSInt c -> defConf :&~ defNetConf' c
+
+defNetConf
+    :: Known (NetStruct r b i hs) o
+    => NetConf r b i hs o
+defNetConf = defNetConf' known
+
+initDefNet'
+    :: forall b i c hs o m r. (PrimMonad m, BLAS b, Tensor b, SingI i, SingI o)
+    => NetStruct r b (i :~ c) hs o
+    -> Gen (PrimState m)
+    -> m (Network r b (i :~ c) hs o)
+initDefNet' = initNet . defNetConf'
 
 initDefNet
-    :: forall b i c hs o m r. (PrimMonad m, BLAS b, Tensor b, SingI i, SingI o)
-    => NetStruct r b (i ':~ c) hs o
-    -> Gen (PrimState m)
-    -> m (Network r b (i ':~ c) hs o)
-initDefNet = initNet . defNetConf
+    :: (PrimMonad m, BLAS b, Tensor b, SingI i, SingI o, Known (NetStruct r b (i :~ c) hs) o)
+    => Gen (PrimState m)
+    -> m (Network r b (i :~ c) hs o)
+initDefNet = initDefNet' known
+
+instance (ComponentLayer r c i o, CConstr c b i o)
+        => Known (NetStruct r b (i :~ c) '[]) o where
+    known = NSExt
+
+instance ( SingI h
+         , Num (b h)
+         , ComponentLayer r c i h
+         , CConstr c b i h
+         , Known (NetStruct r b (h :~ d) hs) o
+         )
+        => Known (NetStruct r b (i :~ c) ((h :~ d) ': hs)) o where
+    known = NSInt known

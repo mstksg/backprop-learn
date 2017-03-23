@@ -9,6 +9,7 @@
 {-# LANGUAGE MultiParamTypeClasses  #-}
 {-# LANGUAGE PolyKinds              #-}
 {-# LANGUAGE ScopedTypeVariables    #-}
+{-# LANGUAGE StandaloneDeriving     #-}
 {-# LANGUAGE TemplateHaskell        #-}
 {-# LANGUAGE TypeApplications       #-}
 {-# LANGUAGE TypeFamilies           #-}
@@ -39,6 +40,7 @@ import           Data.Singletons.Prelude
 import           Data.Singletons.TH
 import           GHC.TypeLits
 import           Numeric.Backprop.Op
+import           Type.Class.Higher
 
 $(singletons [d|
   data BShape' a = BV !a | BM !a !a
@@ -56,6 +58,20 @@ type BM = 'BM
 data BIndex :: BShape -> Type where
     BVIx :: Finite n -> BIndex (BV n)
     BMIx :: Finite m -> Finite n -> BIndex (BM m n)
+
+deriving instance Eq (BIndex s)
+instance Eq1 BIndex where
+    eq1 = \case
+      BVIx i -> \case
+        BVIx i' -> i == i'
+      BMIx i j -> \case
+        BMIx i' j' -> i == i' && j == j'
+    neq1 = \case
+      BVIx i -> \case
+        BVIx i' -> i /= i'
+      BMIx i j -> \case
+        BMIx i' j' -> i /= i' || j /= j'
+
 
 class RealFloat (Scalar b) => BLAS (b :: BShape -> Type) where
     type Scalar b :: Type

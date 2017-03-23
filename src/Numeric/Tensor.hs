@@ -14,6 +14,7 @@ module Numeric.Tensor (
   , tmapOp
   , tzipNOp
   , tkonstOp
+  , oneHot
   ) where
 
 import           Data.Kind
@@ -25,10 +26,12 @@ import           Numeric.AD
 import           Numeric.AD.Internal.Reverse
 import           Numeric.AD.Mode.Forward     (Forward)
 import           Numeric.Backprop.Op
+import           Type.Class.Higher
 import           Type.Class.Known
 import qualified Data.Type.Nat               as TCN
 
-class (SingKind k, RealFloat (ElemT t)) => Tensor (t :: k -> Type) where
+class (SingKind k, RealFloat (ElemT t), Eq1 (IndexT t))
+        => Tensor (t :: k -> Type) where
     type IndexT t :: k -> Type
     type ElemT  t :: Type
 
@@ -104,3 +107,6 @@ tkonstOp :: forall t s. Tensor t => Sing s -> Op '[ElemT t] '[t s]
 tkonstOp s = withSingI s $ op1' $ \x ->
     let res = tkonst s x
     in  (only_ res, maybe (fromIntegral (tsize res)) tsum . head')
+
+oneHot :: (Tensor t, SingI s) => IndexT t s -> t s
+oneHot i = gen sing $ \j -> if i `eq1` j then 1 else 0

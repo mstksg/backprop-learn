@@ -1,8 +1,10 @@
+{-# LANGUAGE DeriveGeneric        #-}
 {-# LANGUAGE FlexibleContexts     #-}
 {-# LANGUAGE GADTs                #-}
 {-# LANGUAGE InstanceSigs         #-}
 {-# LANGUAGE LambdaCase           #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE StandaloneDeriving   #-}
 {-# LANGUAGE TypeApplications     #-}
 {-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE TypeInType           #-}
@@ -13,6 +15,7 @@ module Numeric.BLAS.HMatrix (
   , HM'
   ) where
 
+import           Control.DeepSeq
 import           Data.Finite.Internal
 import           Data.Foldable
 import           Data.Kind
@@ -20,6 +23,7 @@ import           Data.Maybe
 import           Data.MonoTraversable
 import           Data.Singletons
 import           Data.Singletons.TypeLits
+import           GHC.Generics                 (Generic)
 import           Numeric.BLAS hiding          (outer)
 import           Numeric.LinearAlgebra.Static
 import           Numeric.Tensor
@@ -32,6 +36,7 @@ type family HM' (s :: BShape) :: Type where
 newtype HM :: BShape -> Type where
     HM  :: { getHM :: HM' b }
         -> HM b
+  deriving (Generic)
 
 type instance Element (HM s) = Double
 
@@ -173,3 +178,8 @@ instance Num (HM' s) => Num (HM s) where
     signum (HM x) = HM (signum x)
     abs    (HM x) = HM (abs    x)
     fromInteger x = HM (fromInteger x)
+
+instance NFData (HM' s) => NFData (HM s)
+
+deriving instance Show (HM' s) => Show (HM s)
+
