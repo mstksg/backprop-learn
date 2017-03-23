@@ -30,6 +30,7 @@ module Numeric.BLAS (
   , outer
   , matVecOp
   , dotOp
+  , asumOp
   ) where
 
 import           Data.Finite
@@ -198,4 +199,13 @@ dotOp = op2' $ \x y ->
     ( only_ (dot x y)
     , \case Nothing :< Ø -> (y       , x       )
             Just g  :< Ø -> (scal g y, scal g x)
+    )
+
+asumOp
+    :: forall b n. (KnownNat n, BLAS b, Num (b (BV n)))
+    => Op '[ b (BV n) ] '[ Scalar b ]
+asumOp = op1' $ \x ->
+    ( only_ (asum x)
+    , \case Nothing :< Ø -> signum x
+            Just g  :< Ø -> scal g (signum x)
     )

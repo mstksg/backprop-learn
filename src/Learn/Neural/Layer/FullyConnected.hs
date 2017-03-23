@@ -17,9 +17,8 @@ import           Data.Kind
 import           Data.Singletons.TypeLits
 import           GHC.Generics                   (Generic)
 import           Learn.Neural.Layer
-import           Numeric.BLAS
+import           Numeric.BLASTensor
 import           Numeric.Backprop
-import           Numeric.Tensor
 import           Statistics.Distribution
 import           Statistics.Distribution.Normal
 import qualified Generics.SOP                   as SOP

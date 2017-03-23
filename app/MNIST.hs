@@ -13,13 +13,13 @@ import           Data.IDX
 import           Data.Traversable
 import           Data.Tuple
 import           Learn.Neural.Layer
+import           Learn.Neural.Layer.Applying
 import           Learn.Neural.Layer.FullyConnected
 import           Learn.Neural.Layer.Mapping
 import           Learn.Neural.Network
-import           Numeric.BLAS
-import           Numeric.BLAS.HMatrix
+import           Numeric.BLASTensor
+import           Numeric.BLASTensor.HMatrix
 import           Numeric.LinearAlgebra.Static
-import           Numeric.Tensor
 import qualified Data.Vector.Generic               as VG
 import qualified Data.Vector.Unboxed               as VU
 import qualified System.Random.MWC                 as MWC
@@ -49,7 +49,7 @@ main = MWC.withSystemRandom $ \g -> do
                                     , BV 300 :~ FullyConnected
                                     , BV 100 :~ LogitMap
                                     , BV 100 :~ FullyConnected
-                                    , BV 10  :~ LogitMap
+                                    , BV 10  :~ SoftMax (BV 10)
                                     ]
                                     (BV 10) <- initDefNet g
     putStrLn "hi"

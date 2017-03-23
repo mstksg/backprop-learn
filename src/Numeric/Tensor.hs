@@ -14,6 +14,8 @@ module Numeric.Tensor (
   , tmapOp
   , tzipNOp
   , tkonstOp
+  , tsumOp
+  , scaleOp
   , oneHot
   ) where
 
@@ -107,6 +109,24 @@ tkonstOp :: forall t s. Tensor t => Sing s -> Op '[ElemT t] '[t s]
 tkonstOp s = withSingI s $ op1' $ \x ->
     let res = tkonst s x
     in  (only_ res, maybe (fromIntegral (tsize res)) tsum . head')
+
+tsumOp
+    :: forall t s. (Tensor t, SingI s)
+    => Op '[ t s ] '[ ElemT t ]
+tsumOp = op1' $ \x ->
+    ( only_ (tsum x)
+    , \case Nothing :< Ø -> tkonst sing 1
+            Just g  :< Ø -> tkonst sing g 
+    )
+
+scaleOp
+    :: forall t s. (Tensor t, SingI s, Num (t s))
+    => Op '[ ElemT t, t s ] '[ t s ]
+scaleOp = op2' $ \α x ->
+    ( only_ (tmap (α *) x)
+    , \case Nothing :< Ø -> (tsum x      , tkonst sing α    )
+            Just g  :< Ø -> (tsum (x * g), tkonst sing α * g)
+    )
 
 oneHot :: (Tensor t, SingI s) => IndexT t s -> t s
 oneHot i = gen sing $ \j -> if i `eq1` j then 1 else 0

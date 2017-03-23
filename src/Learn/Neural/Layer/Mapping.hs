@@ -39,11 +39,10 @@ import           Data.Type.Util
 import           Data.Type.Vector hiding         (head')
 import           GHC.Generics                    (Generic)
 import           Learn.Neural.Layer
-import           Numeric.BLAS
+import           Numeric.BLASTensor
 import           Numeric.Backprop
 import           Numeric.Backprop.Iso
 import           Numeric.Backprop.Op
-import           Numeric.Tensor
 import           Statistics.Distribution
 import           Statistics.Distribution.Uniform
 import           Type.Class.Higher
@@ -55,7 +54,7 @@ import qualified Type.Family.Nat                 as TCN
 
 data Mapping :: k -> Type
 
-data MapFunc :: Type where
+newtype MapFunc :: Type where
     MF :: { runMapFunc :: (forall a. RealFloat a => a -> a)
           }
        -> MapFunc
@@ -87,7 +86,7 @@ instance (Reifies s MapFunc, SingI i) => Component (Mapping s) i i where
 
     initParam _ _ _ _ = return MapP
     initState _ _ _ _ = return MapS
-    defConf = MapC
+    defConf           = MapC
 
 instance (Reifies s MapFunc, SingI i) => ComponentFF (Mapping s) i i where
     componentOpFF = bpOp . withInps $ \(x :< _ :< Ø) -> do
@@ -187,7 +186,7 @@ instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => Component (PMappi
 
 instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => ComponentFF (PMapping s n) i i where
     componentOpFF
-        :: forall b q. (BLAS b, Tensor b, Num (b i))
+        :: forall b q. (BLASTensor b, Num (b i))
         => OpB q '[b i, CParam (PMapping s n) b i i] '[b i]
     componentOpFF = bpOp . withInps $ \(x :< mp :< Ø) -> replWit @n @Num @(ElemT b) n Wit //
                                                          replLen @n @(ElemT b) n          // do

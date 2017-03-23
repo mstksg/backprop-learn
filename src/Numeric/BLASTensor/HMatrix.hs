@@ -10,7 +10,7 @@
 {-# LANGUAGE TypeInType           #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Numeric.BLAS.HMatrix (
+module Numeric.BLASTensor.HMatrix (
     HM(..)
   , HM'
   ) where
@@ -24,9 +24,8 @@ import           Data.MonoTraversable
 import           Data.Singletons
 import           Data.Singletons.TypeLits
 import           GHC.Generics                 (Generic)
-import           Numeric.BLAS hiding          (outer)
+import           Numeric.BLASTensor hiding    (outer)
 import           Numeric.LinearAlgebra.Static
-import           Numeric.Tensor
 import qualified Numeric.LinearAlgebra        as LA
 
 type family HM' (s :: BShape) :: Type where
@@ -133,6 +132,7 @@ instance Tensor HM where
         BMIx i j -> \case
           HM x -> extract x `LA.atIndex` (fromIntegral i, fromIntegral j)
 
+instance BLASTensor HM
 
 instance SingI s => MonoFunctor (HM s) where
     omap f (HM x) = case sing @_ @s of

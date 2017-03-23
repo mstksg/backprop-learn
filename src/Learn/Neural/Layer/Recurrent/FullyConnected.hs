@@ -28,11 +28,10 @@ import           GHC.Generics                   (Generic)
 import           GHC.TypeLits
 import           Learn.Neural.Layer
 import           Learn.Neural.Layer.Mapping
-import           Numeric.BLAS
+import           Numeric.BLASTensor
 import           Numeric.Backprop
 import           Numeric.Backprop.Iso           (iso)
 import           Numeric.Backprop.Op
-import           Numeric.Tensor
 import           Statistics.Distribution
 import           Statistics.Distribution.Normal
 import qualified Generics.SOP                   as SOP

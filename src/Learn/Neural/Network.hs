@@ -31,10 +31,9 @@ import           Control.Monad.ST
 import           Data.Kind
 import           Data.Singletons
 import           Learn.Neural.Layer
-import           Numeric.BLAS
+import           Numeric.BLASTensor
 import           Numeric.Backprop
 import           Numeric.Backprop.Op
-import           Numeric.Tensor
 import           System.Random.MWC
 import           Type.Class.Known
 
@@ -54,7 +53,7 @@ data Network :: RunMode -> (BShape -> Type) -> LChain -> [LChain] -> BShape -> T
            -> Network r b (i :~ c) ((h :~ d) ': hs) o
 
 networkOp
-    :: forall b i c hs o r s. (BLAS b, Tensor b, Num (b i), Num (b o))
+    :: forall b i c hs o r s. (BLASTensor b, Num (b i), Num (b o))
     => OpB s '[ b i, Network r b (i :~ c) hs o ] '[ b o, Network r b (i :~ c) hs o ]
 networkOp = OpM $ \(I x :< I n :< Ø) -> case n of
     NetExt l -> do
@@ -81,7 +80,7 @@ networkOp = OpM $ \(I x :< I n :< Ø) -> case n of
       return (z ::< (l' :& n2') ::< Ø, gF'')
 
 networkOpPure
-    :: forall b i c hs o s. (BLAS b, Tensor b, Num (b i), Num (b o))
+    :: forall b i c hs o s. (BLASTensor b, Num (b i), Num (b o))
     => OpB s '[ b i, Network 'FeedForward b (i :~ c) hs o ] '[ b o ]
 networkOpPure = OpM $ \(I x :< I n :< Ø) -> case n of
     NetExt l -> do
@@ -110,7 +109,7 @@ data NetConf :: RunMode -> (BShape -> Type) -> LChain -> [LChain] -> BShape -> T
           -> NetConf r b (i :~ c) ((h :~ d) ': hs) o
 
 initNet
-    :: forall b i c hs o m r. (PrimMonad m, BLAS b, Tensor b, SingI i, SingI o)
+    :: forall b i c hs o m r. (PrimMonad m, BLASTensor b, SingI i, SingI o)
     => NetConf r b (i :~ c) hs o
     -> Gen (PrimState m)
     -> m (Network r b (i :~ c) hs o)
@@ -147,14 +146,14 @@ defNetConf
 defNetConf = defNetConf' known
 
 initDefNet'
-    :: forall b i c hs o m r. (PrimMonad m, BLAS b, Tensor b, SingI i, SingI o)
+    :: forall b i c hs o m r. (PrimMonad m, BLASTensor b, SingI i, SingI o)
     => NetStruct r b (i :~ c) hs o
     -> Gen (PrimState m)
     -> m (Network r b (i :~ c) hs o)
 initDefNet' = initNet . defNetConf'
 
 initDefNet
-    :: (PrimMonad m, BLAS b, Tensor b, SingI i, SingI o, Known (NetStruct r b (i :~ c) hs) o)
+    :: (PrimMonad m, BLASTensor b, SingI i, SingI o, Known (NetStruct r b (i :~ c) hs) o)
     => Gen (PrimState m)
     -> m (Network r b (i :~ c) hs o)
 initDefNet = initDefNet' known
