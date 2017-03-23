@@ -22,7 +22,7 @@ library
                        Learn.Neural.Layer
                        Learn.Neural.Layer.Identity
                        Learn.Neural.Network
-                       Learn.Neural.Layer.Map
+                       Learn.Neural.Layer.Mapping
                        Learn.Neural.Layer.FullyConnected
                        Learn.Neural.Layer.Recurrent.FullyConnected
   other-modules:       Data.Type.Util

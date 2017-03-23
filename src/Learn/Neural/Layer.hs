@@ -77,7 +77,7 @@ class Component (c :: Type) (i :: BShape) (o :: BShape) where
 
     defConf :: CConf c i o
 
-class ComponentFF (c :: Type) (i :: BShape) (o :: BShape) where
+class Component c i o => ComponentFF (c :: Type) (i :: BShape) (o :: BShape) where
     componentOpFF
         :: forall b s. (BLAS b, Tensor b, Num (b i), Num (b o), CConstr c b i o)
         => OpB s '[ b i, CParam c b i o ] '[ b o ]

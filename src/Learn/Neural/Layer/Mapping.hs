@@ -16,7 +16,7 @@
 {-# LANGUAGE TypeInType            #-}
 {-# LANGUAGE TypeOperators         #-}
 
-module Learn.Neural.Layer.Map (
+module Learn.Neural.Layer.Mapping (
     Mapping
   , CommonMap(..)
   , LogitMap, ReLUMap, ReLUpMap, ELUMap, ELUpMap
