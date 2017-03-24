@@ -8,6 +8,7 @@
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE Strict                #-}
+{-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeInType            #-}
 {-# LANGUAGE TypeOperators         #-}
@@ -19,8 +20,14 @@ module Learn.Neural.Network (
   , Network(..)
   , networkOp
   , networkOpPure
+  , networkOpRecurrent
+  , networkOpRecurrent'
   , runNetwork
   , runNetworkPure
+  , runNetworkRecurrent
+  , runNetworkRecurrent'
+  , runNetworkFeedback
+  , runNetworkFeedbackForever
   , NetConf(..)
   , initNet
   , NetStruct(..)
@@ -36,12 +43,17 @@ import           Control.Monad.Primitive
 import           Control.Monad.ST
 import           Data.Kind
 import           Data.Singletons
+import           Data.Type.Util
+import           Data.Type.Vector
 import           Learn.Neural.Layer
 import           Numeric.BLASTensor
 import           Numeric.Backprop
 import           Numeric.Backprop.Op
 import           System.Random.MWC
 import           Type.Class.Known
+import           Type.Class.Witness
+import qualified Data.List.NonEmpty      as NE
+import qualified Data.Type.Nat           as TCN
 
 
 data LChain :: Type where
@@ -105,6 +117,47 @@ networkOpPure = OpM $ \(I x :< I n :< Ø) -> case n of
             return $ dX ::< (dL0 :& dN2) ::< Ø
       return (z ::< Ø, gF'')
 
+networkOpRecurrent
+    :: forall n b i c hs o s.
+     ( Known (NetStruct 'Recurrent b (i :~ c) hs) o
+     , BLASTensor b
+     , Num (b o)
+     , Num (b i)
+     )
+    => TCN.Nat n
+    -> OpB s (Network 'Recurrent b (i :~ c) hs o ': Replicate n (b i))
+             (Network 'Recurrent b (i :~ c) hs o ': Replicate n (b o))
+networkOpRecurrent = \case
+    TCN.Z_   -> idOp
+    TCN.S_ n -> (replWit @_ @Num @(b i) n Wit //) $
+                (replWit @_ @Num @(b o) n Wit //) $
+                (replLen @_ @(b i) n          //) $
+      bpOp . withInps $ \(n0 :< x :< xs) -> do
+        y  :< n1 :< Ø <- networkOp ~$$ (x :< n0 :< Ø)
+        n2 :< ys      <- networkOpRecurrent n ~$$ (n1 :< xs)
+        return (n2 :< y :< ys)
+
+networkOpRecurrent'
+    :: forall n b i c hs o s.
+     ( Known (NetStruct 'Recurrent b (i :~ c) hs) o
+     , BLASTensor b
+     , Num (b o)
+     , Num (b i)
+     )
+    => TCN.Nat n
+    -> OpB s (Network 'Recurrent b (i :~ c) hs o ': b i ': Replicate n (b i))
+             '[Network 'Recurrent b (i :~ c) hs o, b o ]
+networkOpRecurrent' = \case
+    TCN.Z_   -> bpOp . withInps $ \(n0 :< x :< Ø) -> do
+      y :< n1 :< Ø <- networkOp ~$$ (x :< n0 :< Ø)
+      return (n1 :< y :< Ø)
+    TCN.S_ n -> (replWit @_ @Num @(b i) n Wit //) $
+                (replLen @_ @(b i) n          //) $
+      bpOp . withInps $ \(n0 :< x :< xs) -> do
+        _  :< n1 :< Ø <- networkOp ~$$ (x :< n0 :< Ø)
+        n2 :< y  :< Ø <- networkOpRecurrent' n ~$$ (n1 :< xs)
+        return (n2 :< y :< Ø)
+
 runNetwork
     :: (Num (b i), Num (b o), BLASTensor b)
     => Network r b (i :~ c) hs o
@@ -120,6 +173,56 @@ runNetworkPure
     -> b o
 runNetworkPure n x = case runOpB networkOpPure (x ::< n ::< Ø) of
     I y :< Ø -> y
+
+runNetworkRecurrent
+    :: (Num (b i), Num (b o), BLASTensor b)
+    => Network 'Recurrent b (i :~ c) hs o
+    -> [b i]
+    -> ([b o], Network 'Recurrent b (i :~ c) hs o)
+runNetworkRecurrent n0 = \case
+    []   -> ([], n0)
+    x:xs -> let (y , n1) = runNetwork n0 x
+                (ys, n2) = runNetworkRecurrent n1 xs
+            in  (y:ys, n2)
+
+runNetworkRecurrent'
+    :: (Num (b i), Num (b o), BLASTensor b)
+    => Network 'Recurrent b (i :~ c) hs o
+    -> NE.NonEmpty (b i)
+    -> (b o, Network 'Recurrent b (i :~ c) hs o)
+runNetworkRecurrent' n0 (x NE.:| xs) = case xs of
+    y:ys -> runNetworkRecurrent' n1 (y NE.:| ys)
+    []   -> (z, n1)
+  where
+    (z, n1) = runNetwork n0 x
+
+runNetworkFeedback
+    :: (Num (b i), Num (b o), BLASTensor b)
+    => TCN.Nat n
+    -> (b o -> b i)
+    -> Network 'Recurrent b (i :~ c) hs o
+    -> b i
+    -> (VecT n b o, Network 'Recurrent b (i :~ c) hs o)
+runNetworkFeedback = \case
+    TCN.Z_   -> \_ n0 _ ->
+      (ØV, n0)
+    TCN.S_ n -> \f n0 x ->
+      let (y , n1) = runNetwork n0 x
+          (ys, n2) = runNetworkFeedback n f n1 (f y)
+      in  (y :* ys, n2)
+
+runNetworkFeedbackForever
+    :: (Num (b i), Num (b o), BLASTensor b)
+    => (b o -> b i)
+    -> Network 'Recurrent b (i :~ c) hs o
+    -> b i
+    -> [b o]
+runNetworkFeedbackForever f = go
+  where
+    go n0 x = y:ys
+      where
+        (y, n1) = runNetwork n0 x
+        ys      = go n1 (f y)
 
 data NetConf :: RunMode -> (BShape -> Type) -> LChain -> [LChain] -> BShape -> Type where
     NCExt :: ( ComponentLayer r c i o

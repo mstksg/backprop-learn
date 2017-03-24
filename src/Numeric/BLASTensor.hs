@@ -1,7 +1,7 @@
 {-# LANGUAGE TypeFamilies #-}
 
 module Numeric.BLASTensor (
-    BLASTensor(..)
+    BLASTensor
   , module Numeric.BLAS
   , module Numeric.Tensor
   ) where
