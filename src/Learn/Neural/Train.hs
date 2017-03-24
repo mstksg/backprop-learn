@@ -1,9 +1,10 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GADTs            #-}
-{-# LANGUAGE LambdaCase       #-}
-{-# LANGUAGE RankNTypes       #-}
-{-# LANGUAGE TypeInType       #-}
-{-# LANGUAGE TypeOperators    #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE GADTs               #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeInType          #-}
+{-# LANGUAGE TypeOperators       #-}
 
 module Learn.Neural.Train (
     Optimizer(..)
@@ -11,6 +12,7 @@ module Learn.Neural.Train (
   , runOptimizer_
   , optimizeList
   , optimizeList_
+  , sgdOptimizer
   ) where
 
 
@@ -22,7 +24,6 @@ import           Learn.Neural.Loss
 import           Learn.Neural.Network
 import           Numeric.BLASTensor
 import           Numeric.Backprop
-import           Numeric.Backprop.Op
 import           Type.Class.Known
 
 data Optimizer
@@ -34,8 +35,6 @@ data Optimizer
         -> Type where
     MkO :: { oState
                 :: s
-           , oLoss
-                :: LossFunction o
            , oUpdate
                 :: f (b i, b o)
                 -> Network 'FeedForward b (i :~ c) hs o
@@ -44,14 +43,18 @@ data Optimizer
            }
         -> Optimizer f b (i :~ c) hs o
 
-stochasticGradientDescent
-    :: (Num (b i), Num (b o), BLASTensor b, Known (NetStruct 'FeedForward b (i :~ c) hs) o)
+sgdOptimizer
+    :: forall b i c hs o. (Num (b i), Num (b o), BLASTensor b, Known (NetStruct 'FeedForward b (i :~ c) hs) o)
     => Double
     -> LossFunction o
     -> Optimizer I b (i :~ c) hs o
-stochasticGradientDescent r l = MkO () l $ \(I (x, t)) n () ->
-    case gradOpB networkOp (x ::< n ::< Ø) of
-      _ :< I g :< Ø -> (n + realToFrac r * g, ())
+sgdOptimizer r l = MkO () $ \(I (x, t)) n () ->
+    let o :: BPOp s '[ b i, Network 'FeedForward b (i :~ c) hs o ] '[ Scalar b ]
+        o = withInps $ \inps -> do
+              y <- networkOpPure ~$ inps
+              only <$> (l t ~$ (y :< Ø))
+    in  case gradBPOp o (x ::< n ::< Ø) of
+          _ :< I g :< Ø -> (n + realToFrac r * g, ())
 
 runOptimizer
     :: f (b i, b o)
@@ -59,8 +62,8 @@ runOptimizer
     -> Optimizer f b (i :~ c) hs o
     -> (Network 'FeedForward b (i :~ c) hs o, Optimizer f b (i :~ c) hs o)
 runOptimizer x n = \case
-    MkO s l u -> case u x n s of
-                   (n', s') -> (n', MkO s' l u)
+    MkO s u -> case u x n s of
+                 (n', s') -> (n', MkO s' u)
 
 runOptimizer_
     :: f (b i, b o)
@@ -68,8 +71,8 @@ runOptimizer_
     -> Optimizer f b (i :~ c) hs o
     -> Network 'FeedForward b (i :~ c) hs o
 runOptimizer_ x n = \case
-    MkO s l u -> case u x n s of
-                   (n', _) -> n'
+    MkO s u -> case u x n s of
+                 (n', _) -> n'
 
 data STup a b = STup !a !b
 

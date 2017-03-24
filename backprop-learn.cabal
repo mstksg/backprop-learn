@@ -58,38 +58,17 @@ executable backprop-learn-mnist
                        -- -ddump-to-file
   build-depends:       base
                      , backprop-learn
-                     , finite-typelits
                      , bifunctors
                      , deepseq
+                     , finite-typelits
                      , hmatrix
                      , mnist-idx
                      , mwc-random
+                     , split
+                     , time
                      , transformers
+                     , type-combinators
                      , vector
-                     -- , boxes
-                     -- , bytestring
-                     -- , containers
-                     -- , deepseq
-                     -- , directory
-                     -- , either
-                     -- , filepath
-                     -- , finite-typelits
-                     -- , foldl
-                     -- , http-conduit
-                     -- , mnist-idx
-                     -- , mwc-random
-                     -- , optparse-applicative
-                     -- , profunctors
-                     -- , singletons
-                     -- , statistics
-                     -- , tensor-ops
-                     -- , text
-                     -- , time
-                     -- , transformers
-                     -- , type-combinators
-                     -- , typelits-witnesses
-                     -- , vector
-                     -- , zlib
   default-language:    Haskell2010
 
 -- test-suite backprop-learn-test
