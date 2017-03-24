@@ -331,7 +331,7 @@ instance (Known (NetStruct r b (i :~ c) hs) o)
 
 instance (Known (NetStruct r b (i :~ c) hs) o)
             => Fractional (Network r b (i :~ c) hs o) where
-    (/)            = liftNet3 (/) known
+    (/)            = liftNet2 (/) known
     recip          = liftNet recip known
     fromRational x = liftNet0 (fromRational x) known
 
