@@ -22,11 +22,11 @@
 </span><a name="line-22"></a><span class="hs-keyword">import</span><span>           </span><a href="Numeric.BLASTensor.html"><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">BLASTensor</span></a><span>
 </span><a name="line-23"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Backprop</span><span>
 </span><a name="line-24"></a><span>
-</span><a name="line-25"></a><span class="hs-keyword">data</span><span> </span><a name="Applying"><a href="Learn.Neural.Layer.Applying.html#Applying"><span class="hs-identifier">Applying</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><a href="#local-6989586621679241249"><span class="hs-identifier hs-type">k</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Type</span><span>
+</span><a name="line-25"></a><span class="hs-keyword">data</span><span> </span><a name="Applying"><a href="Learn.Neural.Layer.Applying.html#Applying"><span class="hs-identifier">Applying</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><a href="#local-6989586621679254785"><span class="hs-identifier hs-type">k</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Type</span><span>
 </span><a name="line-26"></a><span>
 </span><a name="line-27"></a><span class="hs-keyword">newtype</span><span> </span><a name="TensorOp"><a href="Learn.Neural.Layer.Applying.html#TensorOp"><span class="hs-identifier">TensorOp</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><a href="Numeric.BLAS.html#BShape"><span class="hs-identifier hs-type">BShape</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Numeric.BLAS.html#BShape"><span class="hs-identifier hs-type">BShape</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Type</span><span> </span><span class="hs-keyword">where</span><span>
 </span><a name="line-28"></a><span>    </span><a name="TF"><a href="Learn.Neural.Layer.Applying.html#TF"><span class="hs-identifier">TF</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">{</span><span> </span><a name="getTensorOp"><a href="Learn.Neural.Layer.Applying.html#getTensorOp"><span class="hs-identifier">getTensorOp</span></a></a><span>
-</span><a name="line-29"></a><span>                </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><a name="local-6989586621679241247"><a href="#local-6989586621679241247"><span class="hs-identifier">b</span></a></a><span> </span><a name="local-6989586621679241248"><a href="#local-6989586621679241248"><span class="hs-identifier">s</span></a></a><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><a href="Numeric.BLASTensor.html#BLASTensor"><span class="hs-identifier hs-type">BLASTensor</span></a><span> </span><a href="#local-6989586621679241247"><span class="hs-identifier hs-type">b</span></a><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Num</span><span> </span><span class="hs-special">(</span><a href="#local-6989586621679241247"><span class="hs-identifier hs-type">b</span></a><span> </span><a href="#local-6989586621679241245"><span class="hs-identifier hs-type">i</span></a><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Num</span><span> </span><span class="hs-special">(</span><a href="#local-6989586621679241247"><span class="hs-identifier hs-type">b</span></a><span> </span><a href="#local-6989586621679241246"><span class="hs-identifier hs-type">o</span></a><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier hs-type">OpB</span><span> </span><a href="#local-6989586621679241248"><span class="hs-identifier hs-type">s</span></a><span> </span><span class="hs-char">'[ b i ] '[ b o ]
+</span><a name="line-29"></a><span>                </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><a name="local-6989586621679254783"><a href="#local-6989586621679254783"><span class="hs-identifier">b</span></a></a><span> </span><a name="local-6989586621679254784"><a href="#local-6989586621679254784"><span class="hs-identifier">s</span></a></a><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><a href="Numeric.BLASTensor.html#BLASTensor"><span class="hs-identifier hs-type">BLASTensor</span></a><span> </span><a href="#local-6989586621679254783"><span class="hs-identifier hs-type">b</span></a><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Num</span><span> </span><span class="hs-special">(</span><a href="#local-6989586621679254783"><span class="hs-identifier hs-type">b</span></a><span> </span><a href="#local-6989586621679254781"><span class="hs-identifier hs-type">i</span></a><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Num</span><span> </span><span class="hs-special">(</span><a href="#local-6989586621679254783"><span class="hs-identifier hs-type">b</span></a><span> </span><a href="#local-6989586621679254782"><span class="hs-identifier hs-type">o</span></a><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier hs-type">OpB</span><span> </span><a href="#local-6989586621679254784"><span class="hs-identifier hs-type">s</span></a><span> </span><span class="hs-char">'[ b i ] '[ b o ]
           }
        -&gt; TensorOp i o
 
@@ -39,6 +39,11 @@ instance Num (CParam (Applying s) b i o) where
     signum _      = AppP
     fromInteger _ = AppP
 
+instance Fractional (CParam (Applying s) b i o) where
+    _ / _          = AppP
+    recip _        = AppP
+    fromRational _ = AppP
+
 instance Num (CState (Applying s) b i o) where
     _ + _         = AppS
     _ * _         = AppS
@@ -48,10 +53,15 @@ instance Num (CState (Applying s) b i o) where
     signum _      = AppS
     fromInteger _ = AppS
 
-instance (Reifies s (TensorOp i o), SingI i, SingI o) =&gt; Component (Applying s) i o where
+instance Fractional (CState (Applying s) b i o) where
+    _ / _          = AppS
+    recip _        = AppS
+    fromRational _ = AppS
+
+instance (BLASTensor b, Reifies s (TensorOp i o), SingI i, SingI o) =&gt; Component (Applying s) b i o where
     data CParam (Applying s) b i o = AppP
     data CState (Applying s) b i o = AppS
-    data CConf  (Applying s)   i o = AppC
+    data CConf  (Applying s) b i o = AppC
 
     componentOp = componentOpDefault
 
@@ -59,7 +69,7 @@ instance (Reifies s (TensorOp i o), SingI i, SingI o) =&gt; Component (Applying 
     initState _ _ _ _ = return AppS
     defConf           = AppC
 
-instance (Reifies s (TensorOp i o), SingI i, SingI o) =&gt; ComponentFF (Applying s) i o where
+instance (BLASTensor b, Reifies s (TensorOp i o), SingI i, SingI o) =&gt; ComponentFF (Applying s) b i o where
     componentOpFF = bpOp . withInps $ \(x :&lt; _ :&lt; &#216;) -&gt; do
         y &lt;- getTensorOp to ~$ (x :&lt; &#216;)
         return . only $ y
@@ -67,18 +77,18 @@ instance (Reifies s (TensorOp i o), SingI i, SingI o) =&gt; ComponentFF (Applyin
         to :: TensorOp i o
         to = reflect (Proxy @s)
 
-instance (Reifies s (TensorOp i o), SingI i, SingI o) =&gt; ComponentLayer r (Applying s) i o where
+instance (BLASTensor b, Reifies s (TensorOp i o), SingI i, SingI o) =&gt; ComponentLayer r (Applying s) b i o where
     componentRunMode = RMIsFF
 
 data CommonOp :: Type where
     TO_Softmax :: BShape -&gt; CommonOp
 
-instance SingI s =&gt; Reifies ('TO_Softmax s) (TensorOp s s) where
+instance SingI i =&gt; Reifies ('TO_Softmax i) (TensorOp i i) where
     reflect _ = TF $ bpOp . withInps $ \(x :&lt; &#216;) -&gt; do
       expX &lt;- tmapOp exp ~$ (x :&lt; &#216;)
       totX &lt;- tsumOp     ~$ (expX   :&lt; &#216;)
       sm   &lt;- scaleOp    ~$ (1/totX :&lt; expX :&lt; &#216;)
       return $ only sm
 
-type SoftMax s = Applying ('TO_Softmax s)
+type SoftMax i = Applying ('TO_Softmax i)
 </span></pre></body></html>
