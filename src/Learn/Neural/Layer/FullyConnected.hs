@@ -34,6 +34,11 @@ instance (Num (b (BM o i)), Num (b (BV o))) => Num (CParam FullyConnected b (BV 
     abs    (FCP w b) = FCP (abs    w) (abs    b)
     fromInteger x = FCP (fromInteger x) (fromInteger x)
 
+instance (Fractional (b (BM o i)), Fractional (b (BV o))) => Fractional (CParam FullyConnected b (BV i) (BV o)) where
+    FCP w1 b1 / FCP w2 b2 = FCP (w1 / w2) (b1 / b2)
+    recip (FCP w b)       = FCP (recip w) (recip b)
+    fromRational x        = FCP (fromRational x) (fromRational x)
+
 instance Num (CState FullyConnected b (BV i) (BV o)) where
     _ + _         = FCS
     _ * _         = FCS
@@ -42,6 +47,12 @@ instance Num (CState FullyConnected b (BV i) (BV o)) where
     abs    _      = FCS
     signum _      = FCS
     fromInteger _ = FCS
+
+instance Fractional (CState FullyConnected b (BV i) (BV o)) where
+    _ / _          = FCS
+    recip _        = FCS
+    fromRational _ = FCS
+
 
 
 deriving instance Generic (CParam FullyConnected b (BV i) (BV o))

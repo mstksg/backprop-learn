@@ -111,40 +111,45 @@ data Layer :: RunMode -> Type -> (BShape -> Type) -> BShape -> BShape -> Type wh
          -> Layer 'Recurrent c b i o
 
 instance (Num (CParam c b i o), Num (CState c b i o), ComponentLayer r c i o) => Num (Layer r c b i o) where
-    (+) = \case
-      LFeedForward p1 -> \case
-        LFeedForward p2 -> LFeedForward (p1 + p2)
-        LRecurrent p2 _ -> LFeedForward (p1 + p2)
-      LRecurrent p1 s1 -> \case
-        LFeedForward p2  -> LFeedForward (p1 + p2)
-        LRecurrent p2 s2 -> LRecurrent (p1 + p2) (s1 + s2)
-    (-) = \case
-      LFeedForward p1 -> \case
-        LFeedForward p2 -> LFeedForward (p1 - p2)
-        LRecurrent p2 _ -> LFeedForward (p1 - p2)
-      LRecurrent p1 s1 -> \case
-        LFeedForward p2  -> LFeedForward (p1 - p2)
-        LRecurrent p2 s2 -> LRecurrent (p1 - p2) (s1 - s2)
-    (*) = \case
-      LFeedForward p1 -> \case
-        LFeedForward p2 -> LFeedForward (p1 * p2)
-        LRecurrent p2 _ -> LFeedForward (p1 * p2)
-      LRecurrent p1 s1 -> \case
-        LFeedForward p2  -> LFeedForward (p1 * p2)
-        LRecurrent p2 s2 -> LRecurrent (p1 * p2) (s1 * s2)
-    negate = \case
-      LFeedForward p   -> LFeedForward (negate p)
-      LRecurrent   p s -> LRecurrent (negate p) (negate s)
-    signum = \case
-      LFeedForward p -> LFeedForward (signum p)
-      LRecurrent   p s -> LRecurrent (signum p) (signum s)
-    abs    = \case
-      LFeedForward p -> LFeedForward (abs    p)
-      LRecurrent   p s -> LRecurrent (abs    p) (abs    s)
+    (+) = liftLayer2 (+) (+)
+    (-) = liftLayer2 (-) (-)
+    (*) = liftLayer2 (*) (*)
+    negate = liftLayer negate negate
+    signum = liftLayer signum signum
+    abs    = liftLayer abs    abs
     fromInteger x  = case componentRunMode @r @c @i @o of
       RMIsFF  -> LFeedForward (fromInteger x)
       RMNotFF -> LRecurrent   (fromInteger x) (fromInteger x)
 
+instance (Fractional (CParam c b i o), Fractional (CState c b i o), ComponentLayer r c i o) => Fractional (Layer r c b i o) where
+    (/) = liftLayer2 (/) (/)
+    recip = liftLayer recip recip
+    fromRational x  = case componentRunMode @r @c @i @o of
+      RMIsFF  -> LFeedForward (fromRational x)
+      RMNotFF -> LRecurrent   (fromRational x) (fromRational x)
+
+liftLayer
+    :: (CParam c b i o -> CParam c b i o)
+    -> (CState c b i o -> CState c b i o)
+    -> Layer r c b i o
+    -> Layer r c b i o
+liftLayer f g = \case
+    LFeedForward p -> LFeedForward (f p)
+    LRecurrent p s -> LRecurrent (f p) (g s)
+
+liftLayer2
+    :: (CParam c b i o -> CParam c b i o -> CParam c b i o)
+    -> (CState c b i o -> CState c b i o -> CState c b i o)
+    -> Layer r c b i o
+    -> Layer r c b i o
+    -> Layer r c b i o
+liftLayer2 f g = \case
+    LFeedForward p1 -> \case
+      LFeedForward p2 -> LFeedForward (f p1 p2)
+      LRecurrent p2 _ -> LFeedForward (f p1 p2)
+    LRecurrent p1 s1 -> \case
+      LFeedForward p2  -> LFeedForward (f p1 p2)
+      LRecurrent p2 s2 -> LRecurrent (f p1 p2) (g s1 s2)
 
 layerOp
     :: forall r c i o b s. (Component c i o, BLASTensor b, Num (b i), Num (b o), CConstr c b i o)

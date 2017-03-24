@@ -1,15 +1,16 @@
-{-# LANGUAGE DeriveGeneric          #-}
-{-# LANGUAGE FlexibleContexts       #-}
-{-# LANGUAGE GADTs                  #-}
-{-# LANGUAGE InstanceSigs           #-}
-{-# LANGUAGE LambdaCase             #-}
-{-# LANGUAGE ScopedTypeVariables    #-}
-{-# LANGUAGE StandaloneDeriving     #-}
-{-# LANGUAGE TypeApplications       #-}
-{-# LANGUAGE TypeFamilies           #-}
-{-# LANGUAGE TypeFamilyDependencies #-}
-{-# LANGUAGE TypeInType             #-}
-{-# LANGUAGE UndecidableInstances   #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE GADTs                      #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE InstanceSigs               #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TypeApplications           #-}
+{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE TypeFamilyDependencies     #-}
+{-# LANGUAGE TypeInType                 #-}
+{-# LANGUAGE UndecidableInstances       #-}
 
 module Numeric.BLASTensor.HMatrix (
     HM(..)
@@ -171,16 +172,8 @@ instance SingI s => MonoFoldable (HM s) where
     maximumByEx f  = maximumByEx f . hmElems
     minimumByEx f  = minimumByEx f . hmElems
 
-instance Num (HM' s) => Num (HM s) where
-    HM x + HM y = HM (x + y)
-    HM x - HM y = HM (x - y)
-    HM x * HM y = HM (x * y)
-    negate (HM x) = HM (negate x)
-    signum (HM x) = HM (signum x)
-    abs    (HM x) = HM (abs    x)
-    fromInteger x = HM (fromInteger x)
-
-instance NFData (HM' s) => NFData (HM s)
-
+deriving instance NFData (HM' s) => NFData (HM s)
 deriving instance Show (HM' s) => Show (HM s)
+deriving instance Num (HM' s) => Num (HM s)
+deriving instance Fractional (HM' s) => Fractional (HM s)
 

@@ -39,6 +39,11 @@ instance Num (CParam (Applying s) b i o) where
     signum _      = AppP
     fromInteger _ = AppP
 
+instance Fractional (CParam (Applying s) b i o) where
+    _ / _          = AppP
+    recip _        = AppP
+    fromRational _ = AppP
+
 instance Num (CState (Applying s) b i o) where
     _ + _         = AppS
     _ * _         = AppS
@@ -47,6 +52,11 @@ instance Num (CState (Applying s) b i o) where
     abs    _      = AppS
     signum _      = AppS
     fromInteger _ = AppS
+
+instance Fractional (CState (Applying s) b i o) where
+    _ / _          = AppS
+    recip _        = AppS
+    fromRational _ = AppS
 
 instance (Reifies s (TensorOp i o), SingI i, SingI o) => Component (Applying s) i o where
     data CParam (Applying s) b i o = AppP
@@ -73,11 +83,11 @@ instance (Reifies s (TensorOp i o), SingI i, SingI o) => ComponentLayer r (Apply
 data CommonOp :: Type where
     TO_Softmax :: BShape -> CommonOp
 
-instance SingI s => Reifies ('TO_Softmax s) (TensorOp s s) where
+instance SingI i => Reifies ('TO_Softmax i) (TensorOp i i) where
     reflect _ = TF $ bpOp . withInps $ \(x :< Ø) -> do
       expX <- tmapOp exp ~$ (x :< Ø)
       totX <- tsumOp     ~$ (expX   :< Ø)
       sm   <- scaleOp    ~$ (1/totX :< expX :< Ø)
       return $ only sm
 
-type SoftMax s = Applying ('TO_Softmax s)
+type SoftMax i = Applying ('TO_Softmax i)

@@ -16,17 +16,20 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Numeric.BLAS
-                       Numeric.BLASTensor.HMatrix
-                       Numeric.BLASTensor
-                       Numeric.Tensor
+  exposed-modules:     Learn.Neural
                        Learn.Neural.Layer
-                       Learn.Neural.Layer.Identity
-                       Learn.Neural.Network
-                       Learn.Neural.Layer.Mapping
                        Learn.Neural.Layer.Applying
                        Learn.Neural.Layer.FullyConnected
+                       Learn.Neural.Layer.Identity
+                       Learn.Neural.Layer.Mapping
                        Learn.Neural.Layer.Recurrent.FullyConnected
+                       Learn.Neural.Loss
+                       Learn.Neural.Network
+                       Learn.Neural.Train
+                       Numeric.BLAS
+                       Numeric.BLASTensor
+                       Numeric.BLASTensor.HMatrix
+                       Numeric.Tensor
   other-modules:       Data.Type.Util
   build-depends:       base >= 4.7 && < 5
                      , ad
@@ -43,6 +46,7 @@ library
                      , statistics
                      , type-combinators
                      , vector
+                     , vector-sized
   default-language:    Haskell2010
   ghc-options:         -Wall
 

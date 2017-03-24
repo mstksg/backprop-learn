@@ -68,6 +68,11 @@ instance Num (CParam (Mapping s) b i i) where
     signum _      = MapP
     fromInteger _ = MapP
 
+instance Fractional (CParam (Mapping s) b i i) where
+    _ / _          = MapP
+    recip _        = MapP
+    fromRational _ = MapP
+
 instance Num (CState (Mapping s) b i i) where
     _ + _         = MapS
     _ * _         = MapS
@@ -76,6 +81,11 @@ instance Num (CState (Mapping s) b i i) where
     abs    _      = MapS
     signum _      = MapS
     fromInteger _ = MapS
+
+instance Fractional (CState (Mapping s) b i i) where
+    _ / _          = MapS
+    recip _        = MapS
+    fromRational _ = MapS
 
 instance (Reifies s MapFunc, SingI i) => Component (Mapping s) i i where
     data CParam (Mapping s) b i i = MapP

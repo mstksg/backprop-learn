@@ -12,17 +12,12 @@ import           Data.Foldable
 import           Data.IDX
 import           Data.Traversable
 import           Data.Tuple
-import           Learn.Neural.Layer
-import           Learn.Neural.Layer.Applying
-import           Learn.Neural.Layer.FullyConnected
-import           Learn.Neural.Layer.Mapping
-import           Learn.Neural.Network
-import           Numeric.BLASTensor
+import           Learn.Neural
 import           Numeric.BLASTensor.HMatrix
 import           Numeric.LinearAlgebra.Static
-import qualified Data.Vector.Generic               as VG
-import qualified Data.Vector.Unboxed               as VU
-import qualified System.Random.MWC                 as MWC
+import qualified Data.Vector.Generic          as VG
+import qualified Data.Vector.Unboxed          as VU
+import qualified System.Random.MWC            as MWC
 
 loadMNIST
     :: FilePath
@@ -42,6 +37,7 @@ loadMNIST fpI fpL = runMaybeT $ do
 
 main :: IO ()
 main = MWC.withSystemRandom $ \g -> do
+    Just train <- loadMNIST "data/train-images-idx3-ubyte" "data/train-labels-idx1-ubyte"
     Just test  <- loadMNIST "data/t10k-images-idx3-ubyte"  "data/t10k-labels-idx1-ubyte"
     putStrLn "Loaded data."
     net0 :: Network 'FeedForward HM ( BV 784 :~ FullyConnected )
