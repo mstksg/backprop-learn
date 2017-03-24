@@ -62,10 +62,10 @@ data LChain :: Type where
 type s :~ c = s ':~ c
 
 data Network :: RunMode -> (BShape -> Type) -> LChain -> [LChain] -> BShape -> Type where
-    NetExt :: (ComponentLayer r c i o, CConstr c b i o, Fractional (CParam c b i o), Fractional (CState c b i o))
+    NetExt :: (ComponentLayer r c b i o, CConstr c b i o)
            => Layer r c b i o
            -> Network r b (i :~ c) '[] o
-    (:&)   :: (ComponentLayer r c i h, CConstr c b i h, Fractional (CParam c b i h), Fractional (CState c b i h), Num (b h))
+    (:&)   :: (ComponentLayer r c b i h, CConstr c b i h, Num (b h))
            => Layer r c b i h
            -> Network r b (h :~ d) hs               o
            -> Network r b (i :~ c) ((h :~ d) ': hs) o
@@ -225,21 +225,17 @@ runNetworkFeedbackForever f = go
         ys      = go n1 (f y)
 
 data NetConf :: RunMode -> (BShape -> Type) -> LChain -> [LChain] -> BShape -> Type where
-    NCExt :: ( ComponentLayer r c i o
+    NCExt :: ( ComponentLayer r c b i o
              , CConstr c b i o
-             , Fractional (CParam c b i o)
-             , Fractional (CState c b i o)
              )
-          => CConf c i o
+          => CConf c b i o
           -> NetConf r b (i :~ c) '[] o
-    (:&~) :: ( ComponentLayer r c i h
+    (:&~) :: ( ComponentLayer r c b i h
              , CConstr c b i h
-             , Fractional (CParam c b i h)
-             , Fractional (CState c b i h)
              , SingI h
              , Num (b h)
              )
-          => CConf c i h
+          => CConf c b i h
           -> NetConf r b (h :~ d) hs               o
           -> NetConf r b (i :~ c) ((h :~ d) ': hs) o
 
@@ -261,18 +257,14 @@ initNet = \case
       return $ l :& n
 
 data NetStruct :: RunMode -> (BShape -> Type) -> LChain -> [LChain] -> BShape -> Type where
-    NSExt :: ( ComponentLayer r c i o
+    NSExt :: ( ComponentLayer r c b i o
              , CConstr c b i o
-             , Fractional (CParam c b i o)
-             , Fractional (CState c b i o)
              )
           => NetStruct r b (i :~ c) '[] o
     NSInt :: ( SingI h
              , Num (b h)
-             , ComponentLayer r c i h
+             , ComponentLayer r c b i h
              , CConstr c b i h
-             , Fractional (CParam c b i h)
-             , Fractional (CState c b i h)
              )
           => NetStruct r b (h :~ d) hs               o
           -> NetStruct r b (i :~ c) ((h :~ d) ': hs) o
@@ -302,16 +294,14 @@ initDefNet
     -> m (Network r b (i :~ c) hs o)
 initDefNet = initDefNet' known
 
-instance (ComponentLayer r c i o, CConstr c b i o, Fractional (CParam c b i o), Fractional (CState c b i o))
+instance (ComponentLayer r c b i o, CConstr c b i o)
         => Known (NetStruct r b (i :~ c) '[]) o where
     known = NSExt
 
 instance ( SingI h
          , Num (b h)
-         , ComponentLayer r c i h
+         , ComponentLayer r c b i h
          , CConstr c b i h
-         , Fractional (CParam c b i h)
-         , Fractional (CState c b i h)
          , Known (NetStruct r b (h :~ d) hs) o
          )
         => Known (NetStruct r b (i :~ c) ((h :~ d) ': hs)) o where
@@ -341,17 +331,15 @@ instance (Known (NetStruct r b (i :~ c) hs) o)
 
 instance (Known (NetStruct r b (i :~ c) hs) o)
             => Fractional (Network r b (i :~ c) hs o) where
-    (/)            = liftNet2 (/) known
+    (/)            = liftNet3 (/) known
     recip          = liftNet recip known
     fromRational x = liftNet0 (fromRational x) known
 
 liftNet0
     :: forall r b i hs o. ()
     => (forall c n m.
-            ( ComponentLayer r c n m
+            ( ComponentLayer r c b n m
             , CConstr c b n m
-            , Fractional (CParam c b n m)
-            , Fractional (CState c b n m)
             )
             => Layer r c b n m
        )
@@ -368,10 +356,8 @@ liftNet0 l = go
 liftNet
     :: forall r b i hs o. ()
     => (forall c n m.
-            ( ComponentLayer r c n m
+            ( ComponentLayer r c b n m
             , CConstr c b n m
-            , Fractional (CParam c b n m)
-            , Fractional (CState c b n m)
             )
             => Layer r c b n m
             -> Layer r c b n m
@@ -393,10 +379,8 @@ liftNet f = go
 liftNet2
     :: forall r b i hs o. ()
     => (forall c n m.
-            ( ComponentLayer r c n m
+            ( ComponentLayer r c b n m
             , CConstr c b n m
-            , Fractional (CParam c b n m)
-            , Fractional (CState c b n m)
             )
             => Layer r c b n m
             -> Layer r c b n m

@@ -28,6 +28,7 @@ module Learn.Neural.Layer.Mapping (
   ) where
 
 
+import           Control.Applicative
 import           Data.Kind
 import           Data.Proxy
 import           Data.Reflection
@@ -87,10 +88,10 @@ instance Fractional (CState (Mapping s) b i i) where
     recip _        = MapS
     fromRational _ = MapS
 
-instance (Reifies s MapFunc, SingI i) => Component (Mapping s) i i where
+instance (BLASTensor b, Reifies s MapFunc, SingI i) => Component (Mapping s) b i i where
     data CParam (Mapping s) b i i = MapP
     data CState (Mapping s) b i i = MapS
-    data CConf  (Mapping s)   i i = MapC
+    data CConf  (Mapping s) b i i = MapC
 
     componentOp = componentOpDefault
 
@@ -98,7 +99,7 @@ instance (Reifies s MapFunc, SingI i) => Component (Mapping s) i i where
     initState _ _ _ _ = return MapS
     defConf           = MapC
 
-instance (Reifies s MapFunc, SingI i) => ComponentFF (Mapping s) i i where
+instance (BLASTensor b, Reifies s MapFunc, SingI i) => ComponentFF (Mapping s) b i i where
     componentOpFF = bpOp . withInps $ \(x :< _ :< Ø) -> do
         y <- tmapOp (runMapFunc mf) ~$ (x :< Ø)
         return . only $ y
@@ -106,7 +107,7 @@ instance (Reifies s MapFunc, SingI i) => ComponentFF (Mapping s) i i where
         mf :: MapFunc
         mf = reflect (Proxy @s)
 
-instance (Reifies s MapFunc, SingI i) => ComponentLayer r (Mapping s) i i where
+instance (BLASTensor b, Reifies s MapFunc, SingI i) => ComponentLayer r (Mapping s) b i i where
     componentRunMode = RMIsFF
 
 data CommonMap :: Type where
@@ -160,6 +161,12 @@ instance (Tensor b, Known TCN.Nat n) => Num (CParam (PMapping s n) b i i) where
     signum (PMapP x) = PMapP (signum x)
     fromInteger x         = PMapP (fromInteger x)
 
+-- until Vec has a Fractional instance
+instance (Tensor b, Known TCN.Nat n) => Fractional (CParam (PMapping s n) b i i) where
+    PMapP x / PMapP y = PMapP $ liftA2 (/) x y
+    recip (PMapP x)   = PMapP $ fmap recip x
+    fromRational x    = PMapP $ pure (fromRational x)
+
 instance Num (CState (PMapping s n) b i i) where
     _ + _         = PMapS
     _ * _         = PMapS
@@ -169,6 +176,11 @@ instance Num (CState (PMapping s n) b i i) where
     signum _      = PMapS
     fromInteger _ = PMapS
 
+instance Fractional (CState (PMapping s n) b i i) where
+    _ / _          = PMapS
+    recip _        = PMapS
+    fromRational _ = PMapS
+
 
 pMapP :: Known TCN.Nat n => Iso' (CParam (PMapping s n) b i i) (Tuple (Replicate n (ElemT b)))
 pMapP = gTuple . iso (vecToProd . getI . head') (only_ . prodToVec' known)
@@ -176,10 +188,10 @@ pMapP = gTuple . iso (vecToProd . getI . head') (only_ . prodToVec' known)
 deriving instance Generic (CParam (PMapping s n) b i i)
 instance SOP.Generic (CParam (PMapping s n) b i i)
 
-instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => Component (PMapping s n) i i where
+instance (BLASTensor b, Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => Component (PMapping s n) b i i where
     data CParam (PMapping s n) b i i = PMapP { _getPMapP :: !(Vec n (ElemT b)) }
     data CState (PMapping s n) b i i = PMapS
-    data CConf  (PMapping s n)   i i = PMapC { _getPMapC :: !(Vec n (SomeC ContGen I)) }
+    data CConf  (PMapping s n) b i i = PMapC { _getPMapC :: !(Vec n (SomeC ContGen I)) }
 
     componentOp = componentOpDefault
 
@@ -194,9 +206,9 @@ instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => Component (PMappi
         pmf :: PMapFunc n
         pmf = reflect (Proxy @s)
 
-instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => ComponentFF (PMapping s n) i i where
+instance (BLASTensor b, Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => ComponentFF (PMapping s n) b i i where
     componentOpFF
-        :: forall b q. (BLASTensor b, Num (b i))
+        :: forall q. Num (b i)
         => OpB q '[b i, CParam (PMapping s n) b i i] '[b i]
     componentOpFF = bpOp . withInps $ \(x :< mp :< Ø) -> replWit @n @Num @(ElemT b) n Wit //
                                                          replLen @n @(ElemT b) n          // do
@@ -219,7 +231,7 @@ instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => ComponentFF (PMap
         pmf :: PMapFunc n
         pmf = reflect (Proxy @s)
 
-instance (Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => ComponentLayer r (PMapping s n) i i where
+instance (BLASTensor b, Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => ComponentLayer r (PMapping s n) b i i where
     componentRunMode = RMIsFF
 
 data CommonPMap :: Type where

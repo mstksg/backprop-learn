@@ -51,6 +51,12 @@ instance (Num (b (BM o o)), Num (b (BM o i)), Num (b (BV o)))
     abs    (FCRP wI wS b) = FCRP (abs    wI) (abs    wS) (abs    b)
     fromInteger x = FCRP (fromInteger x) (fromInteger x) (fromInteger x)
 
+instance (Fractional (b (BM o o)), Fractional (b (BM o i)), Fractional (b (BV o)))
+      => Fractional (CParam FullyConnectedR b (BV i) (BV o)) where
+    FCRP wI1 wS1 b1 / FCRP wI2 wS2 b2 = FCRP (wI1 / wI2) (wS1 / wS2) (b1 / b2)
+    recip (FCRP wI wS b) = FCRP (recip wI) (recip wS) (recip b)
+    fromRational x       = FCRP (fromRational x) (fromRational x) (fromRational x)
+
 instance Num (b (BV o)) => Num (CState FullyConnectedR b (BV i) (BV o)) where
     FCRS s1 + FCRS s2 = FCRS (s1 + s2)
     FCRS s1 - FCRS s2 = FCRS (s1 - s2)
@@ -60,8 +66,20 @@ instance Num (b (BV o)) => Num (CState FullyConnectedR b (BV i) (BV o)) where
     abs    (FCRS s) = FCRS (abs    s)
     fromInteger x  = FCRS (fromInteger x)
 
+instance Fractional (b (BV o)) => Fractional (CState FullyConnectedR b (BV i) (BV o)) where
+    FCRS s1 / FCRS s2 = FCRS (s1 / s2)
+    recip (FCRS s)    = FCRS (recip s)
+    fromRational x    = FCRS (fromRational x)
 
-instance (KnownNat i, KnownNat o) => Component FullyConnectedR (BV i) (BV o) where
+
+instance ( BLASTensor b
+         , KnownNat i
+         , KnownNat o
+         , Fractional (b (BV o))
+         , Fractional (b (BM o i))
+         , Fractional (b (BM o o))
+         )
+        => Component FullyConnectedR b (BV i) (BV o) where
     data CParam  FullyConnectedR b (BV i) (BV o) =
             FCRP { _fcrInpWeights   :: !(b (BM o i))
                  , _fcrStateWeights :: !(b (BM o o))
@@ -69,7 +87,7 @@ instance (KnownNat i, KnownNat o) => Component FullyConnectedR (BV i) (BV o) whe
                  }
     data CState  FullyConnectedR b (BV i) (BV o) = FCRS { _fcrState :: !(b (BV o)) }
     type CConstr FullyConnectedR b (BV i) (BV o) = (Num (b (BM o i)), Num (b (BM o o)))
-    data CConf   FullyConnectedR   (BV i) (BV o) = forall d. ContGen d => FCRC d
+    data CConf   FullyConnectedR b (BV i) (BV o) = forall d. ContGen d => FCRC d
 
     componentOp = bpOp . withInps $ \(x :< p :< s :< Ø) -> do
         wI :< wS :< b :< Ø <- gTuple #<~ p
@@ -92,7 +110,14 @@ instance (KnownNat i, KnownNat o) => Component FullyConnectedR (BV i) (BV o) whe
     initState _ so (FCRC d) g =
         FCRS <$> genA so (\_ -> realToFrac <$> genContVar d g)
 
-instance (KnownNat i, KnownNat o) => ComponentLayer 'Recurrent FullyConnectedR (BV i) (BV o) where
+instance ( BLASTensor b
+         , KnownNat i
+         , KnownNat o
+         , Fractional (b (BV o))
+         , Fractional (b (BM o i))
+         , Fractional (b (BM o o))
+         )
+        => ComponentLayer 'Recurrent FullyConnectedR b (BV i) (BV o) where
     componentRunMode = RMNotFF
 
 data FullyConnectedR' :: k -> Type
@@ -110,6 +135,12 @@ instance (Num (b (BM o o)), Num (b (BM o i)), Num (b (BV o)))
     abs    (FCRP' wI wS b) = FCRP' (abs    wI) (abs    wS) (abs    b)
     fromInteger x = FCRP' (fromInteger x) (fromInteger x) (fromInteger x)
 
+instance (Fractional (b (BM o o)), Fractional (b (BM o i)), Fractional (b (BV o)))
+      => Fractional (CParam (FullyConnectedR' s) b (BV i) (BV o)) where
+    FCRP' wI1 wS1 b1 / FCRP' wI2 wS2 b2 = FCRP' (wI1 / wI2) (wS1 / wS2) (b1 / b2)
+    recip (FCRP' wI wS b) = FCRP' (recip wI) (recip wS) (recip b)
+    fromRational x        = FCRP' (fromRational x) (fromRational x) (fromRational x)
+
 instance Num (b (BV o)) => Num (CState (FullyConnectedR' s) b (BV i) (BV o)) where
     FCRS' s1 + FCRS' s2 = FCRS' (s1 + s2)
     FCRS' s1 - FCRS' s2 = FCRS' (s1 - s2)
@@ -119,9 +150,22 @@ instance Num (b (BV o)) => Num (CState (FullyConnectedR' s) b (BV i) (BV o)) whe
     abs    (FCRS' s) = FCRS' (abs    s)
     fromInteger x  = FCRS' (fromInteger x)
 
+instance Fractional (b (BV o)) => Fractional (CState (FullyConnectedR' s) b (BV i) (BV o)) where
+    FCRS' s1 / FCRS' s2 = FCRS' (s1 / s2)
+    recip (FCRS' s)     = FCRS' (recip s)
+    fromRational x      = FCRS' (fromRational x)
 
-instance (KnownNat i, KnownNat o, Reifies s MapFunc)
-      => Component (FullyConnectedR' s) (BV i) (BV o) where
+
+
+instance ( BLASTensor b
+         , KnownNat i
+         , KnownNat o
+         , Fractional (b (BV o))
+         , Fractional (b (BM o i))
+         , Fractional (b (BM o o))
+         , Reifies s MapFunc
+         )
+      => Component (FullyConnectedR' s) b (BV i) (BV o) where
     data CParam  (FullyConnectedR' c) b (BV i) (BV o) =
             FCRP' { _fcrInpWeights'   :: !(b (BM o i))
                   , _fcrStateWeights' :: !(b (BM o o))
@@ -132,7 +176,7 @@ instance (KnownNat i, KnownNat o, Reifies s MapFunc)
       ( Num (b (BM o i))
       , Num (b (BM o o))
       )
-    data CConf   (FullyConnectedR' c)   (BV i) (BV o) = forall d. ContGen d => FCRC' d
+    data CConf   (FullyConnectedR' c) b (BV i) (BV o) = forall d. ContGen d => FCRC' d
 
     componentOp = bpOp . withInps $ \(x :< p :< s :< Ø) -> do
         wI :< wS :< b :< Ø <- gTuple #<~ p
@@ -161,7 +205,14 @@ instance (KnownNat i, KnownNat o, Reifies s MapFunc)
     initState _ so (FCRC' d) g =
         FCRS' <$> genA so (\_ -> realToFrac <$> genContVar d g)
 
-instance (KnownNat i, KnownNat o, Reifies s MapFunc)
-      => ComponentLayer 'Recurrent (FullyConnectedR' s) (BV i) (BV o) where
+instance ( BLASTensor b
+         , KnownNat i
+         , KnownNat o
+         , Fractional (b (BV o))
+         , Fractional (b (BM o i))
+         , Fractional (b (BM o o))
+         , Reifies s MapFunc
+         )
+      => ComponentLayer 'Recurrent (FullyConnectedR' s) b (BV i) (BV o) where
     componentRunMode = RMNotFF
 

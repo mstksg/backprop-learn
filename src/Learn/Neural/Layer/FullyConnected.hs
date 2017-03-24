@@ -58,14 +58,15 @@ instance Fractional (CState FullyConnected b (BV i) (BV o)) where
 deriving instance Generic (CParam FullyConnected b (BV i) (BV o))
 instance SOP.Generic (CParam FullyConnected b (BV i) (BV o))
 
-instance (KnownNat i, KnownNat o) => Component FullyConnected (BV i) (BV o) where
+instance (BLASTensor b, KnownNat i, KnownNat o, Fractional (b (BM o i)), Fractional (b (BV o)))
+        => Component FullyConnected b (BV i) (BV o) where
     data CParam  FullyConnected b (BV i) (BV o) =
             FCP { _fcWeights :: !(b (BM o i))
                 , _fcBiases  :: !(b (BV o))
                 }
     data CState  FullyConnected b (BV i) (BV o) = FCS
     type CConstr FullyConnected b (BV i) (BV o) = Num (b (BM o i))
-    data CConf   FullyConnected   (BV i) (BV o) = forall d. ContGen d => FCC d
+    data CConf   FullyConnected b (BV i) (BV o) = forall d. ContGen d => FCC d
 
     componentOp = componentOpDefault
 
@@ -80,12 +81,14 @@ instance (KnownNat i, KnownNat o) => Component FullyConnected (BV i) (BV o) wher
 
     defConf = FCC (normalDistr 0 0.5)
 
-instance (KnownNat i, KnownNat o) => ComponentFF FullyConnected (BV i) (BV o) where
+instance (BLASTensor b, KnownNat i, KnownNat o, Fractional (b (BM o i)), Fractional (b (BV o)))
+        => ComponentFF FullyConnected b (BV i) (BV o) where
     componentOpFF = bpOp . withInps $ \(x :< p :< Ø) -> do
         w :< b :< Ø <- gTuple #<~ p
         y <- matVecOp ~$ (w :< x :< Ø)
         z <- (+.)     ~$ (y :< b :< Ø)
         return . only $ z
 
-instance (KnownNat i, KnownNat o) => ComponentLayer r FullyConnected (BV i) (BV o) where
+instance (BLASTensor b, KnownNat i, KnownNat o, Fractional (b (BM o i)), Fractional (b (BV o)))
+        => ComponentLayer r FullyConnected b (BV i) (BV o) where
     componentRunMode = RMIsFF

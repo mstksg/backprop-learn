@@ -58,10 +58,10 @@ instance Fractional (CState (Applying s) b i o) where
     recip _        = AppS
     fromRational _ = AppS
 
-instance (Reifies s (TensorOp i o), SingI i, SingI o) => Component (Applying s) i o where
+instance (BLASTensor b, Reifies s (TensorOp i o), SingI i, SingI o) => Component (Applying s) b i o where
     data CParam (Applying s) b i o = AppP
     data CState (Applying s) b i o = AppS
-    data CConf  (Applying s)   i o = AppC
+    data CConf  (Applying s) b i o = AppC
 
     componentOp = componentOpDefault
 
@@ -69,7 +69,7 @@ instance (Reifies s (TensorOp i o), SingI i, SingI o) => Component (Applying s) 
     initState _ _ _ _ = return AppS
     defConf           = AppC
 
-instance (Reifies s (TensorOp i o), SingI i, SingI o) => ComponentFF (Applying s) i o where
+instance (BLASTensor b, Reifies s (TensorOp i o), SingI i, SingI o) => ComponentFF (Applying s) b i o where
     componentOpFF = bpOp . withInps $ \(x :< _ :< Ø) -> do
         y <- getTensorOp to ~$ (x :< Ø)
         return . only $ y
@@ -77,7 +77,7 @@ instance (Reifies s (TensorOp i o), SingI i, SingI o) => ComponentFF (Applying s
         to :: TensorOp i o
         to = reflect (Proxy @s)
 
-instance (Reifies s (TensorOp i o), SingI i, SingI o) => ComponentLayer r (Applying s) i o where
+instance (BLASTensor b, Reifies s (TensorOp i o), SingI i, SingI o) => ComponentLayer r (Applying s) b i o where
     componentRunMode = RMIsFF
 
 data CommonOp :: Type where
