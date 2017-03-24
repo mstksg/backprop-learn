@@ -19,6 +19,8 @@ module Learn.Neural.Network (
   , Network(..)
   , networkOp
   , networkOpPure
+  , runNetwork
+  , runNetworkPure
   , NetConf(..)
   , initNet
   , NetStruct(..)
@@ -27,6 +29,7 @@ module Learn.Neural.Network (
   , initDefNet'
   , initDefNet
   , SomeNet(..)
+  , someNet
   ) where
 
 import           Control.Monad.Primitive
@@ -101,6 +104,22 @@ networkOpPure = OpM $ \(I x :< I n :< Ø) -> case n of
             I dX :< I dL0 :< Ø <- gF  (Just dY :< Ø)
             return $ dX ::< (dL0 :& dN2) ::< Ø
       return (z ::< Ø, gF'')
+
+runNetwork
+    :: (Num (b i), Num (b o), BLASTensor b)
+    => Network r b (i :~ c) hs o
+    -> b i
+    -> (b o, Network r b (i :~ c) hs o)
+runNetwork n x = case runOpB networkOp (x ::< n ::< Ø) of
+    I y :< I n' :< Ø -> (y, n')
+
+runNetworkPure
+    :: (Num (b i), Num (b o), BLASTensor b)
+    => Network 'FeedForward b (i :~ c) hs o
+    -> b i
+    -> b o
+runNetworkPure n x = case runOpB networkOpPure (x ::< n ::< Ø) of
+    I y :< Ø -> y
 
 data NetConf :: RunMode -> (BShape -> Type) -> LChain -> [LChain] -> BShape -> Type where
     NCExt :: ( ComponentLayer r c i o
@@ -201,6 +220,12 @@ data SomeNet :: RunMode -> (BShape -> Type) -> BShape -> BShape -> Type where
         -> Network r b (i :~ c) hs o
         -> SomeNet r b i o
 
+someNet
+    :: Known (NetStruct r b (i :~ c) hs) o
+    => Network r b (i :~ c) hs o
+    -> SomeNet r b i o
+someNet = SomeNet known
+
 instance (Known (NetStruct r b (i :~ c) hs) o)
             => Num (Network r b (i :~ c) hs o) where
     (+)           = liftNet2 (+) known
@@ -291,3 +316,4 @@ liftNet2 f = go
       NSInt s -> \case
         l1 :& n1 -> \case
           l2 :& n2 -> f l1 l2 :& go s n1 n2
+

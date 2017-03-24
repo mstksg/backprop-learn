@@ -10,7 +10,6 @@ import           Control.Monad.Trans.Maybe
 import           Control.Monad.Trans.State
 import           Data.Bitraversable
 import           Data.Finite
-import           Data.Foldable
 import           Data.IDX
 import           Data.List.Split
 import           Data.Time.Clock
@@ -56,7 +55,6 @@ main = MWC.withSystemRandom $ \g -> do
                                     , BV 10  :~ SoftMax (BV 10)
                                     ]
                                     (BV 10) <- initDefNet g
-    let opt = sgdOptimizer rate crossEntropy
     flip evalStateT net0 . forM_ [1..] $ \e -> do
       train' <- liftIO . fmap V.toList $ MWC.uniformShuffle (V.fromList train) g
       liftIO $ printf "[Epoch %d]\n" (e :: Int)
@@ -65,15 +63,15 @@ main = MWC.withSystemRandom $ \g -> do
         printf "(Batch %d)\n" (b :: Int)
 
         t0 <- getCurrentTime
-        -- n' <- evaluate . force $ optimizeList_ (I <$> chnk) n0 opt
-        n' <- evaluate $ optimizeList_ (I <$> chnk) n0 opt
+        n' <- evaluate $ optimizeList_ (I <$> chnk) n0 (sgdOptimizer rate crossEntropy)
+        -- n' <- evaluate $ optimizeList_ (chunksOf 10 chnk) n0 (sgdMiniBatchOptimizer rate crossEntropy)
         t1 <- getCurrentTime
         printf "Trained on %d points in %s.\n" batch (show (t1 `diffUTCTime` t0))
 
---         let trainScore = testNet chnk n'
---             testScore  = testNet test n'
---         printf "Training error:   %.2f%%\n" ((1 - trainScore) * 100)
---         printf "Validation error: %.2f%%\n" ((1 - testScore ) * 100)
+        let trainScore = testNetList maxTest (someNet n') chnk
+            testScore  = testNetList maxTest (someNet n') test
+        printf "Training error:   %.2f%%\n" ((1 - trainScore) * 100)
+        printf "Validation error: %.2f%%\n" ((1 - testScore ) * 100)
 
         return ((), n')
   where

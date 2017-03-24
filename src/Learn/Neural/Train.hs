@@ -3,6 +3,7 @@
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE Strict              #-}
 {-# LANGUAGE TypeInType          #-}
 {-# LANGUAGE TypeOperators       #-}
 
@@ -13,11 +14,13 @@ module Learn.Neural.Train (
   , optimizeList
   , optimizeList_
   , sgdOptimizer
+  , sgdMiniBatchOptimizer
   ) where
 
 
 import           Data.Kind
 import           Data.List
+import           Data.Profunctor
 import           Data.Type.Combinator
 import           Learn.Neural.Layer
 import           Learn.Neural.Loss
@@ -25,6 +28,7 @@ import           Learn.Neural.Network
 import           Numeric.BLASTensor
 import           Numeric.Backprop
 import           Type.Class.Known
+import qualified Control.Foldl        as F
 
 data Optimizer
         :: (Type -> Type)
@@ -54,7 +58,31 @@ sgdOptimizer r l = MkO () $ \(I (x, t)) n () ->
               y <- networkOpPure ~$ inps
               only <$> (l t ~$ (y :< Ø))
     in  case gradBPOp o (x ::< n ::< Ø) of
-          _ :< I g :< Ø -> (n + realToFrac r * g, ())
+          _ :< I g :< Ø -> (n - realToFrac r * g, ())
+
+sgdMiniBatchOptimizer
+    :: forall b i c hs o f.
+     ( Num (b i)
+     , Num (b o)
+     , BLASTensor b
+     , Known (NetStruct 'FeedForward b (i :~ c) hs) o
+     , Foldable f
+     )
+    => Double
+    -> LossFunction o
+    -> Optimizer f b (i :~ c) hs o
+sgdMiniBatchOptimizer r l = MkO () $ \xts n () ->
+    let f :: b i -> b o -> Network 'FeedForward b (i :~ c) hs o
+        f x t = case gradBPOp o (x ::< n ::< Ø) of
+                  _ :< I gr :< Ø -> gr
+          where
+            o :: BPOp s '[ b i, Network 'FeedForward b (i :~ c) hs o ] '[ Scalar b ]
+            o = withInps $ \inps -> do
+              y <- networkOpPure ~$ inps
+              only <$> (l t ~$ (y :< Ø))
+        g = F.fold (lmap (uncurry f) F.mean) xts
+    in  (n - realToFrac r * g, ())
+
 
 runOptimizer
     :: f (b i, b o)

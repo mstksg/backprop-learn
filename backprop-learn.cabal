@@ -25,6 +25,7 @@ library
                        Learn.Neural.Layer.Recurrent.FullyConnected
                        Learn.Neural.Loss
                        Learn.Neural.Network
+                       Learn.Neural.Test
                        Learn.Neural.Train
                        Numeric.BLAS
                        Numeric.BLASTensor
@@ -36,11 +37,13 @@ library
                      , backprop
                      , deepseq
                      , finite-typelits
+                     , foldl
                      , generics-sop
                      , hmatrix    >= 0.18
                      , mono-traversable
                      , mwc-random
                      , primitive
+                     , profunctors
                      , reflection
                      , singletons
                      , statistics
