@@ -6,6 +6,11 @@
 {-# LANGUAGE TypeOperators    #-}
 
 module Learn.Neural.Train (
+    Optimizer(..)
+  , runOptimizer
+  , runOptimizer_
+  , optimizeList
+  , optimizeList_
   ) where
 
 
@@ -66,16 +71,6 @@ runOptimizer_ x n = \case
     MkO s l u -> case u x n s of
                    (n', _) -> n'
 
-runOptimizer'
-    :: b i
-    -> b o
-    -> Network 'FeedForward b (i :~ c) hs o
-    -> Optimizer I b (i :~ c) hs o
-    -> (Network 'FeedForward b (i :~ c) hs o, Optimizer I b (i :~ c) hs o)
-runOptimizer' x t n = \case
-    MkO s l u -> case u (I (x, t)) n s of
-                   (n', s') -> (n', MkO s' l u)
-
 data STup a b = STup !a !b
 
 optimizeList
@@ -89,25 +84,10 @@ optimizeList xs n0 o0 = case foldl' f (STup n0 o0) xs of
     f (STup n o) x = case runOptimizer x n o of
       (n', o') -> STup n' o'
 
-optimizeList'
-    :: [(b i, b o)]
-    -> Network 'FeedForward b (i :~ c) hs o
-    -> Optimizer I b (i :~ c) hs o
-    -> (Network 'FeedForward b (i :~ c) hs o, Optimizer I b (i :~ c) hs o)
-optimizeList' xs n0 o0 = case foldl' f (STup n0 o0) xs of
-    STup n o -> (n, o)
-  where
-    f (STup n o) x = case runOptimizer (I x) n o of
-      (n', o') -> STup n' o'
-
 optimizeList_
     :: [f (b i, b o)]
     -> Network 'FeedForward b (i :~ c) hs o
     -> Optimizer f b (i :~ c) hs o
     -> Network 'FeedForward b (i :~ c) hs o
-optimizeList_ xs n0 o0 = case foldl' f (STup n0 o0) xs of
-    STup n o -> n
-  where
-    f (STup n o) x = case runOptimizer x n o of
-      (n', o') -> STup n' o'
+optimizeList_ xs n0 = fst . optimizeList xs n0
 
