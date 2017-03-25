@@ -22,33 +22,34 @@
 </span><a name="line-22"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">List</span><span>
 </span><a name="line-23"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Profunctor</span><span>
 </span><a name="line-24"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Combinator</span><span>
-</span><a name="line-25"></a><span class="hs-keyword">import</span><span>           </span><a href="Learn.Neural.Layer.html"><span class="hs-identifier">Learn</span><span class="hs-operator">.</span><span class="hs-identifier">Neural</span><span class="hs-operator">.</span><span class="hs-identifier">Layer</span></a><span>
-</span><a name="line-26"></a><span class="hs-keyword">import</span><span>           </span><a href="Learn.Neural.Loss.html"><span class="hs-identifier">Learn</span><span class="hs-operator">.</span><span class="hs-identifier">Neural</span><span class="hs-operator">.</span><span class="hs-identifier">Loss</span></a><span>
-</span><a name="line-27"></a><span class="hs-keyword">import</span><span>           </span><a href="Learn.Neural.Network.html"><span class="hs-identifier">Learn</span><span class="hs-operator">.</span><span class="hs-identifier">Neural</span><span class="hs-operator">.</span><span class="hs-identifier">Network</span></a><span>
-</span><a name="line-28"></a><span class="hs-keyword">import</span><span>           </span><a href="Numeric.BLASTensor.html"><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">BLASTensor</span></a><span>
-</span><a name="line-29"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Backprop</span><span>
-</span><a name="line-30"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Class</span><span class="hs-operator">.</span><span class="hs-identifier">Known</span><span>
-</span><a name="line-31"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Control</span><span class="hs-operator">.</span><span class="hs-identifier">Foldl</span><span>        </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">F</span><span>
-</span><a name="line-32"></a><span>
-</span><a name="line-33"></a><span class="hs-keyword">data</span><span> </span><a name="Optimizer"><a href="Learn.Neural.Train.html#Optimizer"><span class="hs-identifier">Optimizer</span></a></a><span>
-</span><a name="line-34"></a><span>        </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Type</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Type</span><span class="hs-special">)</span><span>
-</span><a name="line-35"></a><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><a href="Numeric.BLAS.html#BShape"><span class="hs-identifier hs-type">BShape</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Type</span><span class="hs-special">)</span><span>
-</span><a name="line-36"></a><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Learn.Neural.Network.html#LChain"><span class="hs-identifier hs-type">LChain</span></a><span>
-</span><a name="line-37"></a><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><a href="Learn.Neural.Network.html#LChain"><span class="hs-identifier hs-type">LChain</span></a><span class="hs-special">]</span><span>
-</span><a name="line-38"></a><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Numeric.BLAS.html#BShape"><span class="hs-identifier hs-type">BShape</span></a><span>
-</span><a name="line-39"></a><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Type</span><span> </span><span class="hs-keyword">where</span><span>
-</span><a name="line-40"></a><span>    </span><a name="MkO"><a href="Learn.Neural.Train.html#MkO"><span class="hs-identifier">MkO</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">{</span><span> </span><a name="oState"><a href="Learn.Neural.Train.html#oState"><span class="hs-identifier">oState</span></a></a><span>
-</span><a name="line-41"></a><span>                </span><span class="hs-glyph">::</span><span> </span><a href="#local-6989586621679430166"><span class="hs-identifier hs-type">s</span></a><span>
-</span><a name="line-42"></a><span>           </span><span class="hs-special">,</span><span> </span><a name="oUpdate"><a href="Learn.Neural.Train.html#oUpdate"><span class="hs-identifier">oUpdate</span></a></a><span>
-</span><a name="line-43"></a><span>                </span><span class="hs-glyph">::</span><span> </span><a href="#local-6989586621679430167"><span class="hs-identifier hs-type">f</span></a><span> </span><span class="hs-special">(</span><a href="#local-6989586621679430168"><span class="hs-identifier hs-type">b</span></a><span> </span><a href="#local-6989586621679430169"><span class="hs-identifier hs-type">i</span></a><span class="hs-special">,</span><span> </span><a href="#local-6989586621679430168"><span class="hs-identifier hs-type">b</span></a><span> </span><a href="#local-6989586621679430170"><span class="hs-identifier hs-type">o</span></a><span class="hs-special">)</span><span>
-</span><a name="line-44"></a><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Learn.Neural.Network.html#Network"><span class="hs-identifier hs-type">Network</span></a><span> </span><span class="hs-char">'FeedForward b (i :~ c) hs o
+</span><a name="line-25"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">GHC</span><span class="hs-operator">.</span><span class="hs-identifier">TypeLits</span><span>
+</span><a name="line-26"></a><span class="hs-keyword">import</span><span>           </span><a href="Learn.Neural.Layer.html"><span class="hs-identifier">Learn</span><span class="hs-operator">.</span><span class="hs-identifier">Neural</span><span class="hs-operator">.</span><span class="hs-identifier">Layer</span></a><span>
+</span><a name="line-27"></a><span class="hs-keyword">import</span><span>           </span><a href="Learn.Neural.Loss.html"><span class="hs-identifier">Learn</span><span class="hs-operator">.</span><span class="hs-identifier">Neural</span><span class="hs-operator">.</span><span class="hs-identifier">Loss</span></a><span>
+</span><a name="line-28"></a><span class="hs-keyword">import</span><span>           </span><a href="Learn.Neural.Network.html"><span class="hs-identifier">Learn</span><span class="hs-operator">.</span><span class="hs-identifier">Neural</span><span class="hs-operator">.</span><span class="hs-identifier">Network</span></a><span>
+</span><a name="line-29"></a><span class="hs-keyword">import</span><span>           </span><a href="Numeric.BLAS.html"><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">BLAS</span></a><span>
+</span><a name="line-30"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Backprop</span><span>
+</span><a name="line-31"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Class</span><span class="hs-operator">.</span><span class="hs-identifier">Known</span><span>
+</span><a name="line-32"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Control</span><span class="hs-operator">.</span><span class="hs-identifier">Foldl</span><span>        </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">F</span><span>
+</span><a name="line-33"></a><span>
+</span><a name="line-34"></a><span class="hs-keyword">data</span><span> </span><a name="Optimizer"><a href="Learn.Neural.Train.html#Optimizer"><span class="hs-identifier">Optimizer</span></a></a><span>
+</span><a name="line-35"></a><span>        </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Type</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Type</span><span class="hs-special">)</span><span>
+</span><a name="line-36"></a><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="hs-identifier hs-type">Nat</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Type</span><span class="hs-special">)</span><span>
+</span><a name="line-37"></a><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Learn.Neural.Network.html#LChain"><span class="hs-identifier hs-type">LChain</span></a><span>
+</span><a name="line-38"></a><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><a href="Learn.Neural.Network.html#LChain"><span class="hs-identifier hs-type">LChain</span></a><span class="hs-special">]</span><span>
+</span><a name="line-39"></a><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-identifier hs-type">Nat</span><span class="hs-special">]</span><span>
+</span><a name="line-40"></a><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Type</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-41"></a><span>    </span><a name="MkO"><a href="Learn.Neural.Train.html#MkO"><span class="hs-identifier">MkO</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">{</span><span> </span><a name="oState"><a href="Learn.Neural.Train.html#oState"><span class="hs-identifier">oState</span></a></a><span>
+</span><a name="line-42"></a><span>                </span><span class="hs-glyph">::</span><span> </span><a href="#local-6989586621679355728"><span class="hs-identifier hs-type">s</span></a><span>
+</span><a name="line-43"></a><span>           </span><span class="hs-special">,</span><span> </span><a name="oUpdate"><a href="Learn.Neural.Train.html#oUpdate"><span class="hs-identifier">oUpdate</span></a></a><span>
+</span><a name="line-44"></a><span>                </span><span class="hs-glyph">::</span><span> </span><a href="#local-6989586621679355729"><span class="hs-identifier hs-type">f</span></a><span> </span><span class="hs-special">(</span><a href="#local-6989586621679355730"><span class="hs-identifier hs-type">b</span></a><span> </span><a href="#local-6989586621679355731"><span class="hs-identifier hs-type">i</span></a><span class="hs-special">,</span><span> </span><a href="#local-6989586621679355730"><span class="hs-identifier hs-type">b</span></a><span> </span><a href="#local-6989586621679355732"><span class="hs-identifier hs-type">o</span></a><span class="hs-special">)</span><span>
+</span><a name="line-45"></a><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Learn.Neural.Network.html#Network"><span class="hs-identifier hs-type">Network</span></a><span> </span><span class="hs-char">'FeedForward b (i :~ c) hs o
                 -&gt; s
                 -&gt; (Network 'FeedForward b (i :~ c) hs o, s)
            }
         -&gt; Optimizer f b (i :~ c) hs o
 
 sgdOptimizer
-    :: forall b i c hs o. (Num (b i), Num (b o), BLASTensor b, Known (NetStruct 'FeedForward b (i :~ c) hs) o)
+    :: forall b i c hs o. (Num (b i), Num (b o), BLAS b, Known (NetStruct 'FeedForward b (i :~ c) hs) o)
     =&gt; Double
     -&gt; LossFunction o
     -&gt; Optimizer I b (i :~ c) hs o
@@ -64,7 +65,7 @@ sgdMiniBatchOptimizer
     :: forall b i c hs o f.
      ( Num (b i)
      , Num (b o)
-     , BLASTensor b
+     , BLAS b
      , Known (NetStruct 'FeedForward b (i :~ c) hs) o
      , Foldable f
      )
