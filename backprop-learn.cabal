@@ -48,6 +48,7 @@ library
                      , statistics
                      , transformers
                      , type-combinators
+                     , type-combinators-singletons
                      , vector
                      , vector-sized
   default-language:    Haskell2010

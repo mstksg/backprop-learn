@@ -187,7 +187,7 @@ im2col
     -> V.Vector n a
     -> V.Vector n (V.Vector m a)
 im2col pad (V.fromSized->v) = V.generate $ \i ->
-      fromMaybe (error "what") . V.toSized $ UV.slice i m padded
+      fromJust . V.toSized $ UV.slice i m padded
   where
     padded = UV.concat [UV.replicate left pad, v, UV.replicate right pad]
     m :: Int
@@ -197,7 +197,7 @@ im2col pad (V.fromSized->v) = V.generate $ \i ->
 
 hadd :: Sing s -> HM' s -> HM' s -> HM' s
 hadd = \case
-    SNil -> (+)
+    SNil                                     -> (+)
     SNat `SCons` SNil                        -> (+)
     SNat `SCons` (SNat `SCons` SNil)         -> (+)
     SNat `SCons` s@(_ `SCons` (_ `SCons` _)) -> liftA2 (hadd s)

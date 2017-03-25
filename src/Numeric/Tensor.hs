@@ -33,6 +33,7 @@ import           Data.List
 import           Data.Reflection
 import           Data.Singletons.Prelude hiding   (Reverse)
 import           Data.Singletons.TypeLits
+import           Data.Type.Combinator.Singletons  ()
 import           Data.Type.Util
 import           Data.Type.Vector hiding          (head')
 import           Numeric.AD hiding                (Scalar)
@@ -104,10 +105,6 @@ class RealFloat (Scalar t)
 data DoubleProd :: (k -> Type) -> [k] -> [k] -> Type where
     DPZ :: DoubleProd f '[] '[]
     DPS :: f a -> f b -> DoubleProd f as bs -> DoubleProd f (a ': as) (b ': bs)
-
-instance SingI a => Known Sing a where
-    type KnownC Sing a = SingI a
-    known = sing
 
 instance Known (DoubleProd f '[]) '[] where
     known = DPZ
