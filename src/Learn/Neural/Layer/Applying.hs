@@ -18,15 +18,16 @@ module Learn.Neural.Layer.Applying (
 import           Data.Kind
 import           Data.Reflection
 import           Data.Singletons
+import           GHC.TypeLits
 import           Learn.Neural.Layer
-import           Numeric.BLASTensor
+import           Numeric.BLAS
 import           Numeric.Backprop
 
 data Applying :: k -> Type
 
-newtype TensorOp :: BShape -> BShape -> Type where
+newtype TensorOp :: [Nat] -> [Nat] -> Type where
     TF :: { getTensorOp
-                :: forall b s. (BLASTensor b, Num (b i), Num (b o)) => OpB s '[ b i ] '[ b o ]
+                :: forall b s. (BLAS b, Num (b i), Num (b o)) => OpB s '[ b i ] '[ b o ]
           }
        -> TensorOp i o
 
@@ -58,7 +59,7 @@ instance Fractional (CState (Applying s) b i o) where
     recip _        = AppS
     fromRational _ = AppS
 
-instance (BLASTensor b, Reifies s (TensorOp i o), SingI i, SingI o) => Component (Applying s) b i o where
+instance (BLAS b, Reifies s (TensorOp i o), SingI i, SingI o) => Component (Applying s) b i o where
     data CParam (Applying s) b i o = AppP
     data CState (Applying s) b i o = AppS
     data CConf  (Applying s) b i o = AppC
@@ -69,7 +70,7 @@ instance (BLASTensor b, Reifies s (TensorOp i o), SingI i, SingI o) => Component
     initState _ _ _ _ = return AppS
     defConf           = AppC
 
-instance (BLASTensor b, Reifies s (TensorOp i o), SingI i, SingI o) => ComponentFF (Applying s) b i o where
+instance (BLAS b, Reifies s (TensorOp i o), SingI i, SingI o) => ComponentFF (Applying s) b i o where
     componentOpFF = bpOp . withInps $ \(x :< _ :< Ø) -> do
         y <- getTensorOp to ~$ (x :< Ø)
         return . only $ y
@@ -77,11 +78,11 @@ instance (BLASTensor b, Reifies s (TensorOp i o), SingI i, SingI o) => Component
         to :: TensorOp i o
         to = reflect (Proxy @s)
 
-instance (BLASTensor b, Reifies s (TensorOp i o), SingI i, SingI o) => ComponentLayer r (Applying s) b i o where
+instance (BLAS b, Reifies s (TensorOp i o), SingI i, SingI o) => ComponentLayer r (Applying s) b i o where
     componentRunMode = RMIsFF
 
 data CommonOp :: Type where
-    TO_Softmax :: BShape -> CommonOp
+    TO_Softmax :: [Nat] -> CommonOp
 
 instance SingI i => Reifies ('TO_Softmax i) (TensorOp i i) where
     reflect _ = TF $ bpOp . withInps $ \(x :< Ø) -> do

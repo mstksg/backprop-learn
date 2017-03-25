@@ -16,8 +16,9 @@ import           Data.Time.Clock
 import           Data.Traversable
 import           Data.Tuple
 import           Data.Type.Combinator
+import           Data.Type.Product
 import           Learn.Neural
-import           Numeric.BLASTensor.HMatrix
+import           Numeric.BLAS.HMatrix
 import           Numeric.LinearAlgebra.Static
 import           Text.Printf
 import qualified Data.Vector                     as V
@@ -29,7 +30,7 @@ import qualified System.Random.MWC.Distributions as MWC
 loadMNIST
     :: FilePath
     -> FilePath
-    -> IO (Maybe [(HM (BV 784), HM (BV 10))])
+    -> IO (Maybe [(HM '[784], HM '[10])])
 loadMNIST fpI fpL = runMaybeT $ do
     i <- MaybeT          $ decodeIDXFile       fpI
     l <- MaybeT          $ decodeIDXLabelsFile fpL
@@ -37,24 +38,24 @@ loadMNIST fpI fpL = runMaybeT $ do
     r <- MaybeT . return $ for d (bitraverse mkImage mkLabel . swap)
     liftIO . evaluate $ force r
   where
-    mkImage :: VU.Vector Int -> Maybe (HM (BV 784))
+    mkImage :: VU.Vector Int -> Maybe (HM '[784])
     mkImage = fmap HM . create . VG.convert . VG.map (\i -> fromIntegral i / 255)
-    mkLabel :: Int -> Maybe (HM (BV 10))
-    mkLabel = fmap (oneHot . BVIx) . packFinite . fromIntegral
+    mkLabel :: Int -> Maybe (HM '[10])
+    mkLabel = fmap (oneHot . only) . packFinite . fromIntegral
 
 main :: IO ()
 main = MWC.withSystemRandom $ \g -> do
     Just train <- loadMNIST "data/train-images-idx3-ubyte" "data/train-labels-idx1-ubyte"
     Just test  <- loadMNIST "data/t10k-images-idx3-ubyte"  "data/t10k-labels-idx1-ubyte"
     putStrLn "Loaded data."
-    net0 :: Network 'FeedForward HM ( BV 784 :~ FullyConnected )
-                                   '[ BV 300 :~ LogitMap
-                                    , BV 300 :~ FullyConnected
-                                    , BV 100 :~ LogitMap
-                                    , BV 100 :~ FullyConnected
-                                    , BV 10  :~ SoftMax (BV 10)
+    net0 :: Network 'FeedForward HM ( '[784] :~ FullyConnected )
+                                   '[ '[300] :~ LogitMap
+                                    , '[300] :~ FullyConnected
+                                    , '[100] :~ LogitMap
+                                    , '[100] :~ FullyConnected
+                                    , '[10 ] :~ SoftMax '[10]
                                     ]
-                                    (BV 10) <- initDefNet g
+                                    '[10] <- initDefNet g
     flip evalStateT net0 . forM_ [1..] $ \e -> do
       train' <- liftIO . fmap V.toList $ MWC.uniformShuffle (V.fromList train) g
       liftIO $ printf "[Epoch %d]\n" (e :: Int)

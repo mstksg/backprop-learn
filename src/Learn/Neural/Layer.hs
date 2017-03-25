@@ -34,7 +34,8 @@ module Learn.Neural.Layer (
 import           Control.Monad.Primitive
 import           Data.Kind
 import           Data.Singletons.Prelude
-import           Numeric.BLASTensor
+import           GHC.TypeLits
+import           Numeric.BLAS
 import           Numeric.Backprop
 import           Numeric.Backprop.Op
 import           System.Random.MWC
@@ -43,12 +44,12 @@ import           Type.Family.Constraint
 data RunMode = FeedForward
              | Recurrent
 
-data RunModeWit :: RunMode -> Type -> (BShape -> Type) -> BShape -> BShape -> Type where
+data RunModeWit :: RunMode -> Type -> ([Nat] -> Type) -> [Nat] -> [Nat] -> Type where
     RMIsFF  :: ComponentFF c b i o => RunModeWit r c b i o
     RMNotFF :: RunModeWit 'Recurrent c b i o
 
-class (Fractional (CParam c b i o), Fractional (CState c b i o), BLASTensor b)
-        => Component (c :: Type) (b :: BShape -> Type) (i :: BShape) (o :: BShape) where
+class (Fractional (CParam c b i o), Fractional (CState c b i o), BLAS b)
+        => Component (c :: Type) (b :: [Nat] -> Type) (i :: [Nat]) (o :: [Nat]) where
     data CParam  c b i o :: Type
     data CState  c b i o :: Type
     type CConstr c b i o :: Constraint
@@ -86,7 +87,7 @@ class Component c b i o => ComponentFF c b i o where
 componentOpDefault
     :: forall c b i o s.
      ( ComponentFF c b i o
-     , BLASTensor b
+     , BLAS b
      , Num (b i)
      , Num (b o)
      , CConstr c b i o
@@ -102,7 +103,7 @@ componentOpDefault = bpOp . withInps $ \(x :< p :< s :< Ø) -> do
 class Component c b i o => ComponentLayer (r :: RunMode) c b i o where
     componentRunMode :: RunModeWit r c b i o
 
-data Layer :: RunMode -> Type -> (BShape -> Type) -> BShape -> BShape -> Type where
+data Layer :: RunMode -> Type -> ([Nat] -> Type) -> [Nat] -> [Nat] -> Type where
     LFeedForward
         :: ComponentFF c b i o
         => CParam c b i o
@@ -154,7 +155,7 @@ liftLayer2 f g = \case
       LRecurrent p2 s2 -> LRecurrent (f p1 p2) (g s1 s2)
 
 layerOp
-    :: forall r c i o b s. (Component c b i o, BLASTensor b, Num (b i), Num (b o), CConstr c b i o)
+    :: forall r c i o b s. (Component c b i o, BLAS b, Num (b i), Num (b o), CConstr c b i o)
     => OpB s '[ b i, Layer r c b i o ] '[ b o, Layer r c b i o ]
 layerOp = OpM $ \(I x :< I l :< Ø) -> case l of
     LFeedForward p -> do
@@ -174,7 +175,7 @@ layerOp = OpM $ \(I x :< I l :< Ø) -> case l of
       return (y ::< LRecurrent p s' ::< Ø, gF')
 
 layerOpPure
-    :: forall c i o b s. (Component c b i o, BLASTensor b, Num (b i), Num (b o), CConstr c b i o)
+    :: forall c i o b s. (Component c b i o, BLAS b, Num (b i), Num (b o), CConstr c b i o)
     => OpB s '[ b i, Layer 'FeedForward c b i o ] '[ b o ]
 layerOpPure = OpM $ \(I x :< I l :< Ø) -> case l of
     LFeedForward p -> do
@@ -186,7 +187,7 @@ layerOpPure = OpM $ \(I x :< I l :< Ø) -> case l of
 initLayer
     :: forall r c b i o m.
      ( PrimMonad m
-     , BLASTensor b
+     , BLAS b
      , ComponentLayer r c b i o
      , CConstr c b i o
      )

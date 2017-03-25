@@ -22,20 +22,21 @@ import           Data.Kind
 import           Data.List
 import           Data.Profunctor
 import           Data.Type.Combinator
+import           GHC.TypeLits
 import           Learn.Neural.Layer
 import           Learn.Neural.Loss
 import           Learn.Neural.Network
-import           Numeric.BLASTensor
+import           Numeric.BLAS
 import           Numeric.Backprop
 import           Type.Class.Known
 import qualified Control.Foldl        as F
 
 data Optimizer
         :: (Type -> Type)
-        -> (BShape -> Type)
+        -> ([Nat] -> Type)
         -> LChain
         -> [LChain]
-        -> BShape
+        -> [Nat]
         -> Type where
     MkO :: { oState
                 :: s
@@ -48,7 +49,7 @@ data Optimizer
         -> Optimizer f b (i :~ c) hs o
 
 sgdOptimizer
-    :: forall b i c hs o. (Num (b i), Num (b o), BLASTensor b, Known (NetStruct 'FeedForward b (i :~ c) hs) o)
+    :: forall b i c hs o. (Num (b i), Num (b o), BLAS b, Known (NetStruct 'FeedForward b (i :~ c) hs) o)
     => Double
     -> LossFunction o
     -> Optimizer I b (i :~ c) hs o
@@ -64,7 +65,7 @@ sgdMiniBatchOptimizer
     :: forall b i c hs o f.
      ( Num (b i)
      , Num (b o)
-     , BLASTensor b
+     , BLAS b
      , Known (NetStruct 'FeedForward b (i :~ c) hs) o
      , Foldable f
      )

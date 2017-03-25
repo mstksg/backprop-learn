@@ -45,8 +45,9 @@ import           Data.Kind
 import           Data.Singletons
 import           Data.Type.Util
 import           Data.Type.Vector
+import           GHC.TypeLits
 import           Learn.Neural.Layer
-import           Numeric.BLASTensor
+import           Numeric.BLAS
 import           Numeric.Backprop
 import           Numeric.Backprop.Op
 import           System.Random.MWC
@@ -57,11 +58,11 @@ import qualified Data.Type.Nat           as TCN
 
 
 data LChain :: Type where
-    (:~) :: BShape -> Type -> LChain
+    (:~) :: [Nat] -> Type -> LChain
 
 type s :~ c = s ':~ c
 
-data Network :: RunMode -> (BShape -> Type) -> LChain -> [LChain] -> BShape -> Type where
+data Network :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> Type where
     NetExt :: (ComponentLayer r c b i o, CConstr c b i o)
            => Layer r c b i o
            -> Network r b (i :~ c) '[] o
@@ -71,7 +72,7 @@ data Network :: RunMode -> (BShape -> Type) -> LChain -> [LChain] -> BShape -> T
            -> Network r b (i :~ c) ((h :~ d) ': hs) o
 
 networkOp
-    :: forall b i c hs o r s. (BLASTensor b, Num (b i), Num (b o))
+    :: forall b i c hs o r s. (BLAS b, Num (b i), Num (b o))
     => OpB s '[ b i, Network r b (i :~ c) hs o ] '[ b o, Network r b (i :~ c) hs o ]
 networkOp = OpM $ \(I x :< I n :< Ø) -> case n of
     NetExt l -> do
@@ -98,7 +99,7 @@ networkOp = OpM $ \(I x :< I n :< Ø) -> case n of
       return (z ::< (l' :& n2') ::< Ø, gF'')
 
 networkOpPure
-    :: forall b i c hs o s. (BLASTensor b, Num (b i), Num (b o))
+    :: forall b i c hs o s. (BLAS b, Num (b i), Num (b o))
     => OpB s '[ b i, Network 'FeedForward b (i :~ c) hs o ] '[ b o ]
 networkOpPure = OpM $ \(I x :< I n :< Ø) -> case n of
     NetExt l -> do
@@ -120,7 +121,7 @@ networkOpPure = OpM $ \(I x :< I n :< Ø) -> case n of
 networkOpRecurrent
     :: forall n b i c hs o s.
      ( Known (NetStruct 'Recurrent b (i :~ c) hs) o
-     , BLASTensor b
+     , BLAS b
      , Num (b o)
      , Num (b i)
      )
@@ -140,7 +141,7 @@ networkOpRecurrent = \case
 networkOpRecurrent'
     :: forall n b i c hs o s.
      ( Known (NetStruct 'Recurrent b (i :~ c) hs) o
-     , BLASTensor b
+     , BLAS b
      , Num (b o)
      , Num (b i)
      )
@@ -159,7 +160,7 @@ networkOpRecurrent' = \case
         return (n2 :< y :< Ø)
 
 runNetwork
-    :: (Num (b i), Num (b o), BLASTensor b)
+    :: (Num (b i), Num (b o), BLAS b)
     => Network r b (i :~ c) hs o
     -> b i
     -> (b o, Network r b (i :~ c) hs o)
@@ -167,7 +168,7 @@ runNetwork n x = case runOpB networkOp (x ::< n ::< Ø) of
     I y :< I n' :< Ø -> (y, n')
 
 runNetworkPure
-    :: (Num (b i), Num (b o), BLASTensor b)
+    :: (Num (b i), Num (b o), BLAS b)
     => Network 'FeedForward b (i :~ c) hs o
     -> b i
     -> b o
@@ -175,7 +176,7 @@ runNetworkPure n x = case runOpB networkOpPure (x ::< n ::< Ø) of
     I y :< Ø -> y
 
 runNetworkRecurrent
-    :: (Num (b i), Num (b o), BLASTensor b)
+    :: (Num (b i), Num (b o), BLAS b)
     => Network 'Recurrent b (i :~ c) hs o
     -> [b i]
     -> ([b o], Network 'Recurrent b (i :~ c) hs o)
@@ -186,7 +187,7 @@ runNetworkRecurrent n0 = \case
             in  (y:ys, n2)
 
 runNetworkRecurrent'
-    :: (Num (b i), Num (b o), BLASTensor b)
+    :: (Num (b i), Num (b o), BLAS b)
     => Network 'Recurrent b (i :~ c) hs o
     -> NE.NonEmpty (b i)
     -> (b o, Network 'Recurrent b (i :~ c) hs o)
@@ -197,7 +198,7 @@ runNetworkRecurrent' n0 (x NE.:| xs) = case xs of
     (z, n1) = runNetwork n0 x
 
 runNetworkFeedback
-    :: (Num (b i), Num (b o), BLASTensor b)
+    :: (Num (b i), Num (b o), BLAS b)
     => TCN.Nat n
     -> (b o -> b i)
     -> Network 'Recurrent b (i :~ c) hs o
@@ -212,7 +213,7 @@ runNetworkFeedback = \case
       in  (y :* ys, n2)
 
 runNetworkFeedbackForever
-    :: (Num (b i), Num (b o), BLASTensor b)
+    :: (Num (b i), Num (b o), BLAS b)
     => (b o -> b i)
     -> Network 'Recurrent b (i :~ c) hs o
     -> b i
@@ -224,7 +225,7 @@ runNetworkFeedbackForever f = go
         (y, n1) = runNetwork n0 x
         ys      = go n1 (f y)
 
-data NetConf :: RunMode -> (BShape -> Type) -> LChain -> [LChain] -> BShape -> Type where
+data NetConf :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> Type where
     NCExt :: ( ComponentLayer r c b i o
              , CConstr c b i o
              )
@@ -242,7 +243,7 @@ data NetConf :: RunMode -> (BShape -> Type) -> LChain -> [LChain] -> BShape -> T
 initNet
     :: forall b i c hs o m r.
      ( PrimMonad m
-     , BLASTensor b
+     , BLAS b
      , SingI i
      , SingI o
      )
@@ -256,7 +257,7 @@ initNet = \case
       n <- initNet cN g
       return $ l :& n
 
-data NetStruct :: RunMode -> (BShape -> Type) -> LChain -> [LChain] -> BShape -> Type where
+data NetStruct :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> Type where
     NSExt :: ( ComponentLayer r c b i o
              , CConstr c b i o
              )
@@ -282,14 +283,14 @@ defNetConf
 defNetConf = defNetConf' known
 
 initDefNet'
-    :: forall b i c hs o m r. (PrimMonad m, BLASTensor b, SingI i, SingI o)
+    :: forall b i c hs o m r. (PrimMonad m, BLAS b, SingI i, SingI o)
     => NetStruct r b (i :~ c) hs o
     -> Gen (PrimState m)
     -> m (Network r b (i :~ c) hs o)
 initDefNet' = initNet . defNetConf'
 
 initDefNet
-    :: (PrimMonad m, BLASTensor b, SingI i, SingI o, Known (NetStruct r b (i :~ c) hs) o)
+    :: (PrimMonad m, BLAS b, SingI i, SingI o, Known (NetStruct r b (i :~ c) hs) o)
     => Gen (PrimState m)
     -> m (Network r b (i :~ c) hs o)
 initDefNet = initDefNet' known
@@ -307,7 +308,7 @@ instance ( SingI h
         => Known (NetStruct r b (i :~ c) ((h :~ d) ': hs)) o where
     known = NSInt known
 
-data SomeNet :: RunMode -> (BShape -> Type) -> BShape -> BShape -> Type where
+data SomeNet :: RunMode -> ([Nat] -> Type) -> [Nat] -> [Nat] -> Type where
     SomeNet
         :: NetStruct r b (i :~ c) hs o
         -> Network r b (i :~ c) hs o

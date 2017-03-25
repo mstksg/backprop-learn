@@ -12,7 +12,7 @@
 {-# LANGUAGE TypeInType                 #-}
 {-# LANGUAGE UndecidableInstances       #-}
 
-module Numeric.BLASTensor.HMatrix (
+module Numeric.BLAS.HMatrix (
     HM(..)
   , HM'
   ) where
@@ -24,17 +24,19 @@ import           Data.Kind
 import           Data.Maybe
 import           Data.MonoTraversable
 import           Data.Singletons
+import           Data.Singletons.Prelude
 import           Data.Singletons.TypeLits
+import           Data.Type.Product
 import           GHC.Generics                 (Generic)
-import           Numeric.BLASTensor hiding    (outer)
+import           Numeric.BLAS hiding          (outer)
 import           Numeric.LinearAlgebra.Static
 import qualified Numeric.LinearAlgebra        as LA
 
-type family HM' (s :: BShape) = (h :: Type) | h -> s where
-    HM' ('BV n  ) = R n
-    HM' ('BM m n) = L m n
+type family HM' (s :: [Nat]) = (h :: Type) | h -> s where
+    HM' '[n]   = R n
+    HM' '[m,n] = L m n
 
-newtype HM :: BShape -> Type where
+newtype HM :: [Nat] -> Type where
     HM  :: { getHM :: HM' b }
         -> HM b
   deriving (Generic)
@@ -42,11 +44,10 @@ newtype HM :: BShape -> Type where
 type instance Element (HM s) = Double
 
 instance BLAS HM where
-    type Scalar HM = Double
 
     bkonst = \case
-      SBV SNat      -> HM . konst
-      SBM SNat SNat -> HM . konst
+      SNat `SCons` SNil      -> HM . konst
+      SNat `SCons` (SNat `SCons` SNil) -> HM . konst
 
     transp (HM x) = HM (tr x)
 
@@ -72,35 +73,34 @@ instance BLAS HM where
     syrk α (HM a) β (HM c)        = HM (konst α * (a <> tr a) + konst β * c)
 
 instance Tensor HM where
-    type IndexT HM = BIndex
-    type ElemT  HM = Double
+    type Scalar  HM = Double
 
     gen = \case
-      SBV n@SNat -> \f -> HM . fromJust . create $
+      n@SNat `SCons` SNil -> \f -> HM . fromJust . create $
         LA.build (fromIntegral (fromSing n))
-          (f . BVIx . Finite . round)
-      SBM m@SNat n@SNat -> \f -> HM . fromJust . create $
+          (f . only . Finite . round)
+      m@SNat `SCons` (n@SNat `SCons` SNil) -> \f -> HM . fromJust . create $
         LA.build (fromIntegral (fromSing m), fromIntegral (fromSing n))
-          (\i j -> f (BMIx (Finite (round i)) (Finite (round j))))
+          (\i j -> f (Finite (round i) :< Finite (round j) :< Ø))
 
     genA = \case
-      SBV n@SNat -> \f ->
-        fmap (HM . vector) . traverse (f . BVIx . Finite) $
+      n@SNat `SCons` SNil -> \f ->
+        fmap (HM . vector) . traverse (f . only . Finite) $
           [0 .. fromSing n - 1]
-      SBM m@SNat n@SNat -> \f ->
+      m@SNat `SCons` (n@SNat `SCons` SNil) -> \f ->
         fmap (HM . matrix) . traverse f $
-          [ BMIx (Finite i) (Finite j) | j <- [0 .. fromSing m - 1]
-                                       , i <- [0 .. fromSing n - 1]
+          [ Finite i :< Finite j :< Ø | j <- [0 .. fromSing m - 1]
+                                      , i <- [0 .. fromSing n - 1]
           ]
 
     tkonst = \case
-      SBV SNat      -> HM . konst
-      SBM SNat SNat -> HM . konst
+      SNat `SCons` SNil      -> HM . konst
+      SNat `SCons` (SNat `SCons` SNil) -> HM . konst
 
     tsum :: forall s. SingI s => HM s -> Double
     tsum = case sing @_ @s of
-      SBV SNat      -> LA.sumElements . extract . getHM
-      SBM SNat SNat -> LA.sumElements . extract . getHM
+      SNat `SCons` SNil      -> LA.sumElements . extract . getHM
+      SNat `SCons` (SNat `SCons` SNil) -> LA.sumElements . extract . getHM
 
     tmap :: forall s. SingI s => (Double -> Double) -> HM s -> HM s
     tmap = omap
@@ -110,8 +110,8 @@ instance Tensor HM where
         => (Double -> Double -> Double)
         -> HM s -> HM s -> HM s
     tzip f (HM x) (HM y) = case sing @_ @s of
-      SBV SNat      -> HM $ zipWithVector f x y
-      SBM SNat SNat -> HM $ matrix (zipWith f (concat . LA.toLists . extract $ x)
+      SNat `SCons` SNil      -> HM $ zipWithVector f x y
+      SNat `SCons` (SNat `SCons` SNil) -> HM $ matrix (zipWith f (concat . LA.toLists . extract $ x)
                                               (concat . LA.toLists . extract $ y)
                                    )
 
@@ -119,32 +119,30 @@ instance Tensor HM where
         :: forall s. SingI s
         => HM s
         -> Int
-    tsize _ = fromIntegral $ bshapeSize (fromSing (sing @_ @s))
+    tsize _ = fromIntegral $ product (fromSing (sing @_ @s))
 
     tindex
         :: forall s. SingI s
-        => BIndex s
+        => Prod Finite s
         -> HM s
         -> Double
     tindex = case sing @_ @s of
-      SBV SNat -> \case
-        BVIx i -> \case
+      SNat `SCons` SNil -> \case
+        i :< Ø -> \case
           HM x -> extract x `LA.atIndex` fromIntegral i
-      SBM SNat SNat -> \case
-        BMIx i j -> \case
+      SNat `SCons` (SNat `SCons` SNil) -> \case
+        i :< j :< Ø -> \case
           HM x -> extract x `LA.atIndex` (fromIntegral i, fromIntegral j)
-
-instance BLASTensor HM
 
 instance SingI s => MonoFunctor (HM s) where
     omap f (HM x) = case sing @_ @s of
-      SBV SNat      -> HM (dvmap f x)
-      SBM SNat SNat -> HM (dmmap f x)
+      SNat `SCons` SNil      -> HM (dvmap f x)
+      SNat `SCons` (SNat `SCons` SNil) -> HM (dmmap f x)
 
 hmElems :: forall s. SingI s => HM s -> [Double]
 hmElems = case sing @_ @s of
-    SBV SNat      -> LA.toList . extract . getHM
-    SBM SNat SNat -> concat . LA.toLists . extract . getHM
+    SNat `SCons` SNil      -> LA.toList . extract . getHM
+    SNat `SCons` (SNat `SCons` SNil) -> concat . LA.toLists . extract . getHM
 
 instance SingI s => MonoFoldable (HM s) where
     ofoldMap f     = foldMap f . hmElems
@@ -155,8 +153,8 @@ instance SingI s => MonoFoldable (HM s) where
     oany f         = any f . hmElems
     onull          = (== 0) . olength
     olength        = case sing @_ @s of
-      SBV SNat      -> size . getHM
-      SBM SNat SNat -> uncurry (*) . size . getHM
+      SNat `SCons` SNil      -> size . getHM
+      SNat `SCons` (SNat `SCons` SNil) -> uncurry (*) . size . getHM
     olength64      = fromIntegral . olength
     ocompareLength = ocompareLength . hmElems
     otraverse_ f   = traverse_ f . hmElems

@@ -12,4 +12,4 @@ import           Learn.Neural.Loss                 as N
 import           Learn.Neural.Network              as N
 import           Learn.Neural.Test                 as N
 import           Learn.Neural.Train                as N
-import           Numeric.BLASTensor                as N
+import           Numeric.BLAS                as N

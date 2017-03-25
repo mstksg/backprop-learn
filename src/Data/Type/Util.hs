@@ -20,13 +20,15 @@ module Data.Type.Util (
   , zipP
   ) where
 
+import           Data.Finite
 import           Data.Type.Conjunction
 import           Data.Type.Index
 import           Data.Type.Length
 import           Data.Type.Nat
 import           Data.Type.Product
 import           Data.Type.Vector
-import           Numeric.Backprop.Op (Replicate)
+import           Numeric.Backprop.Op   (Replicate)
+import           Type.Class.Higher
 import           Type.Class.Witness
 
 type family MaybeToList (a :: Maybe k) = (b :: [k]) | b -> a where
@@ -88,3 +90,4 @@ zipP = \case
     x :< xs -> \case
       y:< ys -> (x :&: y) :< zipP xs ys
 
+instance Eq1 Finite

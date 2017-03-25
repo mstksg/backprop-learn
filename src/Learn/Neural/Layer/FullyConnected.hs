@@ -14,10 +14,11 @@ module Learn.Neural.Layer.FullyConnected (
   ) where
 
 import           Data.Kind
+import           Data.Singletons.Prelude
 import           Data.Singletons.TypeLits
 import           GHC.Generics                   (Generic)
 import           Learn.Neural.Layer
-import           Numeric.BLASTensor
+import           Numeric.BLAS
 import           Numeric.Backprop
 import           Statistics.Distribution
 import           Statistics.Distribution.Normal
@@ -25,7 +26,7 @@ import qualified Generics.SOP                   as SOP
 
 data FullyConnected :: Type
 
-instance (Num (b (BM o i)), Num (b (BV o))) => Num (CParam FullyConnected b (BV i) (BV o)) where
+instance (Num (b '[o,i]), Num (b '[o])) => Num (CParam FullyConnected b '[i] '[o]) where
     FCP w1 b1 + FCP w2 b2 = FCP (w1 + w2) (b1 + b2)
     FCP w1 b1 - FCP w2 b2 = FCP (w1 - w2) (b1 - b2)
     FCP w1 b1 * FCP w2 b2 = FCP (w1 * w2) (b1 * b2)
@@ -34,12 +35,12 @@ instance (Num (b (BM o i)), Num (b (BV o))) => Num (CParam FullyConnected b (BV 
     abs    (FCP w b) = FCP (abs    w) (abs    b)
     fromInteger x = FCP (fromInteger x) (fromInteger x)
 
-instance (Fractional (b (BM o i)), Fractional (b (BV o))) => Fractional (CParam FullyConnected b (BV i) (BV o)) where
+instance (Fractional (b '[o,i]), Fractional (b '[o])) => Fractional (CParam FullyConnected b '[i] '[o]) where
     FCP w1 b1 / FCP w2 b2 = FCP (w1 / w2) (b1 / b2)
     recip (FCP w b)       = FCP (recip w) (recip b)
     fromRational x        = FCP (fromRational x) (fromRational x)
 
-instance Num (CState FullyConnected b (BV i) (BV o)) where
+instance Num (CState FullyConnected b '[i] '[o]) where
     _ + _         = FCS
     _ * _         = FCS
     _ - _         = FCS
@@ -48,47 +49,49 @@ instance Num (CState FullyConnected b (BV i) (BV o)) where
     signum _      = FCS
     fromInteger _ = FCS
 
-instance Fractional (CState FullyConnected b (BV i) (BV o)) where
+instance Fractional (CState FullyConnected b '[i] '[o]) where
     _ / _          = FCS
     recip _        = FCS
     fromRational _ = FCS
 
 
 
-deriving instance Generic (CParam FullyConnected b (BV i) (BV o))
-instance SOP.Generic (CParam FullyConnected b (BV i) (BV o))
+deriving instance Generic (CParam FullyConnected b '[i] '[o])
+instance SOP.Generic (CParam FullyConnected b '[i] '[o])
 
-instance (BLASTensor b, KnownNat i, KnownNat o, Fractional (b (BM o i)), Fractional (b (BV o)))
-        => Component FullyConnected b (BV i) (BV o) where
-    data CParam  FullyConnected b (BV i) (BV o) =
-            FCP { _fcWeights :: !(b (BM o i))
-                , _fcBiases  :: !(b (BV o))
+instance (BLAS b, KnownNat i, KnownNat o, Fractional (b '[o,i]), Fractional (b '[o]))
+        => Component FullyConnected b '[i] '[o] where
+    data CParam  FullyConnected b '[i] '[o] =
+            FCP { _fcWeights :: !(b '[o,i])
+                , _fcBiases  :: !(b '[o])
                 }
-    data CState  FullyConnected b (BV i) (BV o) = FCS
-    type CConstr FullyConnected b (BV i) (BV o) = Num (b (BM o i))
-    data CConf   FullyConnected b (BV i) (BV o) = forall d. ContGen d => FCC d
+    data CState  FullyConnected b '[i] '[o] = FCS
+    type CConstr FullyConnected b '[i] '[o] = Num (b '[o,i])
+    data CConf   FullyConnected b '[i] '[o] = forall d. ContGen d => FCC d
 
     componentOp = componentOpDefault
 
-    initParam (SBV i) so@(SBV o) (FCC d) g = do
-        w <- genA (SBM o i) $ \_ ->
-          realToFrac <$> genContVar d g
-        b <- genA so $ \_ ->
-          realToFrac <$> genContVar d g
-        return $ FCP w b
+    initParam = \case
+      i `SCons` SNil -> \case
+        so@(o `SCons` SNil) -> \(FCC d) g -> do
+          w <- genA (o `SCons` (i `SCons` SNil)) $ \_ ->
+            realToFrac <$> genContVar d g
+          b <- genA so $ \_ ->
+            realToFrac <$> genContVar d g
+          return $ FCP w b
 
     initState _ _ _ _ = return FCS
 
     defConf = FCC (normalDistr 0 0.5)
 
-instance (BLASTensor b, KnownNat i, KnownNat o, Fractional (b (BM o i)), Fractional (b (BV o)))
-        => ComponentFF FullyConnected b (BV i) (BV o) where
+instance (BLAS b, KnownNat i, KnownNat o, Fractional (b '[o,i]), Fractional (b '[o]))
+        => ComponentFF FullyConnected b '[i] '[o] where
     componentOpFF = bpOp . withInps $ \(x :< p :< Ø) -> do
         w :< b :< Ø <- gTuple #<~ p
         y <- matVecOp ~$ (w :< x :< Ø)
         z <- (+.)     ~$ (y :< b :< Ø)
         return . only $ z
 
-instance (BLASTensor b, KnownNat i, KnownNat o, Fractional (b (BM o i)), Fractional (b (BV o)))
-        => ComponentLayer r FullyConnected b (BV i) (BV o) where
+instance (BLAS b, KnownNat i, KnownNat o, Fractional (b '[o,i]), Fractional (b '[o]))
+        => ComponentLayer r FullyConnected b '[i] '[o] where
     componentRunMode = RMIsFF

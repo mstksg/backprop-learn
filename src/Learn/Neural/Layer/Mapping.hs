@@ -40,7 +40,7 @@ import           Data.Type.Util
 import           Data.Type.Vector hiding         (head')
 import           GHC.Generics                    (Generic)
 import           Learn.Neural.Layer
-import           Numeric.BLASTensor
+import           Numeric.BLAS
 import           Numeric.Backprop
 import           Numeric.Backprop.Iso
 import           Numeric.Backprop.Op
@@ -88,7 +88,7 @@ instance Fractional (CState (Mapping s) b i i) where
     recip _        = MapS
     fromRational _ = MapS
 
-instance (BLASTensor b, Reifies s MapFunc, SingI i) => Component (Mapping s) b i i where
+instance (BLAS b, Reifies s MapFunc, SingI i) => Component (Mapping s) b i i where
     data CParam (Mapping s) b i i = MapP
     data CState (Mapping s) b i i = MapS
     data CConf  (Mapping s) b i i = MapC
@@ -99,7 +99,7 @@ instance (BLASTensor b, Reifies s MapFunc, SingI i) => Component (Mapping s) b i
     initState _ _ _ _ = return MapS
     defConf           = MapC
 
-instance (BLASTensor b, Reifies s MapFunc, SingI i) => ComponentFF (Mapping s) b i i where
+instance (BLAS b, Reifies s MapFunc, SingI i) => ComponentFF (Mapping s) b i i where
     componentOpFF = bpOp . withInps $ \(x :< _ :< Ø) -> do
         y <- tmapOp (runMapFunc mf) ~$ (x :< Ø)
         return . only $ y
@@ -107,7 +107,7 @@ instance (BLASTensor b, Reifies s MapFunc, SingI i) => ComponentFF (Mapping s) b
         mf :: MapFunc
         mf = reflect (Proxy @s)
 
-instance (BLASTensor b, Reifies s MapFunc, SingI i) => ComponentLayer r (Mapping s) b i i where
+instance (BLAS b, Reifies s MapFunc, SingI i) => ComponentLayer r (Mapping s) b i i where
     componentRunMode = RMIsFF
 
 data CommonMap :: Type where
@@ -182,14 +182,14 @@ instance Fractional (CState (PMapping s n) b i i) where
     fromRational _ = PMapS
 
 
-pMapP :: Known TCN.Nat n => Iso' (CParam (PMapping s n) b i i) (Tuple (Replicate n (ElemT b)))
+pMapP :: Known TCN.Nat n => Iso' (CParam (PMapping s n) b i i) (Tuple (Replicate n (Scalar b)))
 pMapP = gTuple . iso (vecToProd . getI . head') (only_ . prodToVec' known)
 
 deriving instance Generic (CParam (PMapping s n) b i i)
 instance SOP.Generic (CParam (PMapping s n) b i i)
 
-instance (BLASTensor b, Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => Component (PMapping s n) b i i where
-    data CParam (PMapping s n) b i i = PMapP { _getPMapP :: !(Vec n (ElemT b)) }
+instance (BLAS b, Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => Component (PMapping s n) b i i where
+    data CParam (PMapping s n) b i i = PMapP { _getPMapP :: !(Vec n (Scalar b)) }
     data CState (PMapping s n) b i i = PMapS
     data CConf  (PMapping s n) b i i = PMapC { _getPMapC :: !(Vec n (SomeC ContGen I)) }
 
@@ -206,23 +206,23 @@ instance (BLASTensor b, Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => Com
         pmf :: PMapFunc n
         pmf = reflect (Proxy @s)
 
-instance (BLASTensor b, Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => ComponentFF (PMapping s n) b i i where
+instance (BLAS b, Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => ComponentFF (PMapping s n) b i i where
     componentOpFF
         :: forall q. Num (b i)
         => OpB q '[b i, CParam (PMapping s n) b i i] '[b i]
-    componentOpFF = bpOp . withInps $ \(x :< mp :< Ø) -> replWit @n @Num @(ElemT b) n Wit //
-                                                         replLen @n @(ElemT b) n          // do
-        ps :: Prod (BVar q '[b i, CParam (PMapping s n) b i i]) (Replicate n (ElemT b))
-          <- replWit @n @Num @(ElemT b) n Wit //
-             replLen @n @(ElemT b) n //
+    componentOpFF = bpOp . withInps $ \(x :< mp :< Ø) -> replWit @n @Num @(Scalar b) n Wit //
+                                                         replLen @n @(Scalar b) n          // do
+        ps :: Prod (BVar q '[b i, CParam (PMapping s n) b i i]) (Replicate n (Scalar b))
+          <- replWit @n @Num @(Scalar b) n Wit //
+             replLen @n @(Scalar b) n //
                pMapP #<~ mp
-        let psV :: VecT n (BVar q '[b i, CParam (PMapping s n) b i i]) (ElemT b)
+        let psV :: VecT n (BVar q '[b i, CParam (PMapping s n) b i i]) (Scalar b)
             psV = prodToVec' n ps
         psTV :: VecT n (BVar q '[b i, CParam (PMapping s n) b i i]) (b i)
           <- vtraverse (\p -> tkonstOp sing ~$ (p :< Ø)) psV
         let psT :: Prod (BVar q '[b i, CParam (PMapping s n) b i i]) (Replicate n (b i))
             psT = vecToProd psTV
-        y <- tzipNOp @_ @_ @_ @('TCN.S n) (\case x' :* psT' -> runPMapFunc pmf (x' :&: psT'))
+        y <- tzipNOp @_ @_ @('TCN.S n) (\case x' :* psT' -> runPMapFunc pmf (x' :&: psT'))
                ~$ (x :< psT)
         return $ only y
       where
@@ -231,7 +231,7 @@ instance (BLASTensor b, Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => Com
         pmf :: PMapFunc n
         pmf = reflect (Proxy @s)
 
-instance (BLASTensor b, Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => ComponentLayer r (PMapping s n) b i i where
+instance (BLAS b, Reifies s (PMapFunc n), SingI i, Known TCN.Nat n) => ComponentLayer r (PMapping s n) b i i where
     componentRunMode = RMIsFF
 
 data CommonPMap :: Type where

@@ -11,7 +11,7 @@ module Learn.Neural.Layer.Identity (
 
 import           Data.Kind
 import           Learn.Neural.Layer
-import           Numeric.BLASTensor
+import           Numeric.BLAS
 import           Numeric.Backprop
 
 data Ident :: Type
@@ -44,7 +44,7 @@ instance Fractional (CState Ident b i i) where
     recip _        = IdS
     fromRational _ = IdS
 
-instance BLASTensor b => Component Ident b i i where
+instance BLAS b => Component Ident b i i where
     data CParam Ident b i i = IdP
     data CState Ident b i i = IdS
     data CConf  Ident b i i = IdC
@@ -55,9 +55,9 @@ instance BLASTensor b => Component Ident b i i where
     initState _ _ _ _ = return IdS
     defConf           = IdC
 
-instance BLASTensor b => ComponentFF Ident b i i where
+instance BLAS b => ComponentFF Ident b i i where
     componentOpFF = bpOp . withInps $ \(x :< _ :< Ø) ->
       return . only $ x
 
-instance BLASTensor b => ComponentLayer r Ident b i i where
+instance BLAS b => ComponentLayer r Ident b i i where
     componentRunMode = RMIsFF

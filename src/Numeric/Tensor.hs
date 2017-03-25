@@ -17,14 +17,17 @@ module Numeric.Tensor (
   , tsumOp
   , scaleOp
   , oneHot
+  , Finite
   ) where
 
+import           Data.Finite
 import           Data.Kind
 import           Data.Reflection
 import           Data.Singletons
 import           Data.Type.Util
 import           Data.Type.Vector hiding     (head')
-import           Numeric.AD
+import           GHC.TypeLits
+import           Numeric.AD hiding           (Scalar)
 import           Numeric.AD.Internal.Reverse
 import           Numeric.AD.Mode.Forward     (Forward)
 import           Numeric.Backprop.Op
@@ -32,32 +35,32 @@ import           Type.Class.Higher
 import           Type.Class.Known
 import qualified Data.Type.Nat               as TCN
 
-class (SingKind k, RealFloat (ElemT t), Eq1 (IndexT t))
-        => Tensor (t :: k -> Type) where
-    type IndexT t :: k -> Type
-    type ElemT  t :: Type
+class RealFloat (Scalar t)
+        => Tensor (t :: [Nat] -> Type) where
+    -- type IndexT t :: k -> Type
+    type Scalar t :: Type
 
     genA
         :: Applicative f
         => Sing s
-        -> (IndexT t s -> f (ElemT t))
+        -> (Prod Finite s -> f (Scalar t))
         -> f (t s)
 
     gen :: Sing s
-        -> (IndexT t s -> ElemT t)
+        -> (Prod Finite s -> Scalar t)
         -> t s
     gen s f = getI $ genA s (I . f)
 
-    tkonst :: Sing s -> ElemT t -> t s
+    tkonst :: Sing s -> Scalar t -> t s
     tkonst s x = gen s $ \_ -> x
 
-    tsum :: SingI s => t s -> ElemT t
-    tmap :: SingI s => (ElemT t -> ElemT t) -> t s -> t s
+    tsum :: SingI s => t s -> Scalar t
+    tmap :: SingI s => (Scalar t -> Scalar t) -> t s -> t s
     tmap f x = tzipN (\case I x' :* ØV -> f x') (x :* ØV)
 
     tzip
         :: SingI s
-        => (ElemT t -> ElemT t -> ElemT t)
+        => (Scalar t -> Scalar t -> Scalar t)
         -> t s
         -> t s
         -> t s
@@ -65,7 +68,7 @@ class (SingKind k, RealFloat (ElemT t), Eq1 (IndexT t))
 
     tzipN
         :: SingI s
-        => (Vec n (ElemT t) -> ElemT t)
+        => (Vec n (Scalar t) -> Scalar t)
         -> VecT n t s
         -> t s
     tzipN f xs = gen sing $ \i ->
@@ -78,15 +81,15 @@ class (SingKind k, RealFloat (ElemT t), Eq1 (IndexT t))
 
     tindex
         :: SingI s
-        => IndexT t s
+        => Prod Finite s
         -> t s
-        -> ElemT t
+        -> Scalar t
 
     {-# MINIMAL genA, tsum, tsize, tindex #-}
 
 tmapOp
     :: (Tensor t, SingI s)
-    => (forall q. AD q (Forward (ElemT t)) -> AD q (Forward (ElemT t)))
+    => (forall q. AD q (Forward (Scalar t)) -> AD q (Forward (Scalar t)))
     -> Op '[t s] '[t s]
 tmapOp f = op1' $ \x ->
     let y  = tmap (fst . diff' f) x
@@ -94,8 +97,8 @@ tmapOp f = op1' $ \x ->
     in  (only_ y, maybe dy (tzip (*) dy) . head')
 
 tzipNOp
-    :: forall k t (s :: k) n. (Tensor t, SingI s, Known TCN.Nat n)
-    => (forall q. Reifies q Tape => Vec n (Reverse q (ElemT t)) -> Reverse q (ElemT t))
+    :: forall t s n. (Tensor t, SingI s, Known TCN.Nat n)
+    => (forall q. Reifies q Tape => Vec n (Reverse q (Scalar t)) -> Reverse q (Scalar t))
     -> Op (Replicate n (t s)) '[t s]
 tzipNOp f = Op $ \xs ->
     let n :: TCN.Nat n
@@ -105,14 +108,14 @@ tzipNOp f = Op $ \xs ->
         dy  = vgen n $ \i -> I $ tzipN (index' i . grad f) xs'
     in  (only_ y, vecToProd . maybe dy (\g -> tzip (*) g <$> dy) . head')
 
-tkonstOp :: forall t s. Tensor t => Sing s -> Op '[ElemT t] '[t s]
+tkonstOp :: forall t s. Tensor t => Sing s -> Op '[Scalar t] '[t s]
 tkonstOp s = withSingI s $ op1' $ \x ->
     let res = tkonst s x
     in  (only_ res, maybe (fromIntegral (tsize res)) tsum . head')
 
 tsumOp
     :: forall t s. (Tensor t, SingI s)
-    => Op '[ t s ] '[ ElemT t ]
+    => Op '[ t s ] '[ Scalar t ]
 tsumOp = op1' $ \x ->
     ( only_ (tsum x)
     , \case Nothing :< Ø -> tkonst sing 1
@@ -121,12 +124,12 @@ tsumOp = op1' $ \x ->
 
 scaleOp
     :: forall t s. (Tensor t, SingI s, Num (t s))
-    => Op '[ ElemT t, t s ] '[ t s ]
+    => Op '[ Scalar t, t s ] '[ t s ]
 scaleOp = op2' $ \α x ->
     ( only_ (tmap (α *) x)
     , \case Nothing :< Ø -> (tsum x      , tkonst sing α    )
             Just g  :< Ø -> (tsum (x * g), tkonst sing α * g)
     )
 
-oneHot :: (Tensor t, SingI s) => IndexT t s -> t s
+oneHot :: (Tensor t, SingI s) => Prod Finite s -> t s
 oneHot i = gen sing $ \j -> if i `eq1` j then 1 else 0

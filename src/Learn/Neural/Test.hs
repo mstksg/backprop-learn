@@ -13,22 +13,22 @@ module Learn.Neural.Test (
 import           GHC.TypeLits
 import           Learn.Neural.Layer
 import           Learn.Neural.Network
-import           Numeric.BLASTensor
+import           Numeric.BLAS
 import qualified Control.Foldl        as F
 
-type TestFunc o = forall b. (BLASTensor b, Num (b o)) => b o -> b o -> Double
+type TestFunc o = forall b. (BLAS b, Num (b o)) => b o -> b o -> Double
 
-maxTest :: KnownNat n => TestFunc (BV n)
+maxTest :: KnownNat n => TestFunc '[n]
 maxTest x y | iamax x == iamax y = 1
             | otherwise          = 0
 
-rmseTest :: KnownNat n => TestFunc (BV n)
+rmseTest :: KnownNat n => TestFunc '[n]
 rmseTest x y = realToFrac $ e `dot` e
   where
     e = axpy (-1) x y
 
 testNet
-    :: (BLASTensor b, Num (b i), Num (b o))
+    :: (BLAS b, Num (b i), Num (b o))
     => TestFunc o
     -> SomeNet 'FeedForward b i o
     -> b i
@@ -40,7 +40,7 @@ testNet tf = \case
       in  tf y t
 
 testNetList
-    :: (BLASTensor b, Num (b i), Num (b o))
+    :: (BLAS b, Num (b i), Num (b o))
     => TestFunc o
     -> SomeNet 'FeedForward b i o
     -> [(b i, b o)]
