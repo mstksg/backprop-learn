@@ -31,50 +31,11 @@ import           Data.Finite
 import           Data.Kind
 import           Data.Maybe
 import           Data.Singletons
-import           Data.Singletons.Prelude
-import           Data.Singletons.TH
-import           GHC.TypeLits
+import           Data.Singletons.TypeLits
 import           Numeric.Backprop.Op
 import           Numeric.Tensor
-import           Type.Class.Higher
-
--- $(singletons [d|
---   data [Nat]' a = BV !a | BM !a !a
---     deriving (Show, Eq, Ord, Functor)
-
---   bshapeSize :: Num a => [Nat]' a -> a
---   bshapeSize (BV x  ) = x
---   bshapeSize (BM x y) = x * y
---   |])
-
--- type [Nat] = [Nat]' Nat
--- type BV = 'BV
--- type BM = 'BM
-
--- data BIndex :: [Nat] -> Type where
---     BVIx :: Finite n -> BIndex '[n]
---     BMIx :: Finite m -> Finite n -> BIndex (BM m n)
-
--- deriving instance Eq (BIndex s)
--- instance Eq1 BIndex where
---     eq1 = \case
---       BVIx i -> \case
---         BVIx i' -> i == i'
---       BMIx i j -> \case
---         BMIx i' j' -> i == i' && j == j'
---     neq1 = \case
---       BVIx i -> \case
---         BVIx i' -> i /= i'
---       BMIx i j -> \case
---         BMIx i' j' -> i /= i' || j /= j'
-
 
 class Tensor b => BLAS (b :: [Nat] -> Type) where
-
-    bkonst
-        :: Sing s
-        -> Scalar b
-        -> b s
 
     transp
         :: (KnownNat m, KnownNat n)
@@ -182,7 +143,7 @@ matVecOp
 matVecOp = op2' $ \a x ->
     ( only_ (matVec a x)
     , (\g -> (outer g x, vecMat g a))
-    . fromMaybe (bkonst sing 1)
+    . fromMaybe (tkonst sing 1)
     . head'
     )
 

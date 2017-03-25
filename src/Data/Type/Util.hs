@@ -9,6 +9,7 @@
 {-# LANGUAGE TypeApplications       #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE TypeOperators          #-}
+{-# OPTIONS_GHC -fno-warn-orphans   #-}
 
 module Data.Type.Util (
     MaybeToList

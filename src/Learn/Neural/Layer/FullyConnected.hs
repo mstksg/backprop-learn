@@ -79,6 +79,8 @@ instance (BLAS b, KnownNat i, KnownNat o, Fractional (b '[o,i]), Fractional (b '
           b <- genA so $ \_ ->
             realToFrac <$> genContVar d g
           return $ FCP w b
+        _ -> error "inaccessible."
+      _ -> error "inaccessible."
 
     initState _ _ _ _ = return FCS
 

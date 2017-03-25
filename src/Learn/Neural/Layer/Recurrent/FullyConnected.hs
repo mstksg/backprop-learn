@@ -110,6 +110,8 @@ instance ( BLAS b
           b <- genA so $ \_ ->
             realToFrac <$> genContVar d g
           return $ FCRP wI wS b
+        _ -> error "inaccessible"
+      _ -> error "inaccessible"
     initState _ so (FCRC d) g =
         FCRS <$> genA so (\_ -> realToFrac <$> genContVar d g)
 
@@ -206,6 +208,8 @@ instance ( BLAS b
           b <- genA so $ \_ ->
             realToFrac <$> genContVar d g
           return $ FCRP' wI wS b
+        _ -> error "inaccessible"
+      _ -> error "inaccessible"
 
     initState _ so (FCRC' d) g =
         FCRS' <$> genA so (\_ -> realToFrac <$> genContVar d g)

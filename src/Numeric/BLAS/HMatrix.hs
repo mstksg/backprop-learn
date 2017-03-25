@@ -10,6 +10,7 @@
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeFamilyDependencies     #-}
 {-# LANGUAGE TypeInType                 #-}
+{-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE UndecidableInstances       #-}
 
 module Numeric.BLAS.HMatrix (
@@ -20,6 +21,7 @@ module Numeric.BLAS.HMatrix (
 import           Control.DeepSeq
 import           Data.Finite.Internal
 import           Data.Foldable
+import           Data.Function
 import           Data.Kind
 import           Data.Maybe
 import           Data.MonoTraversable
@@ -30,11 +32,14 @@ import           Data.Type.Product
 import           GHC.Generics                 (Generic)
 import           Numeric.BLAS hiding          (outer)
 import           Numeric.LinearAlgebra.Static
+import qualified Data.Vector.Sized            as V
 import qualified Numeric.LinearAlgebra        as LA
 
 type family HM' (s :: [Nat]) = (h :: Type) | h -> s where
-    HM' '[n]   = R n
-    HM' '[m,n] = L m n
+    HM' '[]            = Double
+    HM' '[n]           = R n
+    HM' '[m,n]         = L m n
+    HM' (n ': m ': ms) = V.Vector n (HM' (m ': ms))
 
 newtype HM :: [Nat] -> Type where
     HM  :: { getHM :: HM' b }
@@ -44,10 +49,6 @@ newtype HM :: [Nat] -> Type where
 type instance Element (HM s) = Double
 
 instance BLAS HM where
-
-    bkonst = \case
-      SNat `SCons` SNil      -> HM . konst
-      SNat `SCons` (SNat `SCons` SNil) -> HM . konst
 
     transp (HM x) = HM (tr x)
 
@@ -76,14 +77,18 @@ instance Tensor HM where
     type Scalar  HM = Double
 
     gen = \case
+      SNil -> \f -> HM $ f Ø
       n@SNat `SCons` SNil -> \f -> HM . fromJust . create $
         LA.build (fromIntegral (fromSing n))
           (f . only . Finite . round)
       m@SNat `SCons` (n@SNat `SCons` SNil) -> \f -> HM . fromJust . create $
         LA.build (fromIntegral (fromSing m), fromIntegral (fromSing n))
           (\i j -> f (Finite (round i) :< Finite (round j) :< Ø))
+      SNat `SCons` ns@(_ `SCons` (_ `SCons` _)) -> \f -> HM $
+        V.generate_ $ \i -> getHM $ gen ns (\js -> f (i :< js))
 
     genA = \case
+      SNil -> \f -> HM <$> f Ø
       n@SNat `SCons` SNil -> \f ->
         fmap (HM . vector) . traverse (f . only . Finite) $
           [0 .. fromSing n - 1]
@@ -92,15 +97,24 @@ instance Tensor HM where
           [ Finite i :< Finite j :< Ø | j <- [0 .. fromSing m - 1]
                                       , i <- [0 .. fromSing n - 1]
           ]
+      SNat `SCons` ns@(_ `SCons` (_ `SCons` _)) -> \f -> fmap HM $
+        sequenceA . V.generate_ $ \i -> getHM <$> genA ns (\js -> f (i :< js))
 
     tkonst = \case
-      SNat `SCons` SNil      -> HM . konst
-      SNat `SCons` (SNat `SCons` SNil) -> HM . konst
+      SNil                                      -> HM
+      SNat `SCons` SNil                         -> HM . konst
+      SNat `SCons` (SNat `SCons` SNil)          -> HM . konst
+      SNat `SCons` ns@(_ `SCons` (_ `SCons` _)) -> HM . pure . getHM . tkonst ns
 
     tsum :: forall s. SingI s => HM s -> Double
-    tsum = case sing @_ @s of
-      SNat `SCons` SNil      -> LA.sumElements . extract . getHM
-      SNat `SCons` (SNat `SCons` SNil) -> LA.sumElements . extract . getHM
+    tsum = go sing . getHM
+      where
+        go :: Sing ns -> HM' ns -> Double
+        go = \case
+          SNil                                      -> id
+          SNat `SCons` SNil                         -> LA.sumElements . extract
+          SNat `SCons` (SNat `SCons` SNil)          -> LA.sumElements . extract
+          SNat `SCons` ns@(_ `SCons` (_ `SCons` _)) -> sum . fmap (go ns)
 
     tmap :: forall s. SingI s => (Double -> Double) -> HM s -> HM s
     tmap = omap
@@ -109,11 +123,17 @@ instance Tensor HM where
         :: forall s. SingI s
         => (Double -> Double -> Double)
         -> HM s -> HM s -> HM s
-    tzip f (HM x) (HM y) = case sing @_ @s of
-      SNat `SCons` SNil      -> HM $ zipWithVector f x y
-      SNat `SCons` (SNat `SCons` SNil) -> HM $ matrix (zipWith f (concat . LA.toLists . extract $ x)
-                                              (concat . LA.toLists . extract $ y)
-                                   )
+    tzip f (HM x0) (HM y0) = HM $ go sing x0 y0
+      where
+        go :: Sing ns -> HM' ns -> HM' ns -> HM' ns
+        go = \case
+          SNil                             -> f
+          SNat `SCons` SNil                -> zipWithVector f
+          SNat `SCons` (SNat `SCons` SNil) ->
+            (\xs ys -> matrix (zipWith f xs ys))
+               `on` (concat . LA.toLists . extract)
+          SNat `SCons` ns@(_ `SCons` (_ `SCons` _)) ->
+             V.zipWith (go ns)
 
     tsize
         :: forall s. SingI s
@@ -126,23 +146,38 @@ instance Tensor HM where
         => Prod Finite s
         -> HM s
         -> Double
-    tindex = case sing @_ @s of
-      SNat `SCons` SNil -> \case
-        i :< Ø -> \case
-          HM x -> extract x `LA.atIndex` fromIntegral i
-      SNat `SCons` (SNat `SCons` SNil) -> \case
-        i :< j :< Ø -> \case
-          HM x -> extract x `LA.atIndex` (fromIntegral i, fromIntegral j)
-
+    tindex ix0 = go sing ix0 . getHM
+      where
+        go :: Sing ns -> Prod Finite ns -> HM' ns -> Double
+        go = \case
+          SNil -> \case
+            Ø -> id
+          SNat `SCons` SNil -> \case
+            i :< Ø -> (`LA.atIndex` fromIntegral i) . extract
+          SNat `SCons` (SNat `SCons` SNil) -> \case
+            i :< j :< Ø -> (`LA.atIndex` (fromIntegral i, fromIntegral j)) . extract
+          SNat `SCons` ns@(_ `SCons` (_ `SCons` _)) -> \case
+            i :< js -> go ns js . (`V.index` i)
+              
 instance SingI s => MonoFunctor (HM s) where
-    omap f (HM x) = case sing @_ @s of
-      SNat `SCons` SNil      -> HM (dvmap f x)
-      SNat `SCons` (SNat `SCons` SNil) -> HM (dmmap f x)
+    omap f = HM . go sing . getHM
+      where
+        go :: Sing ns -> HM' ns -> HM' ns
+        go = \case
+          SNil                                      -> f
+          SNat `SCons` SNil                         -> dvmap f
+          SNat `SCons` (SNat `SCons` SNil)          -> dmmap f
+          SNat `SCons` ns@(_ `SCons` (_ `SCons` _)) -> fmap (go ns)
 
 hmElems :: forall s. SingI s => HM s -> [Double]
-hmElems = case sing @_ @s of
-    SNat `SCons` SNil      -> LA.toList . extract . getHM
-    SNat `SCons` (SNat `SCons` SNil) -> concat . LA.toLists . extract . getHM
+hmElems = go sing . getHM
+  where
+    go :: Sing ns -> HM' ns -> [Double]
+    go = \case
+      SNil                                      -> (:[])
+      SNat `SCons` SNil                         -> LA.toList . extract
+      SNat `SCons` (SNat `SCons` SNil)          -> concat . LA.toLists . extract
+      SNat `SCons` ns@(_ `SCons` (_ `SCons` _)) -> foldMap (go ns)
 
 instance SingI s => MonoFoldable (HM s) where
     ofoldMap f     = foldMap f . hmElems
@@ -152,9 +187,7 @@ instance SingI s => MonoFoldable (HM s) where
     oall f         = all f . hmElems
     oany f         = any f . hmElems
     onull          = (== 0) . olength
-    olength        = case sing @_ @s of
-      SNat `SCons` SNil      -> size . getHM
-      SNat `SCons` (SNat `SCons` SNil) -> uncurry (*) . size . getHM
+    olength _      = fromIntegral (product (fromSing (sing @_ @s)))
     olength64      = fromIntegral . olength
     ocompareLength = ocompareLength . hmElems
     otraverse_ f   = traverse_ f . hmElems

@@ -11,6 +11,8 @@
 
 module Numeric.Tensor (
     Tensor(..)
+  , fromScalar
+  , toScalar
   , tmapOp
   , tzipNOp
   , tkonstOp
@@ -23,17 +25,17 @@ module Numeric.Tensor (
 import           Data.Finite
 import           Data.Kind
 import           Data.Reflection
-import           Data.Singletons
+import           Data.Singletons.Prelude hiding (Reverse)
+import           Data.Singletons.TypeLits
 import           Data.Type.Util
-import           Data.Type.Vector hiding     (head')
-import           GHC.TypeLits
-import           Numeric.AD hiding           (Scalar)
+import           Data.Type.Vector hiding        (head')
+import           Numeric.AD hiding              (Scalar)
 import           Numeric.AD.Internal.Reverse
-import           Numeric.AD.Mode.Forward     (Forward)
+import           Numeric.AD.Mode.Forward        (Forward)
 import           Numeric.Backprop.Op
 import           Type.Class.Higher
 import           Type.Class.Known
-import qualified Data.Type.Nat               as TCN
+import qualified Data.Type.Nat                  as TCN
 
 class RealFloat (Scalar t)
         => Tensor (t :: [Nat] -> Type) where
@@ -41,12 +43,12 @@ class RealFloat (Scalar t)
     type Scalar t :: Type
 
     genA
-        :: Applicative f
+        :: forall f s. Applicative f
         => Sing s
         -> (Prod Finite s -> f (Scalar t))
         -> f (t s)
 
-    gen :: Sing s
+    gen :: forall s. Sing s
         -> (Prod Finite s -> Scalar t)
         -> t s
     gen s f = getI $ genA s (I . f)
@@ -86,6 +88,12 @@ class RealFloat (Scalar t)
         -> Scalar t
 
     {-# MINIMAL genA, tsum, tsize, tindex #-}
+
+fromScalar :: Tensor t => Scalar t -> t '[]
+fromScalar x = gen SNil (\_ -> x)
+
+toScalar :: Tensor t => t '[] -> Scalar t
+toScalar = tindex Ø
 
 tmapOp
     :: (Tensor t, SingI s)
@@ -133,3 +141,4 @@ scaleOp = op2' $ \α x ->
 
 oneHot :: (Tensor t, SingI s) => Prod Finite s -> t s
 oneHot i = gen sing $ \j -> if i `eq1` j then 1 else 0
+
