@@ -102,10 +102,11 @@ class RealFloat (Scalar t)
         -> Scalar t
 
     tconv
-        :: DoubleProd Sing m s
-        -> t m
+        :: KnownNat n
+        => DoubleProd Sing m s
+        -> t (n ': m)
         -> t s
-        -> t s
+        -> t (n ': s)
 
     treshape
         :: (SingI s1, Product s1 ~ Product s2)
