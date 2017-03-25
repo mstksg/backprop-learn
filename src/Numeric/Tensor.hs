@@ -1,18 +1,22 @@
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE GADTs               #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE PolyKinds           #-}
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE TypeFamilies        #-}
-{-# LANGUAGE TypeInType          #-}
-{-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeApplications      #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeInType            #-}
+{-# LANGUAGE TypeOperators         #-}
 
 module Numeric.Tensor (
     Tensor(..)
+  , DoubleProd(..)
   , fromScalar
   , toScalar
+  , fromList
   , tmapOp
   , tzipNOp
   , tkonstOp
@@ -22,20 +26,22 @@ module Numeric.Tensor (
   , Finite
   ) where
 
+import           Control.Monad.Trans.State.Strict
 import           Data.Finite
 import           Data.Kind
+import           Data.List
 import           Data.Reflection
-import           Data.Singletons.Prelude hiding (Reverse)
+import           Data.Singletons.Prelude hiding   (Reverse)
 import           Data.Singletons.TypeLits
 import           Data.Type.Util
-import           Data.Type.Vector hiding        (head')
-import           Numeric.AD hiding              (Scalar)
+import           Data.Type.Vector hiding          (head')
+import           Numeric.AD hiding                (Scalar)
 import           Numeric.AD.Internal.Reverse
-import           Numeric.AD.Mode.Forward        (Forward)
+import           Numeric.AD.Mode.Forward          (Forward)
 import           Numeric.Backprop.Op
 import           Type.Class.Higher
 import           Type.Class.Known
-import qualified Data.Type.Nat                  as TCN
+import qualified Data.Type.Nat                    as TCN
 
 class RealFloat (Scalar t)
         => Tensor (t :: [Nat] -> Type) where
@@ -87,13 +93,40 @@ class RealFloat (Scalar t)
         -> t s
         -> Scalar t
 
-    {-# MINIMAL genA, tsum, tsize, tindex #-}
+    tconv
+        :: DoubleProd Sing m s
+        -> t m
+        -> t s
+        -> t s
+
+    {-# MINIMAL genA, tsum, tsize, tindex, tconv #-}
+
+data DoubleProd :: (k -> Type) -> [k] -> [k] -> Type where
+    DPZ :: DoubleProd f '[] '[]
+    DPS :: f a -> f b -> DoubleProd f as bs -> DoubleProd f (a ': as) (b ': bs)
+
+instance SingI a => Known Sing a where
+    type KnownC Sing a = SingI a
+    known = sing
+
+instance Known (DoubleProd f '[]) '[] where
+    known = DPZ
+
+instance (Known (DoubleProd f as) bs, Known f a, Known f b) => Known (DoubleProd f (a ': as)) (b ': bs) where
+    known = DPS known known known
 
 fromScalar :: Tensor t => Scalar t -> t '[]
 fromScalar x = gen SNil (\_ -> x)
 
 toScalar :: Tensor t => t '[] -> Scalar t
 toScalar = tindex Ø
+
+fromList
+    :: Tensor t
+    => Sing s
+    -> [Scalar t]
+    -> Maybe (t s)
+fromList s = evalStateT . genA s $ \_ -> StateT uncons
 
 tmapOp
     :: (Tensor t, SingI s)

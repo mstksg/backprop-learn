@@ -46,6 +46,7 @@ library
                      , reflection
                      , singletons
                      , statistics
+                     , transformers
                      , type-combinators
                      , vector
                      , vector-sized
