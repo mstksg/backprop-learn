@@ -10,10 +10,12 @@
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeInType            #-}
 {-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE UndecidableInstances  #-}
 
 module Numeric.Tensor (
     Tensor(..)
   , DoubleProd(..)
+  , Product, sProduct
   , fromScalar
   , toScalar
   , fromList
@@ -30,12 +32,14 @@ import           Control.Monad.Trans.State.Strict
 import           Data.Finite
 import           Data.Kind
 import           Data.List
+import           Data.Maybe
 import           Data.Reflection
 import           Data.Singletons.Prelude hiding   (Reverse)
 import           Data.Singletons.TypeLits
 import           Data.Type.Combinator.Singletons  ()
 import           Data.Type.Util
 import           Data.Type.Vector hiding          (head')
+import           GHC.TypeLits                     as TL
 import           Numeric.AD hiding                (Scalar)
 import           Numeric.AD.Internal.Reverse
 import           Numeric.AD.Mode.Forward          (Forward)
@@ -100,7 +104,27 @@ class RealFloat (Scalar t)
         -> t s
         -> t s
 
-    {-# MINIMAL genA, tsum, tsize, tindex, tconv #-}
+    treshape
+        :: (SingI s1, Product s1 ~ Product s2)
+        => Sing s2
+        -> t s1
+        -> t s2
+    treshape s = fromJust . fromList s . telems
+
+    telems
+        :: SingI s
+        => t s
+        -> [Scalar t]
+    {-# MINIMAL genA, tsum, tsize, tindex, tconv, telems #-}
+
+type family Product (ns :: [Nat]) :: Nat where
+    Product '[]       = 1
+    Product (n ': ns) = n TL.* (Product ns)
+
+sProduct :: Sing as -> Sing (Product as)
+sProduct = \case
+    SNil -> SNat
+    s `SCons` ss -> s %:* sProduct ss
 
 data DoubleProd :: (k -> Type) -> [k] -> [k] -> Type where
     DPZ :: DoubleProd f '[] '[]
@@ -157,7 +181,7 @@ tsumOp
 tsumOp = op1' $ \x ->
     ( only_ (tsum x)
     , \case Nothing :< Ø -> tkonst sing 1
-            Just g  :< Ø -> tkonst sing g 
+            Just g  :< Ø -> tkonst sing g
     )
 
 scaleOp

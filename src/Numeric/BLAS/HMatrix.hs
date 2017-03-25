@@ -17,10 +17,15 @@
 module Numeric.BLAS.HMatrix (
     HM(..)
   , HM'
+  , flatten
+  , unflatten
   ) where
 
 import           Control.Applicative
 import           Control.DeepSeq
+import           Control.Monad
+import           Control.Monad.Trans.State
+import           Data.Bifunctor
 import           Data.Finite.Internal
 import           Data.Foldable
 import           Data.Function
@@ -35,8 +40,11 @@ import           GHC.Generics                 (Generic)
 import           Numeric.BLAS hiding          (outer)
 import           Numeric.LinearAlgebra.Static
 import qualified Data.Vector                  as UV
+import qualified Data.Vector.Generic          as UVG
+import qualified Data.Vector.Generic.Sized    as VG
 import qualified Data.Vector.Sized            as V
 import qualified Data.Vector.Storable         as UVS
+import qualified Data.Vector.Storable.Sized   as VS
 import qualified Numeric.LinearAlgebra        as LA
 
 type family HM' (s :: [Nat]) = (h :: Type) | h -> s where
@@ -181,6 +189,49 @@ instance Tensor HM where
                 cl = im2col (hkonst s 0) xs
             in  fmap (hsum s . V.zipWith (go dps) ms) cl
 
+    treshape
+        :: (SingI s1, Product s1 ~ Product s2)
+        => Sing s2
+        -> HM s1
+        -> HM s2
+    treshape s = HM . hunflatten s . flatten
+
+    telems = helems
+
+flatten :: SingI s => HM s -> VS.Vector (Product s) Double
+flatten = hflatten sing . getHM
+
+unflatten :: SingI s => VS.Vector (Product s) Double -> HM s
+unflatten = HM . hunflatten sing
+
+hflatten
+    :: Sing s
+    -> HM' s
+    -> VS.Vector (Product s) Double
+hflatten = \case
+    SNil -> VS.singleton
+    SNat `SCons` SNil -> fromJust . VS.toSized . extract
+    sn@SNat `SCons` (sm@SNat `SCons` SNil) -> case sn %:* sm of
+      SNat -> fromJust . VS.toSized . LA.flatten . extract
+    SNat `SCons` ns@(_ `SCons` (_ `SCons` _)) ->
+      VG.convert . V.concatMap (VG.convert . hflatten ns)
+
+hunflatten
+    :: Sing s
+    -> VS.Vector (Product s) Double
+    -> HM' s
+hunflatten = \case
+    SNil -> VS.head
+    SNat `SCons` SNil -> fromJust . create . VS.fromSized
+    SNat `SCons` (sm@SNat `SCons` SNil) -> fromJust . create . LA.reshape (fromInteger (fromSing sm)) . VS.fromSized
+    sn@SNat `SCons` ns@(sm `SCons` (_ `SCons` _)) -> case sProduct ns of
+      SNat -> fromJust
+            . V.fromList
+            . evalState (replicateM (fromInteger (fromSing sn)) $
+                           hunflatten ns . fromJust . VS.toSized <$> state (UVS.splitAt (fromInteger (fromSing sm)))
+                        )
+            . VS.fromSized
+
 im2col
     :: forall m n a. (KnownNat m, KnownNat n)
     => a
@@ -261,8 +312,8 @@ instance SingI s => MonoFunctor (HM s) where
           SNat `SCons` (SNat `SCons` SNil)          -> dmmap f
           SNat `SCons` ns@(_ `SCons` (_ `SCons` _)) -> fmap (go ns)
 
-hmElems :: forall s. SingI s => HM s -> [Double]
-hmElems = go sing . getHM
+helems :: forall s. SingI s => HM s -> [Double]
+helems = go sing . getHM
   where
     go :: Sing ns -> HM' ns -> [Double]
     go = \case
@@ -272,28 +323,28 @@ hmElems = go sing . getHM
       SNat `SCons` ns@(_ `SCons` (_ `SCons` _)) -> foldMap (go ns)
 
 instance SingI s => MonoFoldable (HM s) where
-    ofoldMap f     = foldMap f . hmElems
-    ofoldr f z     = foldr f z . hmElems
-    ofoldl' f z    = foldl' f z . hmElems
-    otoList        = hmElems
-    oall f         = all f . hmElems
-    oany f         = any f . hmElems
+    ofoldMap f     = foldMap f . helems
+    ofoldr f z     = foldr f z . helems
+    ofoldl' f z    = foldl' f z . helems
+    otoList        = helems
+    oall f         = all f . helems
+    oany f         = any f . helems
     onull          = (== 0) . olength
     olength _      = fromIntegral (product (fromSing (sing @_ @s)))
     olength64      = fromIntegral . olength
-    ocompareLength = ocompareLength . hmElems
-    otraverse_ f   = traverse_ f . hmElems
-    ofor_ x        = for_ (hmElems x)
-    omapM_ f       = traverse_ f . hmElems
-    oforM_ x       = for_ (hmElems x)
-    ofoldlM f x    = foldlM f x . hmElems
-    ofoldMap1Ex f  = ofoldMap1Ex f . hmElems
-    ofoldr1Ex f    = ofoldr1Ex f . hmElems
-    ofoldl1Ex' f   = ofoldl1Ex' f . hmElems
-    headEx         = headEx . hmElems
-    lastEx         = lastEx . hmElems
-    maximumByEx f  = maximumByEx f . hmElems
-    minimumByEx f  = minimumByEx f . hmElems
+    ocompareLength = ocompareLength . helems
+    otraverse_ f   = traverse_ f . helems
+    ofor_ x        = for_ (helems x)
+    omapM_ f       = traverse_ f . helems
+    oforM_ x       = for_ (helems x)
+    ofoldlM f x    = foldlM f x . helems
+    ofoldMap1Ex f  = ofoldMap1Ex f . helems
+    ofoldr1Ex f    = ofoldr1Ex f . helems
+    ofoldl1Ex' f   = ofoldl1Ex' f . helems
+    headEx         = headEx . helems
+    lastEx         = lastEx . helems
+    maximumByEx f  = maximumByEx f . helems
+    minimumByEx f  = minimumByEx f . helems
 
 deriving instance NFData (HM' s)     => NFData (HM s)
 deriving instance Show (HM' s)       => Show (HM s)
