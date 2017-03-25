@@ -12,31 +12,43 @@
 </span><a name="line-12"></a><span class="hs-pragma">{-# LANGUAGE TypeInType                 #-}</span><span>
 </span><a name="line-13"></a><span class="hs-pragma">{-# LANGUAGE TypeOperators              #-}</span><span>
 </span><a name="line-14"></a><span class="hs-pragma">{-# LANGUAGE UndecidableInstances       #-}</span><span>
-</span><a name="line-15"></a><span>
-</span><a name="line-16"></a><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">BLAS</span><span class="hs-operator">.</span><span class="hs-identifier">HMatrix</span><span> </span><span class="hs-special">(</span><span>
-</span><a name="line-17"></a><span>    </span><a href="Numeric.BLAS.HMatrix.html#HM"><span class="hs-identifier hs-type">HM</span></a><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
-</span><a name="line-18"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Numeric.BLAS.HMatrix.html#HM%27"><span class="hs-identifier hs-type">HM'</span></a><span>
-</span><a name="line-19"></a><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
-</span><a name="line-20"></a><span>
-</span><a name="line-21"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Control</span><span class="hs-operator">.</span><span class="hs-identifier">DeepSeq</span><span>
-</span><a name="line-22"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Finite</span><span class="hs-operator">.</span><span class="hs-identifier">Internal</span><span>
-</span><a name="line-23"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Foldable</span><span>
-</span><a name="line-24"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Function</span><span>
-</span><a name="line-25"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Kind</span><span>
-</span><a name="line-26"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Maybe</span><span>
-</span><a name="line-27"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">MonoTraversable</span><span>
-</span><a name="line-28"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Singletons</span><span>
-</span><a name="line-29"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Singletons</span><span class="hs-operator">.</span><span class="hs-identifier">Prelude</span><span>
-</span><a name="line-30"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Singletons</span><span class="hs-operator">.</span><span class="hs-identifier">TypeLits</span><span>
-</span><a name="line-31"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Product</span><span>
-</span><a name="line-32"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">GHC</span><span class="hs-operator">.</span><span class="hs-identifier">Generics</span><span>                 </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Generic</span><span class="hs-special">)</span><span>
-</span><a name="line-33"></a><span class="hs-keyword">import</span><span>           </span><a href="Numeric.BLAS.html"><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">BLAS</span></a><span> </span><span class="hs-keyword">hiding</span><span>          </span><span class="hs-special">(</span><a href="Numeric.BLAS.html#outer"><span class="hs-identifier hs-var">outer</span></a><span class="hs-special">)</span><span>
-</span><a name="line-34"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">LinearAlgebra</span><span class="hs-operator">.</span><span class="hs-identifier">Static</span><span>
-</span><a name="line-35"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Vector</span><span class="hs-operator">.</span><span class="hs-identifier">Sized</span><span>            </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">V</span><span>
-</span><a name="line-36"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">LinearAlgebra</span><span>        </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">LA</span><span>
-</span><a name="line-37"></a><span>
-</span><a name="line-38"></a><span class="hs-keyword">type</span><span> </span><span class="hs-keyword">family</span><span> </span><a name="HM%27"><a href="Numeric.BLAS.HMatrix.html#HM%27"><span class="hs-identifier">HM'</span></a></a><span> </span><span class="hs-special">(</span><a name="local-6989586621679375036"><a href="#local-6989586621679375036"><span class="hs-identifier">s</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-identifier hs-type">Nat</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><a name="local-6989586621679375037"><a href="#local-6989586621679375037"><span class="hs-identifier">h</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Type</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">h</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">s</span><span> </span><span class="hs-keyword">where</span><span>
-</span><a name="line-39"></a><span>    </span><span class="hs-identifier">HM'</span><span> </span><span class="hs-char">'[]            = Double
+</span><a name="line-15"></a><span class="hs-pragma">{-# LANGUAGE ViewPatterns               #-}</span><span>
+</span><a name="line-16"></a><span>
+</span><a name="line-17"></a><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">BLAS</span><span class="hs-operator">.</span><span class="hs-identifier">HMatrix</span><span> </span><span class="hs-special">(</span><span>
+</span><a name="line-18"></a><span>    </span><a href="Numeric.BLAS.HMatrix.html#HM"><span class="hs-identifier hs-type">HM</span></a><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><a name="line-19"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Numeric.BLAS.HMatrix.html#HM%27"><span class="hs-identifier hs-type">HM'</span></a><span>
+</span><a name="line-20"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Numeric.BLAS.HMatrix.html#flatten"><span class="hs-identifier hs-var">flatten</span></a><span>
+</span><a name="line-21"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Numeric.BLAS.HMatrix.html#unflatten"><span class="hs-identifier hs-var">unflatten</span></a><span>
+</span><a name="line-22"></a><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-23"></a><span>
+</span><a name="line-24"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Control</span><span class="hs-operator">.</span><span class="hs-identifier">Applicative</span><span>
+</span><a name="line-25"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Control</span><span class="hs-operator">.</span><span class="hs-identifier">DeepSeq</span><span>
+</span><a name="line-26"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Control</span><span class="hs-operator">.</span><span class="hs-identifier">Monad</span><span>
+</span><a name="line-27"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Control</span><span class="hs-operator">.</span><span class="hs-identifier">Monad</span><span class="hs-operator">.</span><span class="hs-identifier">Trans</span><span class="hs-operator">.</span><span class="hs-identifier">State</span><span>
+</span><a name="line-28"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Bifunctor</span><span>
+</span><a name="line-29"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Finite</span><span class="hs-operator">.</span><span class="hs-identifier">Internal</span><span>
+</span><a name="line-30"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Foldable</span><span>
+</span><a name="line-31"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Function</span><span>
+</span><a name="line-32"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Kind</span><span>
+</span><a name="line-33"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Maybe</span><span>
+</span><a name="line-34"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">MonoTraversable</span><span>
+</span><a name="line-35"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Singletons</span><span>
+</span><a name="line-36"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Singletons</span><span class="hs-operator">.</span><span class="hs-identifier">Prelude</span><span>
+</span><a name="line-37"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Singletons</span><span class="hs-operator">.</span><span class="hs-identifier">TypeLits</span><span>
+</span><a name="line-38"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Product</span><span>
+</span><a name="line-39"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">GHC</span><span class="hs-operator">.</span><span class="hs-identifier">Generics</span><span>                 </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Generic</span><span class="hs-special">)</span><span>
+</span><a name="line-40"></a><span class="hs-keyword">import</span><span>           </span><a href="Numeric.BLAS.html"><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">BLAS</span></a><span> </span><span class="hs-keyword">hiding</span><span>          </span><span class="hs-special">(</span><a href="Numeric.BLAS.html#outer"><span class="hs-identifier hs-var">outer</span></a><span class="hs-special">)</span><span>
+</span><a name="line-41"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">LinearAlgebra</span><span class="hs-operator">.</span><span class="hs-identifier">Static</span><span>
+</span><a name="line-42"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Vector</span><span>                  </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">UV</span><span>
+</span><a name="line-43"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Vector</span><span class="hs-operator">.</span><span class="hs-identifier">Generic</span><span>          </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">UVG</span><span>
+</span><a name="line-44"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Vector</span><span class="hs-operator">.</span><span class="hs-identifier">Generic</span><span class="hs-operator">.</span><span class="hs-identifier">Sized</span><span>    </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">VG</span><span>
+</span><a name="line-45"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Vector</span><span class="hs-operator">.</span><span class="hs-identifier">Sized</span><span>            </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">V</span><span>
+</span><a name="line-46"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Vector</span><span class="hs-operator">.</span><span class="hs-identifier">Storable</span><span>         </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">UVS</span><span>
+</span><a name="line-47"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Vector</span><span class="hs-operator">.</span><span class="hs-identifier">Storable</span><span class="hs-operator">.</span><span class="hs-identifier">Sized</span><span>   </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">VS</span><span>
+</span><a name="line-48"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">LinearAlgebra</span><span>        </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">LA</span><span>
+</span><a name="line-49"></a><span>
+</span><a name="line-50"></a><span class="hs-keyword">type</span><span> </span><span class="hs-keyword">family</span><span> </span><a name="HM%27"><a href="Numeric.BLAS.HMatrix.html#HM%27"><span class="hs-identifier">HM'</span></a></a><span> </span><span class="hs-special">(</span><a name="local-6989586621679383960"><a href="#local-6989586621679383960"><span class="hs-identifier">s</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-identifier hs-type">Nat</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><a name="local-6989586621679383961"><a href="#local-6989586621679383961"><span class="hs-identifier">h</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Type</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">h</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">s</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-51"></a><span>    </span><span class="hs-identifier">HM'</span><span> </span><span class="hs-char">'[]            = Double
     HM' '[n]           = R n
     HM' '[m,n]         = L m n
     HM' (n ': m ': ms) = V.Vector n (HM' (m ': ms))
@@ -160,20 +172,100 @@ instance Tensor HM where
             -&gt; HM' ns
         go = \case
           DPZ -&gt; (*)
-          DPS SNat SNat DPZ -&gt; \m x -&gt; fromJust . create $
-            LA.conv (extract m) (extract x)
-          DPS SNat SNat (DPS SNat SNat DPZ) -&gt; \m x -&gt; fromJust . create $
-            LA.conv2 (extract m) (extract x)
-          DPS SNat SNat dps@(DPS _ _ (DPS _ _ _)) -&gt; \ms xs -&gt;
-            flip fmap xs $ \x -&gt;
-              let s = prodSing $ secondDP dps
-              in  foldl' (hzip (+) s) (hkonst s 0) . flip fmap ms $ \m -&gt;
-                        go dps m x
+          DPS sm@SNat sn@SNat DPZ -&gt; \m x -&gt; fromJust . create $
+            let c = LA.conv (extract m) (extract x)
+                left = fromInteger (fromSing sm) `div` 2
+            in  UVS.slice left (fromInteger (fromSing sn)) c
+          DPS smx@SNat snx@SNat (DPS smy@SNat sny@SNat DPZ) -&gt; \m x -&gt; fromJust . create $
+            let c = LA.conv2 (extract m) (extract x)
+                left = fromInteger (fromSing smx) `div` 2
+                top  = fromInteger (fromSing smy) `div` 2
+            in  LA.subMatrix (left, top) (fromInteger (fromSing snx), fromInteger (fromSing sny)) c
+          DPS (SNat :: Sing m0) (SNat :: Sing n0) dps@(DPS _ _ (DPS _ _ _) :: DoubleProd Sing ms0 ns0) -&gt;
+                    \(ms :: V.Vector m0 (HM' ms0)) (xs :: V.Vector n0 (HM' ns0)) -&gt;
+            let s   :: Sing ns0
+                s   = prodSing $ secondDP dps
+                cl :: V.Vector n0 (V.Vector m0 (HM' ns0))
+                cl = im2col (hkonst s 0) xs
+            in  fmap (hsum s . V.zipWith (go dps) ms) cl
+
+    treshape
+        :: (SingI s1, Product s1 ~ Product s2)
+        =&gt; Sing s2
+        -&gt; HM s1
+        -&gt; HM s2
+    treshape s = unflatten s . flatten
+
+    tload
+        :: Sing s
+        -&gt; V.Vector (Product s) Double
+        -&gt; HM s
+    tload s = unflatten s . VG.convert
+
+    textract
+        :: SingI s
+        =&gt; HM s
+        -&gt; V.Vector (Product s) Double
+    textract = VG.convert . flatten
+
+
+flatten :: SingI s =&gt; HM s -&gt; VS.Vector (Product s) Double
+flatten = hflatten sing . getHM
+
+unflatten :: Sing s -&gt; VS.Vector (Product s) Double -&gt; HM s
+unflatten s = HM . hunflatten s
+
+hflatten
+    :: Sing s
+    -&gt; HM' s
+    -&gt; VS.Vector (Product s) Double
+hflatten = \case
+    SNil -&gt; VS.singleton
+    SNat `SCons` SNil -&gt; fromJust . VS.toSized . extract
+    sn@SNat `SCons` (sm@SNat `SCons` SNil) -&gt; case sn %:* sm of
+      SNat -&gt; fromJust . VS.toSized . LA.flatten . extract
+    SNat `SCons` ns@(_ `SCons` (_ `SCons` _)) -&gt;
+      VG.convert . V.concatMap (VG.convert . hflatten ns)
+
+hunflatten
+    :: Sing s
+    -&gt; VS.Vector (Product s) Double
+    -&gt; HM' s
+hunflatten = \case
+    SNil -&gt; VS.head
+    SNat `SCons` SNil -&gt; fromJust . create . VS.fromSized
+    SNat `SCons` (sm@SNat `SCons` SNil) -&gt; fromJust . create . LA.reshape (fromInteger (fromSing sm)) . VS.fromSized
+    sn@SNat `SCons` ns@(sm `SCons` (_ `SCons` _)) -&gt; case sProduct ns of
+      SNat -&gt; fromJust
+            . V.fromList
+            . evalState (replicateM (fromInteger (fromSing sn)) $
+                           hunflatten ns . fromJust . VS.toSized &lt;$&gt; state (UVS.splitAt (fromInteger (fromSing sm)))
+                        )
+            . VS.fromSized
 
 im2col
-    :: V.Vector n a
+    :: forall m n a. (KnownNat m, KnownNat n)
+    =&gt; a
+    -&gt; V.Vector n a
     -&gt; V.Vector n (V.Vector m a)
-im2col = undefined
+im2col pad (V.fromSized-&gt;v) = V.generate $ \i -&gt;
+      fromJust . V.toSized $ UV.slice i m padded
+  where
+    padded = UV.concat [UV.replicate left pad, v, UV.replicate right pad]
+    m :: Int
+    m  = fromIntegral $ natVal (Proxy @m)
+    left  = m `div` 2
+    right = m - left
+
+hadd :: Sing s -&gt; HM' s -&gt; HM' s -&gt; HM' s
+hadd = \case
+    SNil                                     -&gt; (+)
+    SNat `SCons` SNil                        -&gt; (+)
+    SNat `SCons` (SNat `SCons` SNil)         -&gt; (+)
+    SNat `SCons` s@(_ `SCons` (_ `SCons` _)) -&gt; liftA2 (hadd s)
+
+hsum :: Foldable f =&gt; Sing s -&gt; f (HM' s) -&gt; HM' s
+hsum s = foldl' (hadd s) (hkonst s 0)
 
 hkonst :: Sing s -&gt; Double -&gt; HM' s
 hkonst = \case
@@ -231,8 +323,8 @@ instance SingI s =&gt; MonoFunctor (HM s) where
           SNat `SCons` (SNat `SCons` SNil)          -&gt; dmmap f
           SNat `SCons` ns@(_ `SCons` (_ `SCons` _)) -&gt; fmap (go ns)
 
-hmElems :: forall s. SingI s =&gt; HM s -&gt; [Double]
-hmElems = go sing . getHM
+helems :: forall s. SingI s =&gt; HM s -&gt; [Double]
+helems = go sing . getHM
   where
     go :: Sing ns -&gt; HM' ns -&gt; [Double]
     go = \case
@@ -242,28 +334,28 @@ hmElems = go sing . getHM
       SNat `SCons` ns@(_ `SCons` (_ `SCons` _)) -&gt; foldMap (go ns)
 
 instance SingI s =&gt; MonoFoldable (HM s) where
-    ofoldMap f     = foldMap f . hmElems
-    ofoldr f z     = foldr f z . hmElems
-    ofoldl' f z    = foldl' f z . hmElems
-    otoList        = hmElems
-    oall f         = all f . hmElems
-    oany f         = any f . hmElems
+    ofoldMap f     = foldMap f . helems
+    ofoldr f z     = foldr f z . helems
+    ofoldl' f z    = foldl' f z . helems
+    otoList        = helems
+    oall f         = all f . helems
+    oany f         = any f . helems
     onull          = (== 0) . olength
     olength _      = fromIntegral (product (fromSing (sing @_ @s)))
     olength64      = fromIntegral . olength
-    ocompareLength = ocompareLength . hmElems
-    otraverse_ f   = traverse_ f . hmElems
-    ofor_ x        = for_ (hmElems x)
-    omapM_ f       = traverse_ f . hmElems
-    oforM_ x       = for_ (hmElems x)
-    ofoldlM f x    = foldlM f x . hmElems
-    ofoldMap1Ex f  = ofoldMap1Ex f . hmElems
-    ofoldr1Ex f    = ofoldr1Ex f . hmElems
-    ofoldl1Ex' f   = ofoldl1Ex' f . hmElems
-    headEx         = headEx . hmElems
-    lastEx         = lastEx . hmElems
-    maximumByEx f  = maximumByEx f . hmElems
-    minimumByEx f  = minimumByEx f . hmElems
+    ocompareLength = ocompareLength . helems
+    otraverse_ f   = traverse_ f . helems
+    ofor_ x        = for_ (helems x)
+    omapM_ f       = traverse_ f . helems
+    oforM_ x       = for_ (helems x)
+    ofoldlM f x    = foldlM f x . helems
+    ofoldMap1Ex f  = ofoldMap1Ex f . helems
+    ofoldr1Ex f    = ofoldr1Ex f . helems
+    ofoldl1Ex' f   = ofoldl1Ex' f . helems
+    headEx         = headEx . helems
+    lastEx         = lastEx . helems
+    maximumByEx f  = maximumByEx f . helems
+    minimumByEx f  = minimumByEx f . helems
 
 deriving instance NFData (HM' s)     =&gt; NFData (HM s)
 deriving instance Show (HM' s)       =&gt; Show (HM s)

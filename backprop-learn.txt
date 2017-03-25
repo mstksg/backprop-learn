@@ -9,7 +9,7 @@
 @version 0.1.0.0
 
 module Numeric.Tensor
-class RealFloat (Scalar t) => Tensor (t :: [Nat] -> Type) where type Scalar t :: Type gen s f = getI $ genA s (I . f) tkonst s x = gen s $ \ _ -> x tmap f x = tzipN (\case { I x' :* ØV -> f x' }) (x :* ØV) tzip f x y = tzipN (\case { I x' :* I y' :* ØV -> f x' y' }) (x :* y :* ØV) tzipN f xs = gen sing $ \ i -> f $ vmap (I . tindex i) xs where {
+class RealFloat (Scalar t) => Tensor (t :: [Nat] -> Type) where type Scalar t :: Type gen s f = getI $ genA s (I . f) tkonst s x = gen s $ \ _ -> x tmap f x = tzipN (\case { I x' :* ØV -> f x' }) (x :* ØV) tzip f x y = tzipN (\case { I x' :* I y' :* ØV -> f x' y' }) (x :* y :* ØV) tzipN f xs = gen sing $ \ i -> f $ vmap (I . tindex i) xs treshape s = tload s . textract tload s = fromJust . fromList' s . toList where {
     type family Scalar t :: Type;
 }
 genA :: forall f s. (Tensor t, Applicative f) => Sing s -> (Prod Finite s -> f (Scalar t)) -> f (t s)
@@ -22,11 +22,17 @@ tzipN :: (Tensor t, SingI s) => (Vec n (Scalar t) -> Scalar t) -> VecT n t s -> 
 tsize :: (Tensor t, SingI s) => t s -> Int
 tindex :: (Tensor t, SingI s) => Prod Finite s -> t s -> Scalar t
 tconv :: Tensor t => DoubleProd Sing m s -> t m -> t s -> t s
+treshape :: (Tensor t, SingI s1, Product s1 ~ Product s2) => Sing s2 -> t s1 -> t s2
+tload :: Tensor t => Sing s -> Vector (Product s) (Scalar t) -> t s
+textract :: (Tensor t, SingI s) => t s -> Vector (Product s) (Scalar t)
 data DoubleProd :: (k -> Type) -> [k] -> [k] -> Type
 [DPZ] :: DoubleProd f '[] '[]
 [DPS] :: f a -> f b -> DoubleProd f as bs -> DoubleProd f (a : as) (b : bs)
+sProduct :: Sing as -> Sing (Product as)
 fromScalar :: Tensor t => Scalar t -> t '[]
 toScalar :: Tensor t => t '[] -> Scalar t
+fromList' :: Tensor t => Sing s -> [Scalar t] -> Maybe (t s)
+fromList :: Tensor t => Sing s -> [Scalar t] -> Maybe (t s)
 tmapOp :: (Tensor t, SingI s) => (forall q. AD q (Forward (Scalar t)) -> AD q (Forward (Scalar t))) -> Op '[t s] '[t s]
 tzipNOp :: forall t s n. (Tensor t, SingI s, Known Nat n) => (forall q. Reifies q Tape => Vec n (Reverse q (Scalar t)) -> Reverse q (Scalar t)) -> Op (Replicate n (t s)) '[t s]
 tkonstOp :: forall t s. Tensor t => Sing s -> Op '[Scalar t] '[t s]
@@ -45,6 +51,8 @@ oneHot :: (Tensor t, SingI s) => Prod Finite s -> t s
 --   getFinite x &gt;= 0
 --   </pre>
 data Finite (n :: Nat) :: Nat -> *
+instance forall k (f :: k -> GHC.Types.Type). Type.Class.Known.Known (Numeric.Tensor.DoubleProd f '[]) '[]
+instance forall a (f :: a -> GHC.Types.Type) (as :: [a]) (bs :: [a]) (a1 :: a) (b :: a). (Type.Class.Known.Known (Numeric.Tensor.DoubleProd f as) bs, Type.Class.Known.Known f a1, Type.Class.Known.Known f b) => Type.Class.Known.Known (Numeric.Tensor.DoubleProd f (a1 : as)) (b : bs)
 
 module Numeric.BLAS
 class Tensor b => BLAS (b :: [Nat] -> Type)
@@ -279,6 +287,8 @@ module Learn.Neural
 module Numeric.BLAS.HMatrix
 newtype HM :: [Nat] -> Type
 [HM] :: {getHM :: HM' b} -> HM b
+flatten :: SingI s => HM s -> Vector (Product s) Double
+unflatten :: Sing s -> Vector (Product s) Double -> HM s
 instance GHC.Generics.Generic (Numeric.BLAS.HMatrix.HM a)
 instance Control.DeepSeq.NFData (Numeric.BLAS.HMatrix.HM' s) => Control.DeepSeq.NFData (Numeric.BLAS.HMatrix.HM s)
 instance GHC.Show.Show (Numeric.BLAS.HMatrix.HM' s) => GHC.Show.Show (Numeric.BLAS.HMatrix.HM s)
