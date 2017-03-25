@@ -194,15 +194,26 @@ instance Tensor HM where
         => Sing s2
         -> HM s1
         -> HM s2
-    treshape s = HM . hunflatten s . flatten
+    treshape s = unflatten s . flatten
 
-    telems = helems
+    tload
+        :: Sing s
+        -> V.Vector (Product s) Double
+        -> HM s
+    tload s = unflatten s . VG.convert
+
+    textract
+        :: SingI s
+        => HM s
+        -> V.Vector (Product s) Double
+    textract = VG.convert . flatten
+
 
 flatten :: SingI s => HM s -> VS.Vector (Product s) Double
 flatten = hflatten sing . getHM
 
-unflatten :: SingI s => VS.Vector (Product s) Double -> HM s
-unflatten = HM . hunflatten sing
+unflatten :: Sing s -> VS.Vector (Product s) Double -> HM s
+unflatten s = HM . hunflatten s
 
 hflatten
     :: Sing s

@@ -18,6 +18,7 @@ module Numeric.Tensor (
   , Product, sProduct
   , fromScalar
   , toScalar
+  , fromList'
   , fromList
   , tmapOp
   , tzipNOp
@@ -30,6 +31,7 @@ module Numeric.Tensor (
 
 import           Control.Monad.Trans.State.Strict
 import           Data.Finite
+import           Data.Foldable
 import           Data.Kind
 import           Data.List
 import           Data.Maybe
@@ -47,6 +49,7 @@ import           Numeric.Backprop.Op
 import           Type.Class.Higher
 import           Type.Class.Known
 import qualified Data.Type.Nat                    as TCN
+import qualified Data.Vector.Sized                as V
 
 class RealFloat (Scalar t)
         => Tensor (t :: [Nat] -> Type) where
@@ -109,13 +112,20 @@ class RealFloat (Scalar t)
         => Sing s2
         -> t s1
         -> t s2
-    treshape s = fromJust . fromList s . telems
+    treshape s = tload s . textract
 
-    telems
+    tload
+        :: Sing s
+        -> V.Vector (Product s) (Scalar t)
+        -> t s
+    tload s = fromJust . fromList' s . toList
+
+    textract
         :: SingI s
         => t s
-        -> [Scalar t]
-    {-# MINIMAL genA, tsum, tsize, tindex, tconv, telems #-}
+        -> V.Vector (Product s) (Scalar t)
+
+    {-# MINIMAL genA, tsum, tsize, tindex, tconv, textract #-}
 
 type family Product (ns :: [Nat]) :: Nat where
     Product '[]       = 1
@@ -142,12 +152,20 @@ fromScalar x = gen SNil (\_ -> x)
 toScalar :: Tensor t => t '[] -> Scalar t
 toScalar = tindex Ø
 
+fromList'
+    :: Tensor t
+    => Sing s
+    -> [Scalar t]
+    -> Maybe (t s)
+fromList' s = evalStateT . genA s $ \_ -> StateT uncons
+
 fromList
     :: Tensor t
     => Sing s
     -> [Scalar t]
     -> Maybe (t s)
-fromList s = evalStateT . genA s $ \_ -> StateT uncons
+fromList s = case sProduct s of
+    SNat -> fmap (tload s) . V.fromList
 
 tmapOp
     :: (Tensor t, SingI s)
