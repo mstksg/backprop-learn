@@ -15,6 +15,7 @@
 module Numeric.Tensor (
     Tensor(..)
   , DoubleProd(..)
+  , Slice(..)
   , Product, sProduct
   , fromScalar
   , toScalar
@@ -48,8 +49,20 @@ import           Numeric.AD.Mode.Forward          (Forward)
 import           Numeric.Backprop.Op
 import           Type.Class.Higher
 import           Type.Class.Known
+import           Type.Family.List hiding          (Reverse)
 import qualified Data.Type.Nat                    as TCN
 import qualified Data.Vector.Sized                as V
+
+data Slice :: ([Nat] -> Type) -> [Nat] -> [Nat] -> Type where
+    SliceZ   :: Slice t '[] '[]
+    PadSlice
+        :: Sing n -> Sing m -> Scalar t -> Int -> Int
+        -> Slice t ns ms
+        -> Slice t (n ': ns) (m ': ms)
+    RegSlice
+        :: Sing l -> Sing c -> Sing r
+        -> Slice t ns ms
+        -> Slice t ((l + c + r) ': ns) (c ': ms)
 
 class RealFloat (Scalar t)
         => Tensor (t :: [Nat] -> Type) where
@@ -108,6 +121,27 @@ class RealFloat (Scalar t)
         -> t s
         -> t (n ': s)
 
+    -- tconv'
+    --     :: DoubleProd Sing m s
+    --     -> Sing n
+    --     -> t (m >: n)
+    --     -> t s
+    --     -> t (s >: n)
+
+    -- tconv'
+    --     :: DoubleProd Sing m s
+    --     -> Sing n
+    --     -> Prod Finite s    -- ^ stride
+    --     -> Prod Finite s    -- ^ offset
+    --     -> t (m >: n)       -- ^ mask
+    --     -> t s              -- ^ tensor
+    --     -> t (s >: n)
+
+    tslice
+        :: Slice t n m
+        -> t n
+        -> t m
+
     treshape
         :: (SingI s1, Product s1 ~ Product s2)
         => Sing s2
@@ -125,7 +159,6 @@ class RealFloat (Scalar t)
         :: SingI s
         => t s
         -> V.Vector (Product s) (Scalar t)
-
     {-# MINIMAL genA, tsum, tsize, tindex, tconv, textract #-}
 
 type family Product (ns :: [Nat]) :: Nat where
