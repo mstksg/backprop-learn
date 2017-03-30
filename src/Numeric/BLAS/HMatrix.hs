@@ -195,81 +195,23 @@ instance Tensor HM where
                   $ xs
 
     tconv
-        :: forall n m s. KnownNat n
-        => DoubleProd Sing m s
-        -> HM (n ': m)
-        -> HM s
-        -> HM (n ': s)
-    tconv dp0 (HM m0) (HM x0) = HM $ hconv dp0 m0 x0
-
-    tconv'
         :: forall n m s. ()
-        => DoubleProd Sing m s
-        -> Sing n
-        -> HM (m >: n)
+        => Sing n
+        -> ProdMap Conv m s
+        -> HM (m >: n)      -- ^ mask
         -> HM s
         -> HM (s >: n)
-    tconv' dp0 sn@SNat (HM m0) (HM x0) = HM $ go @m @s dp0 m0 x0
+    tconv sn@SNat pm0 (HM m0) (HM x0) = HM $ go pm0 m0 x0
       where
-        go :: forall ms ss. DoubleProd Sing ms ss -> HM' (ms >: n) -> HM' ss -> HM' (ss >: n)
+        go  :: forall ms ss. ()
+            => ProdMap Conv ms ss
+            -> HM' (ms >: n)
+            -> HM' ss
+            -> HM' (ss >: n)
         go = \case
-          DPZ -> \m x -> konst x * m
-          DPS SNat sn@SNat DPZ -> \m x -> fromJust . create $
-            let c = LA.conv2 (extract m) (LA.asRow (extract x))
-                o = fromInteger (natVal (Proxy @n))
-                left = o `div` 2
-            in  LA.subMatrix (0,left) (o, fromInteger (fromSing sn)) c
-          DPS smx@SNat snx@SNat (DPS smy@SNat sny@SNat DPZ) -> \m x ->
+          PMZ -> \m x -> konst x * m
+          PMS (Conv sM sS str off) PMZ -> \m x ->
             undefined
-            -- todo: vectorize with im2colV
-            -- flip fmap m $ \msk -> fromJust . create $
-            --   let c = LA.conv2 (extract msk) (extract x)
-            --       left = fromInteger (fromSing smx) `div` 2
-            --       top  = fromInteger (fromSing smy) `div` 2
-            --   in  LA.subMatrix (left, top) (fromInteger (fromSing snx), fromInteger (fromSing sny)) c
-
-
-    -- tconv'
-    --     :: forall n m s. ()
-    --     => DoubleProd Sing m s
-    --     -> Sing n
-    --     -> Prod Finite s    -- ^ stride
-    --     -> Prod Finite s    -- ^ offset
-    --     -> HM (m >: n)      -- ^ mask
-    --     -> HM s
-    --     -> HM (s >: n)
-    -- tconv' dp0 sn@SNat str0 off0 (HM m0) (HM x0) = HM $ go str0 off0 dp0 m0 x0
-    --   where
-    --     go  :: forall ms ss. ()
-    --         => Prod Finite ss
-    --         -> Prod Finite ss
-    --         -> DoubleProd Sing ms ss
-    --         -> HM' (ms >: n)
-    --         -> HM' ss
-    --         -> HM' (ss >: n)
-    --     go = \case
-    --       Ø -> \case
-    --         Ø -> \case
-    --           DPZ -> \m x -> konst x * m
-    --       s :< Ø -> \case
-    --         o :< Ø -> \case
-    --           DPS SNat SNat DPZ -> \m x -> _
-
-        -- go = \case
-        --   DPZ -> \m x -> konst x * m
-        --   DPS SNat sn@SNat DPZ -> \m x -> fromJust . create $
-        --     let c = LA.conv2 (extract m) (LA.asRow (extract x))
-        --         o = fromInteger (natVal (Proxy @n))
-        --         left = o `div` 2
-        --     in  LA.subMatrix (0,left) (o, fromInteger (fromSing sn)) c
-        --   DPS smx@SNat snx@SNat (DPS smy@SNat sny@SNat DPZ) -> \m x ->
-            -- _
-            -- todo: vectorize with im2colV
-            -- flip fmap m $ \msk -> fromJust . create $
-            --   let c = LA.conv2 (extract msk) (extract x)
-            --       left = fromInteger (fromSing smx) `div` 2
-            --       top  = fromInteger (fromSing smy) `div` 2
-            --   in  LA.subMatrix (left, top) (fromInteger (fromSing snx), fromInteger (fromSing sny)) c
 
     treshape
         :: (SingI s1, Product s1 ~ Product s2)
@@ -290,54 +232,54 @@ instance Tensor HM where
         -> V.Vector (Product s) Double
     textract = VG.convert . flatten
 
-hconv
-    :: forall o ms ns. (KnownNat o)
-    => DoubleProd Sing ms ns
-    -> HM' (o ': ms)
-    -> HM' ns
-    -> HM' (o ': ns)
-hconv = \case
-    DPZ -> \ms x -> konst x * ms
-    DPS SNat sn@SNat DPZ -> \m x -> fromJust . create $
-      let c = LA.conv2 (extract m) (LA.asRow (extract x))
-          o = fromInteger (natVal (Proxy @o))
-          left = o `div` 2
-      in  LA.subMatrix (0,left) (o, fromInteger (fromSing sn)) c
-    DPS smx@SNat snx@SNat (DPS smy@SNat sny@SNat DPZ) -> \m x ->
-      -- todo: vectorize with im2colV
-      flip fmap m $ \msk -> fromJust . create $
-        let c = LA.conv2 (extract msk) (extract x)
-            left = fromInteger (fromSing smx) `div` 2
-            top  = fromInteger (fromSing smy) `div` 2
-        in  LA.subMatrix (left, top) (fromInteger (fromSing snx), fromInteger (fromSing sny)) c
-    dp0@(DPS (SNat :: Sing m0) (SNat :: Sing n0) (DPS _ _ (DPS _ _ _) :: DoubleProd Sing ms0 ns0)) ->
-              \(ms :: V.Vector o (V.Vector m0 (HM' ms0))) (xs :: V.Vector n0 (HM' ns0)) ->
-      flip fmap ms $ \(msk :: V.Vector m0 (HM' ms0)) -> hconv1 dp0 msk xs
+-- hconv
+--     :: forall o ms ns. (KnownNat o)
+--     => DoubleProd Sing ms ns
+--     -> HM' (o ': ms)
+--     -> HM' ns
+--     -> HM' (o ': ns)
+-- hconv = \case
+--     DPZ -> \ms x -> konst x * ms
+--     DPS SNat sn@SNat DPZ -> \m x -> fromJust . create $
+--       let c = LA.conv2 (extract m) (LA.asRow (extract x))
+--           o = fromInteger (natVal (Proxy @o))
+--           left = o `div` 2
+--       in  LA.subMatrix (0,left) (o, fromInteger (fromSing sn)) c
+--     DPS smx@SNat snx@SNat (DPS smy@SNat sny@SNat DPZ) -> \m x ->
+--       -- todo: vectorize with im2colV
+--       flip fmap m $ \msk -> fromJust . create $
+--         let c = LA.conv2 (extract msk) (extract x)
+--             left = fromInteger (fromSing smx) `div` 2
+--             top  = fromInteger (fromSing smy) `div` 2
+--         in  LA.subMatrix (left, top) (fromInteger (fromSing snx), fromInteger (fromSing sny)) c
+--     dp0@(DPS (SNat :: Sing m0) (SNat :: Sing n0) (DPS _ _ (DPS _ _ _) :: DoubleProd Sing ms0 ns0)) ->
+--               \(ms :: V.Vector o (V.Vector m0 (HM' ms0))) (xs :: V.Vector n0 (HM' ns0)) ->
+--       flip fmap ms $ \(msk :: V.Vector m0 (HM' ms0)) -> hconv1 dp0 msk xs
 
-hconv1
-    :: forall m s. ()
-    => DoubleProd Sing m s
-    -> HM' m
-    -> HM' s
-    -> HM' s
-hconv1 = \case
-    DPZ -> (*)
-    DPS sm@SNat sn@SNat DPZ -> \m x -> fromJust . create $
-      let c = LA.conv (extract m) (extract x)
-          left = fromInteger (fromSing sm) `div` 2
-      in  UVS.slice left (fromInteger (fromSing sn)) c
-    DPS smx@SNat snx@SNat (DPS smy@SNat sny@SNat DPZ) -> \m x -> fromJust . create $
-      let c = LA.conv2 (extract m) (extract x)
-          left = fromInteger (fromSing smx) `div` 2
-          top  = fromInteger (fromSing smy) `div` 2
-      in  LA.subMatrix (left, top) (fromInteger (fromSing snx), fromInteger (fromSing sny)) c
-    DPS (SNat :: Sing m0) (SNat :: Sing n0) dps@(DPS _ _ (DPS _ _ _) :: DoubleProd Sing ms0 ns0) ->
-              \(ms :: V.Vector m0 (HM' ms0)) (xs :: V.Vector n0 (HM' ns0)) ->
-      let s   :: Sing ns0
-          s   = prodSing $ secondDP dps
-          cl :: V.Vector n0 (V.Vector m0 (HM' ns0))
-          cl = im2colV (hkonst s 0) xs
-      in  fmap (hsum s . V.zipWith (hconv1 dps) ms) cl
+-- hconv1
+--     :: forall m s. ()
+--     => DoubleProd Sing m s
+--     -> HM' m
+--     -> HM' s
+--     -> HM' s
+-- hconv1 = \case
+--     DPZ -> (*)
+--     DPS sm@SNat sn@SNat DPZ -> \m x -> fromJust . create $
+--       let c = LA.conv (extract m) (extract x)
+--           left = fromInteger (fromSing sm) `div` 2
+--       in  UVS.slice left (fromInteger (fromSing sn)) c
+--     DPS smx@SNat snx@SNat (DPS smy@SNat sny@SNat DPZ) -> \m x -> fromJust . create $
+--       let c = LA.conv2 (extract m) (extract x)
+--           left = fromInteger (fromSing smx) `div` 2
+--           top  = fromInteger (fromSing smy) `div` 2
+--       in  LA.subMatrix (left, top) (fromInteger (fromSing snx), fromInteger (fromSing sny)) c
+--     DPS (SNat :: Sing m0) (SNat :: Sing n0) dps@(DPS _ _ (DPS _ _ _) :: DoubleProd Sing ms0 ns0) ->
+--               \(ms :: V.Vector m0 (HM' ms0)) (xs :: V.Vector n0 (HM' ns0)) ->
+--       let s   :: Sing ns0
+--           s   = prodSing $ secondDP dps
+--           cl :: V.Vector n0 (V.Vector m0 (HM' ns0))
+--           cl = im2colV (hkonst s 0) xs
+--       in  fmap (hsum s . V.zipWith (hconv1 dps) ms) cl
 
 flatten :: SingI s => HM s -> VS.Vector (Product s) Double
 flatten = hflatten sing . getHM
@@ -428,19 +370,19 @@ hzip f = go
       SNat `SCons` ns@(_ `SCons` (_ `SCons` _)) ->
          V.zipWith (go ns)
 
-firstDP
-    :: DoubleProd f as bs
-    -> Prod f as
-firstDP = \case
-    DPZ        -> Ø
-    DPS x _ xs -> x :< firstDP xs
+-- firstDP
+--     :: DoubleProd f as bs
+--     -> Prod f as
+-- firstDP = \case
+--     DPZ        -> Ø
+--     DPS x _ xs -> x :< firstDP xs
 
-secondDP
-    :: DoubleProd f as bs
-    -> Prod f bs
-secondDP = \case
-    DPZ        -> Ø
-    DPS _ x xs -> x :< secondDP xs
+-- secondDP
+--     :: DoubleProd f as bs
+--     -> Prod f bs
+-- secondDP = \case
+--     DPZ        -> Ø
+--     DPS _ x xs -> x :< secondDP xs
 
 prodSing
     :: Prod Sing as

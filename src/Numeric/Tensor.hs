@@ -14,9 +14,10 @@
 
 module Numeric.Tensor (
     Tensor(..)
-  , DoubleProd(..)
+  -- , DoubleProd(..)
   , ProdMap(..)
   , Slice(..)
+  , Conv(..)
   , Product, sProduct
   , fromScalar
   , toScalar
@@ -60,6 +61,14 @@ data ProdMap :: (a -> b -> Type) -> [a] -> [b] -> Type where
 
 data Slice :: Nat -> Nat -> Type where
     Slice :: Sing l -> Sing c -> Sing r -> Slice (l + c + r) c
+
+data Conv :: Nat -> Nat -> Type where
+    Conv :: { convMaskDim  :: Sing m
+            , convImageDim :: Sing s
+            , convStride   :: Finite s
+            , convOffset   :: Finite s
+            }
+         -> Conv m s
 
 class RealFloat (Scalar t)
         => Tensor (t :: [Nat] -> Type) where
@@ -112,27 +121,11 @@ class RealFloat (Scalar t)
         -> Scalar t
 
     tconv
-        :: KnownNat n
-        => DoubleProd Sing m s
-        -> t (n ': m)
-        -> t s
-        -> t (n ': s)
-
-    tconv'
-        :: DoubleProd Sing m s
-        -> Sing n
-        -> t (m >: n)
-        -> t s
+        :: Sing n
+        -> ProdMap Conv m s
+        -> t (m >: n)       -- ^ mask
+        -> t s              -- ^ tensor
         -> t (s >: n)
-
-    -- tconv'
-    --     :: DoubleProd Sing m s
-    --     -> Sing n
-    --     -> Prod Finite s    -- ^ stride
-    --     -> Prod Finite s    -- ^ offset
-    --     -> t (m >: n)       -- ^ mask
-    --     -> t s              -- ^ tensor
-    --     -> t (s >: n)
 
     tslice
         :: ProdMap Slice n m
@@ -156,7 +149,7 @@ class RealFloat (Scalar t)
         :: SingI s
         => t s
         -> V.Vector (Product s) (Scalar t)
-    {-# MINIMAL genA, tsum, tsize, tindex, tconv, textract #-}
+    {-# MINIMAL genA, tsum, tsize, tindex, tconv, textract, tslice #-}
 
 type family Product (ns :: [Nat]) :: Nat where
     Product '[]       = 1
