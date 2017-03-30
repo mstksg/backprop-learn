@@ -18,16 +18,11 @@ module Learn.Neural.Train (
   ) where
 
 
--- import           GHC.TypeLits
--- import           Learn.Neural.Layer
--- import           Learn.Neural.Network
--- import           Type.Class.Known
 import           Data.Kind
 import           Data.List
 import           Data.Profunctor
 import           Data.Type.Combinator
 import           Learn.Neural.Loss
-import           Numeric.BLAS
 import           Numeric.Backprop
 import qualified Control.Foldl           as F
 
@@ -76,34 +71,34 @@ optimizeList_
 optimizeList_ xs p0 = fst . optimizeList xs p0
 
 sgdOptimizer
-    :: forall p b i o. (BLAS b, Fractional p, Num (b i), Num (b o))
+    :: forall p a b c. (Fractional p, Num a, Num b, Num c)
     => Double
-    -> LossFunction o
-    -> (forall s. OpB s '[b i, p] '[b o])
-    -> Optimizer (b i, b o) p
-sgdOptimizer r l run = MkO () $ \(x, t) p () ->
-    let o :: BPOp s '[ b i, p ]  '[ Scalar b ]
+    -> (forall s. OpB s '[a, p] '[ b ])
+    -> LossFunction '[ b ] c
+    -> Optimizer (a, b) p
+sgdOptimizer r run l = MkO () $ \(x, t) p () ->
+    let o :: BPOp s '[ a, p ] '[ c ]
         o = withInps $ \inps -> do
               y <- run ~$ inps
-              only <$> (l t ~$ (y :< Ø))
+              only <$> (l (only_ t) ~$ (y :< Ø))
     in  case gradBPOp o (x ::< p ::< Ø) of
           _ :< I g :< Ø -> (p - realToFrac r * g, ())
-        
+
 sgdMiniBatchOptimizer
-    :: forall f p b i o. (BLAS b, Fractional p, Num (b i), Num (b o), Foldable f)
+    :: forall f p a b c. (Foldable f, Fractional p, Num a, Num b, Num c)
     => Double
-    -> LossFunction o
-    -> (forall s. OpB s '[b i, p] '[b o])
-    -> Optimizer (f (b i, b o)) p
-sgdMiniBatchOptimizer r l run = MkO () $ \xts p () ->
-    let f :: b i -> b o -> p
+    -> (forall s. OpB s '[a, p] '[ b ])
+    -> LossFunction '[ b ] c
+    -> Optimizer (f (a, b)) p
+sgdMiniBatchOptimizer r run l = MkO () $ \xts p () ->
+    let f :: a -> b -> p
         f x t = case gradBPOp o (x ::< p ::< Ø) of
                   _ :< I gr :< Ø -> gr
           where
-            o :: BPOp s '[ b i, p ] '[ Scalar b ]
+            o :: BPOp s '[ a, p ] '[ c ]
             o = withInps $ \inps -> do
               y <- run ~$ inps
-              only <$> (l t ~$ (y :< Ø))
+              only <$> (l (only_ t) ~$ (y :< Ø))
         g = F.fold (lmap (uncurry f) F.mean) xts
     in  (p - realToFrac r * g, ())
 
