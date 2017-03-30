@@ -18,6 +18,7 @@ module Data.Type.Util (
   , prodToVec'
   , vecToProd
   , vtraverse
+  , vecLenNat
   , zipP
   ) where
 
@@ -91,4 +92,12 @@ zipP = \case
     x :< xs -> \case
       y:< ys -> (x :&: y) :< zipP xs ys
 
+vecLenNat
+    :: VecT n f a
+    -> Nat n
+vecLenNat = \case
+    ØV      -> Z_
+    _ :* xs -> S_ (vecLenNat xs)
+
 instance Eq1 Finite
+
