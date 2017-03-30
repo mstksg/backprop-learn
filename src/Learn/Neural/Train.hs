@@ -22,9 +22,12 @@ import           Data.Kind
 import           Data.List
 import           Data.Profunctor
 import           Data.Type.Combinator
+import           Data.Type.Index
+import           Data.Type.Length
 import           Learn.Neural.Loss
 import           Numeric.Backprop
-import qualified Control.Foldl           as F
+import           Type.Class.Known
+import qualified Control.Foldl        as F
 
 data Optimizer :: Type -> Type -> Type where
     MkO :: { oState  :: s
@@ -71,34 +74,34 @@ optimizeList_
 optimizeList_ xs p0 = fst . optimizeList xs p0
 
 sgdOptimizer
-    :: forall p a b c. (Fractional p, Num a, Num b, Num c)
+    :: forall p as bs c. (Fractional p, Num c, Every Num as, Every Num bs, Known Length as)
     => Double
-    -> (forall s. OpB s '[p, a] '[ b ])
-    -> LossFunction '[ b ] c
-    -> Optimizer (a, b) p
-sgdOptimizer r run l = MkO () $ \(x, t) p () ->
-    let o :: BPOp s '[ p, a ] '[ c ]
+    -> (forall s. OpB s (p ': as) bs)
+    -> LossFunction bs c
+    -> Optimizer (Tuple as, Tuple bs) p
+sgdOptimizer r run l = MkO () $ \(xs, ts) p () ->
+    let o :: BPOp s (p ': as) '[ c ]
         o = withInps $ \inps -> do
-              y <- run ~$ inps
-              only <$> (l (only_ t) ~$ (y :< Ø))
-    in  case gradBPOp o (p ::< x ::< Ø) of
-          I g :< _ :< Ø -> (p - realToFrac r * g, ())
+              ys <- run ~$$ inps
+              only <$> (l ts ~$ ys)
+    in  case gradBPOp o (p ::< xs) of
+          I g :< _ -> (p - realToFrac r * g, ())
 
 sgdMiniBatchOptimizer
-    :: forall f p a b c. (Foldable f, Fractional p, Num a, Num b, Num c)
+    :: forall f p as bs c. (Foldable f, Fractional p, Num c, Every Num as, Every Num bs, Known Length as)
     => Double
-    -> (forall s. OpB s '[ p, a ] '[ b ])
-    -> LossFunction '[ b ] c
-    -> Optimizer (f (a, b)) p
+    -> (forall s. OpB s (p ': as) bs)
+    -> LossFunction bs c
+    -> Optimizer (f (Tuple as, Tuple bs)) p
 sgdMiniBatchOptimizer r run l = MkO () $ \xts p () ->
-    let f :: a -> b -> p
-        f x t = case gradBPOp o (p ::< x ::< Ø) of
-                  I gr :< _ :< Ø -> gr
+    let f :: Tuple as -> Tuple bs -> p
+        f xs ts = case gradBPOp o (p ::< xs) of
+                    I gr :< _ -> gr
           where
-            o :: BPOp s '[ p, a ] '[ c ]
+            o :: BPOp s (p ': as) '[ c ]
             o = withInps $ \inps -> do
-              y <- run ~$ inps
-              only <$> (l (only_ t) ~$ (y :< Ø))
+              ys <- run ~$$ inps
+              only <$> (l ts ~$ ys)
         g = F.fold (lmap (uncurry f) F.mean) xts
     in  (p - realToFrac r * g, ())
 
