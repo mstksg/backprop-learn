@@ -73,49 +73,49 @@ data Network :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> Typ
 
 networkOp
     :: forall b i c hs o r s. (BLAS b, Num (b i), Num (b o))
-    => OpB s '[ b i, Network r b (i :~ c) hs o ] '[ b o, Network r b (i :~ c) hs o ]
-networkOp = OpM $ \(I x :< I n :< Ø) -> case n of
+    => OpB s '[ Network r b (i :~ c) hs o, b i ] '[ Network r b (i :~ c) hs o, b o ]
+networkOp = OpM $ \(I n :< I x :< Ø) -> case n of
     NetExt l -> do
       (I l' :< I y :< Ø, gF) <- runOpM' layerOp (l ::< x ::< Ø)
-      let gF' = fmap (\case I dL :< I dX :< Ø -> dX ::< NetExt dL ::< Ø)
+      let gF' = fmap (\case I dL :< I dX :< Ø -> NetExt dL ::< dX ::< Ø)
               . gF
-              . (\case dY :< Just (NetExt dL) :< Ø -> Just dL :< dY :< Ø
-                       dY :< Nothing          :< Ø -> Nothing :< dY :< Ø
+              . (\case Just (NetExt dL) :< dY :< Ø -> Just dL :< dY :< Ø
+                       Nothing          :< dY :< Ø -> Nothing :< dY :< Ø
                 )
-      return (y ::< NetExt l' ::< Ø, gF')
+      return (NetExt l' ::< y ::< Ø, gF')
     (l :: Layer r c b i h) :& (n2 :: Network r b (h ':~ d) js o) -> do
-      (I l' :< I y   :< Ø, gF ) <- runOpM' layerOp   (l ::< x ::< Ø)
-      (I z  :< I n2' :< Ø, gF') <- runOpM' networkOp (y ::< n2 ::< Ø)
-      let gF'' :: Prod Maybe '[ b o, Network r b (i ':~ c) ((h ':~ d) ': js) o]
-               -> ST s (Tuple '[ b i, Network r b (i ':~ c) ((h ':~ d) ': js) o])
-          gF'' = \case dZ :< Just (dL :& dN) :< Ø -> do
-                         I dY  :< I dN2 :< Ø <- gF' (dZ :< Just dN :< Ø)
-                         I dL0 :< I dX  :< Ø <- gF  (Just dL :< Just dY :< Ø)
-                         return $ dX ::< (dL0 :& dN2) ::< Ø
-                       dZ :< Nothing   :< Ø -> do
-                         I dY  :< I dN2 :< Ø <- gF' (dZ      :< Nothing :< Ø)
-                         I dL0 :< I dX  :< Ø <- gF  (Nothing :< Just dY :< Ø)
-                         return $ dX ::< (dL0 :& dN2) ::< Ø
-      return (z ::< (l' :& n2') ::< Ø, gF'')
+      (I l'  :< I y :< Ø, gF ) <- runOpM' layerOp   (l  ::< x ::< Ø)
+      (I n2' :< I z :< Ø, gF') <- runOpM' networkOp (n2 ::< y ::< Ø)
+      let gF'' :: Prod Maybe '[ Network r b (i ':~ c) ((h ':~ d) ': js) o, b o ]
+               -> ST s (Tuple '[ Network r b (i ':~ c) ((h ':~ d) ': js) o, b i ])
+          gF'' = \case Just (dL :& dN) :< dZ :< Ø -> do
+                         I dN2 :< I dY :< Ø <- gF' (Just dN :< dZ :< Ø)
+                         I dL0 :< I dX :< Ø <- gF  (Just dL :< Just dY :< Ø)
+                         return $ (dL0 :& dN2) ::< dX ::< Ø
+                       Nothing         :< dZ :< Ø -> do
+                         I dN2 :< I dY :< Ø <- gF' (Nothing :< dZ      :< Ø)
+                         I dL0 :< I dX :< Ø <- gF  (Nothing :< Just dY :< Ø)
+                         return $ (dL0 :& dN2) ::< dX ::< Ø
+      return ((l' :& n2') ::< z ::< Ø, gF'')
 
 networkOpPure
     :: forall b i c hs o s. (BLAS b, Num (b i), Num (b o))
-    => OpB s '[ b i, Network 'FeedForward b (i :~ c) hs o ] '[ b o ]
-networkOpPure = OpM $ \(I x :< I n :< Ø) -> case n of
+    => OpB s '[ Network 'FeedForward b (i :~ c) hs o, b i ] '[ b o ]
+networkOpPure = OpM $ \(I n :< I x :< Ø) -> case n of
     NetExt l -> do
       (I y :< Ø, gF) <- runOpM' layerOpPure (l ::< x ::< Ø)
-      let gF' = fmap (\case I dL :< I dX :< Ø -> dX ::< NetExt dL ::< Ø)
+      let gF' = fmap (\case I dL :< I dX :< Ø -> NetExt dL ::< dX ::< Ø)
               . gF
       return (y ::< Ø, gF')
     (l :: Layer 'FeedForward c b i h) :& (n2 :: Network 'FeedForward b (h ':~ d) js o) -> do
-      (I y :< Ø, gF ) <- runOpM' layerOpPure   (l ::< x ::< Ø)
-      (I z :< Ø, gF') <- runOpM' networkOpPure (y ::< n2 ::< Ø)
+      (I y :< Ø, gF ) <- runOpM' layerOpPure   (l  ::< x ::< Ø)
+      (I z :< Ø, gF') <- runOpM' networkOpPure (n2 ::< y ::< Ø)
       let gF'' :: Prod Maybe '[ b o ]
-               -> ST s (Tuple '[ b i, Network 'FeedForward b (i ':~ c) ((h ':~ d) ': js) o])
+               -> ST s (Tuple '[ Network 'FeedForward b (i ':~ c) ((h ':~ d) ': js) o, b i])
           gF'' dZ = do
-            I dY  :< I dN2 :< Ø <- gF' dZ
-            I dL0 :< I dX  :< Ø <- gF  (Just dY :< Ø)
-            return $ dX ::< (dL0 :& dN2) ::< Ø
+            I dN2 :< I dY :< Ø <- gF' dZ
+            I dL0 :< I dX :< Ø <- gF  (Just dY :< Ø)
+            return $ (dL0 :& dN2) ::< dX ::< Ø
       return (z ::< Ø, gF'')
 
 networkOpRecurrent
@@ -134,7 +134,7 @@ networkOpRecurrent = \case
                 (replWit @_ @Num @(b o) n Wit //) $
                 (replLen @_ @(b i) n          //) $
       bpOp . withInps $ \(n0 :< x :< xs) -> do
-        y  :< n1 :< Ø <- networkOp ~$$ (x :< n0 :< Ø)
+        n1 :< y  :< Ø <- networkOp ~$$ (n0 :< x :< Ø)
         n2 :< ys      <- networkOpRecurrent n ~$$ (n1 :< xs)
         return (n2 :< y :< ys)
 
@@ -149,14 +149,12 @@ networkOpRecurrent'
     -> OpB s (Network 'Recurrent b (i :~ c) hs o ': b i ': Replicate n (b i))
              '[Network 'Recurrent b (i :~ c) hs o, b o ]
 networkOpRecurrent' = \case
-    TCN.Z_   -> bpOp . withInps $ \(n0 :< x :< Ø) -> do
-      y :< n1 :< Ø <- networkOp ~$$ (x :< n0 :< Ø)
-      return (n1 :< y :< Ø)
+    TCN.Z_ -> networkOp
     TCN.S_ n -> (replWit @_ @Num @(b i) n Wit //) $
                 (replLen @_ @(b i) n          //) $
       bpOp . withInps $ \(n0 :< x :< xs) -> do
-        _  :< n1 :< Ø <- networkOp ~$$ (x :< n0 :< Ø)
-        n2 :< y  :< Ø <- networkOpRecurrent' n ~$$ (n1 :< xs)
+        n1 :< _ :< Ø <- networkOp             ~$$ (n0 :< x :< Ø)
+        n2 :< y :< Ø <- networkOpRecurrent' n ~$$ (n1 :< xs)
         return (n2 :< y :< Ø)
 
 runNetwork
@@ -164,15 +162,15 @@ runNetwork
     => Network r b (i :~ c) hs o
     -> b i
     -> (b o, Network r b (i :~ c) hs o)
-runNetwork n x = case runOpB networkOp (x ::< n ::< Ø) of
-    I y :< I n' :< Ø -> (y, n')
+runNetwork n x = case runOpB networkOp (n ::< x ::< Ø) of
+    I n' :< I y :< Ø -> (y, n')
 
 runNetworkPure
     :: (Num (b i), Num (b o), BLAS b)
     => Network 'FeedForward b (i :~ c) hs o
     -> b i
     -> b o
-runNetworkPure n x = case runOpB networkOpPure (x ::< n ::< Ø) of
+runNetworkPure n x = case runOpB networkOpPure (n ::< x ::< Ø) of
     I y :< Ø -> y
 
 runNetworkRecurrent

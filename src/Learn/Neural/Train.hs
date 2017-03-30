@@ -73,29 +73,29 @@ optimizeList_ xs p0 = fst . optimizeList xs p0
 sgdOptimizer
     :: forall p a b c. (Fractional p, Num a, Num b, Num c)
     => Double
-    -> (forall s. OpB s '[a, p] '[ b ])
+    -> (forall s. OpB s '[p, a] '[ b ])
     -> LossFunction '[ b ] c
     -> Optimizer (a, b) p
 sgdOptimizer r run l = MkO () $ \(x, t) p () ->
-    let o :: BPOp s '[ a, p ] '[ c ]
+    let o :: BPOp s '[ p, a ] '[ c ]
         o = withInps $ \inps -> do
               y <- run ~$ inps
               only <$> (l (only_ t) ~$ (y :< Ø))
-    in  case gradBPOp o (x ::< p ::< Ø) of
-          _ :< I g :< Ø -> (p - realToFrac r * g, ())
+    in  case gradBPOp o (p ::< x ::< Ø) of
+          I g :< _ :< Ø -> (p - realToFrac r * g, ())
 
 sgdMiniBatchOptimizer
     :: forall f p a b c. (Foldable f, Fractional p, Num a, Num b, Num c)
     => Double
-    -> (forall s. OpB s '[a, p] '[ b ])
+    -> (forall s. OpB s '[ p, a ] '[ b ])
     -> LossFunction '[ b ] c
     -> Optimizer (f (a, b)) p
 sgdMiniBatchOptimizer r run l = MkO () $ \xts p () ->
     let f :: a -> b -> p
-        f x t = case gradBPOp o (x ::< p ::< Ø) of
-                  _ :< I gr :< Ø -> gr
+        f x t = case gradBPOp o (p ::< x ::< Ø) of
+                  I gr :< _ :< Ø -> gr
           where
-            o :: BPOp s '[ a, p ] '[ c ]
+            o :: BPOp s '[ p, a ] '[ c ]
             o = withInps $ \inps -> do
               y <- run ~$ inps
               only <$> (l (only_ t) ~$ (y :< Ø))
