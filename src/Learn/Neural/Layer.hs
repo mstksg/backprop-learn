@@ -156,31 +156,31 @@ liftLayer2 f g = \case
 
 layerOp
     :: forall r c i o b s. (Component c b i o, BLAS b, Num (b i), Num (b o), CConstr c b i o)
-    => OpB s '[ b i, Layer r c b i o ] '[ b o, Layer r c b i o ]
-layerOp = OpM $ \(I x :< I l :< Ø) -> case l of
+    => OpB s '[ Layer r c b i o, b i ] '[ Layer r c b i o, b o ]
+layerOp = OpM $ \(I l :< I x :< Ø) -> case l of
     LFeedForward p -> do
       (I y :< Ø, gF) <- runOpM' componentOpFF (x ::< p ::< Ø)
-      let gF' = fmap (\case I dX :< I dP :< Ø -> I dX :< I (LFeedForward dP) :< Ø)
+      let gF' = fmap (\case I dX :< I dP :< Ø -> I (LFeedForward dP) :< I dX :< Ø)
               . gF
-              . (\case dY :< _ :< Ø -> dY :< Ø)
-      return (y ::< LFeedForward p ::< Ø, gF')
+              . (\case _ :< dY :< Ø -> dY :< Ø)
+      return (LFeedForward p ::< y ::< Ø, gF')
     LRecurrent p s -> do
       (I y :< I s' :< Ø, gF) <- runOpM' (componentOp @c @b) (x ::< p ::< s ::< Ø)
-      let gF' = fmap (\case I dX :< I dP :< I dS :< Ø -> dX ::< LRecurrent dP dS ::< Ø)
+      let gF' = fmap (\case I dX :< I dP :< I dS :< Ø -> LRecurrent dP dS ::< dX ::< Ø)
               . gF
-              . (\case dY :< Just (LRecurrent _ dS) :< Ø -> dY :< Just dS :< Ø
-                       dY :< Just (LFeedForward _)  :< Ø -> dY :< Nothing :< Ø
-                       dY :< Nothing                :< Ø -> dY :< Nothing :< Ø
+              . (\case Just (LRecurrent _ dS) :< dY :< Ø -> dY :< Just dS :< Ø
+                       Just (LFeedForward _)  :< dY :< Ø -> dY :< Nothing :< Ø
+                       Nothing                :< dY :< Ø -> dY :< Nothing :< Ø
                 )
-      return (y ::< LRecurrent p s' ::< Ø, gF')
+      return (LRecurrent p s' ::< y ::< Ø, gF')
 
 layerOpPure
     :: forall c i o b s. (Component c b i o, BLAS b, Num (b i), Num (b o), CConstr c b i o)
-    => OpB s '[ b i, Layer 'FeedForward c b i o ] '[ b o ]
-layerOpPure = OpM $ \(I x :< I l :< Ø) -> case l of
+    => OpB s '[ Layer 'FeedForward c b i o, b i ] '[ b o ]
+layerOpPure = OpM $ \(I l :< I x :< Ø) -> case l of
     LFeedForward p -> do
       (I y :< Ø, gF) <- runOpM' componentOpFF (x ::< p ::< Ø)
-      let gF' = fmap (\case I dX :< I dP :< Ø -> I dX :< I (LFeedForward dP) :< Ø)
+      let gF' = fmap (\case I dX :< I dP :< Ø -> I (LFeedForward dP) :< I dX :< Ø)
               . gF
       return (y ::< Ø, gF')
 

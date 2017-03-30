@@ -76,25 +76,25 @@ networkOp
     => OpB s '[ b i, Network r b (i :~ c) hs o ] '[ b o, Network r b (i :~ c) hs o ]
 networkOp = OpM $ \(I x :< I n :< Ø) -> case n of
     NetExt l -> do
-      (I y :< I l' :< Ø, gF) <- runOpM' layerOp (x ::< l ::< Ø)
-      let gF' = fmap (\case I dX :< I dL :< Ø -> dX ::< NetExt dL ::< Ø)
+      (I l' :< I y :< Ø, gF) <- runOpM' layerOp (l ::< x ::< Ø)
+      let gF' = fmap (\case I dL :< I dX :< Ø -> dX ::< NetExt dL ::< Ø)
               . gF
-              . (\case dY :< Just (NetExt dL) :< Ø -> dY :< Just dL :< Ø
-                       dY :< Nothing          :< Ø -> dY :< Nothing :< Ø
+              . (\case dY :< Just (NetExt dL) :< Ø -> Just dL :< dY :< Ø
+                       dY :< Nothing          :< Ø -> Nothing :< dY :< Ø
                 )
       return (y ::< NetExt l' ::< Ø, gF')
     (l :: Layer r c b i h) :& (n2 :: Network r b (h ':~ d) js o) -> do
-      (I y :< I l'  :< Ø, gF ) <- runOpM' layerOp   (x ::< l ::< Ø)
-      (I z :< I n2' :< Ø, gF') <- runOpM' networkOp (y ::< n2 ::< Ø)
+      (I l' :< I y   :< Ø, gF ) <- runOpM' layerOp   (l ::< x ::< Ø)
+      (I z  :< I n2' :< Ø, gF') <- runOpM' networkOp (y ::< n2 ::< Ø)
       let gF'' :: Prod Maybe '[ b o, Network r b (i ':~ c) ((h ':~ d) ': js) o]
                -> ST s (Tuple '[ b i, Network r b (i ':~ c) ((h ':~ d) ': js) o])
           gF'' = \case dZ :< Just (dL :& dN) :< Ø -> do
-                         I dY :< I dN2 :< Ø <- gF' (dZ :< Just dN :< Ø)
-                         I dX :< I dL0 :< Ø <- gF  (Just dY :< Just dL :< Ø)
+                         I dY  :< I dN2 :< Ø <- gF' (dZ :< Just dN :< Ø)
+                         I dL0 :< I dX  :< Ø <- gF  (Just dL :< Just dY :< Ø)
                          return $ dX ::< (dL0 :& dN2) ::< Ø
                        dZ :< Nothing   :< Ø -> do
-                         I dY :< I dN2 :< Ø <- gF' (dZ :< Nothing :< Ø)
-                         I dX :< I dL0 :< Ø <- gF  (Just dY :< Nothing :< Ø)
+                         I dY  :< I dN2 :< Ø <- gF' (dZ      :< Nothing :< Ø)
+                         I dL0 :< I dX  :< Ø <- gF  (Nothing :< Just dY :< Ø)
                          return $ dX ::< (dL0 :& dN2) ::< Ø
       return (z ::< (l' :& n2') ::< Ø, gF'')
 
@@ -103,18 +103,18 @@ networkOpPure
     => OpB s '[ b i, Network 'FeedForward b (i :~ c) hs o ] '[ b o ]
 networkOpPure = OpM $ \(I x :< I n :< Ø) -> case n of
     NetExt l -> do
-      (I y :< Ø, gF) <- runOpM' layerOpPure (x ::< l ::< Ø)
-      let gF' = fmap (\case I dX :< I dL :< Ø -> dX ::< NetExt dL ::< Ø)
+      (I y :< Ø, gF) <- runOpM' layerOpPure (l ::< x ::< Ø)
+      let gF' = fmap (\case I dL :< I dX :< Ø -> dX ::< NetExt dL ::< Ø)
               . gF
       return (y ::< Ø, gF')
     (l :: Layer 'FeedForward c b i h) :& (n2 :: Network 'FeedForward b (h ':~ d) js o) -> do
-      (I y :< Ø, gF ) <- runOpM' layerOpPure   (x ::< l ::< Ø)
+      (I y :< Ø, gF ) <- runOpM' layerOpPure   (l ::< x ::< Ø)
       (I z :< Ø, gF') <- runOpM' networkOpPure (y ::< n2 ::< Ø)
       let gF'' :: Prod Maybe '[ b o ]
                -> ST s (Tuple '[ b i, Network 'FeedForward b (i ':~ c) ((h ':~ d) ': js) o])
           gF'' dZ = do
-            I dY :< I dN2 :< Ø <- gF' dZ
-            I dX :< I dL0 :< Ø <- gF  (Just dY :< Ø)
+            I dY  :< I dN2 :< Ø <- gF' dZ
+            I dL0 :< I dX  :< Ø <- gF  (Just dY :< Ø)
             return $ dX ::< (dL0 :& dN2) ::< Ø
       return (z ::< Ø, gF'')
 
