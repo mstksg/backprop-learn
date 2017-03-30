@@ -60,7 +60,7 @@
 </span><a name="line-60"></a><span class="hs-keyword">data</span><span> </span><a name="LChain"><a href="Learn.Neural.Network.html#LChain"><span class="hs-identifier">LChain</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Type</span><span> </span><span class="hs-keyword">where</span><span>
 </span><a name="line-61"></a><span>    </span><span class="hs-special">(</span><a name="%3A~"><a href="Learn.Neural.Network.html#%3A~"><span class="hs-operator">:~</span></a></a><span class="hs-special">)</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-identifier hs-type">Nat</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Type</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Learn.Neural.Network.html#LChain"><span class="hs-identifier hs-type">LChain</span></a><span>
 </span><a name="line-62"></a><span>
-</span><a name="line-63"></a><span class="hs-keyword">type</span><span> </span><a name="local-6989586621679307022"><a href="#local-6989586621679307022"><span class="hs-identifier">s</span></a></a><span> </span><a name="%3A~"><a href="Learn.Neural.Network.html#%3A~"><span class="hs-operator">:~</span></a></a><span> </span><a name="local-6989586621679307023"><a href="#local-6989586621679307023"><span class="hs-identifier">c</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a href="#local-6989586621679307022"><span class="hs-identifier hs-type">s</span></a><span> </span><span class="hs-char">':~ c
+</span><a name="line-63"></a><span class="hs-keyword">type</span><span> </span><a name="local-6989586621679315823"><a href="#local-6989586621679315823"><span class="hs-identifier">s</span></a></a><span> </span><a name="%3A~"><a href="Learn.Neural.Network.html#%3A~"><span class="hs-operator">:~</span></a></a><span> </span><a name="local-6989586621679315824"><a href="#local-6989586621679315824"><span class="hs-identifier">c</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a href="#local-6989586621679315823"><span class="hs-identifier hs-type">s</span></a><span> </span><span class="hs-char">':~ c
 
 data Network :: RunMode -&gt; ([Nat] -&gt; Type) -&gt; LChain -&gt; [LChain] -&gt; [Nat] -&gt; Type where
     NetExt :: (ComponentLayer r c b i o, CConstr c b i o)
@@ -73,49 +73,49 @@ data Network :: RunMode -&gt; ([Nat] -&gt; Type) -&gt; LChain -&gt; [LChain] -&g
 
 networkOp
     :: forall b i c hs o r s. (BLAS b, Num (b i), Num (b o))
-    =&gt; OpB s '[ b i, Network r b (i :~ c) hs o ] '[ b o, Network r b (i :~ c) hs o ]
-networkOp = OpM $ \(I x :&lt; I n :&lt; &#216;) -&gt; case n of
+    =&gt; OpB s '[ Network r b (i :~ c) hs o, b i ] '[ Network r b (i :~ c) hs o, b o ]
+networkOp = OpM $ \(I n :&lt; I x :&lt; &#216;) -&gt; case n of
     NetExt l -&gt; do
-      (I y :&lt; I l' :&lt; &#216;, gF) &lt;- runOpM' layerOp (x ::&lt; l ::&lt; &#216;)
-      let gF' = fmap (\case I dX :&lt; I dL :&lt; &#216; -&gt; dX ::&lt; NetExt dL ::&lt; &#216;)
+      (I l' :&lt; I y :&lt; &#216;, gF) &lt;- runOpM' layerOp (l ::&lt; x ::&lt; &#216;)
+      let gF' = fmap (\case I dL :&lt; I dX :&lt; &#216; -&gt; NetExt dL ::&lt; dX ::&lt; &#216;)
               . gF
-              . (\case dY :&lt; Just (NetExt dL) :&lt; &#216; -&gt; dY :&lt; Just dL :&lt; &#216;
-                       dY :&lt; Nothing          :&lt; &#216; -&gt; dY :&lt; Nothing :&lt; &#216;
+              . (\case Just (NetExt dL) :&lt; dY :&lt; &#216; -&gt; Just dL :&lt; dY :&lt; &#216;
+                       Nothing          :&lt; dY :&lt; &#216; -&gt; Nothing :&lt; dY :&lt; &#216;
                 )
-      return (y ::&lt; NetExt l' ::&lt; &#216;, gF')
+      return (NetExt l' ::&lt; y ::&lt; &#216;, gF')
     (l :: Layer r c b i h) :&amp; (n2 :: Network r b (h ':~ d) js o) -&gt; do
-      (I y :&lt; I l'  :&lt; &#216;, gF ) &lt;- runOpM' layerOp   (x ::&lt; l ::&lt; &#216;)
-      (I z :&lt; I n2' :&lt; &#216;, gF') &lt;- runOpM' networkOp (y ::&lt; n2 ::&lt; &#216;)
-      let gF'' :: Prod Maybe '[ b o, Network r b (i ':~ c) ((h ':~ d) ': js) o]
-               -&gt; ST s (Tuple '[ b i, Network r b (i ':~ c) ((h ':~ d) ': js) o])
-          gF'' = \case dZ :&lt; Just (dL :&amp; dN) :&lt; &#216; -&gt; do
-                         I dY :&lt; I dN2 :&lt; &#216; &lt;- gF' (dZ :&lt; Just dN :&lt; &#216;)
-                         I dX :&lt; I dL0 :&lt; &#216; &lt;- gF  (Just dY :&lt; Just dL :&lt; &#216;)
-                         return $ dX ::&lt; (dL0 :&amp; dN2) ::&lt; &#216;
-                       dZ :&lt; Nothing   :&lt; &#216; -&gt; do
-                         I dY :&lt; I dN2 :&lt; &#216; &lt;- gF' (dZ :&lt; Nothing :&lt; &#216;)
-                         I dX :&lt; I dL0 :&lt; &#216; &lt;- gF  (Just dY :&lt; Nothing :&lt; &#216;)
-                         return $ dX ::&lt; (dL0 :&amp; dN2) ::&lt; &#216;
-      return (z ::&lt; (l' :&amp; n2') ::&lt; &#216;, gF'')
+      (I l'  :&lt; I y :&lt; &#216;, gF ) &lt;- runOpM' layerOp   (l  ::&lt; x ::&lt; &#216;)
+      (I n2' :&lt; I z :&lt; &#216;, gF') &lt;- runOpM' networkOp (n2 ::&lt; y ::&lt; &#216;)
+      let gF'' :: Prod Maybe '[ Network r b (i ':~ c) ((h ':~ d) ': js) o, b o ]
+               -&gt; ST s (Tuple '[ Network r b (i ':~ c) ((h ':~ d) ': js) o, b i ])
+          gF'' = \case Just (dL :&amp; dN) :&lt; dZ :&lt; &#216; -&gt; do
+                         I dN2 :&lt; I dY :&lt; &#216; &lt;- gF' (Just dN :&lt; dZ :&lt; &#216;)
+                         I dL0 :&lt; I dX :&lt; &#216; &lt;- gF  (Just dL :&lt; Just dY :&lt; &#216;)
+                         return $ (dL0 :&amp; dN2) ::&lt; dX ::&lt; &#216;
+                       Nothing         :&lt; dZ :&lt; &#216; -&gt; do
+                         I dN2 :&lt; I dY :&lt; &#216; &lt;- gF' (Nothing :&lt; dZ      :&lt; &#216;)
+                         I dL0 :&lt; I dX :&lt; &#216; &lt;- gF  (Nothing :&lt; Just dY :&lt; &#216;)
+                         return $ (dL0 :&amp; dN2) ::&lt; dX ::&lt; &#216;
+      return ((l' :&amp; n2') ::&lt; z ::&lt; &#216;, gF'')
 
 networkOpPure
     :: forall b i c hs o s. (BLAS b, Num (b i), Num (b o))
-    =&gt; OpB s '[ b i, Network 'FeedForward b (i :~ c) hs o ] '[ b o ]
-networkOpPure = OpM $ \(I x :&lt; I n :&lt; &#216;) -&gt; case n of
+    =&gt; OpB s '[ Network 'FeedForward b (i :~ c) hs o, b i ] '[ b o ]
+networkOpPure = OpM $ \(I n :&lt; I x :&lt; &#216;) -&gt; case n of
     NetExt l -&gt; do
-      (I y :&lt; &#216;, gF) &lt;- runOpM' layerOpPure (x ::&lt; l ::&lt; &#216;)
-      let gF' = fmap (\case I dX :&lt; I dL :&lt; &#216; -&gt; dX ::&lt; NetExt dL ::&lt; &#216;)
+      (I y :&lt; &#216;, gF) &lt;- runOpM' layerOpPure (l ::&lt; x ::&lt; &#216;)
+      let gF' = fmap (\case I dL :&lt; I dX :&lt; &#216; -&gt; NetExt dL ::&lt; dX ::&lt; &#216;)
               . gF
       return (y ::&lt; &#216;, gF')
     (l :: Layer 'FeedForward c b i h) :&amp; (n2 :: Network 'FeedForward b (h ':~ d) js o) -&gt; do
-      (I y :&lt; &#216;, gF ) &lt;- runOpM' layerOpPure   (x ::&lt; l ::&lt; &#216;)
-      (I z :&lt; &#216;, gF') &lt;- runOpM' networkOpPure (y ::&lt; n2 ::&lt; &#216;)
+      (I y :&lt; &#216;, gF ) &lt;- runOpM' layerOpPure   (l  ::&lt; x ::&lt; &#216;)
+      (I z :&lt; &#216;, gF') &lt;- runOpM' networkOpPure (n2 ::&lt; y ::&lt; &#216;)
       let gF'' :: Prod Maybe '[ b o ]
-               -&gt; ST s (Tuple '[ b i, Network 'FeedForward b (i ':~ c) ((h ':~ d) ': js) o])
+               -&gt; ST s (Tuple '[ Network 'FeedForward b (i ':~ c) ((h ':~ d) ': js) o, b i])
           gF'' dZ = do
-            I dY :&lt; I dN2 :&lt; &#216; &lt;- gF' dZ
-            I dX :&lt; I dL0 :&lt; &#216; &lt;- gF  (Just dY :&lt; &#216;)
-            return $ dX ::&lt; (dL0 :&amp; dN2) ::&lt; &#216;
+            I dN2 :&lt; I dY :&lt; &#216; &lt;- gF' dZ
+            I dL0 :&lt; I dX :&lt; &#216; &lt;- gF  (Just dY :&lt; &#216;)
+            return $ (dL0 :&amp; dN2) ::&lt; dX ::&lt; &#216;
       return (z ::&lt; &#216;, gF'')
 
 networkOpRecurrent
@@ -134,7 +134,7 @@ networkOpRecurrent = \case
                 (replWit @_ @Num @(b o) n Wit //) $
                 (replLen @_ @(b i) n          //) $
       bpOp . withInps $ \(n0 :&lt; x :&lt; xs) -&gt; do
-        y  :&lt; n1 :&lt; &#216; &lt;- networkOp ~$$ (x :&lt; n0 :&lt; &#216;)
+        n1 :&lt; y  :&lt; &#216; &lt;- networkOp ~$$ (n0 :&lt; x :&lt; &#216;)
         n2 :&lt; ys      &lt;- networkOpRecurrent n ~$$ (n1 :&lt; xs)
         return (n2 :&lt; y :&lt; ys)
 
@@ -149,14 +149,12 @@ networkOpRecurrent'
     -&gt; OpB s (Network 'Recurrent b (i :~ c) hs o ': b i ': Replicate n (b i))
              '[Network 'Recurrent b (i :~ c) hs o, b o ]
 networkOpRecurrent' = \case
-    TCN.Z_   -&gt; bpOp . withInps $ \(n0 :&lt; x :&lt; &#216;) -&gt; do
-      y :&lt; n1 :&lt; &#216; &lt;- networkOp ~$$ (x :&lt; n0 :&lt; &#216;)
-      return (n1 :&lt; y :&lt; &#216;)
+    TCN.Z_ -&gt; networkOp
     TCN.S_ n -&gt; (replWit @_ @Num @(b i) n Wit //) $
                 (replLen @_ @(b i) n          //) $
       bpOp . withInps $ \(n0 :&lt; x :&lt; xs) -&gt; do
-        _  :&lt; n1 :&lt; &#216; &lt;- networkOp ~$$ (x :&lt; n0 :&lt; &#216;)
-        n2 :&lt; y  :&lt; &#216; &lt;- networkOpRecurrent' n ~$$ (n1 :&lt; xs)
+        n1 :&lt; _ :&lt; &#216; &lt;- networkOp             ~$$ (n0 :&lt; x :&lt; &#216;)
+        n2 :&lt; y :&lt; &#216; &lt;- networkOpRecurrent' n ~$$ (n1 :&lt; xs)
         return (n2 :&lt; y :&lt; &#216;)
 
 runNetwork
@@ -164,15 +162,15 @@ runNetwork
     =&gt; Network r b (i :~ c) hs o
     -&gt; b i
     -&gt; (b o, Network r b (i :~ c) hs o)
-runNetwork n x = case runOpB networkOp (x ::&lt; n ::&lt; &#216;) of
-    I y :&lt; I n' :&lt; &#216; -&gt; (y, n')
+runNetwork n x = case runOpB networkOp (n ::&lt; x ::&lt; &#216;) of
+    I n' :&lt; I y :&lt; &#216; -&gt; (y, n')
 
 runNetworkPure
     :: (Num (b i), Num (b o), BLAS b)
     =&gt; Network 'FeedForward b (i :~ c) hs o
     -&gt; b i
     -&gt; b o
-runNetworkPure n x = case runOpB networkOpPure (x ::&lt; n ::&lt; &#216;) of
+runNetworkPure n x = case runOpB networkOpPure (n ::&lt; x ::&lt; &#216;) of
     I y :&lt; &#216; -&gt; y
 
 runNetworkRecurrent

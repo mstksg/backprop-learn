@@ -22,105 +22,87 @@
 </span><a name="line-22"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">List</span><span>
 </span><a name="line-23"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Profunctor</span><span>
 </span><a name="line-24"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Combinator</span><span>
-</span><a name="line-25"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">GHC</span><span class="hs-operator">.</span><span class="hs-identifier">TypeLits</span><span>
-</span><a name="line-26"></a><span class="hs-keyword">import</span><span>           </span><a href="Learn.Neural.Layer.html"><span class="hs-identifier">Learn</span><span class="hs-operator">.</span><span class="hs-identifier">Neural</span><span class="hs-operator">.</span><span class="hs-identifier">Layer</span></a><span>
+</span><a name="line-25"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Index</span><span>
+</span><a name="line-26"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Length</span><span>
 </span><a name="line-27"></a><span class="hs-keyword">import</span><span>           </span><a href="Learn.Neural.Loss.html"><span class="hs-identifier">Learn</span><span class="hs-operator">.</span><span class="hs-identifier">Neural</span><span class="hs-operator">.</span><span class="hs-identifier">Loss</span></a><span>
-</span><a name="line-28"></a><span class="hs-keyword">import</span><span>           </span><a href="Learn.Neural.Network.html"><span class="hs-identifier">Learn</span><span class="hs-operator">.</span><span class="hs-identifier">Neural</span><span class="hs-operator">.</span><span class="hs-identifier">Network</span></a><span>
-</span><a name="line-29"></a><span class="hs-keyword">import</span><span>           </span><a href="Numeric.BLAS.html"><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">BLAS</span></a><span>
-</span><a name="line-30"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Backprop</span><span>
-</span><a name="line-31"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Class</span><span class="hs-operator">.</span><span class="hs-identifier">Known</span><span>
-</span><a name="line-32"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Control</span><span class="hs-operator">.</span><span class="hs-identifier">Foldl</span><span>        </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">F</span><span>
-</span><a name="line-33"></a><span>
-</span><a name="line-34"></a><span class="hs-keyword">data</span><span> </span><a name="Optimizer"><a href="Learn.Neural.Train.html#Optimizer"><span class="hs-identifier">Optimizer</span></a></a><span>
-</span><a name="line-35"></a><span>        </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Type</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Type</span><span class="hs-special">)</span><span>
-</span><a name="line-36"></a><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="hs-identifier hs-type">Nat</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Type</span><span class="hs-special">)</span><span>
-</span><a name="line-37"></a><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Learn.Neural.Network.html#LChain"><span class="hs-identifier hs-type">LChain</span></a><span>
-</span><a name="line-38"></a><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><a href="Learn.Neural.Network.html#LChain"><span class="hs-identifier hs-type">LChain</span></a><span class="hs-special">]</span><span>
-</span><a name="line-39"></a><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-identifier hs-type">Nat</span><span class="hs-special">]</span><span>
-</span><a name="line-40"></a><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Type</span><span> </span><span class="hs-keyword">where</span><span>
-</span><a name="line-41"></a><span>    </span><a name="MkO"><a href="Learn.Neural.Train.html#MkO"><span class="hs-identifier">MkO</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">{</span><span> </span><a name="oState"><a href="Learn.Neural.Train.html#oState"><span class="hs-identifier">oState</span></a></a><span>
-</span><a name="line-42"></a><span>                </span><span class="hs-glyph">::</span><span> </span><a href="#local-6989586621679365332"><span class="hs-identifier hs-type">s</span></a><span>
-</span><a name="line-43"></a><span>           </span><span class="hs-special">,</span><span> </span><a name="oUpdate"><a href="Learn.Neural.Train.html#oUpdate"><span class="hs-identifier">oUpdate</span></a></a><span>
-</span><a name="line-44"></a><span>                </span><span class="hs-glyph">::</span><span> </span><a href="#local-6989586621679365333"><span class="hs-identifier hs-type">f</span></a><span> </span><span class="hs-special">(</span><a href="#local-6989586621679365334"><span class="hs-identifier hs-type">b</span></a><span> </span><a href="#local-6989586621679365335"><span class="hs-identifier hs-type">i</span></a><span class="hs-special">,</span><span> </span><a href="#local-6989586621679365334"><span class="hs-identifier hs-type">b</span></a><span> </span><a href="#local-6989586621679365336"><span class="hs-identifier hs-type">o</span></a><span class="hs-special">)</span><span>
-</span><a name="line-45"></a><span>                </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Learn.Neural.Network.html#Network"><span class="hs-identifier hs-type">Network</span></a><span> </span><span class="hs-char">'FeedForward b (i :~ c) hs o
-                -&gt; s
-                -&gt; (Network 'FeedForward b (i :~ c) hs o, s)
-           }
-        -&gt; Optimizer f b (i :~ c) hs o
-
-sgdOptimizer
-    :: forall b i c hs o. (Num (b i), Num (b o), BLAS b, Known (NetStruct 'FeedForward b (i :~ c) hs) o)
-    =&gt; Double
-    -&gt; LossFunction o
-    -&gt; Optimizer I b (i :~ c) hs o
-sgdOptimizer r l = MkO () $ \(I (x, t)) n () -&gt;
-    let o :: BPOp s '[ b i, Network 'FeedForward b (i :~ c) hs o ] '[ Scalar b ]
+</span><a name="line-28"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Backprop</span><span>
+</span><a name="line-29"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Class</span><span class="hs-operator">.</span><span class="hs-identifier">Known</span><span>
+</span><a name="line-30"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Control</span><span class="hs-operator">.</span><span class="hs-identifier">Foldl</span><span>        </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">F</span><span>
+</span><a name="line-31"></a><span>
+</span><a name="line-32"></a><span class="hs-keyword">data</span><span> </span><a name="Optimizer"><a href="Learn.Neural.Train.html#Optimizer"><span class="hs-identifier">Optimizer</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Type</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Type</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Type</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-33"></a><span>    </span><a name="MkO"><a href="Learn.Neural.Train.html#MkO"><span class="hs-identifier">MkO</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">{</span><span> </span><a name="oState"><a href="Learn.Neural.Train.html#oState"><span class="hs-identifier">oState</span></a></a><span>  </span><span class="hs-glyph">::</span><span> </span><a href="#local-6989586621679310038"><span class="hs-identifier hs-type">s</span></a><span>
+</span><a name="line-34"></a><span>           </span><span class="hs-special">,</span><span> </span><a name="oUpdate"><a href="Learn.Neural.Train.html#oUpdate"><span class="hs-identifier">oUpdate</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><a href="#local-6989586621679310039"><span class="hs-identifier hs-type">a</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="#local-6989586621679310040"><span class="hs-identifier hs-type">p</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="#local-6989586621679310038"><span class="hs-identifier hs-type">s</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><a href="#local-6989586621679310040"><span class="hs-identifier hs-type">p</span></a><span class="hs-special">,</span><span> </span><a href="#local-6989586621679310038"><span class="hs-identifier hs-type">s</span></a><span class="hs-special">)</span><span>
+</span><a name="line-35"></a><span>           </span><span class="hs-special">}</span><span>
+</span><a name="line-36"></a><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Learn.Neural.Train.html#Optimizer"><span class="hs-identifier hs-type">Optimizer</span></a><span> </span><a href="#local-6989586621679310039"><span class="hs-identifier hs-type">a</span></a><span> </span><a href="#local-6989586621679310040"><span class="hs-identifier hs-type">p</span></a><span>
+</span><a name="line-37"></a><span>
+</span><a name="line-38"></a><span class="hs-identifier">runOptimizer</span><span>
+</span><a name="line-39"></a><span>    </span><span class="hs-glyph">::</span><span> </span><a href="#local-6989586621679310058"><span class="hs-identifier hs-type">a</span></a><span>
+</span><a name="line-40"></a><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><a href="#local-6989586621679310059"><span class="hs-identifier hs-type">p</span></a><span>
+</span><a name="line-41"></a><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Learn.Neural.Train.html#Optimizer"><span class="hs-identifier hs-type">Optimizer</span></a><span> </span><a href="#local-6989586621679310058"><span class="hs-identifier hs-type">a</span></a><span> </span><a href="#local-6989586621679310059"><span class="hs-identifier hs-type">p</span></a><span>
+</span><a name="line-42"></a><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><a href="#local-6989586621679310059"><span class="hs-identifier hs-type">p</span></a><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Train.html#Optimizer"><span class="hs-identifier hs-type">Optimizer</span></a><span> </span><a href="#local-6989586621679310058"><span class="hs-identifier hs-type">a</span></a><span> </span><a href="#local-6989586621679310059"><span class="hs-identifier hs-type">p</span></a><span class="hs-special">)</span><span>
+</span><a name="line-43"></a><a name="runOptimizer"><a href="Learn.Neural.Train.html#runOptimizer"><span class="hs-identifier">runOptimizer</span></a></a><span> </span><a name="local-6989586621679310060"><a href="#local-6989586621679310060"><span class="hs-identifier">x</span></a></a><span> </span><a name="local-6989586621679310061"><a href="#local-6989586621679310061"><span class="hs-identifier">p</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-keyword">case</span><span>
+</span><a name="line-44"></a><span>    </span><a href="Learn.Neural.Train.html#MkO"><span class="hs-identifier hs-var">MkO</span></a><span> </span><a name="local-6989586621679310062"><a href="#local-6989586621679310062"><span class="hs-identifier">s</span></a></a><span> </span><a name="local-6989586621679310063"><a href="#local-6989586621679310063"><span class="hs-identifier">u</span></a></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><a href="#local-6989586621679310063"><span class="hs-identifier hs-var">u</span></a><span> </span><a href="#local-6989586621679310060"><span class="hs-identifier hs-var">x</span></a><span> </span><a href="#local-6989586621679310061"><span class="hs-identifier hs-var">p</span></a><span> </span><a href="#local-6989586621679310062"><span class="hs-identifier hs-var">s</span></a><span> </span><span class="hs-keyword">of</span><span>
+</span><a name="line-45"></a><span>                 </span><span class="hs-special">(</span><a name="local-6989586621679310064"><a href="#local-6989586621679310064"><span class="hs-identifier">p'</span></a></a><span class="hs-special">,</span><span> </span><a name="local-6989586621679310065"><a href="#local-6989586621679310065"><span class="hs-identifier">s'</span></a></a><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><a href="#local-6989586621679310064"><span class="hs-identifier hs-var">p'</span></a><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Train.html#MkO"><span class="hs-identifier hs-var">MkO</span></a><span> </span><a href="#local-6989586621679310065"><span class="hs-identifier hs-var">s'</span></a><span> </span><a href="#local-6989586621679310063"><span class="hs-identifier hs-var">u</span></a><span class="hs-special">)</span><span>
+</span><a name="line-46"></a><span>
+</span><a name="line-47"></a><span class="hs-identifier">runOptimizer_</span><span>
+</span><a name="line-48"></a><span>    </span><span class="hs-glyph">::</span><span> </span><a href="#local-6989586621679310056"><span class="hs-identifier hs-type">a</span></a><span>
+</span><a name="line-49"></a><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><a href="#local-6989586621679310057"><span class="hs-identifier hs-type">p</span></a><span>
+</span><a name="line-50"></a><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Learn.Neural.Train.html#Optimizer"><span class="hs-identifier hs-type">Optimizer</span></a><span> </span><a href="#local-6989586621679310056"><span class="hs-identifier hs-type">a</span></a><span> </span><a href="#local-6989586621679310057"><span class="hs-identifier hs-type">p</span></a><span>
+</span><a name="line-51"></a><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><a href="#local-6989586621679310057"><span class="hs-identifier hs-type">p</span></a><span>
+</span><a name="line-52"></a><a name="runOptimizer_"><a href="Learn.Neural.Train.html#runOptimizer_"><span class="hs-identifier">runOptimizer_</span></a></a><span> </span><a name="local-6989586621679310066"><a href="#local-6989586621679310066"><span class="hs-identifier">x</span></a></a><span> </span><a name="local-6989586621679310067"><a href="#local-6989586621679310067"><span class="hs-identifier">p</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-keyword">case</span><span>
+</span><a name="line-53"></a><span>    </span><a href="Learn.Neural.Train.html#MkO"><span class="hs-identifier hs-var">MkO</span></a><span> </span><a name="local-6989586621679310068"><a href="#local-6989586621679310068"><span class="hs-identifier">s</span></a></a><span> </span><a name="local-6989586621679310069"><a href="#local-6989586621679310069"><span class="hs-identifier">u</span></a></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><a href="#local-6989586621679310069"><span class="hs-identifier hs-var">u</span></a><span> </span><a href="#local-6989586621679310066"><span class="hs-identifier hs-var">x</span></a><span> </span><a href="#local-6989586621679310067"><span class="hs-identifier hs-var">p</span></a><span> </span><a href="#local-6989586621679310068"><span class="hs-identifier hs-var">s</span></a><span> </span><span class="hs-keyword">of</span><span>
+</span><a name="line-54"></a><span>                 </span><span class="hs-special">(</span><a name="local-6989586621679310070"><a href="#local-6989586621679310070"><span class="hs-identifier">p'</span></a></a><span class="hs-special">,</span><span> </span><span class="hs-identifier">_</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="#local-6989586621679310070"><span class="hs-identifier hs-var">p'</span></a><span>
+</span><a name="line-55"></a><span>
+</span><a name="line-56"></a><span class="hs-keyword">data</span><span> </span><a name="STup"><a href="Learn.Neural.Train.html#STup"><span class="hs-identifier">STup</span></a></a><span> </span><a name="local-6989586621679310036"><a href="#local-6989586621679310036"><span class="hs-identifier">a</span></a></a><span> </span><a name="local-6989586621679310037"><a href="#local-6989586621679310037"><span class="hs-identifier">b</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="STup"><a href="Learn.Neural.Train.html#STup"><span class="hs-identifier">STup</span></a></a><span> </span><span class="hs-glyph">!</span><a href="#local-6989586621679310036"><span class="hs-identifier hs-type">a</span></a><span> </span><span class="hs-glyph">!</span><a href="#local-6989586621679310037"><span class="hs-identifier hs-type">b</span></a><span>
+</span><a name="line-57"></a><span>
+</span><a name="line-58"></a><span class="hs-identifier">optimizeList</span><span>
+</span><a name="line-59"></a><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><a href="#local-6989586621679310054"><span class="hs-identifier hs-type">a</span></a><span class="hs-special">]</span><span>
+</span><a name="line-60"></a><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><a href="#local-6989586621679310055"><span class="hs-identifier hs-type">p</span></a><span>
+</span><a name="line-61"></a><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Learn.Neural.Train.html#Optimizer"><span class="hs-identifier hs-type">Optimizer</span></a><span> </span><a href="#local-6989586621679310054"><span class="hs-identifier hs-type">a</span></a><span> </span><a href="#local-6989586621679310055"><span class="hs-identifier hs-type">p</span></a><span>
+</span><a name="line-62"></a><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><a href="#local-6989586621679310055"><span class="hs-identifier hs-type">p</span></a><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Train.html#Optimizer"><span class="hs-identifier hs-type">Optimizer</span></a><span> </span><a href="#local-6989586621679310054"><span class="hs-identifier hs-type">a</span></a><span> </span><a href="#local-6989586621679310055"><span class="hs-identifier hs-type">p</span></a><span class="hs-special">)</span><span>
+</span><a name="line-63"></a><a name="optimizeList"><a href="Learn.Neural.Train.html#optimizeList"><span class="hs-identifier">optimizeList</span></a></a><span> </span><a name="local-6989586621679310071"><a href="#local-6989586621679310071"><span class="hs-identifier">xs</span></a></a><span> </span><a name="local-6989586621679310072"><a href="#local-6989586621679310072"><span class="hs-identifier">p0</span></a></a><span> </span><a name="local-6989586621679310073"><a href="#local-6989586621679310073"><span class="hs-identifier">o0</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-identifier hs-var">foldl'</span><span> </span><a href="#local-6989586621679310074"><span class="hs-identifier hs-var">f</span></a><span> </span><span class="hs-special">(</span><a href="Learn.Neural.Train.html#STup"><span class="hs-identifier hs-var">STup</span></a><span> </span><a href="#local-6989586621679310072"><span class="hs-identifier hs-var">p0</span></a><span> </span><a href="#local-6989586621679310073"><span class="hs-identifier hs-var">o0</span></a><span class="hs-special">)</span><span> </span><a href="#local-6989586621679310071"><span class="hs-identifier hs-var">xs</span></a><span> </span><span class="hs-keyword">of</span><span>
+</span><a name="line-64"></a><span>    </span><a href="Learn.Neural.Train.html#STup"><span class="hs-identifier hs-var">STup</span></a><span> </span><a name="local-6989586621679310080"><a href="#local-6989586621679310080"><span class="hs-identifier">p</span></a></a><span> </span><a name="local-6989586621679310081"><a href="#local-6989586621679310081"><span class="hs-identifier">o</span></a></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><a href="#local-6989586621679310080"><span class="hs-identifier hs-var">p</span></a><span class="hs-special">,</span><span> </span><a href="#local-6989586621679310081"><span class="hs-identifier hs-var">o</span></a><span class="hs-special">)</span><span>
+</span><a name="line-65"></a><span>  </span><span class="hs-keyword">where</span><span>
+</span><a name="line-66"></a><span>    </span><a name="local-6989586621679310074"><a href="#local-6989586621679310074"><span class="hs-identifier">f</span></a></a><span> </span><span class="hs-special">(</span><a href="Learn.Neural.Train.html#STup"><span class="hs-identifier hs-var">STup</span></a><span> </span><a name="local-6989586621679310075"><a href="#local-6989586621679310075"><span class="hs-identifier">p</span></a></a><span> </span><a name="local-6989586621679310076"><a href="#local-6989586621679310076"><span class="hs-identifier">o</span></a></a><span class="hs-special">)</span><span> </span><a name="local-6989586621679310077"><a href="#local-6989586621679310077"><span class="hs-identifier">x</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><a href="Learn.Neural.Train.html#runOptimizer"><span class="hs-identifier hs-var">runOptimizer</span></a><span> </span><a href="#local-6989586621679310077"><span class="hs-identifier hs-var">x</span></a><span> </span><a href="#local-6989586621679310075"><span class="hs-identifier hs-var">p</span></a><span> </span><a href="#local-6989586621679310076"><span class="hs-identifier hs-var">o</span></a><span> </span><span class="hs-keyword">of</span><span>
+</span><a name="line-67"></a><span>      </span><span class="hs-special">(</span><a name="local-6989586621679310078"><a href="#local-6989586621679310078"><span class="hs-identifier">p'</span></a></a><span class="hs-special">,</span><span> </span><a name="local-6989586621679310079"><a href="#local-6989586621679310079"><span class="hs-identifier">o'</span></a></a><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Learn.Neural.Train.html#STup"><span class="hs-identifier hs-var">STup</span></a><span> </span><a href="#local-6989586621679310078"><span class="hs-identifier hs-var">p'</span></a><span> </span><a href="#local-6989586621679310079"><span class="hs-identifier hs-var">o'</span></a><span>
+</span><a name="line-68"></a><span>
+</span><a name="line-69"></a><span class="hs-identifier">optimizeList_</span><span>
+</span><a name="line-70"></a><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><a href="#local-6989586621679310052"><span class="hs-identifier hs-type">a</span></a><span class="hs-special">]</span><span>
+</span><a name="line-71"></a><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><a href="#local-6989586621679310053"><span class="hs-identifier hs-type">p</span></a><span>
+</span><a name="line-72"></a><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Learn.Neural.Train.html#Optimizer"><span class="hs-identifier hs-type">Optimizer</span></a><span> </span><a href="#local-6989586621679310052"><span class="hs-identifier hs-type">a</span></a><span> </span><a href="#local-6989586621679310053"><span class="hs-identifier hs-type">p</span></a><span>
+</span><a name="line-73"></a><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><a href="#local-6989586621679310053"><span class="hs-identifier hs-type">p</span></a><span>
+</span><a name="line-74"></a><a name="optimizeList_"><a href="Learn.Neural.Train.html#optimizeList_"><span class="hs-identifier">optimizeList_</span></a></a><span> </span><a name="local-6989586621679310082"><a href="#local-6989586621679310082"><span class="hs-identifier">xs</span></a></a><span> </span><a name="local-6989586621679310083"><a href="#local-6989586621679310083"><span class="hs-identifier">p0</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">fst</span><span> </span><span class="hs-operator hs-var">.</span><span> </span><a href="Learn.Neural.Train.html#optimizeList"><span class="hs-identifier hs-var">optimizeList</span></a><span> </span><a href="#local-6989586621679310082"><span class="hs-identifier hs-var">xs</span></a><span> </span><a href="#local-6989586621679310083"><span class="hs-identifier hs-var">p0</span></a><span>
+</span><a name="line-75"></a><span>
+</span><a name="line-76"></a><span class="hs-identifier">sgdOptimizer</span><span>
+</span><a name="line-77"></a><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><a name="local-6989586621679310047"><a href="#local-6989586621679310047"><span class="hs-identifier">p</span></a></a><span> </span><span class="hs-keyword">as</span><span> </span><a name="local-6989586621679310049"><a href="#local-6989586621679310049"><span class="hs-identifier">bs</span></a></a><span> </span><a name="local-6989586621679310050"><a href="#local-6989586621679310050"><span class="hs-identifier">c</span></a></a><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Fractional</span><span> </span><a href="#local-6989586621679310047"><span class="hs-identifier hs-type">p</span></a><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Num</span><span> </span><a href="#local-6989586621679310050"><span class="hs-identifier hs-type">c</span></a><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Every</span><span> </span><span class="hs-identifier hs-type">Num</span><span> </span><span class="hs-keyword">as</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Every</span><span> </span><span class="hs-identifier hs-type">Num</span><span> </span><a href="#local-6989586621679310049"><span class="hs-identifier hs-type">bs</span></a><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Known</span><span> </span><span class="hs-identifier hs-type">Length</span><span> </span><span class="hs-keyword">as</span><span class="hs-special">)</span><span>
+</span><a name="line-78"></a><span>    </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier hs-type">Double</span><span>
+</span><a name="line-79"></a><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><a name="local-6989586621679310051"><a href="#local-6989586621679310051"><span class="hs-identifier">s</span></a></a><span class="hs-operator">.</span><span> </span><span class="hs-identifier hs-type">OpB</span><span> </span><a href="#local-6989586621679310051"><span class="hs-identifier hs-type">s</span></a><span> </span><span class="hs-special">(</span><a href="#local-6989586621679310047"><span class="hs-identifier hs-type">p</span></a><span> </span><span class="hs-char">': as) bs)
+    -&gt; LossFunction bs c
+    -&gt; Optimizer (Tuple as, Tuple bs) p
+sgdOptimizer r run l = MkO () $ \(xs, ts) p () -&gt;
+    let o :: BPOp s (p ': as) '[ c ]
         o = withInps $ \inps -&gt; do
-              y &lt;- networkOpPure ~$ inps
-              only &lt;$&gt; (l t ~$ (y :&lt; &#216;))
-    in  case gradBPOp o (x ::&lt; n ::&lt; &#216;) of
-          _ :&lt; I g :&lt; &#216; -&gt; (n - realToFrac r * g, ())
+              ys &lt;- run ~$$ inps
+              only &lt;$&gt; (l ts ~$ ys)
+    in  case gradBPOp o (p ::&lt; xs) of
+          I g :&lt; _ -&gt; (p - realToFrac r * g, ())
 
 sgdMiniBatchOptimizer
-    :: forall b i c hs o f.
-     ( Num (b i)
-     , Num (b o)
-     , BLAS b
-     , Known (NetStruct 'FeedForward b (i :~ c) hs) o
-     , Foldable f
-     )
+    :: forall f p as bs c. (Foldable f, Fractional p, Num c, Every Num as, Every Num bs, Known Length as)
     =&gt; Double
-    -&gt; LossFunction o
-    -&gt; Optimizer f b (i :~ c) hs o
-sgdMiniBatchOptimizer r l = MkO () $ \xts n () -&gt;
-    let f :: b i -&gt; b o -&gt; Network 'FeedForward b (i :~ c) hs o
-        f x t = case gradBPOp o (x ::&lt; n ::&lt; &#216;) of
-                  _ :&lt; I gr :&lt; &#216; -&gt; gr
+    -&gt; (forall s. OpB s (p ': as) bs)
+    -&gt; LossFunction bs c
+    -&gt; Optimizer (f (Tuple as, Tuple bs)) p
+sgdMiniBatchOptimizer r run l = MkO () $ \xts p () -&gt;
+    let f :: Tuple as -&gt; Tuple bs -&gt; p
+        f xs ts = case gradBPOp o (p ::&lt; xs) of
+                    I gr :&lt; _ -&gt; gr
           where
-            o :: BPOp s '[ b i, Network 'FeedForward b (i :~ c) hs o ] '[ Scalar b ]
+            o :: BPOp s (p ': as) '[ c ]
             o = withInps $ \inps -&gt; do
-              y &lt;- networkOpPure ~$ inps
-              only &lt;$&gt; (l t ~$ (y :&lt; &#216;))
+              ys &lt;- run ~$$ inps
+              only &lt;$&gt; (l ts ~$ ys)
         g = F.fold (lmap (uncurry f) F.mean) xts
-    in  (n - realToFrac r * g, ())
-
-
-runOptimizer
-    :: f (b i, b o)
-    -&gt; Network 'FeedForward b (i :~ c) hs o
-    -&gt; Optimizer f b (i :~ c) hs o
-    -&gt; (Network 'FeedForward b (i :~ c) hs o, Optimizer f b (i :~ c) hs o)
-runOptimizer x n = \case
-    MkO s u -&gt; case u x n s of
-                 (n', s') -&gt; (n', MkO s' u)
-
-runOptimizer_
-    :: f (b i, b o)
-    -&gt; Network 'FeedForward b (i :~ c) hs o
-    -&gt; Optimizer f b (i :~ c) hs o
-    -&gt; Network 'FeedForward b (i :~ c) hs o
-runOptimizer_ x n = \case
-    MkO s u -&gt; case u x n s of
-                 (n', _) -&gt; n'
-
-data STup a b = STup !a !b
-
-optimizeList
-    :: [f (b i, b o)]
-    -&gt; Network 'FeedForward b (i :~ c) hs o
-    -&gt; Optimizer f b (i :~ c) hs o
-    -&gt; (Network 'FeedForward b (i :~ c) hs o, Optimizer f b (i :~ c) hs o)
-optimizeList xs n0 o0 = case foldl' f (STup n0 o0) xs of
-    STup n o -&gt; (n, o)
-  where
-    f (STup n o) x = case runOptimizer x n o of
-      (n', o') -&gt; STup n' o'
-
-optimizeList_
-    :: [f (b i, b o)]
-    -&gt; Network 'FeedForward b (i :~ c) hs o
-    -&gt; Optimizer f b (i :~ c) hs o
-    -&gt; Network 'FeedForward b (i :~ c) hs o
-optimizeList_ xs n0 = fst . optimizeList xs n0
+    in  (p - realToFrac r * g, ())
 
 </span></pre></body></html>

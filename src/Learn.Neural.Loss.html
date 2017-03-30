@@ -13,18 +13,23 @@
 </span><a name="line-13"></a><span class="hs-keyword">import</span><span>           </span><a href="Numeric.BLAS.html"><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">BLAS</span></a><span>
 </span><a name="line-14"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Backprop</span><span>
 </span><a name="line-15"></a><span>
-</span><a name="line-16"></a><span class="hs-keyword">type</span><span> </span><a name="LossFunction"><a href="Learn.Neural.Loss.html#LossFunction"><span class="hs-identifier">LossFunction</span></a></a><span> </span><a name="local-6989586621679301977"><a href="#local-6989586621679301977"><span class="hs-identifier">s</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">forall</span><span> </span><a name="local-6989586621679301978"><a href="#local-6989586621679301978"><span class="hs-identifier">b</span></a></a><span> </span><a name="local-6989586621679301979"><a href="#local-6989586621679301979"><span class="hs-identifier">q</span></a></a><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><a href="Numeric.BLAS.html#BLAS"><span class="hs-identifier hs-type">BLAS</span></a><span> </span><a href="#local-6989586621679301978"><span class="hs-identifier hs-type">b</span></a><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Num</span><span> </span><span class="hs-special">(</span><a href="#local-6989586621679301978"><span class="hs-identifier hs-type">b</span></a><span> </span><a href="#local-6989586621679301977"><span class="hs-identifier hs-type">s</span></a><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><a href="#local-6989586621679301978"><span class="hs-identifier hs-type">b</span></a><span> </span><a href="#local-6989586621679301977"><span class="hs-identifier hs-type">s</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">OpB</span><span> </span><a href="#local-6989586621679301979"><span class="hs-identifier hs-type">q</span></a><span> </span><span class="hs-char">'[ b s ] '[ Scalar b ]
+</span><a name="line-16"></a><span class="hs-comment">-- type LossFunction s = forall b q. (BLAS b, Num (b s)) =&gt; b s -&gt; OpB q '[ b s ] '[ Scalar b ]</span><span>
+</span><a name="line-17"></a><span class="hs-keyword">type</span><span> </span><a name="LossFunction"><a href="Learn.Neural.Loss.html#LossFunction"><span class="hs-identifier">LossFunction</span></a></a><span> </span><span class="hs-keyword">as</span><span> </span><a name="local-6989586621679303628"><a href="#local-6989586621679303628"><span class="hs-identifier">b</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">forall</span><span> </span><a name="local-6989586621679303629"><a href="#local-6989586621679303629"><span class="hs-identifier">s</span></a></a><span class="hs-operator">.</span><span> </span><span class="hs-identifier hs-type">Tuple</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">OpB</span><span> </span><a href="#local-6989586621679303629"><span class="hs-identifier hs-type">s</span></a><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-char">'[ b ]
 
-crossEntropy :: KnownNat n =&gt; LossFunction '[n]
-crossEntropy targ = bpOp . withInps $ \(r :&lt; &#216;) -&gt; do
+crossEntropy
+    :: forall b n. (BLAS b, KnownNat n, Num (b '[n]))
+    =&gt; LossFunction '[ b '[n] ] (Scalar b)
+crossEntropy (I targ :&lt; &#216;) = bpOp . withInps $ \(r :&lt; &#216;) -&gt; do
     logR &lt;- tmapOp log ~$ (r :&lt; &#216;)
     res  &lt;- negate &lt;$&gt; (dotOp ~$ (logR :&lt; t :&lt; &#216;))
     only &lt;$&gt; bindVar res
   where
     t = constVar targ
 
-squaredError :: KnownNat n =&gt; LossFunction '[n]
-squaredError targ = bpOp . withInps $ \(r :&lt; &#216;) -&gt; do
+squaredError
+    :: (BLAS b, KnownNat n, Num (b '[n]))
+    =&gt; LossFunction '[ b '[n] ] (Scalar b)
+squaredError (I targ :&lt; &#216;) = bpOp . withInps $ \(r :&lt; &#216;) -&gt; do
     err  &lt;- bindVar $ r - t
     only &lt;$&gt; (dotOp ~$ (err :&lt; err :&lt; &#216;))
   where

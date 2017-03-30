@@ -21,13 +21,18 @@ tzip :: (Tensor t, SingI s) => (Scalar t -> Scalar t -> Scalar t) -> t s -> t s 
 tzipN :: (Tensor t, SingI s) => (Vec n (Scalar t) -> Scalar t) -> VecT n t s -> t s
 tsize :: (Tensor t, SingI s) => t s -> Int
 tindex :: (Tensor t, SingI s) => Prod Finite s -> t s -> Scalar t
-tconv :: (Tensor t, KnownNat n) => DoubleProd Sing m s -> t (n : m) -> t s -> t (n : s)
+tconv :: Tensor t => Sing n -> ProdMap Conv m s -> t (m >: n) -> t s -> t (s >: n)
+tslice :: Tensor t => ProdMap Slice n m -> t n -> t m
 treshape :: (Tensor t, SingI s1, Product s1 ~ Product s2) => Sing s2 -> t s1 -> t s2
 tload :: Tensor t => Sing s -> Vector (Product s) (Scalar t) -> t s
 textract :: (Tensor t, SingI s) => t s -> Vector (Product s) (Scalar t)
-data DoubleProd :: (k -> Type) -> [k] -> [k] -> Type
-[DPZ] :: DoubleProd f '[] '[]
-[DPS] :: f a -> f b -> DoubleProd f as bs -> DoubleProd f (a : as) (b : bs)
+data ProdMap :: (a -> b -> Type) -> [a] -> [b] -> Type
+[PMZ] :: ProdMap f '[] '[]
+[PMS] :: f a b -> ProdMap f as bs -> ProdMap f (a : as) (b : bs)
+data Slice :: Nat -> Nat -> Type
+[Slice] :: Sing l -> Sing c -> Sing r -> Slice ((l + c) + r) c
+data Conv :: Nat -> Nat -> Type
+[Conv] :: {convMaskDim :: Sing m, convImageDim :: Sing s, convStride :: Finite s, convOffset :: Finite s} -> Conv m s
 sProduct :: Sing as -> Sing (Product as)
 fromScalar :: Tensor t => Scalar t -> t '[]
 toScalar :: Tensor t => t '[] -> Scalar t
@@ -101,8 +106,8 @@ data RunModeWit :: RunMode -> Type -> ([Nat] -> Type) -> [Nat] -> [Nat] -> Type
 [RMNotFF] :: RunModeWit Recurrent c b i o
 class Component c b i o => ComponentLayer (r :: RunMode) c b i o
 componentRunMode :: ComponentLayer r c b i o => RunModeWit r c b i o
-layerOp :: forall r c i o b s. (Component c b i o, BLAS b, Num (b i), Num (b o), CConstr c b i o) => OpB s '[b i, Layer r c b i o] '[b o, Layer r c b i o]
-layerOpPure :: forall c i o b s. (Component c b i o, BLAS b, Num (b i), Num (b o), CConstr c b i o) => OpB s '[b i, Layer FeedForward c b i o] '[b o]
+layerOp :: forall r c i o b s. (Component c b i o, BLAS b, Num (b i), Num (b o), CConstr c b i o) => OpB s '[Layer r c b i o, b i] '[Layer r c b i o, b o]
+layerOpPure :: forall c i o b s. (Component c b i o, BLAS b, Num (b i), Num (b o), CConstr c b i o) => OpB s '[Layer FeedForward c b i o, b i] '[b o]
 initLayer :: forall r c b i o m. (PrimMonad m, BLAS b, ComponentLayer r c b i o, CConstr c b i o) => Sing i -> Sing o -> CConf c b i o -> Gen (PrimState m) -> m (Layer r c b i o)
 instance Learn.Neural.Layer.ComponentLayer r c b i o => GHC.Num.Num (Learn.Neural.Layer.Layer r c b i o)
 instance Learn.Neural.Layer.ComponentLayer r c b i o => GHC.Real.Fractional (Learn.Neural.Layer.Layer r c b i o)
@@ -225,9 +230,19 @@ instance forall k (b :: [GHC.Types.Nat] -> GHC.Types.Type) (i :: GHC.Types.Nat) 
 instance forall k (b :: [GHC.Types.Nat] -> GHC.Types.Type) (i :: GHC.Types.Nat) (o :: GHC.Types.Nat) (s :: k). (Numeric.BLAS.BLAS b, GHC.TypeLits.KnownNat i, GHC.TypeLits.KnownNat o, GHC.Real.Fractional (b '[o]), GHC.Real.Fractional (b '[o, i]), GHC.Real.Fractional (b '[o, o]), Data.Reflection.Reifies s Learn.Neural.Layer.Mapping.MapFunc) => Learn.Neural.Layer.ComponentLayer 'Learn.Neural.Layer.Recurrent (Learn.Neural.Layer.Recurrent.FullyConnected.FullyConnectedR' s) b '[i] '[o]
 
 module Learn.Neural.Loss
-type LossFunction s = forall b q. (BLAS b, Num (b s)) => b s -> OpB q '[b s] '[Scalar b]
-crossEntropy :: KnownNat n => LossFunction '[n]
-squaredError :: KnownNat n => LossFunction '[n]
+type LossFunction as b = forall s. Tuple as -> OpB s as '[b]
+crossEntropy :: forall b n. (BLAS b, KnownNat n, Num (b '[n])) => LossFunction '[b '[n]] (Scalar b)
+squaredError :: (BLAS b, KnownNat n, Num (b '[n])) => LossFunction '[b '[n]] (Scalar b)
+
+module Learn.Neural.Train
+data Optimizer :: Type -> Type -> Type
+[MkO] :: {oState :: s, oUpdate :: a -> p -> s -> (p, s)} -> Optimizer a p
+runOptimizer :: a -> p -> Optimizer a p -> (p, Optimizer a p)
+runOptimizer_ :: a -> p -> Optimizer a p -> p
+optimizeList :: [a] -> p -> Optimizer a p -> (p, Optimizer a p)
+optimizeList_ :: [a] -> p -> Optimizer a p -> p
+sgdOptimizer :: forall p as bs c. (Fractional p, Num c, Every Num as, Every Num bs, Known Length as) => Double -> (forall s. OpB s (p : as) bs) -> LossFunction bs c -> Optimizer (Tuple as, Tuple bs) p
+sgdMiniBatchOptimizer :: forall f p as bs c. (Foldable f, Fractional p, Num c, Every Num as, Every Num bs, Known Length as) => Double -> (forall s. OpB s (p : as) bs) -> LossFunction bs c -> Optimizer (f (Tuple as, Tuple bs)) p
 
 module Learn.Neural.Network
 data LChain :: Type
@@ -236,8 +251,8 @@ type (:~) s c = s :~ c
 data Network :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> Type
 [NetExt] :: (ComponentLayer r c b i o, CConstr c b i o) => Layer r c b i o -> Network r b (i :~ c) '[] o
 [:&] :: (ComponentLayer r c b i h, CConstr c b i h, Num (b h)) => Layer r c b i h -> Network r b (h :~ d) hs o -> Network r b (i :~ c) ((h :~ d) : hs) o
-networkOp :: forall b i c hs o r s. (BLAS b, Num (b i), Num (b o)) => OpB s '[b i, Network r b (i :~ c) hs o] '[b o, Network r b (i :~ c) hs o]
-networkOpPure :: forall b i c hs o s. (BLAS b, Num (b i), Num (b o)) => OpB s '[b i, Network FeedForward b (i :~ c) hs o] '[b o]
+networkOp :: forall b i c hs o r s. (BLAS b, Num (b i), Num (b o)) => OpB s '[Network r b (i :~ c) hs o, b i] '[Network r b (i :~ c) hs o, b o]
+networkOpPure :: forall b i c hs o s. (BLAS b, Num (b i), Num (b o)) => OpB s '[Network FeedForward b (i :~ c) hs o, b i] '[b o]
 networkOpRecurrent :: forall n b i c hs o s. (Known (NetStruct Recurrent b (i :~ c) hs) o, BLAS b, Num (b o), Num (b i)) => Nat n -> OpB s (Network Recurrent b (i :~ c) hs o : Replicate n (b i)) (Network Recurrent b (i :~ c) hs o : Replicate n (b o))
 networkOpRecurrent' :: forall n b i c hs o s. (Known (NetStruct Recurrent b (i :~ c) hs) o, BLAS b, Num (b o), Num (b i)) => Nat n -> OpB s (Network Recurrent b (i :~ c) hs o : (b i : Replicate n (b i))) '[Network Recurrent b (i :~ c) hs o, b o]
 runNetwork :: (Num (b i), Num (b o), BLAS b) => Network r b (i :~ c) hs o -> b i -> (b o, Network r b (i :~ c) hs o)
@@ -271,16 +286,6 @@ maxTest :: KnownNat n => TestFunc '[n]
 rmseTest :: KnownNat n => TestFunc '[n]
 testNet :: (BLAS b, Num (b i), Num (b o)) => TestFunc o -> SomeNet FeedForward b i o -> b i -> b o -> Double
 testNetList :: (BLAS b, Num (b i), Num (b o)) => TestFunc o -> SomeNet FeedForward b i o -> [(b i, b o)] -> Double
-
-module Learn.Neural.Train
-data Optimizer :: (Type -> Type) -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> Type
-[MkO] :: {oState :: s, oUpdate :: f (b i, b o) -> Network FeedForward b (i :~ c) hs o -> s -> (Network FeedForward b (i :~ c) hs o, s)} -> Optimizer f b (i :~ c) hs o
-runOptimizer :: f (b i, b o) -> Network FeedForward b (i :~ c) hs o -> Optimizer f b (i :~ c) hs o -> (Network FeedForward b (i :~ c) hs o, Optimizer f b (i :~ c) hs o)
-runOptimizer_ :: f (b i, b o) -> Network FeedForward b (i :~ c) hs o -> Optimizer f b (i :~ c) hs o -> Network FeedForward b (i :~ c) hs o
-optimizeList :: [f (b i, b o)] -> Network FeedForward b (i :~ c) hs o -> Optimizer f b (i :~ c) hs o -> (Network FeedForward b (i :~ c) hs o, Optimizer f b (i :~ c) hs o)
-optimizeList_ :: [f (b i, b o)] -> Network FeedForward b (i :~ c) hs o -> Optimizer f b (i :~ c) hs o -> Network FeedForward b (i :~ c) hs o
-sgdOptimizer :: forall b i c hs o. (Num (b i), Num (b o), BLAS b, Known (NetStruct FeedForward b (i :~ c) hs) o) => Double -> LossFunction o -> Optimizer I b (i :~ c) hs o
-sgdMiniBatchOptimizer :: forall b i c hs o f. (Num (b i), Num (b o), BLAS b, Known (NetStruct FeedForward b (i :~ c) hs) o, Foldable f) => Double -> LossFunction o -> Optimizer f b (i :~ c) hs o
 
 module Learn.Neural
 

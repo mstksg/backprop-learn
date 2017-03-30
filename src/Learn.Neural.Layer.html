@@ -45,7 +45,7 @@
 </span><a name="line-45"></a><span>             </span><span class="hs-glyph">|</span><span> </span><a name="Recurrent"><a href="Learn.Neural.Layer.html#Recurrent"><span class="hs-identifier">Recurrent</span></a></a><span>
 </span><a name="line-46"></a><span>
 </span><a name="line-47"></a><span class="hs-keyword">data</span><span> </span><a name="RunModeWit"><a href="Learn.Neural.Layer.html#RunModeWit"><span class="hs-identifier">RunModeWit</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><a href="Learn.Neural.Layer.html#RunMode"><span class="hs-identifier hs-type">RunMode</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Type</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="hs-identifier hs-type">Nat</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Type</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-identifier hs-type">Nat</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-identifier hs-type">Nat</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Type</span><span> </span><span class="hs-keyword">where</span><span>
-</span><a name="line-48"></a><span>    </span><a name="RMIsFF"><a href="Learn.Neural.Layer.html#RMIsFF"><span class="hs-identifier">RMIsFF</span></a></a><span>  </span><span class="hs-glyph">::</span><span> </span><a href="Learn.Neural.Layer.html#ComponentFF"><span class="hs-identifier hs-type">ComponentFF</span></a><span> </span><a href="#local-6989586621679191085"><span class="hs-identifier hs-type">c</span></a><span> </span><a href="#local-6989586621679191086"><span class="hs-identifier hs-type">b</span></a><span> </span><a href="#local-6989586621679191087"><span class="hs-identifier hs-type">i</span></a><span> </span><a href="#local-6989586621679191088"><span class="hs-identifier hs-type">o</span></a><span> </span><span class="hs-glyph">=&gt;</span><span> </span><a href="Learn.Neural.Layer.html#RunModeWit"><span class="hs-identifier hs-type">RunModeWit</span></a><span> </span><a href="#local-6989586621679191089"><span class="hs-identifier hs-type">r</span></a><span> </span><a href="#local-6989586621679191085"><span class="hs-identifier hs-type">c</span></a><span> </span><a href="#local-6989586621679191086"><span class="hs-identifier hs-type">b</span></a><span> </span><a href="#local-6989586621679191087"><span class="hs-identifier hs-type">i</span></a><span> </span><a href="#local-6989586621679191088"><span class="hs-identifier hs-type">o</span></a><span>
+</span><a name="line-48"></a><span>    </span><a name="RMIsFF"><a href="Learn.Neural.Layer.html#RMIsFF"><span class="hs-identifier">RMIsFF</span></a></a><span>  </span><span class="hs-glyph">::</span><span> </span><a href="Learn.Neural.Layer.html#ComponentFF"><span class="hs-identifier hs-type">ComponentFF</span></a><span> </span><a href="#local-6989586621679192165"><span class="hs-identifier hs-type">c</span></a><span> </span><a href="#local-6989586621679192166"><span class="hs-identifier hs-type">b</span></a><span> </span><a href="#local-6989586621679192167"><span class="hs-identifier hs-type">i</span></a><span> </span><a href="#local-6989586621679192168"><span class="hs-identifier hs-type">o</span></a><span> </span><span class="hs-glyph">=&gt;</span><span> </span><a href="Learn.Neural.Layer.html#RunModeWit"><span class="hs-identifier hs-type">RunModeWit</span></a><span> </span><a href="#local-6989586621679192169"><span class="hs-identifier hs-type">r</span></a><span> </span><a href="#local-6989586621679192165"><span class="hs-identifier hs-type">c</span></a><span> </span><a href="#local-6989586621679192166"><span class="hs-identifier hs-type">b</span></a><span> </span><a href="#local-6989586621679192167"><span class="hs-identifier hs-type">i</span></a><span> </span><a href="#local-6989586621679192168"><span class="hs-identifier hs-type">o</span></a><span>
 </span><a name="line-49"></a><span>    </span><a name="RMNotFF"><a href="Learn.Neural.Layer.html#RMNotFF"><span class="hs-identifier">RMNotFF</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><a href="Learn.Neural.Layer.html#RunModeWit"><span class="hs-identifier hs-type">RunModeWit</span></a><span> </span><span class="hs-char">'Recurrent c b i o
 
 class (Fractional (CParam c b i o), Fractional (CState c b i o), BLAS b)
@@ -156,31 +156,31 @@ liftLayer2 f g = \case
 
 layerOp
     :: forall r c i o b s. (Component c b i o, BLAS b, Num (b i), Num (b o), CConstr c b i o)
-    =&gt; OpB s '[ b i, Layer r c b i o ] '[ b o, Layer r c b i o ]
-layerOp = OpM $ \(I x :&lt; I l :&lt; &#216;) -&gt; case l of
+    =&gt; OpB s '[ Layer r c b i o, b i ] '[ Layer r c b i o, b o ]
+layerOp = OpM $ \(I l :&lt; I x :&lt; &#216;) -&gt; case l of
     LFeedForward p -&gt; do
       (I y :&lt; &#216;, gF) &lt;- runOpM' componentOpFF (x ::&lt; p ::&lt; &#216;)
-      let gF' = fmap (\case I dX :&lt; I dP :&lt; &#216; -&gt; I dX :&lt; I (LFeedForward dP) :&lt; &#216;)
+      let gF' = fmap (\case I dX :&lt; I dP :&lt; &#216; -&gt; I (LFeedForward dP) :&lt; I dX :&lt; &#216;)
               . gF
-              . (\case dY :&lt; _ :&lt; &#216; -&gt; dY :&lt; &#216;)
-      return (y ::&lt; LFeedForward p ::&lt; &#216;, gF')
+              . (\case _ :&lt; dY :&lt; &#216; -&gt; dY :&lt; &#216;)
+      return (LFeedForward p ::&lt; y ::&lt; &#216;, gF')
     LRecurrent p s -&gt; do
       (I y :&lt; I s' :&lt; &#216;, gF) &lt;- runOpM' (componentOp @c @b) (x ::&lt; p ::&lt; s ::&lt; &#216;)
-      let gF' = fmap (\case I dX :&lt; I dP :&lt; I dS :&lt; &#216; -&gt; dX ::&lt; LRecurrent dP dS ::&lt; &#216;)
+      let gF' = fmap (\case I dX :&lt; I dP :&lt; I dS :&lt; &#216; -&gt; LRecurrent dP dS ::&lt; dX ::&lt; &#216;)
               . gF
-              . (\case dY :&lt; Just (LRecurrent _ dS) :&lt; &#216; -&gt; dY :&lt; Just dS :&lt; &#216;
-                       dY :&lt; Just (LFeedForward _)  :&lt; &#216; -&gt; dY :&lt; Nothing :&lt; &#216;
-                       dY :&lt; Nothing                :&lt; &#216; -&gt; dY :&lt; Nothing :&lt; &#216;
+              . (\case Just (LRecurrent _ dS) :&lt; dY :&lt; &#216; -&gt; dY :&lt; Just dS :&lt; &#216;
+                       Just (LFeedForward _)  :&lt; dY :&lt; &#216; -&gt; dY :&lt; Nothing :&lt; &#216;
+                       Nothing                :&lt; dY :&lt; &#216; -&gt; dY :&lt; Nothing :&lt; &#216;
                 )
-      return (y ::&lt; LRecurrent p s' ::&lt; &#216;, gF')
+      return (LRecurrent p s' ::&lt; y ::&lt; &#216;, gF')
 
 layerOpPure
     :: forall c i o b s. (Component c b i o, BLAS b, Num (b i), Num (b o), CConstr c b i o)
-    =&gt; OpB s '[ b i, Layer 'FeedForward c b i o ] '[ b o ]
-layerOpPure = OpM $ \(I x :&lt; I l :&lt; &#216;) -&gt; case l of
+    =&gt; OpB s '[ Layer 'FeedForward c b i o, b i ] '[ b o ]
+layerOpPure = OpM $ \(I l :&lt; I x :&lt; &#216;) -&gt; case l of
     LFeedForward p -&gt; do
       (I y :&lt; &#216;, gF) &lt;- runOpM' componentOpFF (x ::&lt; p ::&lt; &#216;)
-      let gF' = fmap (\case I dX :&lt; I dP :&lt; &#216; -&gt; I dX :&lt; I (LFeedForward dP) :&lt; &#216;)
+      let gF' = fmap (\case I dX :&lt; I dP :&lt; &#216; -&gt; I (LFeedForward dP) :&lt; I dX :&lt; &#216;)
               . gF
       return (y ::&lt; &#216;, gF')
 
