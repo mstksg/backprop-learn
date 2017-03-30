@@ -202,31 +202,31 @@ instance Tensor HM where
         -> HM (n ': s)
     tconv dp0 (HM m0) (HM x0) = HM $ hconv dp0 m0 x0
 
-    -- tconv'
-    --     :: forall n m s. ()
-    --     => DoubleProd Sing m s
-    --     -> Sing n
-    --     -> HM (m >: n)
-    --     -> HM s
-    --     -> HM (s >: n)
-    -- tconv' dp0 sn@SNat (HM m0) (HM x0) = HM $ go @m @s dp0 m0 x0
-    --   where
-    --     go :: forall ms ss. DoubleProd Sing ms ss -> HM' (ms >: n) -> HM' ss -> HM' (ss >: n)
-    --     go = \case
-    --       DPZ -> \m x -> konst x * m
-    --       DPS SNat sn@SNat DPZ -> \m x -> fromJust . create $
-    --         let c = LA.conv2 (extract m) (LA.asRow (extract x))
-    --             o = fromInteger (natVal (Proxy @n))
-    --             left = o `div` 2
-    --         in  LA.subMatrix (0,left) (o, fromInteger (fromSing sn)) c
-    --       DPS smx@SNat snx@SNat (DPS smy@SNat sny@SNat DPZ) -> \m x ->
-    --         _
-    --         -- todo: vectorize with im2colV
-    --         -- flip fmap m $ \msk -> fromJust . create $
-    --         --   let c = LA.conv2 (extract msk) (extract x)
-    --         --       left = fromInteger (fromSing smx) `div` 2
-    --         --       top  = fromInteger (fromSing smy) `div` 2
-    --         --   in  LA.subMatrix (left, top) (fromInteger (fromSing snx), fromInteger (fromSing sny)) c
+    tconv'
+        :: forall n m s. ()
+        => DoubleProd Sing m s
+        -> Sing n
+        -> HM (m >: n)
+        -> HM s
+        -> HM (s >: n)
+    tconv' dp0 sn@SNat (HM m0) (HM x0) = HM $ go @m @s dp0 m0 x0
+      where
+        go :: forall ms ss. DoubleProd Sing ms ss -> HM' (ms >: n) -> HM' ss -> HM' (ss >: n)
+        go = \case
+          DPZ -> \m x -> konst x * m
+          DPS SNat sn@SNat DPZ -> \m x -> fromJust . create $
+            let c = LA.conv2 (extract m) (LA.asRow (extract x))
+                o = fromInteger (natVal (Proxy @n))
+                left = o `div` 2
+            in  LA.subMatrix (0,left) (o, fromInteger (fromSing sn)) c
+          DPS smx@SNat snx@SNat (DPS smy@SNat sny@SNat DPZ) -> \m x ->
+            undefined
+            -- todo: vectorize with im2colV
+            -- flip fmap m $ \msk -> fromJust . create $
+            --   let c = LA.conv2 (extract msk) (extract x)
+            --       left = fromInteger (fromSing smx) `div` 2
+            --       top  = fromInteger (fromSing smy) `div` 2
+            --   in  LA.subMatrix (left, top) (fromInteger (fromSing snx), fromInteger (fromSing sny)) c
 
 
     -- tconv'

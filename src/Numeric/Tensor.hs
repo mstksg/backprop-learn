@@ -118,12 +118,12 @@ class RealFloat (Scalar t)
         -> t s
         -> t (n ': s)
 
-    -- tconv'
-    --     :: DoubleProd Sing m s
-    --     -> Sing n
-    --     -> t (m >: n)
-    --     -> t s
-    --     -> t (s >: n)
+    tconv'
+        :: DoubleProd Sing m s
+        -> Sing n
+        -> t (m >: n)
+        -> t s
+        -> t (s >: n)
 
     -- tconv'
     --     :: DoubleProd Sing m s
