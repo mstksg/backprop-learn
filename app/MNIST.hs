@@ -64,7 +64,7 @@ main = MWC.withSystemRandom $ \g -> do
         printf "(Batch %d)\n" (b :: Int)
 
         t0 <- getCurrentTime
-        n' <- evaluate $ optimizeList_ (I <$> chnk) n0 (sgdOptimizer rate crossEntropy)
+        n' <- evaluate $ optimizeList_ chnk n0 (sgdOptimizer rate crossEntropy networkOpPure)
         t1 <- getCurrentTime
         printf "Trained on %d points in %s.\n" batch (show (t1 `diffUTCTime` t0))
 
