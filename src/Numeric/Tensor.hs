@@ -15,6 +15,7 @@
 module Numeric.Tensor (
     Tensor(..)
   , DoubleProd(..)
+  , ProdMap(..)
   , Slice(..)
   , Product, sProduct
   , fromScalar
@@ -53,16 +54,12 @@ import           Type.Family.List hiding          (Reverse)
 import qualified Data.Type.Nat                    as TCN
 import qualified Data.Vector.Sized                as V
 
-data Slice :: ([Nat] -> Type) -> [Nat] -> [Nat] -> Type where
-    SliceZ   :: Slice t '[] '[]
-    PadSlice
-        :: Sing n -> Sing m -> Scalar t -> Int -> Int
-        -> Slice t ns ms
-        -> Slice t (n ': ns) (m ': ms)
-    RegSlice
-        :: Sing l -> Sing c -> Sing r
-        -> Slice t ns ms
-        -> Slice t ((l + c + r) ': ns) (c ': ms)
+data ProdMap :: (a -> b -> Type) -> [a] -> [b] -> Type where
+    PMZ :: ProdMap f '[] '[]
+    PMS :: f a b -> ProdMap f as bs -> ProdMap f (a ': as) (b ': bs)
+
+data Slice :: Nat -> Nat -> Type where
+    Slice :: Sing l -> Sing c -> Sing r -> Slice (l + c + r) c
 
 class RealFloat (Scalar t)
         => Tensor (t :: [Nat] -> Type) where
@@ -138,7 +135,7 @@ class RealFloat (Scalar t)
     --     -> t (s >: n)
 
     tslice
-        :: Slice t n m
+        :: ProdMap Slice n m
         -> t n
         -> t m
 

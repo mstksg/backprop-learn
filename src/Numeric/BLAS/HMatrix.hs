@@ -159,41 +159,40 @@ instance Tensor HM where
 
     tslice
         :: forall n m. ()
-        => Slice HM n m
+        => ProdMap Slice n m
         -> HM n
         -> HM m
     tslice sl0 (HM x0) = HM $ go sl0 x0
       where
         go  :: forall ns ms. ()
-            => Slice HM ns ms
+            => ProdMap Slice ns ms
             -> HM' ns
             -> HM' ms
         go = \case
-          SliceZ -> \x -> x
-          PadSlice SNat SNat p i w SliceZ -> \(extract->xs) -> fromJust . create $
-            let l = LA.size xs
-                padLeft  | i < 0     = Just (LA.konst p (abs i))
-                         | otherwise = Nothing
-                padRight | i + w < l = Nothing
-                         | otherwise = Just (LA.konst p ((i + w) - l))
-            in  case padRight of
-                  Nothing -> case padLeft of
-                    Nothing -> LA.subVector i w xs
-                    Just pL -> pL UVS.++ UVS.take (i + w) xs
-                  Just pR -> case padLeft of
-                    Nothing -> UVS.drop i xs UVS.++ pR
-                    Just pL -> UVS.concat [pL, xs, pR]
-          RegSlice sL sC@SNat sR SliceZ -> \xs -> fromJust . create $
+          PMZ -> \x -> x
+          PMS (Slice sL sC@SNat sR) PMZ -> \xs -> fromJust . create $
             let l = fromIntegral $ fromSing sL
                 c = fromIntegral $ fromSing sC
-                xs' = case sL %:+ sC %:+ sR of
-                        SNat -> extract xs
-            in  LA.subVector l c xs'
-          PadSlice SNat SNat px ix wx (PadSlice SNat SNat py iy wy SliceZ) ->
-            \(extract->xs) -> fromJust . create $
-              let sliceX | ix < 0 = _
-            
-
+            in  withKnownNat (sL %:+ sC %:+ sR) $
+                  LA.subVector l c (extract xs)
+          PMS (Slice sLy sCy@SNat sRy) (PMS (Slice sLx sCx@SNat sRx) PMZ) ->
+              \xs -> fromJust . create $
+            let lx = fromIntegral $ fromSing sLx
+                ly = fromIntegral $ fromSing sLy
+                cx = fromIntegral $ fromSing sCx
+                cy = fromIntegral $ fromSing sCy
+            in  withKnownNat (sLy %:+ sCy %:+ sRy) $
+                withKnownNat (sLx %:+ sCx %:+ sRx) $
+                  LA.subMatrix (ly, lx) (cy, cx) (extract xs)
+          PMS (Slice sL sC@SNat _) pm@(PMS _ (PMS _ _)) -> \xs ->
+            let l = fromIntegral $ fromSing sL
+                c = fromIntegral $ fromSing sC
+            in  fmap (go pm)
+                  . fromJust . V.toSized
+                  . UV.take c
+                  . UV.drop l
+                  . V.fromSized
+                  $ xs
 
     tconv
         :: forall n m s. KnownNat n
