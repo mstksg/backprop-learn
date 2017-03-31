@@ -36,7 +36,7 @@ testNet
     -> Double
 testNet tf = \case
     SomeNet _ n -> \x t ->
-      let y = runNetworkPure n x
+      let y = runNetPure n x
       in  tf y t
 
 testNetList
