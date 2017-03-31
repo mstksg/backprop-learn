@@ -20,18 +20,23 @@ module Data.Type.Util (
   , vtraverse
   , vecLenNat
   , zipP
+  , last'
+  , takeVec
+  , unzipVec
   ) where
 
 import           Data.Finite
+import           Data.Type.Combinator
 import           Data.Type.Conjunction
 import           Data.Type.Index
 import           Data.Type.Length
 import           Data.Type.Nat
-import           Data.Type.Product
+import           Data.Type.Product hiding (last')
 import           Data.Type.Vector
-import           Numeric.Backprop.Op   (Replicate)
+import           Numeric.Backprop.Op      (Replicate)
 import           Type.Class.Higher
 import           Type.Class.Witness
+import           Type.Family.Nat
 
 type family MaybeToList (a :: Maybe k) = (b :: [k]) | b -> a where
     MaybeToList ('Just a ) = '[a]
@@ -101,3 +106,28 @@ vecLenNat = \case
 
 instance Eq1 Finite
 
+last'
+    :: VecT ('S n) f a
+    -> f a
+last' = \case
+    x :* ØV          -> x
+    _ :* xs@(_ :* _) -> last' xs
+
+takeVec
+    :: Nat n
+    -> [a]
+    -> Maybe (Vec n a)
+takeVec = \case
+    Z_   -> \_ -> Just ØV
+    S_ n -> \case
+      []   -> Nothing
+      x:xs -> (x :+) <$> takeVec n xs
+
+unzipVec
+    :: Vec n (a, b)
+    -> (Vec n a, Vec n b)
+unzipVec = \case
+    ØV              -> (ØV, ØV)
+    I (x,y) :* xsys ->
+      let (xs, ys) = unzipVec xsys
+      in  (I x :* xs, I y :* ys)

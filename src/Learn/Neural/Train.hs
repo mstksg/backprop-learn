@@ -15,19 +15,28 @@ module Learn.Neural.Train (
   , optimizeList_
   , sgdOptimizer
   , sgdMiniBatchOptimizer
+  , slidingParts
+  , slidingPartsSplit
+  , slidingPartsLast
   ) where
 
 
+import           Data.Foldable
 import           Data.Kind
-import           Data.List
+import           Data.List hiding        ((\\))
+import           Data.Maybe
 import           Data.Profunctor
 import           Data.Type.Combinator
 import           Data.Type.Index
 import           Data.Type.Length
+import           Data.Type.Util
+import           Data.Type.Vector hiding (transpose)
 import           Learn.Neural.Loss
 import           Numeric.Backprop
 import           Type.Class.Known
-import qualified Control.Foldl        as F
+import           Type.Family.Nat
+import qualified Control.Foldl           as F
+import qualified Data.Type.Nat           as TCN
 
 data Optimizer :: Type -> Type -> Type where
     MkO :: { oState  :: s
@@ -105,3 +114,26 @@ sgdMiniBatchOptimizer r run l = MkO () $ \xts p () ->
         g = F.fold (lmap (uncurry f) F.mean) xts
     in  (p - realToFrac r * g, ())
 
+slidingParts
+    :: TCN.Nat n
+    -> [a]
+    -> [Vec n a]
+slidingParts n xs = mapMaybe (takeVec n) $ slides
+  where
+    slides = transpose . take (TCN.natVal n) . flip unfoldr xs $ \ys ->
+      case ys of
+        []   -> Nothing
+        _:zs -> Just (ys, zs)
+
+slidingPartsSplit
+    :: TCN.Nat n
+    -> [(a, b)]
+    -> [(Vec n a, Vec n b)]
+slidingPartsSplit n = map unzipVec . slidingParts n
+
+slidingPartsLast
+    :: TCN.Nat ('S n)
+    -> [(a, b)]
+    -> [(Vec ('S n) a, b)]
+slidingPartsLast n = map (\xy -> (fst <$> xy, snd . getI $ last' xy))
+                   . slidingParts n
