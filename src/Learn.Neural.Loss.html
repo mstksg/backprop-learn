@@ -1,20 +1,31 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DataKinds  #-}</span><span>
-</span><a name="line-2"></a><span class="hs-pragma">{-# LANGUAGE GADTs      #-}</span><span>
-</span><a name="line-3"></a><span class="hs-pragma">{-# LANGUAGE PolyKinds  #-}</span><span>
-</span><a name="line-4"></a><span class="hs-pragma">{-# LANGUAGE RankNTypes #-}</span><span>
-</span><a name="line-5"></a><span>
-</span><a name="line-6"></a><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Learn</span><span class="hs-operator">.</span><span class="hs-identifier">Neural</span><span class="hs-operator">.</span><span class="hs-identifier">Loss</span><span> </span><span class="hs-special">(</span><span>
-</span><a name="line-7"></a><span>    </span><a href="Learn.Neural.Loss.html#LossFunction"><span class="hs-identifier hs-type">LossFunction</span></a><span>
-</span><a name="line-8"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Loss.html#crossEntropy"><span class="hs-identifier hs-var">crossEntropy</span></a><span>
-</span><a name="line-9"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Loss.html#squaredError"><span class="hs-identifier hs-var">squaredError</span></a><span>
-</span><a name="line-10"></a><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
-</span><a name="line-11"></a><span>
-</span><a name="line-12"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">GHC</span><span class="hs-operator">.</span><span class="hs-identifier">TypeLits</span><span>
-</span><a name="line-13"></a><span class="hs-keyword">import</span><span>           </span><a href="Numeric.BLAS.html"><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">BLAS</span></a><span>
-</span><a name="line-14"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Backprop</span><span>
-</span><a name="line-15"></a><span>
-</span><a name="line-16"></a><span class="hs-comment">-- type LossFunction s = forall b q. (BLAS b, Num (b s)) =&gt; b s -&gt; OpB q '[ b s ] '[ Scalar b ]</span><span>
-</span><a name="line-17"></a><span class="hs-keyword">type</span><span> </span><a name="LossFunction"><a href="Learn.Neural.Loss.html#LossFunction"><span class="hs-identifier">LossFunction</span></a></a><span> </span><span class="hs-keyword">as</span><span> </span><a name="local-6989586621679303628"><a href="#local-6989586621679303628"><span class="hs-identifier">b</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">forall</span><span> </span><a name="local-6989586621679303629"><a href="#local-6989586621679303629"><span class="hs-identifier">s</span></a></a><span class="hs-operator">.</span><span> </span><span class="hs-identifier hs-type">Tuple</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">OpB</span><span> </span><a href="#local-6989586621679303629"><span class="hs-identifier hs-type">s</span></a><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-char">'[ b ]
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DataKinds           #-}</span><span>
+</span><a name="line-2"></a><span class="hs-pragma">{-# LANGUAGE GADTs               #-}</span><span>
+</span><a name="line-3"></a><span class="hs-pragma">{-# LANGUAGE LambdaCase          #-}</span><span>
+</span><a name="line-4"></a><span class="hs-pragma">{-# LANGUAGE PolyKinds           #-}</span><span>
+</span><a name="line-5"></a><span class="hs-pragma">{-# LANGUAGE RankNTypes          #-}</span><span>
+</span><a name="line-6"></a><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><a name="line-7"></a><span class="hs-pragma">{-# LANGUAGE TypeApplications    #-}</span><span>
+</span><a name="line-8"></a><span>
+</span><a name="line-9"></a><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Learn</span><span class="hs-operator">.</span><span class="hs-identifier">Neural</span><span class="hs-operator">.</span><span class="hs-identifier">Loss</span><span> </span><span class="hs-special">(</span><span>
+</span><a name="line-10"></a><span>    </span><a href="Learn.Neural.Loss.html#LossFunction"><span class="hs-identifier hs-type">LossFunction</span></a><span>
+</span><a name="line-11"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Loss.html#crossEntropy"><span class="hs-identifier hs-var">crossEntropy</span></a><span>
+</span><a name="line-12"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Loss.html#squaredError"><span class="hs-identifier hs-var">squaredError</span></a><span>
+</span><a name="line-13"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Loss.html#sumLoss"><span class="hs-identifier hs-var">sumLoss</span></a><span>
+</span><a name="line-14"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Loss.html#sumLossDecay"><span class="hs-identifier hs-var">sumLossDecay</span></a><span>
+</span><a name="line-15"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Loss.html#zipLoss"><span class="hs-identifier hs-var">zipLoss</span></a><span>
+</span><a name="line-16"></a><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-17"></a><span>
+</span><a name="line-18"></a><span class="hs-keyword">import</span><span>           </span><a href="Data.Type.Util.html"><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Util</span></a><span>
+</span><a name="line-19"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Vector</span><span>
+</span><a name="line-20"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">GHC</span><span class="hs-operator">.</span><span class="hs-identifier">TypeLits</span><span>
+</span><a name="line-21"></a><span class="hs-keyword">import</span><span>           </span><a href="Numeric.BLAS.html"><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">BLAS</span></a><span>
+</span><a name="line-22"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Backprop</span><span>
+</span><a name="line-23"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Backprop</span><span class="hs-operator">.</span><span class="hs-identifier">Op</span><span>
+</span><a name="line-24"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Class</span><span class="hs-operator">.</span><span class="hs-identifier">Witness</span><span>
+</span><a name="line-25"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Nat</span><span>       </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">TCN</span><span>
+</span><a name="line-26"></a><span>
+</span><a name="line-27"></a><span class="hs-comment">-- type LossFunction s = forall b q. (BLAS b, Num (b s)) =&gt; b s -&gt; OpB q '[ b s ] '[ Scalar b ]</span><span>
+</span><a name="line-28"></a><span class="hs-keyword">type</span><span> </span><a name="LossFunction"><a href="Learn.Neural.Loss.html#LossFunction"><span class="hs-identifier">LossFunction</span></a></a><span> </span><span class="hs-keyword">as</span><span> </span><a name="local-6989586621679305740"><a href="#local-6989586621679305740"><span class="hs-identifier">b</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">forall</span><span> </span><a name="local-6989586621679305741"><a href="#local-6989586621679305741"><span class="hs-identifier">s</span></a></a><span class="hs-operator">.</span><span> </span><span class="hs-identifier hs-type">Tuple</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">OpB</span><span> </span><a href="#local-6989586621679305741"><span class="hs-identifier hs-type">s</span></a><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-char">'[ b ]
 
 crossEntropy
     :: forall b n. (BLAS b, KnownNat n, Num (b '[n]))
@@ -35,4 +46,51 @@ squaredError (I targ :&lt; &#216;) = bpOp . withInps $ \(r :&lt; &#216;) -&gt; d
   where
     t = constVar targ
 
+sumLoss
+    :: forall n a b. (Num a, Num b)
+    =&gt; LossFunction '[ a ] b
+    -&gt; TCN.Nat n
+    -&gt; LossFunction (Replicate n a) b
+sumLoss l = \case
+    TCN.Z_ -&gt; \case &#216; -&gt; op0 (only_ 0)
+    TCN.S_ n -&gt; \case
+      I x :&lt; xs -&gt; (replLen @_ @a n          //) $
+                   (replWit @_ @Num @a n Wit //) $
+                bpOp . withInps $ \(y :&lt; ys) -&gt; do
+        z  &lt;- l (only_ x) ~$ (y :&lt; &#216;)
+        zs &lt;- sumLoss l n xs ~$ ys
+        return . only $ z + zs
+
+sumLossDecay
+    :: forall n a b. (Num a, Num b)
+    =&gt; LossFunction '[ a ] b
+    -&gt; TCN.Nat n
+    -&gt; b
+    -&gt; LossFunction (Replicate n a) b
+sumLossDecay l n &#955; = zipLoss l (genDecay 1 n)
+  where
+    genDecay :: b -&gt; TCN.Nat m -&gt; Vec m b
+    genDecay b = \case
+      TCN.Z_   -&gt; &#216;V
+      TCN.S_ m -&gt; case genDecay b m of
+        &#216;V        -&gt; b :+ &#216;V
+        I c :* cs -&gt; (c * &#955;) :+ c :+ cs
+
+
+zipLoss
+    :: forall n a b. (Num a, Num b)
+    =&gt; LossFunction '[ a ] b
+    -&gt; Vec n b
+    -&gt; LossFunction (Replicate n a) b
+zipLoss l = \case
+    &#216;V        -&gt; \case &#216; -&gt; op0 (only 0)
+    I &#945; :* &#945;s -&gt;
+      let &#945;n = vecLenNat &#945;s
+      in  \case
+          I x :&lt; xs -&gt; (replLen @_ @a &#945;n          //) $
+                       (replWit @_ @Num @a &#945;n Wit //) $
+                bpOp . withInps $ \(y :&lt; ys) -&gt; do
+            z  &lt;- l (only_ x) ~$ (y :&lt; &#216;)
+            zs &lt;- zipLoss l &#945;s xs ~$ ys
+            return . only $ (z * constVar &#945;) + zs
 </span></pre></body></html>

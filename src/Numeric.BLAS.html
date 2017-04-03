@@ -21,25 +21,27 @@
 </span><a name="line-21"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Numeric.BLAS.html#matVec"><span class="hs-identifier hs-var">matVec</span></a><span>
 </span><a name="line-22"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Numeric.BLAS.html#vecMat"><span class="hs-identifier hs-var">vecMat</span></a><span>
 </span><a name="line-23"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Numeric.BLAS.html#outer"><span class="hs-identifier hs-var">outer</span></a><span>
-</span><a name="line-24"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Numeric.BLAS.html#matVecOp"><span class="hs-identifier hs-var">matVecOp</span></a><span>
-</span><a name="line-25"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Numeric.BLAS.html#dotOp"><span class="hs-identifier hs-var">dotOp</span></a><span>
-</span><a name="line-26"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Numeric.BLAS.html#asumOp"><span class="hs-identifier hs-var">asumOp</span></a><span>
-</span><a name="line-27"></a><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Tensor</span><span>
-</span><a name="line-28"></a><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
-</span><a name="line-29"></a><span>
-</span><a name="line-30"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Finite</span><span>
-</span><a name="line-31"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Kind</span><span>
-</span><a name="line-32"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Maybe</span><span>
-</span><a name="line-33"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Singletons</span><span>
-</span><a name="line-34"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Singletons</span><span class="hs-operator">.</span><span class="hs-identifier">TypeLits</span><span>
-</span><a name="line-35"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Backprop</span><span class="hs-operator">.</span><span class="hs-identifier">Op</span><span>
-</span><a name="line-36"></a><span class="hs-keyword">import</span><span>           </span><a href="Numeric.Tensor.html"><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Tensor</span></a><span>
-</span><a name="line-37"></a><span>
-</span><a name="line-38"></a><span class="hs-keyword">class</span><span> </span><a href="Numeric.Tensor.html#Tensor"><span class="hs-identifier hs-type">Tensor</span></a><span> </span><a href="#local-6989586621679184366"><span class="hs-identifier hs-type">b</span></a><span> </span><span class="hs-glyph">=&gt;</span><span> </span><a name="BLAS"><a href="Numeric.BLAS.html#BLAS"><span class="hs-identifier">BLAS</span></a></a><span> </span><span class="hs-special">(</span><a name="local-6989586621679184366"><a href="#local-6989586621679184366"><span class="hs-identifier">b</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-identifier hs-type">Nat</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Type</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-24"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Numeric.BLAS.html#amax"><span class="hs-identifier hs-var">amax</span></a><span>
+</span><a name="line-25"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Numeric.BLAS.html#concretize"><span class="hs-identifier hs-var">concretize</span></a><span>
+</span><a name="line-26"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Numeric.BLAS.html#matVecOp"><span class="hs-identifier hs-var">matVecOp</span></a><span>
+</span><a name="line-27"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Numeric.BLAS.html#dotOp"><span class="hs-identifier hs-var">dotOp</span></a><span>
+</span><a name="line-28"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Numeric.BLAS.html#asumOp"><span class="hs-identifier hs-var">asumOp</span></a><span>
+</span><a name="line-29"></a><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Tensor</span><span>
+</span><a name="line-30"></a><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-31"></a><span>
+</span><a name="line-32"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Finite</span><span>
+</span><a name="line-33"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Kind</span><span>
+</span><a name="line-34"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Maybe</span><span>
+</span><a name="line-35"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Singletons</span><span>
+</span><a name="line-36"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Singletons</span><span class="hs-operator">.</span><span class="hs-identifier">TypeLits</span><span>
+</span><a name="line-37"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Backprop</span><span class="hs-operator">.</span><span class="hs-identifier">Op</span><span>
+</span><a name="line-38"></a><span class="hs-keyword">import</span><span>           </span><a href="Numeric.Tensor.html"><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Tensor</span></a><span>
 </span><a name="line-39"></a><span>
-</span><a name="line-40"></a><span>    </span><span class="hs-identifier">transp</span><span>
-</span><a name="line-41"></a><span>        </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">KnownNat</span><span> </span><a href="#local-6989586621679184367"><span class="hs-identifier hs-type">m</span></a><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">KnownNat</span><span> </span><a href="#local-6989586621679184368"><span class="hs-identifier hs-type">n</span></a><span class="hs-special">)</span><span>
-</span><a name="line-42"></a><span>        </span><span class="hs-glyph">=&gt;</span><span> </span><a href="#local-6989586621679184366"><span class="hs-identifier hs-type">b</span></a><span> </span><span class="hs-char">'[m, n]
+</span><a name="line-40"></a><span class="hs-keyword">class</span><span> </span><a href="Numeric.Tensor.html#Tensor"><span class="hs-identifier hs-type">Tensor</span></a><span> </span><a href="#local-6989586621679185724"><span class="hs-identifier hs-type">b</span></a><span> </span><span class="hs-glyph">=&gt;</span><span> </span><a name="BLAS"><a href="Numeric.BLAS.html#BLAS"><span class="hs-identifier">BLAS</span></a></a><span> </span><span class="hs-special">(</span><a name="local-6989586621679185724"><a href="#local-6989586621679185724"><span class="hs-identifier">b</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-identifier hs-type">Nat</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Type</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-41"></a><span>
+</span><a name="line-42"></a><span>    </span><span class="hs-identifier">transp</span><span>
+</span><a name="line-43"></a><span>        </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">KnownNat</span><span> </span><a href="#local-6989586621679185725"><span class="hs-identifier hs-type">m</span></a><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">KnownNat</span><span> </span><a href="#local-6989586621679185726"><span class="hs-identifier hs-type">n</span></a><span class="hs-special">)</span><span>
+</span><a name="line-44"></a><span>        </span><span class="hs-glyph">=&gt;</span><span> </span><a href="#local-6989586621679185724"><span class="hs-identifier hs-type">b</span></a><span> </span><span class="hs-char">'[m, n]
         -&gt; b '[n, m]
 
 
@@ -136,6 +138,17 @@ outer
     -&gt; b '[n]
     -&gt; b '[m, n]
 outer x y = ger 1 x y Nothing
+
+amax
+    :: (BLAS b, KnownNat n)
+    =&gt; b '[n]
+    -&gt; Scalar b
+amax = do
+    i &lt;- only . iamax
+    tindex i
+
+concretize :: (BLAS b, KnownNat n) =&gt; b '[n] -&gt; b '[n]
+concretize = oneHot . only . iamax
 
 matVecOp
     :: (KnownNat m, KnownNat n, BLAS b)

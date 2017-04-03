@@ -26,7 +26,7 @@
 </span><a name="line-26"></a><span>
 </span><a name="line-27"></a><span class="hs-keyword">data</span><span> </span><a name="FullyConnected"><a href="Learn.Neural.Layer.FullyConnected.html#FullyConnected"><span class="hs-identifier">FullyConnected</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Type</span><span>
 </span><a name="line-28"></a><span>
-</span><a name="line-29"></a><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Num</span><span> </span><span class="hs-special">(</span><a href="#local-6989586621679229505"><span class="hs-identifier hs-type">b</span></a><span> </span><span class="hs-char">'[o,i]), Num (b '[o])) =&gt; Num (CParam FullyConnected b '[i] '[o]) where
+</span><a name="line-29"></a><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Num</span><span> </span><span class="hs-special">(</span><a href="#local-6989586621679231624"><span class="hs-identifier hs-type">b</span></a><span> </span><span class="hs-char">'[o,i]), Num (b '[o])) =&gt; Num (CParam FullyConnected b '[i] '[o]) where
     FCP w1 b1 + FCP w2 b2 = FCP (w1 + w2) (b1 + b2)
     FCP w1 b1 - FCP w2 b2 = FCP (w1 - w2) (b1 - b2)
     FCP w1 b1 * FCP w2 b2 = FCP (w1 * w2) (b1 * b2)

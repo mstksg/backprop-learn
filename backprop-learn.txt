@@ -76,6 +76,8 @@ syrk :: (BLAS b, KnownNat m, KnownNat n) => Scalar b -> b '[m, n] -> Scalar b ->
 matVec :: (KnownNat m, KnownNat n, BLAS b) => b '[m, n] -> b '[n] -> b '[m]
 vecMat :: (KnownNat m, KnownNat n, BLAS b) => b '[m] -> b '[m, n] -> b '[n]
 outer :: (KnownNat m, KnownNat n, BLAS b) => b '[m] -> b '[n] -> b '[m, n]
+amax :: (BLAS b, KnownNat n) => b '[n] -> Scalar b
+concretize :: (BLAS b, KnownNat n) => b '[n] -> b '[n]
 matVecOp :: (KnownNat m, KnownNat n, BLAS b) => Op '[b '[m, n], b '[n]] '[b '[m]]
 dotOp :: forall b n. (KnownNat n, BLAS b) => Op '[b '[n], b '[n]] '[Scalar b]
 asumOp :: forall b n. (KnownNat n, BLAS b, Num (b '[n])) => Op '[b '[n]] '[Scalar b]
@@ -233,6 +235,9 @@ module Learn.Neural.Loss
 type LossFunction as b = forall s. Tuple as -> OpB s as '[b]
 crossEntropy :: forall b n. (BLAS b, KnownNat n, Num (b '[n])) => LossFunction '[b '[n]] (Scalar b)
 squaredError :: (BLAS b, KnownNat n, Num (b '[n])) => LossFunction '[b '[n]] (Scalar b)
+sumLoss :: forall n a b. (Num a, Num b) => LossFunction '[a] b -> Nat n -> LossFunction (Replicate n a) b
+sumLossDecay :: forall n a b. (Num a, Num b) => LossFunction '[a] b -> Nat n -> b -> LossFunction (Replicate n a) b
+zipLoss :: forall n a b. (Num a, Num b) => LossFunction '[a] b -> Vec n b -> LossFunction (Replicate n a) b
 
 module Learn.Neural.Train
 data Optimizer :: Type -> Type -> Type
@@ -243,6 +248,10 @@ optimizeList :: [a] -> p -> Optimizer a p -> (p, Optimizer a p)
 optimizeList_ :: [a] -> p -> Optimizer a p -> p
 sgdOptimizer :: forall p as bs c. (Fractional p, Num c, Every Num as, Every Num bs, Known Length as) => Double -> (forall s. OpB s (p : as) bs) -> LossFunction bs c -> Optimizer (Tuple as, Tuple bs) p
 sgdMiniBatchOptimizer :: forall f p as bs c. (Foldable f, Fractional p, Num c, Every Num as, Every Num bs, Known Length as) => Double -> (forall s. OpB s (p : as) bs) -> LossFunction bs c -> Optimizer (f (Tuple as, Tuple bs)) p
+slidingParts :: Nat n -> [a] -> [Vec n a]
+slidingPartsSplit :: Nat n -> [(a, b)] -> [(Vec n a, Vec n b)]
+slidingPartsLast :: Nat (S n) -> [(a, b)] -> [(Vec (S n) a, b)]
+asFeedback :: [a] -> [(a, a)]
 
 module Learn.Neural.Network
 data LChain :: Type
@@ -251,16 +260,19 @@ type (:~) s c = s :~ c
 data Network :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> Type
 [NetExt] :: (ComponentLayer r c b i o, CConstr c b i o) => Layer r c b i o -> Network r b (i :~ c) '[] o
 [:&] :: (ComponentLayer r c b i h, CConstr c b i h, Num (b h)) => Layer r c b i h -> Network r b (h :~ d) hs o -> Network r b (i :~ c) ((h :~ d) : hs) o
-networkOp :: forall b i c hs o r s. (BLAS b, Num (b i), Num (b o)) => OpB s '[Network r b (i :~ c) hs o, b i] '[Network r b (i :~ c) hs o, b o]
-networkOpPure :: forall b i c hs o s. (BLAS b, Num (b i), Num (b o)) => OpB s '[Network FeedForward b (i :~ c) hs o, b i] '[b o]
-networkOpRecurrent :: forall n b i c hs o s. (Known (NetStruct Recurrent b (i :~ c) hs) o, BLAS b, Num (b o), Num (b i)) => Nat n -> OpB s (Network Recurrent b (i :~ c) hs o : Replicate n (b i)) (Network Recurrent b (i :~ c) hs o : Replicate n (b o))
-networkOpRecurrent' :: forall n b i c hs o s. (Known (NetStruct Recurrent b (i :~ c) hs) o, BLAS b, Num (b o), Num (b i)) => Nat n -> OpB s (Network Recurrent b (i :~ c) hs o : (b i : Replicate n (b i))) '[Network Recurrent b (i :~ c) hs o, b o]
-runNetwork :: (Num (b i), Num (b o), BLAS b) => Network r b (i :~ c) hs o -> b i -> (b o, Network r b (i :~ c) hs o)
-runNetworkPure :: (Num (b i), Num (b o), BLAS b) => Network FeedForward b (i :~ c) hs o -> b i -> b o
-runNetworkRecurrent :: (Num (b i), Num (b o), BLAS b) => Network Recurrent b (i :~ c) hs o -> [b i] -> ([b o], Network Recurrent b (i :~ c) hs o)
-runNetworkRecurrent' :: (Num (b i), Num (b o), BLAS b) => Network Recurrent b (i :~ c) hs o -> NonEmpty (b i) -> (b o, Network Recurrent b (i :~ c) hs o)
-runNetworkFeedback :: (Num (b i), Num (b o), BLAS b) => Nat n -> (b o -> b i) -> Network Recurrent b (i :~ c) hs o -> b i -> (VecT n b o, Network Recurrent b (i :~ c) hs o)
-runNetworkFeedbackForever :: (Num (b i), Num (b o), BLAS b) => (b o -> b i) -> Network Recurrent b (i :~ c) hs o -> b i -> [b o]
+netOp :: forall b i c hs o r s. (BLAS b, Num (b i), Num (b o)) => OpB s '[Network r b (i :~ c) hs o, b i] '[Network r b (i :~ c) hs o, b o]
+netOpPure :: forall b i c hs o s. (BLAS b, Num (b i), Num (b o)) => OpB s '[Network FeedForward b (i :~ c) hs o, b i] '[b o]
+netOpRecurrent :: forall n b i c hs o s. (Known (NetStruct Recurrent b (i :~ c) hs) o, BLAS b, Num (b o), Num (b i)) => Nat n -> OpB s (Network Recurrent b (i :~ c) hs o : Replicate n (b i)) (Network Recurrent b (i :~ c) hs o : Replicate n (b o))
+netOpRecurrent_ :: forall n b i c hs o s. (Known (NetStruct Recurrent b (i :~ c) hs) o, BLAS b, Num (b o), Num (b i)) => Nat n -> OpB s (Network Recurrent b (i :~ c) hs o : Replicate n (b i)) (Replicate n (b o))
+netOpRecurrentLast :: forall n b i c hs o s. (Known (NetStruct Recurrent b (i :~ c) hs) o, BLAS b, Num (b o), Num (b i)) => Nat n -> OpB s (Network Recurrent b (i :~ c) hs o : (b i : Replicate n (b i))) '[Network Recurrent b (i :~ c) hs o, b o]
+netOpRecurrentLast_ :: forall n b i c hs o s. (Known (NetStruct Recurrent b (i :~ c) hs) o, BLAS b, Num (b o), Num (b i)) => Nat n -> OpB s (Network Recurrent b (i :~ c) hs o : (b i : Replicate n (b i))) '[b o]
+runNet :: (Num (b i), Num (b o), BLAS b) => Network r b (i :~ c) hs o -> b i -> (b o, Network r b (i :~ c) hs o)
+runNetPure :: (Num (b i), Num (b o), BLAS b) => Network FeedForward b (i :~ c) hs o -> b i -> b o
+runNetRecurrent :: (Num (b i), Num (b o), BLAS b) => Network Recurrent b (i :~ c) hs o -> [b i] -> ([b o], Network Recurrent b (i :~ c) hs o)
+runNetRecurrentLast :: (Num (b i), Num (b o), BLAS b) => Network Recurrent b (i :~ c) hs o -> NonEmpty (b i) -> (b o, Network Recurrent b (i :~ c) hs o)
+runNetFeedback :: (Num (b i), Num (b o), BLAS b) => Nat n -> (b o -> b i) -> Network Recurrent b (i :~ c) hs o -> b i -> (VecT n b o, Network Recurrent b (i :~ c) hs o)
+runNetFeedbackM :: (Num (b i), Num (b o), BLAS b, Monad m) => Nat n -> (b o -> m (b i)) -> Network Recurrent b (i :~ c) hs o -> b i -> m (VecT n b o, Network Recurrent b (i :~ c) hs o)
+runNetFeedbackForever :: (Num (b i), Num (b o), BLAS b) => (b o -> b i) -> Network Recurrent b (i :~ c) hs o -> b i -> [b o]
 data NetConf :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> Type
 [NCExt] :: (ComponentLayer r c b i o, CConstr c b i o) => CConf c b i o -> NetConf r b (i :~ c) '[] o
 [:&~] :: (ComponentLayer r c b i h, CConstr c b i h, SingI h, Num (b h)) => CConf c b i h -> NetConf r b (h :~ d) hs o -> NetConf r b (i :~ c) ((h :~ d) : hs) o
