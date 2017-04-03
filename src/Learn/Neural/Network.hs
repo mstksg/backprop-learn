@@ -29,6 +29,7 @@ module Learn.Neural.Network (
   , runNetRecurrent
   , runNetRecurrentLast
   , runNetFeedback
+  , runNetFeedbackM
   , runNetFeedbackForever
   , NetConf(..)
   , initNet
@@ -244,6 +245,22 @@ runNetFeedback = \case
       let (y , n1) = runNet n0 x
           (ys, n2) = runNetFeedback n f n1 (f y)
       in  (y :* ys, n2)
+
+runNetFeedbackM
+    :: (Num (b i), Num (b o), BLAS b, Monad m)
+    => TCN.Nat n
+    -> (b o -> m (b i))
+    -> Network 'Recurrent b (i :~ c) hs o
+    -> b i
+    -> m (VecT n b o, Network 'Recurrent b (i :~ c) hs o)
+runNetFeedbackM = \case
+    TCN.Z_   -> \_ n0 _ ->
+      return (ØV, n0)
+    TCN.S_ n -> \f n0 x -> do
+      let (y , n1) = runNet n0 x
+      x' <- f y
+      (ys, n2) <- runNetFeedbackM n f n1 x'
+      return (y :* ys, n2)
 
 runNetFeedbackForever
     :: (Num (b i), Num (b o), BLAS b)

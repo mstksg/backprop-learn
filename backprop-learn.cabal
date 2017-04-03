@@ -87,6 +87,7 @@ executable backprop-learn-language
                      , deepseq
                      , finite-typelits
                      , mwc-random
+                     , primitive
                      , split
                      , time
                      , transformers

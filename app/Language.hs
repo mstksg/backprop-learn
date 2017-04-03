@@ -7,10 +7,11 @@
 {-# LANGUAGE ViewPatterns         #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
--- import qualified Data.Vector.Sized                        as VSi
+-- import           Data.Type.Combinator
 import           Control.DeepSeq
 import           Control.Exception
 import           Control.Monad.IO.Class
+import           Control.Monad.Primitive
 import           Control.Monad.Trans.State
 import           Data.Bifunctor
 import           Data.Char
@@ -21,18 +22,20 @@ import           Data.List.Split
 import           Data.Maybe
 import           Data.Ord
 import           Data.Time.Clock
-import           Data.Type.Combinator
-import           Data.Type.Product hiding                    (toList)
+import           Data.Type.Product hiding                    (toList, head')
 import           Data.Type.Vector
+import           GHC.TypeLits
 import           Learn.Neural
 import           Learn.Neural.Layer.Recurrent.FullyConnected
 import           Numeric.BLAS.HMatrix
-import           Numeric.Backprop.Op
+import           Numeric.Backprop.Op hiding                  (head')
 import           Text.Printf hiding                          (toChar, fromChar)
 import           Type.Class.Known
 import           Type.Family.Nat
 import qualified Data.List.NonEmpty                          as NE
+import qualified Data.Type.Nat                               as TCN
 import qualified Data.Vector                                 as V
+import qualified Data.Vector.Sized                           as VSi
 import qualified System.Random.MWC                           as MWC
 import qualified System.Random.MWC.Distributions             as MWC
 
@@ -60,15 +63,15 @@ main = MWC.withSystemRandom $ \g -> do
     putStrLn "Loaded data"
     -- let slices_ :: [(Vec N4 (HM '[128]), HM '[128])]
         -- slices_ = slidingPartsLast known . asFeedback $ holmes
-    let slices_ :: [(Vec N6 (HM '[128]), Vec N6 (HM '[128]))]
+    let slices_ :: [(Vec N8 (HM '[128]), Vec N8 (HM '[128]))]
         slices_ = slidingPartsSplit known . asFeedback $ holmes
     slices <- evaluate . force $ slices_
     putStrLn "Processed data"
     net0 :: Network 'Recurrent HM ( '[128] :~ FullyConnectedR' 'MF_Logit )
-                                 '[ '[64 ] :~ ReLUMap
-                                  , '[64 ] :~ FullyConnectedR' 'MF_Logit
-                                  , '[16 ] :~ ReLUMap
-                                  , '[16 ] :~ FullyConnected
+                                 '[ '[32 ] :~ ReLUMap
+                                  -- , '[64 ] :~ FullyConnectedR' 'MF_Logit
+                                  -- , '[16 ] :~ ReLUMap
+                                  , '[32 ] :~ FullyConnected
                                   , '[128] :~ SoftMax '[128]
                                   ]
                                   '[128] <- initDefNet g
@@ -79,24 +82,34 @@ main = MWC.withSystemRandom $ \g -> do
       let chunkUp   = chunksOf batch train'
           numChunks = length chunkUp
       forM_ ([1..] `zip` chunkUp) $ \(b, chnk) -> StateT $ \n0 -> do
-        printf "(Batch %d / %d)\n" (b :: Int) numChunks
+        printf "(Epoch %d, Batch %d / %d)\n" (e :: Int) (b :: Int) numChunks
 
         t0 <- getCurrentTime
         -- n' <- evaluate $ optimizeList_ (bimap vecToProd only_ <$> chnk) n0
         n' <- evaluate $ optimizeList_ (bimap vecToProd vecToProd <$> chnk) n0
                            -- (sgdOptimizer rate (netOpRecurrentLast_ known) crossEntropy)
-                           (sgdOptimizer rate (netOpRecurrent_ known) (sumLossDecay crossEntropy known 0.75))
+                           (sgdOptimizer rate (netOpRecurrent_ known)
+                              (sumLossDecay crossEntropy known α)
+                           )
         t1 <- getCurrentTime
         printf "Trained on %d points in %s.\n" batch (show (t1 `diffUTCTime` t0))
 
-        let (lastChnk, x0) = bimap toList (last . toList) $ last chnk
-            (ys, primed)   = runNetRecurrent n' lastChnk
-            test           = take 7 $ runNetFeedbackForever id primed x0
+        forM_ (map (bimap toList (last . toList)) . take 3 $ chnk) $ \(lastChnk, x0) -> do
+          let (ys, primed)   = runNetRecurrent n' lastChnk
+          test <- toList . vmap I . fst
+              <$> runNetFeedbackM (known @_ @_ @N8) (flip pickNext g) primed x0
 
-        forM_ (zip (lastChnk ++ [x0]) (ys ++ [head test])) $ \(c,y) ->
-          printf "|%c\t=> %s\t(%.4f)\n" (censor (oneHotChar c)) (take 25 (censor <$> charRank y)) (amax y)
-        forM_ (zip test (drop 1 test)) $ \(t,p) ->
-          printf " %c\t=> %s\t(%.4f)\n" (censor (oneHotChar t)) (take 25 (censor <$> charRank p)) (amax p)
+          forM_ (zip (lastChnk ++ [x0]) (ys ++ [head test])) $ \(c,y) ->
+            printf "|%c\t=> %s\t(%.4f)\n"
+              (censor (oneHotChar c))
+              (take 25 (censor <$> charRank y))
+              (amax y)
+          forM_ (zip test (drop 1 test)) $ \(t,p) ->
+            printf " %c\t=> %s\t(%.4f)\n"
+              (censor (oneHotChar t))
+              (take 25 (censor <$> charRank p))
+              (amax p)
+          putStrLn "---"
 
         -- let (x1,_) = runNet primed x0
         -- print $ iamax x1
@@ -105,14 +118,30 @@ main = MWC.withSystemRandom $ \g -> do
         --   $ map oneHotChar (toList lastChnk) ++
         --       '|' : map oneHotChar test
 
-        let n'' | any (isNaN . amax) test = n0
-                | otherwise                = n'
+        let (test, _) = runNetRecurrentLast n' . vecNonEmpty . fst . head $ chnk
+        let n'' | isNaN (amax test) = n0
+                | otherwise         = n'
         return ((), n'')
   where
     batch :: Int
-    batch = 2000
+    batch = 5000
     rate :: Double
-    rate  = 0.001
+    rate  = 0.002
+    α :: Double
+    α = 4/5
+
+pickNext
+    :: (PrimMonad m, BLAS t, KnownNat n)
+    => t '[n]
+    -> MWC.Gen (PrimState m)
+    -> m (t '[n])
+pickNext x g = fmap (oneHot . only . fromIntegral)
+             . flip MWC.categorical g
+             . fmap realToFrac
+             . VSi.fromSized
+             . textract
+             $ x
+
 
 censor :: Char -> Char
 censor c

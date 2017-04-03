@@ -22,6 +22,7 @@ module Numeric.BLAS (
   , vecMat
   , outer
   , amax
+  , concretize
   , matVecOp
   , dotOp
   , asumOp
@@ -145,6 +146,9 @@ amax
 amax = do
     i <- only . iamax
     tindex i
+
+concretize :: (BLAS b, KnownNat n) => b '[n] -> b '[n]
+concretize = oneHot . only . iamax
 
 matVecOp
     :: (KnownNat m, KnownNat n, BLAS b)
