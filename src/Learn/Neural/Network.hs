@@ -21,7 +21,9 @@ module Learn.Neural.Network (
   , netOp
   , netOpPure
   , netOpRecurrent
+  , netOpRecurrent_
   , netOpRecurrentLast
+  , netOpRecurrentLast_
   , runNet
   , runNetPure
   , runNetRecurrent
@@ -138,6 +140,23 @@ netOpRecurrent = \case
         n2 :< ys      <- netOpRecurrent n ~$$ (n1 :< xs)
         return (n2 :< y :< ys)
 
+netOpRecurrent_
+    :: forall n b i c hs o s.
+     ( Known (NetStruct 'Recurrent b (i :~ c) hs) o
+     , BLAS b
+     , Num (b o)
+     , Num (b i)
+     )
+    => TCN.Nat n
+    -> OpB s (Network 'Recurrent b (i :~ c) hs o ': Replicate n (b i))
+             (Replicate n (b o))
+netOpRecurrent_ n = (replWit @_ @Num @(b i) n Wit //) $
+                    (replWit @_ @Num @(b o) n Wit //) $
+                    (replLen @_ @(b i) n          //) $
+        bpOp . withInps $ \inps -> do
+    _ :< ys <- netOpRecurrent n ~$$ inps
+    return ys
+
 netOpRecurrentLast
     :: forall n b i c hs o s.
      ( Known (NetStruct 'Recurrent b (i :~ c) hs) o
@@ -156,6 +175,22 @@ netOpRecurrentLast = \case
         n1 :< _ :< Ø <- netOp                ~$$ (n0 :< x :< Ø)
         n2 :< y :< Ø <- netOpRecurrentLast n ~$$ (n1 :< xs)
         return (n2 :< y :< Ø)
+
+netOpRecurrentLast_
+    :: forall n b i c hs o s.
+     ( Known (NetStruct 'Recurrent b (i :~ c) hs) o
+     , BLAS b
+     , Num (b o)
+     , Num (b i)
+     )
+    => TCN.Nat n
+    -> OpB s (Network 'Recurrent b (i :~ c) hs o ': b i ': Replicate n (b i))
+            '[b o]
+netOpRecurrentLast_ n = (replWit @_ @Num @(b i) n Wit //) $
+                        (replLen @_ @(b i) n          //) $
+        bpOp . withInps $ \inps -> do
+    _ :< y :< Ø <- netOpRecurrentLast n ~$$ inps
+    return $ only y
 
 runNet
     :: (Num (b i), Num (b o), BLAS b)
@@ -221,7 +256,7 @@ runNetFeedbackForever f = go
     go n0 x = y:ys
       where
         (y, n1) = runNet n0 x
-        ys      = go n1 (f y)
+        ~ys     = go n1 (f y)
 
 data NetConf :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> Type where
     NCExt :: ( ComponentLayer r c b i o

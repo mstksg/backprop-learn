@@ -18,6 +18,7 @@ module Learn.Neural.Train (
   , slidingParts
   , slidingPartsSplit
   , slidingPartsLast
+  , asFeedback
   ) where
 
 
@@ -137,3 +138,6 @@ slidingPartsLast
     -> [(Vec ('S n) a, b)]
 slidingPartsLast n = map (\xy -> (fst <$> xy, snd . getI $ last' xy))
                    . slidingParts n
+
+asFeedback :: [a] -> [(a, a)]
+asFeedback xs = zip xs (drop 1 xs)
