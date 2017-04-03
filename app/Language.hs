@@ -58,8 +58,10 @@ main = MWC.withSystemRandom $ \g -> do
     holmes <- evaluate . force . mapMaybe (charOneHot @HM)
         =<< readFile "data/holmes.txt"
     putStrLn "Loaded data"
-    let slices_ :: [(Vec N4 (HM '[128]), HM '[128])]
-        slices_ = slidingPartsLast known . asFeedback $ holmes
+    -- let slices_ :: [(Vec N4 (HM '[128]), HM '[128])]
+        -- slices_ = slidingPartsLast known . asFeedback $ holmes
+    let slices_ :: [(Vec N6 (HM '[128]), Vec N6 (HM '[128]))]
+        slices_ = slidingPartsSplit known . asFeedback $ holmes
     slices <- evaluate . force $ slices_
     putStrLn "Processed data"
     net0 :: Network 'Recurrent HM ( '[128] :~ FullyConnectedR' 'MF_Logit )
@@ -80,12 +82,14 @@ main = MWC.withSystemRandom $ \g -> do
         printf "(Batch %d / %d)\n" (b :: Int) numChunks
 
         t0 <- getCurrentTime
-        n' <- evaluate $ optimizeList_ (bimap vecToProd only_ <$> chnk) n0
-                           (sgdOptimizer rate (netOpRecurrentLast_ known) crossEntropy)
+        -- n' <- evaluate $ optimizeList_ (bimap vecToProd only_ <$> chnk) n0
+        n' <- evaluate $ optimizeList_ (bimap vecToProd vecToProd <$> chnk) n0
+                           -- (sgdOptimizer rate (netOpRecurrentLast_ known) crossEntropy)
+                           (sgdOptimizer rate (netOpRecurrent_ known) (sumLossDecay crossEntropy known 0.75))
         t1 <- getCurrentTime
         printf "Trained on %d points in %s.\n" batch (show (t1 `diffUTCTime` t0))
 
-        let (lastChnk, x0) = first toList $ last chnk
+        let (lastChnk, x0) = bimap toList (last . toList) $ last chnk
             (ys, primed)   = runNetRecurrent n' lastChnk
             test           = take 7 $ runNetFeedbackForever id primed x0
 

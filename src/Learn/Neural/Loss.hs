@@ -11,6 +11,7 @@ module Learn.Neural.Loss (
   , crossEntropy
   , squaredError
   , sumLoss
+  , sumLossDecay
   , zipLoss
   ) where
 
@@ -59,6 +60,22 @@ sumLoss l = \case
         z  <- l (only_ x) ~$ (y :< Ø)
         zs <- sumLoss l n xs ~$ ys
         return . only $ z + zs
+
+sumLossDecay
+    :: forall n a b. (Num a, Num b)
+    => LossFunction '[ a ] b
+    -> TCN.Nat n
+    -> b
+    -> LossFunction (Replicate n a) b
+sumLossDecay l n λ = zipLoss l (genDecay 1 n)
+  where
+    genDecay :: b -> TCN.Nat m -> Vec m b
+    genDecay b = \case
+      TCN.Z_   -> ØV
+      TCN.S_ m -> case genDecay b m of
+        ØV        -> b :+ ØV
+        I c :* cs -> (c * λ) :+ c :+ cs
+
 
 zipLoss
     :: forall n a b. (Num a, Num b)
