@@ -21,6 +21,7 @@ module Numeric.BLAS (
   , matVec
   , vecMat
   , outer
+  , amax
   , matVecOp
   , dotOp
   , asumOp
@@ -136,6 +137,14 @@ outer
     -> b '[n]
     -> b '[m, n]
 outer x y = ger 1 x y Nothing
+
+amax
+    :: (BLAS b, KnownNat n)
+    => b '[n]
+    -> Scalar b
+amax = do
+    i <- only . iamax
+    tindex i
 
 matVecOp
     :: (KnownNat m, KnownNat n, BLAS b)
