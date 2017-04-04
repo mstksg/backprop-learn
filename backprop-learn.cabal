@@ -46,6 +46,7 @@ library
                      , profunctors
                      , reflection
                      , singletons
+                     , split
                      , statistics
                      , transformers
                      , type-combinators
@@ -86,6 +87,7 @@ executable backprop-learn-language
   build-depends:       base
                      , backprop
                      , backprop-learn
+                     , data-default
                      , deepseq
                      , finite-typelits
                      , mwc-random

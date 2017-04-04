@@ -234,46 +234,48 @@ runNetRecurrentLast n0 (x NE.:| xs) = case xs of
 runNetFeedback
     :: (Num (b i), Num (b o), BLAS b)
     => TCN.Nat n
-    -> (b o -> b i)
+    -> (b o -> (a, b i))
     -> Network 'Recurrent b (i :~ c) hs o
     -> b i
-    -> (VecT n b o, Network 'Recurrent b (i :~ c) hs o)
+    -> (Vec n a, Network 'Recurrent b (i :~ c) hs o)
 runNetFeedback = \case
     TCN.Z_   -> \_ n0 _ ->
       (ØV, n0)
     TCN.S_ n -> \f n0 x ->
       let (y , n1) = runNet n0 x
-          (ys, n2) = runNetFeedback n f n1 (f y)
-      in  (y :* ys, n2)
+          (r , z ) = f y
+          (rs, n2) = runNetFeedback n f n1 z
+      in  (r :+ rs, n2)
 
 runNetFeedbackM
     :: (Num (b i), Num (b o), BLAS b, Monad m)
     => TCN.Nat n
-    -> (b o -> m (b i))
+    -> (b o -> m (a, b i))
     -> Network 'Recurrent b (i :~ c) hs o
     -> b i
-    -> m (VecT n b o, Network 'Recurrent b (i :~ c) hs o)
+    -> m (Vec n a, Network 'Recurrent b (i :~ c) hs o)
 runNetFeedbackM = \case
     TCN.Z_   -> \_ n0 _ ->
       return (ØV, n0)
     TCN.S_ n -> \f n0 x -> do
       let (y , n1) = runNet n0 x
-      x' <- f y
-      (ys, n2) <- runNetFeedbackM n f n1 x'
-      return (y :* ys, n2)
+      (r, z) <- f y
+      (rs, n2) <- runNetFeedbackM n f n1 z
+      return (r :+ rs, n2)
 
 runNetFeedbackForever
     :: (Num (b i), Num (b o), BLAS b)
-    => (b o -> b i)
+    => (b o -> (a, b i))
     -> Network 'Recurrent b (i :~ c) hs o
     -> b i
-    -> [b o]
+    -> [a]
 runNetFeedbackForever f = go
   where
-    go n0 x = y:ys
+    go n0 x = r:rs
       where
         (y, n1) = runNet n0 x
-        ~ys     = go n1 (f y)
+        (r, z ) = f y
+        ~rs     = go n1 z
 
 data NetConf :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> Type where
     NCExt :: ( ComponentLayer r c b i o

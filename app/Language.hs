@@ -15,6 +15,7 @@ import           Control.Monad.Primitive
 import           Control.Monad.Trans.State
 import           Data.Bifunctor
 import           Data.Char
+import           Data.Default
 import           Data.Finite
 import           Data.Foldable
 import           Data.List
@@ -24,7 +25,7 @@ import           Data.Ord
 import           Data.Time.Clock
 import           Data.Type.Product hiding                    (toList, head')
 import           Data.Type.Vector
-import           GHC.TypeLits
+import           GHC.TypeLits hiding                         (type (+))
 import           Learn.Neural
 import           Learn.Neural.Layer.Recurrent.FullyConnected
 import           Numeric.BLAS.HMatrix
@@ -67,46 +68,55 @@ main = MWC.withSystemRandom $ \g -> do
         slices_ = slidingPartsSplit known . asFeedback $ holmes
     slices <- evaluate . force $ slices_
     putStrLn "Processed data"
+    let opt0 = adamOptimizer def (netOpRecurrent_ known)
+                (sumLossDecay crossEntropy known α)
     net0 :: Network 'Recurrent HM ( '[128] :~ FullyConnectedR' 'MF_Logit )
-                                 '[ '[32 ] :~ ReLUMap
-                                  -- , '[64 ] :~ FullyConnectedR' 'MF_Logit
-                                  -- , '[16 ] :~ ReLUMap
+                                 '[ '[64 ] :~ ReLUMap
+                                  , '[64 ] :~ FullyConnectedR' 'MF_Logit
+                                  , '[32 ] :~ ReLUMap
                                   , '[32 ] :~ FullyConnected
                                   , '[128] :~ SoftMax '[128]
                                   ]
                                   '[128] <- initDefNet g
-    flip evalStateT net0 . forM_ [1..] $ \e -> do
+    flip evalStateT (net0, opt0) . forM_ [1..] $ \e -> do
       train' <- liftIO . fmap V.toList $ MWC.uniformShuffle (V.fromList slices) g
       liftIO $ printf "[Epoch %d]\n" (e :: Int)
 
       let chunkUp   = chunksOf batch train'
           numChunks = length chunkUp
-      forM_ ([1..] `zip` chunkUp) $ \(b, chnk) -> StateT $ \n0 -> do
+      forM_ ([1..] `zip` chunkUp) $ \(b, chnk) -> StateT $ \(n0, o0) -> do
         printf "(Epoch %d, Batch %d / %d)\n" (e :: Int) (b :: Int) numChunks
 
         t0 <- getCurrentTime
         -- n' <- evaluate $ optimizeList_ (bimap vecToProd only_ <$> chnk) n0
-        n' <- evaluate $ optimizeList_ (bimap vecToProd vecToProd <$> chnk) n0
+        (n', o') <- evaluate
+          $ optimizeList (bimap vecToProd vecToProd <$> chnk) n0 o0
                            -- (sgdOptimizer rate (netOpRecurrentLast_ known) crossEntropy)
-                           (sgdOptimizer rate (netOpRecurrent_ known)
-                              (sumLossDecay crossEntropy known α)
-                           )
+                           -- (sgdOptimizer rate (netOpRecurrent_ known)
+                           -- (adamOptimizer def (netOpRecurrent_ known)
+                           --    (sumLossDecay crossEntropy known α)
+                           -- )
         t1 <- getCurrentTime
         printf "Trained on %d points in %s.\n" batch (show (t1 `diffUTCTime` t0))
 
         forM_ (map (bimap toList (last . toList)) . take 3 $ chnk) $ \(lastChnk, x0) -> do
           let (ys, primed)   = runNetRecurrent n' lastChnk
-          test <- toList . vmap I . fst
-              <$> runNetFeedbackM (known @_ @_ @N8) (flip pickNext g) primed x0
+              -- test   = take 12 . toList $ runNetFeedbackForever concretize primed x0
+              next :: HM '[128] -> IO ((Char, HM '[128]), HM '[128])
+              next x = do
+                pick <- pickNext x g
+                return ((toChar pick, x), oneHot (only pick))
+          test <- toList . fst
+              <$> runNetFeedbackM (known @_ @_ @(N10 + N6)) next primed x0
 
-          forM_ (zip (lastChnk ++ [x0]) (ys ++ [head test])) $ \(c,y) ->
+          forM_ (zip (lastChnk ++ [x0]) (ys ++ [snd (head test)])) $ \(c,y) ->
             printf "|%c\t=> %s\t(%.4f)\n"
               (censor (oneHotChar c))
               (take 25 (censor <$> charRank y))
               (amax y)
-          forM_ (zip test (drop 1 test)) $ \(t,p) ->
+          forM_ (zip test (drop 1 test)) $ \((t,_),(_,p)) ->
             printf " %c\t=> %s\t(%.4f)\n"
-              (censor (oneHotChar t))
+              (censor t)
               (take 25 (censor <$> charRank p))
               (amax p)
           putStrLn "---"
@@ -121,12 +131,12 @@ main = MWC.withSystemRandom $ \g -> do
         let (test, _) = runNetRecurrentLast n' . vecNonEmpty . fst . head $ chnk
         let n'' | isNaN (amax test) = n0
                 | otherwise         = n'
-        return ((), n'')
+        return ((), (n'', o'))
   where
     batch :: Int
     batch = 5000
-    rate :: Double
-    rate  = 0.002
+    -- rate :: Double
+    -- rate  = 0.002
     α :: Double
     α = 4/5
 
@@ -134,8 +144,8 @@ pickNext
     :: (PrimMonad m, BLAS t, KnownNat n)
     => t '[n]
     -> MWC.Gen (PrimState m)
-    -> m (t '[n])
-pickNext x g = fmap (oneHot . only . fromIntegral)
+    -> m (Finite n)
+pickNext x g = fmap fromIntegral
              . flip MWC.categorical g
              . fmap realToFrac
              . VSi.fromSized
