@@ -45,6 +45,9 @@ instance Fractional (CParam (Applying s) b i o) where
     recip _        = AppP
     fromRational _ = AppP
 
+instance Floating (CParam (Applying s) b i o) where
+    sqrt _ = AppP
+
 instance Num (CState (Applying s) b i o) where
     _ + _         = AppS
     _ * _         = AppS
@@ -58,6 +61,9 @@ instance Fractional (CState (Applying s) b i o) where
     _ / _          = AppS
     recip _        = AppS
     fromRational _ = AppS
+
+instance Floating (CState (Applying s) b i o) where
+    sqrt _ = AppS
 
 instance (BLAS b, Reifies s (TensorOp i o), SingI i, SingI o) => Component (Applying s) b i o where
     data CParam (Applying s) b i o = AppP

@@ -58,6 +58,10 @@ instance (Fractional (b '[o,o]), Fractional (b '[o,i]), Fractional (b '[o]))
     recip (FCRP wI wS b) = FCRP (recip wI) (recip wS) (recip b)
     fromRational x       = FCRP (fromRational x) (fromRational x) (fromRational x)
 
+instance (Floating (b '[o,o]), Floating (b '[o,i]), Floating (b '[o]))
+      => Floating (CParam FullyConnectedR b '[i] '[o]) where
+    sqrt (FCRP wI wS b) = FCRP (sqrt wI) (sqrt wS) (sqrt b)
+
 instance Num (b '[o]) => Num (CState FullyConnectedR b '[i] '[o]) where
     FCRS s1 + FCRS s2 = FCRS (s1 + s2)
     FCRS s1 - FCRS s2 = FCRS (s1 - s2)
@@ -72,13 +76,15 @@ instance Fractional (b '[o]) => Fractional (CState FullyConnectedR b '[i] '[o]) 
     recip (FCRS s)    = FCRS (recip s)
     fromRational x    = FCRS (fromRational x)
 
+instance Floating (b '[o]) => Floating (CState FullyConnectedR b '[i] '[o]) where
+    sqrt (FCRS s)    = FCRS (sqrt s)
 
 instance ( BLAS b
          , KnownNat i
          , KnownNat o
-         , Fractional (b '[o])
-         , Fractional (b '[o,i])
-         , Fractional (b '[o,o])
+         , Floating (b '[o])
+         , Floating (b '[o,i])
+         , Floating (b '[o,o])
          )
         => Component FullyConnectedR b '[i] '[o] where
     data CParam  FullyConnectedR b '[i] '[o] =
@@ -118,9 +124,9 @@ instance ( BLAS b
 instance ( BLAS b
          , KnownNat i
          , KnownNat o
-         , Fractional (b '[o])
-         , Fractional (b '[o,i])
-         , Fractional (b '[o,o])
+         , Floating (b '[o])
+         , Floating (b '[o,i])
+         , Floating (b '[o,o])
          )
         => ComponentLayer 'Recurrent FullyConnectedR b '[i] '[o] where
     componentRunMode = RMNotFF
@@ -146,6 +152,10 @@ instance (Fractional (b '[o,o]), Fractional (b '[o,i]), Fractional (b '[o]))
     recip (FCRP' wI wS b) = FCRP' (recip wI) (recip wS) (recip b)
     fromRational x        = FCRP' (fromRational x) (fromRational x) (fromRational x)
 
+instance (Floating (b '[o,o]), Floating (b '[o,i]), Floating (b '[o]))
+      => Floating (CParam (FullyConnectedR' s) b '[i] '[o]) where
+    sqrt (FCRP' wI wS b) = FCRP' (sqrt wI) (sqrt wS) (sqrt b)
+
 instance Num (b '[o]) => Num (CState (FullyConnectedR' s) b '[i] '[o]) where
     FCRS' s1 + FCRS' s2 = FCRS' (s1 + s2)
     FCRS' s1 - FCRS' s2 = FCRS' (s1 - s2)
@@ -160,14 +170,16 @@ instance Fractional (b '[o]) => Fractional (CState (FullyConnectedR' s) b '[i] '
     recip (FCRS' s)     = FCRS' (recip s)
     fromRational x      = FCRS' (fromRational x)
 
+instance Floating (b '[o]) => Floating (CState (FullyConnectedR' s) b '[i] '[o]) where
+    sqrt (FCRS' s)     = FCRS' (sqrt s)
 
 
 instance ( BLAS b
          , KnownNat i
          , KnownNat o
-         , Fractional (b '[o])
-         , Fractional (b '[o,i])
-         , Fractional (b '[o,o])
+         , Floating (b '[o])
+         , Floating (b '[o,i])
+         , Floating (b '[o,o])
          , Reifies s MapFunc
          )
       => Component (FullyConnectedR' s) b '[i] '[o] where
@@ -217,9 +229,9 @@ instance ( BLAS b
 instance ( BLAS b
          , KnownNat i
          , KnownNat o
-         , Fractional (b '[o])
-         , Fractional (b '[o,i])
-         , Fractional (b '[o,o])
+         , Floating (b '[o])
+         , Floating (b '[o,i])
+         , Floating (b '[o,o])
          , Reifies s MapFunc
          )
       => ComponentLayer 'Recurrent (FullyConnectedR' s) b '[i] '[o] where

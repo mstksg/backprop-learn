@@ -30,6 +30,9 @@ instance Fractional (CParam Ident b i i) where
     recip _        = IdP
     fromRational _ = IdP
 
+instance Floating (CParam Ident b i i) where
+    sqrt _ = IdP
+
 instance Num (CState Ident b i i) where
     _ + _         = IdS
     _ * _         = IdS
@@ -43,6 +46,9 @@ instance Fractional (CState Ident b i i) where
     _ / _          = IdS
     recip _        = IdS
     fromRational _ = IdS
+
+instance Floating (CState Ident b i i) where
+    sqrt _ = IdS
 
 instance BLAS b => Component Ident b i i where
     data CParam Ident b i i = IdP

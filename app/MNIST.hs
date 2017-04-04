@@ -67,8 +67,8 @@ main = MWC.withSystemRandom $ \g -> do
 
         t0 <- getCurrentTime
         n' <- evaluate $ optimizeList_ (bimap only_ only_ <$> chnk) n0
-                                       (sgdOptimizer rate netOpPure crossEntropy)
-                                       -- (adamOptimizer def netOpPure crossEntropy)
+                                       -- (sgdOptimizer rate netOpPure crossEntropy)
+                                       (adamOptimizer def netOpPure crossEntropy)
         t1 <- getCurrentTime
         printf "Trained on %d points in %s.\n" batch (show (t1 `diffUTCTime` t0))
 

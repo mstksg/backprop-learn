@@ -48,7 +48,7 @@ data RunModeWit :: RunMode -> Type -> ([Nat] -> Type) -> [Nat] -> [Nat] -> Type 
     RMIsFF  :: ComponentFF c b i o => RunModeWit r c b i o
     RMNotFF :: RunModeWit 'Recurrent c b i o
 
-class (Fractional (CParam c b i o), Fractional (CState c b i o), BLAS b)
+class (Floating (CParam c b i o), Floating (CState c b i o), BLAS b)
         => Component (c :: Type) (b :: [Nat] -> Type) (i :: [Nat]) (o :: [Nat]) where
     data CParam  c b i o :: Type
     data CState  c b i o :: Type
@@ -130,6 +130,9 @@ instance ComponentLayer r c b i o => Fractional (Layer r c b i o) where
     fromRational x  = case componentRunMode @r @c @b @i @o of
       RMIsFF  -> LFeedForward (fromRational x)
       RMNotFF -> LRecurrent   (fromRational x) (fromRational x)
+
+instance ComponentLayer r c b i o => Floating (Layer r c b i o) where
+    sqrt = liftLayer sqrt sqrt
 
 liftLayer
     :: (CParam c b i o -> CParam c b i o)

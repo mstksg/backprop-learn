@@ -386,6 +386,10 @@ instance (Known (NetStruct r b (i :~ c) hs) o)
     recip          = liftNet recip known
     fromRational x = liftNet0 (fromRational x) known
 
+instance (Known (NetStruct r b (i :~ c) hs) o)
+            => Floating (Network r b (i :~ c) hs o) where
+    sqrt          = liftNet sqrt known
+
 liftNet0
     :: forall r b i hs o. ()
     => (forall c n m.

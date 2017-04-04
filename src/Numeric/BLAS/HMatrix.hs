@@ -439,4 +439,5 @@ deriving instance NFData (HM' s)     => NFData (HM s)
 deriving instance Show (HM' s)       => Show (HM s)
 deriving instance Num (HM' s)        => Num (HM s)
 deriving instance Fractional (HM' s) => Fractional (HM s)
+deriving instance Floating (HM' s)   => Floating (HM s)
 

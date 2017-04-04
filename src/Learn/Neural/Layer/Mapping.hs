@@ -74,6 +74,9 @@ instance Fractional (CParam (Mapping s) b i i) where
     recip _        = MapP
     fromRational _ = MapP
 
+instance Floating (CParam (Mapping s) b i i) where
+    sqrt _ = MapP
+
 instance Num (CState (Mapping s) b i i) where
     _ + _         = MapS
     _ * _         = MapS
@@ -87,6 +90,9 @@ instance Fractional (CState (Mapping s) b i i) where
     _ / _          = MapS
     recip _        = MapS
     fromRational _ = MapS
+
+instance Floating (CState (Mapping s) b i i) where
+    sqrt _ = MapS
 
 instance (BLAS b, Reifies s MapFunc, SingI i) => Component (Mapping s) b i i where
     data CParam (Mapping s) b i i = MapP
@@ -167,6 +173,9 @@ instance (Tensor b, Known TCN.Nat n) => Fractional (CParam (PMapping s n) b i i)
     recip (PMapP x)   = PMapP $ fmap recip x
     fromRational x    = PMapP $ pure (fromRational x)
 
+instance (Tensor b, Known TCN.Nat n) => Floating (CParam (PMapping s n) b i i) where
+    sqrt (PMapP x)   = PMapP $ fmap sqrt x
+
 instance Num (CState (PMapping s n) b i i) where
     _ + _         = PMapS
     _ * _         = PMapS
@@ -181,6 +190,8 @@ instance Fractional (CState (PMapping s n) b i i) where
     recip _        = PMapS
     fromRational _ = PMapS
 
+instance Floating (CState (PMapping s n) b i i) where
+    sqrt _        = PMapS
 
 pMapP :: Known TCN.Nat n => Iso' (CParam (PMapping s n) b i i) (Tuple (Replicate n (Scalar b)))
 pMapP = gTuple . iso (vecToProd . getI . head') (only_ . prodToVec' known)

@@ -40,6 +40,9 @@ instance (Fractional (b '[o,i]), Fractional (b '[o])) => Fractional (CParam Full
     recip (FCP w b)       = FCP (recip w) (recip b)
     fromRational x        = FCP (fromRational x) (fromRational x)
 
+instance (Floating (b '[o,i]), Floating (b '[o])) => Floating (CParam FullyConnected b '[i] '[o]) where
+    sqrt (FCP w b)       = FCP (sqrt w) (sqrt b)
+
 instance Num (CState FullyConnected b '[i] '[o]) where
     _ + _         = FCS
     _ * _         = FCS
@@ -54,12 +57,17 @@ instance Fractional (CState FullyConnected b '[i] '[o]) where
     recip _        = FCS
     fromRational _ = FCS
 
+instance Floating (CState FullyConnected b '[i] '[o]) where
+    sqrt _ = FCS
+
+
+
 
 
 deriving instance Generic (CParam FullyConnected b '[i] '[o])
 instance SOP.Generic (CParam FullyConnected b '[i] '[o])
 
-instance (BLAS b, KnownNat i, KnownNat o, Fractional (b '[o,i]), Fractional (b '[o]))
+instance (BLAS b, KnownNat i, KnownNat o, Floating (b '[o,i]), Floating (b '[o]))
         => Component FullyConnected b '[i] '[o] where
     data CParam  FullyConnected b '[i] '[o] =
             FCP { _fcWeights :: !(b '[o,i])
@@ -86,7 +94,7 @@ instance (BLAS b, KnownNat i, KnownNat o, Fractional (b '[o,i]), Fractional (b '
 
     defConf = FCC (normalDistr 0 0.5)
 
-instance (BLAS b, KnownNat i, KnownNat o, Fractional (b '[o,i]), Fractional (b '[o]))
+instance (BLAS b, KnownNat i, KnownNat o, Floating (b '[o,i]), Floating (b '[o]))
         => ComponentFF FullyConnected b '[i] '[o] where
     componentOpFF = bpOp . withInps $ \(x :< p :< Ø) -> do
         w :< b :< Ø <- gTuple #<~ p
@@ -94,6 +102,6 @@ instance (BLAS b, KnownNat i, KnownNat o, Fractional (b '[o,i]), Fractional (b '
         z <- (+.)     ~$ (y :< b :< Ø)
         return . only $ z
 
-instance (BLAS b, KnownNat i, KnownNat o, Fractional (b '[o,i]), Fractional (b '[o]))
+instance (BLAS b, KnownNat i, KnownNat o, Floating (b '[o,i]), Floating (b '[o]))
         => ComponentLayer r FullyConnected b '[i] '[o] where
     componentRunMode = RMIsFF
