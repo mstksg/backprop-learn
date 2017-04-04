@@ -48,7 +48,7 @@
 </span><a name="line-48"></a><span>    </span><a name="RMIsFF"><a href="Learn.Neural.Layer.html#RMIsFF"><span class="hs-identifier">RMIsFF</span></a></a><span>  </span><span class="hs-glyph">::</span><span> </span><a href="Learn.Neural.Layer.html#ComponentFF"><span class="hs-identifier hs-type">ComponentFF</span></a><span> </span><a href="#local-6989586621679194381"><span class="hs-identifier hs-type">c</span></a><span> </span><a href="#local-6989586621679194382"><span class="hs-identifier hs-type">b</span></a><span> </span><a href="#local-6989586621679194383"><span class="hs-identifier hs-type">i</span></a><span> </span><a href="#local-6989586621679194384"><span class="hs-identifier hs-type">o</span></a><span> </span><span class="hs-glyph">=&gt;</span><span> </span><a href="Learn.Neural.Layer.html#RunModeWit"><span class="hs-identifier hs-type">RunModeWit</span></a><span> </span><a href="#local-6989586621679194385"><span class="hs-identifier hs-type">r</span></a><span> </span><a href="#local-6989586621679194381"><span class="hs-identifier hs-type">c</span></a><span> </span><a href="#local-6989586621679194382"><span class="hs-identifier hs-type">b</span></a><span> </span><a href="#local-6989586621679194383"><span class="hs-identifier hs-type">i</span></a><span> </span><a href="#local-6989586621679194384"><span class="hs-identifier hs-type">o</span></a><span>
 </span><a name="line-49"></a><span>    </span><a name="RMNotFF"><a href="Learn.Neural.Layer.html#RMNotFF"><span class="hs-identifier">RMNotFF</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><a href="Learn.Neural.Layer.html#RunModeWit"><span class="hs-identifier hs-type">RunModeWit</span></a><span> </span><span class="hs-char">'Recurrent c b i o
 
-class (Fractional (CParam c b i o), Fractional (CState c b i o), BLAS b)
+class (Floating (CParam c b i o), Floating (CState c b i o), BLAS b)
         =&gt; Component (c :: Type) (b :: [Nat] -&gt; Type) (i :: [Nat]) (o :: [Nat]) where
     data CParam  c b i o :: Type
     data CState  c b i o :: Type
@@ -130,6 +130,9 @@ instance ComponentLayer r c b i o =&gt; Fractional (Layer r c b i o) where
     fromRational x  = case componentRunMode @r @c @b @i @o of
       RMIsFF  -&gt; LFeedForward (fromRational x)
       RMNotFF -&gt; LRecurrent   (fromRational x) (fromRational x)
+
+instance ComponentLayer r c b i o =&gt; Floating (Layer r c b i o) where
+    sqrt = liftLayer sqrt sqrt
 
 liftLayer
     :: (CParam c b i o -&gt; CParam c b i o)

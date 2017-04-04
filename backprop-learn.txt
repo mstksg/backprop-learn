@@ -83,7 +83,7 @@ dotOp :: forall b n. (KnownNat n, BLAS b) => Op '[b '[n], b '[n]] '[Scalar b]
 asumOp :: forall b n. (KnownNat n, BLAS b, Num (b '[n])) => Op '[b '[n]] '[Scalar b]
 
 module Learn.Neural.Layer
-class (Fractional (CParam c b i o), Fractional (CState c b i o), BLAS b) => Component (c :: Type) (b :: [Nat] -> Type) (i :: [Nat]) (o :: [Nat]) where data CParam c b i o :: Type data CState c b i o :: Type type CConstr c b i o :: Constraint data CConf c b i o :: Type type CConstr c b i o = ØC where {
+class (Floating (CParam c b i o), Floating (CState c b i o), BLAS b) => Component (c :: Type) (b :: [Nat] -> Type) (i :: [Nat]) (o :: [Nat]) where data CParam c b i o :: Type data CState c b i o :: Type type CConstr c b i o :: Constraint data CConf c b i o :: Type type CConstr c b i o = ØC where {
     data family CParam c b i o :: Type;
     data family CState c b i o :: Type;
     type family CConstr c b i o :: Constraint;
@@ -113,6 +113,7 @@ layerOpPure :: forall c i o b s. (Component c b i o, BLAS b, Num (b i), Num (b o
 initLayer :: forall r c b i o m. (PrimMonad m, BLAS b, ComponentLayer r c b i o, CConstr c b i o) => Sing i -> Sing o -> CConf c b i o -> Gen (PrimState m) -> m (Layer r c b i o)
 instance Learn.Neural.Layer.ComponentLayer r c b i o => GHC.Num.Num (Learn.Neural.Layer.Layer r c b i o)
 instance Learn.Neural.Layer.ComponentLayer r c b i o => GHC.Real.Fractional (Learn.Neural.Layer.Layer r c b i o)
+instance Learn.Neural.Layer.ComponentLayer r c b i o => GHC.Float.Floating (Learn.Neural.Layer.Layer r c b i o)
 
 module Learn.Neural.Layer.Applying
 data Applying :: k -> Type
@@ -123,8 +124,10 @@ data CommonOp :: Type
 type SoftMax i = Applying (TO_Softmax i)
 instance forall k (s :: k) (b :: [GHC.Types.Nat] -> GHC.Types.Type) (i :: [GHC.Types.Nat]) (o :: [GHC.Types.Nat]). GHC.Num.Num (Learn.Neural.Layer.CParam (Learn.Neural.Layer.Applying.Applying s) b i o)
 instance forall k (s :: k) (b :: [GHC.Types.Nat] -> GHC.Types.Type) (i :: [GHC.Types.Nat]) (o :: [GHC.Types.Nat]). GHC.Real.Fractional (Learn.Neural.Layer.CParam (Learn.Neural.Layer.Applying.Applying s) b i o)
+instance forall k (s :: k) (b :: [GHC.Types.Nat] -> GHC.Types.Type) (i :: [GHC.Types.Nat]) (o :: [GHC.Types.Nat]). GHC.Float.Floating (Learn.Neural.Layer.CParam (Learn.Neural.Layer.Applying.Applying s) b i o)
 instance forall k (s :: k) (b :: [GHC.Types.Nat] -> GHC.Types.Type) (i :: [GHC.Types.Nat]) (o :: [GHC.Types.Nat]). GHC.Num.Num (Learn.Neural.Layer.CState (Learn.Neural.Layer.Applying.Applying s) b i o)
 instance forall k (s :: k) (b :: [GHC.Types.Nat] -> GHC.Types.Type) (i :: [GHC.Types.Nat]) (o :: [GHC.Types.Nat]). GHC.Real.Fractional (Learn.Neural.Layer.CState (Learn.Neural.Layer.Applying.Applying s) b i o)
+instance forall k (s :: k) (b :: [GHC.Types.Nat] -> GHC.Types.Type) (i :: [GHC.Types.Nat]) (o :: [GHC.Types.Nat]). GHC.Float.Floating (Learn.Neural.Layer.CState (Learn.Neural.Layer.Applying.Applying s) b i o)
 instance forall k (b :: [GHC.Types.Nat] -> GHC.Types.Type) (s :: k) (i :: [GHC.Types.Nat]) (o :: [GHC.Types.Nat]). (Numeric.BLAS.BLAS b, Data.Reflection.Reifies s (Learn.Neural.Layer.Applying.TensorOp i o), Data.Singletons.SingI i, Data.Singletons.SingI o) => Learn.Neural.Layer.Component (Learn.Neural.Layer.Applying.Applying s) b i o
 instance forall k (b :: [GHC.Types.Nat] -> GHC.Types.Type) (s :: k) (i :: [GHC.Types.Nat]) (o :: [GHC.Types.Nat]). (Numeric.BLAS.BLAS b, Data.Reflection.Reifies s (Learn.Neural.Layer.Applying.TensorOp i o), Data.Singletons.SingI i, Data.Singletons.SingI o) => Learn.Neural.Layer.ComponentFF (Learn.Neural.Layer.Applying.Applying s) b i o
 instance forall k (b :: [GHC.Types.Nat] -> GHC.Types.Type) (s :: k) (i :: [GHC.Types.Nat]) (o :: [GHC.Types.Nat]) (r :: Learn.Neural.Layer.RunMode). (Numeric.BLAS.BLAS b, Data.Reflection.Reifies s (Learn.Neural.Layer.Applying.TensorOp i o), Data.Singletons.SingI i, Data.Singletons.SingI o) => Learn.Neural.Layer.ComponentLayer r (Learn.Neural.Layer.Applying.Applying s) b i o
@@ -135,19 +138,23 @@ data FullyConnected :: Type
 instance GHC.Generics.Generic (Learn.Neural.Layer.CParam Learn.Neural.Layer.FullyConnected.FullyConnected b '[i] '[o])
 instance (GHC.Num.Num (b '[o, i]), GHC.Num.Num (b '[o])) => GHC.Num.Num (Learn.Neural.Layer.CParam Learn.Neural.Layer.FullyConnected.FullyConnected b '[i] '[o])
 instance (GHC.Real.Fractional (b '[o, i]), GHC.Real.Fractional (b '[o])) => GHC.Real.Fractional (Learn.Neural.Layer.CParam Learn.Neural.Layer.FullyConnected.FullyConnected b '[i] '[o])
+instance (GHC.Float.Floating (b '[o, i]), GHC.Float.Floating (b '[o])) => GHC.Float.Floating (Learn.Neural.Layer.CParam Learn.Neural.Layer.FullyConnected.FullyConnected b '[i] '[o])
 instance GHC.Num.Num (Learn.Neural.Layer.CState Learn.Neural.Layer.FullyConnected.FullyConnected b '[i] '[o])
 instance GHC.Real.Fractional (Learn.Neural.Layer.CState Learn.Neural.Layer.FullyConnected.FullyConnected b '[i] '[o])
+instance GHC.Float.Floating (Learn.Neural.Layer.CState Learn.Neural.Layer.FullyConnected.FullyConnected b '[i] '[o])
 instance Generics.SOP.Universe.Generic (Learn.Neural.Layer.CParam Learn.Neural.Layer.FullyConnected.FullyConnected b '[i] '[o])
-instance (Numeric.BLAS.BLAS b, GHC.TypeLits.KnownNat i, GHC.TypeLits.KnownNat o, GHC.Real.Fractional (b '[o, i]), GHC.Real.Fractional (b '[o])) => Learn.Neural.Layer.Component Learn.Neural.Layer.FullyConnected.FullyConnected b '[i] '[o]
-instance (Numeric.BLAS.BLAS b, GHC.TypeLits.KnownNat i, GHC.TypeLits.KnownNat o, GHC.Real.Fractional (b '[o, i]), GHC.Real.Fractional (b '[o])) => Learn.Neural.Layer.ComponentFF Learn.Neural.Layer.FullyConnected.FullyConnected b '[i] '[o]
-instance (Numeric.BLAS.BLAS b, GHC.TypeLits.KnownNat i, GHC.TypeLits.KnownNat o, GHC.Real.Fractional (b '[o, i]), GHC.Real.Fractional (b '[o])) => Learn.Neural.Layer.ComponentLayer r Learn.Neural.Layer.FullyConnected.FullyConnected b '[i] '[o]
+instance (Numeric.BLAS.BLAS b, GHC.TypeLits.KnownNat i, GHC.TypeLits.KnownNat o, GHC.Float.Floating (b '[o, i]), GHC.Float.Floating (b '[o])) => Learn.Neural.Layer.Component Learn.Neural.Layer.FullyConnected.FullyConnected b '[i] '[o]
+instance (Numeric.BLAS.BLAS b, GHC.TypeLits.KnownNat i, GHC.TypeLits.KnownNat o, GHC.Float.Floating (b '[o, i]), GHC.Float.Floating (b '[o])) => Learn.Neural.Layer.ComponentFF Learn.Neural.Layer.FullyConnected.FullyConnected b '[i] '[o]
+instance (Numeric.BLAS.BLAS b, GHC.TypeLits.KnownNat i, GHC.TypeLits.KnownNat o, GHC.Float.Floating (b '[o, i]), GHC.Float.Floating (b '[o])) => Learn.Neural.Layer.ComponentLayer r Learn.Neural.Layer.FullyConnected.FullyConnected b '[i] '[o]
 
 module Learn.Neural.Layer.Identity
 data Ident :: Type
 instance GHC.Num.Num (Learn.Neural.Layer.CParam Learn.Neural.Layer.Identity.Ident b i i)
 instance GHC.Real.Fractional (Learn.Neural.Layer.CParam Learn.Neural.Layer.Identity.Ident b i i)
+instance GHC.Float.Floating (Learn.Neural.Layer.CParam Learn.Neural.Layer.Identity.Ident b i i)
 instance GHC.Num.Num (Learn.Neural.Layer.CState Learn.Neural.Layer.Identity.Ident b i i)
 instance GHC.Real.Fractional (Learn.Neural.Layer.CState Learn.Neural.Layer.Identity.Ident b i i)
+instance GHC.Float.Floating (Learn.Neural.Layer.CState Learn.Neural.Layer.Identity.Ident b i i)
 instance Numeric.BLAS.BLAS b => Learn.Neural.Layer.Component Learn.Neural.Layer.Identity.Ident b i i
 instance Numeric.BLAS.BLAS b => Learn.Neural.Layer.ComponentFF Learn.Neural.Layer.Identity.Ident b i i
 instance Numeric.BLAS.BLAS b => Learn.Neural.Layer.ComponentLayer r Learn.Neural.Layer.Identity.Ident b i i
@@ -180,8 +187,10 @@ data PMapFunc :: N -> Type
 instance forall k (s :: k) (n :: Type.Family.Nat.N) (b :: [GHC.Types.Nat] -> GHC.Types.Type) (i :: [GHC.Types.Nat]). GHC.Generics.Generic (Learn.Neural.Layer.CParam (Learn.Neural.Layer.Mapping.PMapping s n) b i i)
 instance forall k (s :: k) (b :: [GHC.Types.Nat] -> GHC.Types.Type) (i :: [GHC.Types.Nat]). GHC.Num.Num (Learn.Neural.Layer.CParam (Learn.Neural.Layer.Mapping.Mapping s) b i i)
 instance forall k (s :: k) (b :: [GHC.Types.Nat] -> GHC.Types.Type) (i :: [GHC.Types.Nat]). GHC.Real.Fractional (Learn.Neural.Layer.CParam (Learn.Neural.Layer.Mapping.Mapping s) b i i)
+instance forall k (s :: k) (b :: [GHC.Types.Nat] -> GHC.Types.Type) (i :: [GHC.Types.Nat]). GHC.Float.Floating (Learn.Neural.Layer.CParam (Learn.Neural.Layer.Mapping.Mapping s) b i i)
 instance forall k (s :: k) (b :: [GHC.Types.Nat] -> GHC.Types.Type) (i :: [GHC.Types.Nat]). GHC.Num.Num (Learn.Neural.Layer.CState (Learn.Neural.Layer.Mapping.Mapping s) b i i)
 instance forall k (s :: k) (b :: [GHC.Types.Nat] -> GHC.Types.Type) (i :: [GHC.Types.Nat]). GHC.Real.Fractional (Learn.Neural.Layer.CState (Learn.Neural.Layer.Mapping.Mapping s) b i i)
+instance forall k (s :: k) (b :: [GHC.Types.Nat] -> GHC.Types.Type) (i :: [GHC.Types.Nat]). GHC.Float.Floating (Learn.Neural.Layer.CState (Learn.Neural.Layer.Mapping.Mapping s) b i i)
 instance forall k (b :: [GHC.Types.Nat] -> GHC.Types.Type) (s :: k) (i :: [GHC.Types.Nat]). (Numeric.BLAS.BLAS b, Data.Reflection.Reifies s Learn.Neural.Layer.Mapping.MapFunc, Data.Singletons.SingI i) => Learn.Neural.Layer.Component (Learn.Neural.Layer.Mapping.Mapping s) b i i
 instance forall k (b :: [GHC.Types.Nat] -> GHC.Types.Type) (s :: k) (i :: [GHC.Types.Nat]). (Numeric.BLAS.BLAS b, Data.Reflection.Reifies s Learn.Neural.Layer.Mapping.MapFunc, Data.Singletons.SingI i) => Learn.Neural.Layer.ComponentFF (Learn.Neural.Layer.Mapping.Mapping s) b i i
 instance forall k (b :: [GHC.Types.Nat] -> GHC.Types.Type) (s :: k) (i :: [GHC.Types.Nat]) (r :: Learn.Neural.Layer.RunMode). (Numeric.BLAS.BLAS b, Data.Reflection.Reifies s Learn.Neural.Layer.Mapping.MapFunc, Data.Singletons.SingI i) => Learn.Neural.Layer.ComponentLayer r (Learn.Neural.Layer.Mapping.Mapping s) b i i
@@ -193,8 +202,10 @@ instance Data.Reflection.Reifies 'Learn.Neural.Layer.Mapping.MF_ELU Learn.Neural
 instance forall a (s :: a). Data.Reflection.Reifies s GHC.Types.Double => Data.Reflection.Reifies ('Learn.Neural.Layer.Mapping.MF_ELUp s) Learn.Neural.Layer.Mapping.MapFunc
 instance forall k (b :: [GHC.Types.Nat] -> GHC.Types.Type) (n :: Type.Family.Nat.N) (s :: k) (i :: [GHC.Types.Nat]). (Numeric.Tensor.Tensor b, Type.Class.Known.Known Data.Type.Nat.Nat n) => GHC.Num.Num (Learn.Neural.Layer.CParam (Learn.Neural.Layer.Mapping.PMapping s n) b i i)
 instance forall k (b :: [GHC.Types.Nat] -> GHC.Types.Type) (n :: Type.Family.Nat.N) (s :: k) (i :: [GHC.Types.Nat]). (Numeric.Tensor.Tensor b, Type.Class.Known.Known Data.Type.Nat.Nat n) => GHC.Real.Fractional (Learn.Neural.Layer.CParam (Learn.Neural.Layer.Mapping.PMapping s n) b i i)
+instance forall k (b :: [GHC.Types.Nat] -> GHC.Types.Type) (n :: Type.Family.Nat.N) (s :: k) (i :: [GHC.Types.Nat]). (Numeric.Tensor.Tensor b, Type.Class.Known.Known Data.Type.Nat.Nat n) => GHC.Float.Floating (Learn.Neural.Layer.CParam (Learn.Neural.Layer.Mapping.PMapping s n) b i i)
 instance forall k (s :: k) (n :: Type.Family.Nat.N) (b :: [GHC.Types.Nat] -> GHC.Types.Type) (i :: [GHC.Types.Nat]). GHC.Num.Num (Learn.Neural.Layer.CState (Learn.Neural.Layer.Mapping.PMapping s n) b i i)
 instance forall k (s :: k) (n :: Type.Family.Nat.N) (b :: [GHC.Types.Nat] -> GHC.Types.Type) (i :: [GHC.Types.Nat]). GHC.Real.Fractional (Learn.Neural.Layer.CState (Learn.Neural.Layer.Mapping.PMapping s n) b i i)
+instance forall k (s :: k) (n :: Type.Family.Nat.N) (b :: [GHC.Types.Nat] -> GHC.Types.Type) (i :: [GHC.Types.Nat]). GHC.Float.Floating (Learn.Neural.Layer.CState (Learn.Neural.Layer.Mapping.PMapping s n) b i i)
 instance forall k (s :: k) (n :: Type.Family.Nat.N) (b :: [GHC.Types.Nat] -> GHC.Types.Type) (i :: [GHC.Types.Nat]). Generics.SOP.Universe.Generic (Learn.Neural.Layer.CParam (Learn.Neural.Layer.Mapping.PMapping s n) b i i)
 instance forall k (b :: [GHC.Types.Nat] -> GHC.Types.Type) (s :: k) (n :: Type.Family.Nat.N) (i :: [GHC.Types.Nat]). (Numeric.BLAS.BLAS b, Data.Reflection.Reifies s (Learn.Neural.Layer.Mapping.PMapFunc n), Data.Singletons.SingI i, Type.Class.Known.Known Data.Type.Nat.Nat n) => Learn.Neural.Layer.Component (Learn.Neural.Layer.Mapping.PMapping s n) b i i
 instance forall k (b :: [GHC.Types.Nat] -> GHC.Types.Type) (s :: k) (n :: Type.Family.Nat.N) (i :: [GHC.Types.Nat]). (Numeric.BLAS.BLAS b, Data.Reflection.Reifies s (Learn.Neural.Layer.Mapping.PMapFunc n), Data.Singletons.SingI i, Type.Class.Known.Known Data.Type.Nat.Nat n) => Learn.Neural.Layer.ComponentFF (Learn.Neural.Layer.Mapping.PMapping s n) b i i
@@ -219,17 +230,21 @@ instance forall k (c :: k) (b :: [GHC.Types.Nat] -> GHC.Types.Type) (i :: GHC.Ty
 instance Generics.SOP.Universe.Generic (Learn.Neural.Layer.CParam Learn.Neural.Layer.Recurrent.FullyConnected.FullyConnectedR b '[i] '[o])
 instance (GHC.Num.Num (b '[o, o]), GHC.Num.Num (b '[o, i]), GHC.Num.Num (b '[o])) => GHC.Num.Num (Learn.Neural.Layer.CParam Learn.Neural.Layer.Recurrent.FullyConnected.FullyConnectedR b '[i] '[o])
 instance (GHC.Real.Fractional (b '[o, o]), GHC.Real.Fractional (b '[o, i]), GHC.Real.Fractional (b '[o])) => GHC.Real.Fractional (Learn.Neural.Layer.CParam Learn.Neural.Layer.Recurrent.FullyConnected.FullyConnectedR b '[i] '[o])
+instance (GHC.Float.Floating (b '[o, o]), GHC.Float.Floating (b '[o, i]), GHC.Float.Floating (b '[o])) => GHC.Float.Floating (Learn.Neural.Layer.CParam Learn.Neural.Layer.Recurrent.FullyConnected.FullyConnectedR b '[i] '[o])
 instance GHC.Num.Num (b '[o]) => GHC.Num.Num (Learn.Neural.Layer.CState Learn.Neural.Layer.Recurrent.FullyConnected.FullyConnectedR b '[i] '[o])
 instance GHC.Real.Fractional (b '[o]) => GHC.Real.Fractional (Learn.Neural.Layer.CState Learn.Neural.Layer.Recurrent.FullyConnected.FullyConnectedR b '[i] '[o])
-instance (Numeric.BLAS.BLAS b, GHC.TypeLits.KnownNat i, GHC.TypeLits.KnownNat o, GHC.Real.Fractional (b '[o]), GHC.Real.Fractional (b '[o, i]), GHC.Real.Fractional (b '[o, o])) => Learn.Neural.Layer.Component Learn.Neural.Layer.Recurrent.FullyConnected.FullyConnectedR b '[i] '[o]
-instance (Numeric.BLAS.BLAS b, GHC.TypeLits.KnownNat i, GHC.TypeLits.KnownNat o, GHC.Real.Fractional (b '[o]), GHC.Real.Fractional (b '[o, i]), GHC.Real.Fractional (b '[o, o])) => Learn.Neural.Layer.ComponentLayer 'Learn.Neural.Layer.Recurrent Learn.Neural.Layer.Recurrent.FullyConnected.FullyConnectedR b '[i] '[o]
+instance GHC.Float.Floating (b '[o]) => GHC.Float.Floating (Learn.Neural.Layer.CState Learn.Neural.Layer.Recurrent.FullyConnected.FullyConnectedR b '[i] '[o])
+instance (Numeric.BLAS.BLAS b, GHC.TypeLits.KnownNat i, GHC.TypeLits.KnownNat o, GHC.Float.Floating (b '[o]), GHC.Float.Floating (b '[o, i]), GHC.Float.Floating (b '[o, o])) => Learn.Neural.Layer.Component Learn.Neural.Layer.Recurrent.FullyConnected.FullyConnectedR b '[i] '[o]
+instance (Numeric.BLAS.BLAS b, GHC.TypeLits.KnownNat i, GHC.TypeLits.KnownNat o, GHC.Float.Floating (b '[o]), GHC.Float.Floating (b '[o, i]), GHC.Float.Floating (b '[o, o])) => Learn.Neural.Layer.ComponentLayer 'Learn.Neural.Layer.Recurrent Learn.Neural.Layer.Recurrent.FullyConnected.FullyConnectedR b '[i] '[o]
 instance forall k (c :: k) (b :: [GHC.Types.Nat] -> GHC.Types.Type) (i :: GHC.Types.Nat) (o :: GHC.Types.Nat). Generics.SOP.Universe.Generic (Learn.Neural.Layer.CParam (Learn.Neural.Layer.Recurrent.FullyConnected.FullyConnectedR' c) b '[i] '[o])
 instance forall k (b :: [GHC.Types.Nat] -> *) (o :: GHC.Types.Nat) (i :: GHC.Types.Nat) (s :: k). (GHC.Num.Num (b '[o, o]), GHC.Num.Num (b '[o, i]), GHC.Num.Num (b '[o])) => GHC.Num.Num (Learn.Neural.Layer.CParam (Learn.Neural.Layer.Recurrent.FullyConnected.FullyConnectedR' s) b '[i] '[o])
 instance forall k (b :: [GHC.Types.Nat] -> *) (o :: GHC.Types.Nat) (i :: GHC.Types.Nat) (s :: k). (GHC.Real.Fractional (b '[o, o]), GHC.Real.Fractional (b '[o, i]), GHC.Real.Fractional (b '[o])) => GHC.Real.Fractional (Learn.Neural.Layer.CParam (Learn.Neural.Layer.Recurrent.FullyConnected.FullyConnectedR' s) b '[i] '[o])
+instance forall k (b :: [GHC.Types.Nat] -> *) (o :: GHC.Types.Nat) (i :: GHC.Types.Nat) (s :: k). (GHC.Float.Floating (b '[o, o]), GHC.Float.Floating (b '[o, i]), GHC.Float.Floating (b '[o])) => GHC.Float.Floating (Learn.Neural.Layer.CParam (Learn.Neural.Layer.Recurrent.FullyConnected.FullyConnectedR' s) b '[i] '[o])
 instance forall k (b :: [GHC.Types.Nat] -> *) (o :: GHC.Types.Nat) (s :: k) (i :: GHC.Types.Nat). GHC.Num.Num (b '[o]) => GHC.Num.Num (Learn.Neural.Layer.CState (Learn.Neural.Layer.Recurrent.FullyConnected.FullyConnectedR' s) b '[i] '[o])
 instance forall k (b :: [GHC.Types.Nat] -> *) (o :: GHC.Types.Nat) (s :: k) (i :: GHC.Types.Nat). GHC.Real.Fractional (b '[o]) => GHC.Real.Fractional (Learn.Neural.Layer.CState (Learn.Neural.Layer.Recurrent.FullyConnected.FullyConnectedR' s) b '[i] '[o])
-instance forall k (b :: [GHC.Types.Nat] -> GHC.Types.Type) (i :: GHC.Types.Nat) (o :: GHC.Types.Nat) (s :: k). (Numeric.BLAS.BLAS b, GHC.TypeLits.KnownNat i, GHC.TypeLits.KnownNat o, GHC.Real.Fractional (b '[o]), GHC.Real.Fractional (b '[o, i]), GHC.Real.Fractional (b '[o, o]), Data.Reflection.Reifies s Learn.Neural.Layer.Mapping.MapFunc) => Learn.Neural.Layer.Component (Learn.Neural.Layer.Recurrent.FullyConnected.FullyConnectedR' s) b '[i] '[o]
-instance forall k (b :: [GHC.Types.Nat] -> GHC.Types.Type) (i :: GHC.Types.Nat) (o :: GHC.Types.Nat) (s :: k). (Numeric.BLAS.BLAS b, GHC.TypeLits.KnownNat i, GHC.TypeLits.KnownNat o, GHC.Real.Fractional (b '[o]), GHC.Real.Fractional (b '[o, i]), GHC.Real.Fractional (b '[o, o]), Data.Reflection.Reifies s Learn.Neural.Layer.Mapping.MapFunc) => Learn.Neural.Layer.ComponentLayer 'Learn.Neural.Layer.Recurrent (Learn.Neural.Layer.Recurrent.FullyConnected.FullyConnectedR' s) b '[i] '[o]
+instance forall k (b :: [GHC.Types.Nat] -> *) (o :: GHC.Types.Nat) (s :: k) (i :: GHC.Types.Nat). GHC.Float.Floating (b '[o]) => GHC.Float.Floating (Learn.Neural.Layer.CState (Learn.Neural.Layer.Recurrent.FullyConnected.FullyConnectedR' s) b '[i] '[o])
+instance forall k (b :: [GHC.Types.Nat] -> GHC.Types.Type) (i :: GHC.Types.Nat) (o :: GHC.Types.Nat) (s :: k). (Numeric.BLAS.BLAS b, GHC.TypeLits.KnownNat i, GHC.TypeLits.KnownNat o, GHC.Float.Floating (b '[o]), GHC.Float.Floating (b '[o, i]), GHC.Float.Floating (b '[o, o]), Data.Reflection.Reifies s Learn.Neural.Layer.Mapping.MapFunc) => Learn.Neural.Layer.Component (Learn.Neural.Layer.Recurrent.FullyConnected.FullyConnectedR' s) b '[i] '[o]
+instance forall k (b :: [GHC.Types.Nat] -> GHC.Types.Type) (i :: GHC.Types.Nat) (o :: GHC.Types.Nat) (s :: k). (Numeric.BLAS.BLAS b, GHC.TypeLits.KnownNat i, GHC.TypeLits.KnownNat o, GHC.Float.Floating (b '[o]), GHC.Float.Floating (b '[o, i]), GHC.Float.Floating (b '[o, o]), Data.Reflection.Reifies s Learn.Neural.Layer.Mapping.MapFunc) => Learn.Neural.Layer.ComponentLayer 'Learn.Neural.Layer.Recurrent (Learn.Neural.Layer.Recurrent.FullyConnected.FullyConnectedR' s) b '[i] '[o]
 
 module Learn.Neural.Loss
 type LossFunction as b = forall s. Tuple as -> OpB s as '[b]
@@ -301,6 +316,7 @@ instance (Learn.Neural.Layer.ComponentLayer r c b i o, Learn.Neural.Layer.CConst
 instance (Data.Singletons.SingI h, GHC.Num.Num (b h), Learn.Neural.Layer.ComponentLayer r c b i h, Learn.Neural.Layer.CConstr c b i h, Type.Class.Known.Known (Learn.Neural.Network.NetStruct r b (h Learn.Neural.Network.:~ d) hs) o) => Type.Class.Known.Known (Learn.Neural.Network.NetStruct r b (i Learn.Neural.Network.:~ c) (h Learn.Neural.Network.:~ d : hs)) o
 instance Type.Class.Known.Known (Learn.Neural.Network.NetStruct r b (i Learn.Neural.Network.:~ c) hs) o => GHC.Num.Num (Learn.Neural.Network.Network r b (i Learn.Neural.Network.:~ c) hs o)
 instance Type.Class.Known.Known (Learn.Neural.Network.NetStruct r b (i Learn.Neural.Network.:~ c) hs) o => GHC.Real.Fractional (Learn.Neural.Network.Network r b (i Learn.Neural.Network.:~ c) hs o)
+instance Type.Class.Known.Known (Learn.Neural.Network.NetStruct r b (i Learn.Neural.Network.:~ c) hs) o => GHC.Float.Floating (Learn.Neural.Network.Network r b (i Learn.Neural.Network.:~ c) hs o)
 
 module Learn.Neural.Test
 type TestFunc o = forall b. (BLAS b, Num (b o)) => b o -> b o -> Double
@@ -321,6 +337,7 @@ instance Control.DeepSeq.NFData (Numeric.BLAS.HMatrix.HM' s) => Control.DeepSeq.
 instance GHC.Show.Show (Numeric.BLAS.HMatrix.HM' s) => GHC.Show.Show (Numeric.BLAS.HMatrix.HM s)
 instance GHC.Num.Num (Numeric.BLAS.HMatrix.HM' s) => GHC.Num.Num (Numeric.BLAS.HMatrix.HM s)
 instance GHC.Real.Fractional (Numeric.BLAS.HMatrix.HM' s) => GHC.Real.Fractional (Numeric.BLAS.HMatrix.HM s)
+instance GHC.Float.Floating (Numeric.BLAS.HMatrix.HM' s) => GHC.Float.Floating (Numeric.BLAS.HMatrix.HM s)
 instance Numeric.BLAS.BLAS Numeric.BLAS.HMatrix.HM
 instance Numeric.Tensor.Tensor Numeric.BLAS.HMatrix.HM
 instance Data.Singletons.SingI s => Data.MonoTraversable.MonoFunctor (Numeric.BLAS.HMatrix.HM s)

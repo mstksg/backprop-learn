@@ -26,7 +26,7 @@
 </span><a name="line-26"></a><span>
 </span><a name="line-27"></a><span class="hs-keyword">data</span><span> </span><a name="FullyConnected"><a href="Learn.Neural.Layer.FullyConnected.html#FullyConnected"><span class="hs-identifier">FullyConnected</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Type</span><span>
 </span><a name="line-28"></a><span>
-</span><a name="line-29"></a><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Num</span><span> </span><span class="hs-special">(</span><a href="#local-6989586621679231712"><span class="hs-identifier hs-type">b</span></a><span> </span><span class="hs-char">'[o,i]), Num (b '[o])) =&gt; Num (CParam FullyConnected b '[i] '[o]) where
+</span><a name="line-29"></a><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Num</span><span> </span><span class="hs-special">(</span><a href="#local-6989586621679236467"><span class="hs-identifier hs-type">b</span></a><span> </span><span class="hs-char">'[o,i]), Num (b '[o])) =&gt; Num (CParam FullyConnected b '[i] '[o]) where
     FCP w1 b1 + FCP w2 b2 = FCP (w1 + w2) (b1 + b2)
     FCP w1 b1 - FCP w2 b2 = FCP (w1 - w2) (b1 - b2)
     FCP w1 b1 * FCP w2 b2 = FCP (w1 * w2) (b1 * b2)
@@ -39,6 +39,9 @@ instance (Fractional (b '[o,i]), Fractional (b '[o])) =&gt; Fractional (CParam F
     FCP w1 b1 / FCP w2 b2 = FCP (w1 / w2) (b1 / b2)
     recip (FCP w b)       = FCP (recip w) (recip b)
     fromRational x        = FCP (fromRational x) (fromRational x)
+
+instance (Floating (b '[o,i]), Floating (b '[o])) =&gt; Floating (CParam FullyConnected b '[i] '[o]) where
+    sqrt (FCP w b)       = FCP (sqrt w) (sqrt b)
 
 instance Num (CState FullyConnected b '[i] '[o]) where
     _ + _         = FCS
@@ -54,12 +57,17 @@ instance Fractional (CState FullyConnected b '[i] '[o]) where
     recip _        = FCS
     fromRational _ = FCS
 
+instance Floating (CState FullyConnected b '[i] '[o]) where
+    sqrt _ = FCS
+
+
+
 
 
 deriving instance Generic (CParam FullyConnected b '[i] '[o])
 instance SOP.Generic (CParam FullyConnected b '[i] '[o])
 
-instance (BLAS b, KnownNat i, KnownNat o, Fractional (b '[o,i]), Fractional (b '[o]))
+instance (BLAS b, KnownNat i, KnownNat o, Floating (b '[o,i]), Floating (b '[o]))
         =&gt; Component FullyConnected b '[i] '[o] where
     data CParam  FullyConnected b '[i] '[o] =
             FCP { _fcWeights :: !(b '[o,i])
@@ -86,7 +94,7 @@ instance (BLAS b, KnownNat i, KnownNat o, Fractional (b '[o,i]), Fractional (b '
 
     defConf = FCC (normalDistr 0 0.5)
 
-instance (BLAS b, KnownNat i, KnownNat o, Fractional (b '[o,i]), Fractional (b '[o]))
+instance (BLAS b, KnownNat i, KnownNat o, Floating (b '[o,i]), Floating (b '[o]))
         =&gt; ComponentFF FullyConnected b '[i] '[o] where
     componentOpFF = bpOp . withInps $ \(x :&lt; p :&lt; &#216;) -&gt; do
         w :&lt; b :&lt; &#216; &lt;- gTuple #&lt;~ p
@@ -94,7 +102,7 @@ instance (BLAS b, KnownNat i, KnownNat o, Fractional (b '[o,i]), Fractional (b '
         z &lt;- (+.)     ~$ (y :&lt; b :&lt; &#216;)
         return . only $ z
 
-instance (BLAS b, KnownNat i, KnownNat o, Fractional (b '[o,i]), Fractional (b '[o]))
+instance (BLAS b, KnownNat i, KnownNat o, Floating (b '[o,i]), Floating (b '[o]))
         =&gt; ComponentLayer r FullyConnected b '[i] '[o] where
     componentRunMode = RMIsFF
 </span></pre></body></html>
