@@ -248,10 +248,20 @@ optimizeList :: [a] -> p -> Optimizer a p -> (p, Optimizer a p)
 optimizeList_ :: [a] -> p -> Optimizer a p -> p
 sgdOptimizer :: forall p as bs c. (Fractional p, Num c, Every Num as, Every Num bs, Known Length as) => Double -> (forall s. OpB s (p : as) bs) -> LossFunction bs c -> Optimizer (Tuple as, Tuple bs) p
 sgdMiniBatchOptimizer :: forall f p as bs c. (Foldable f, Fractional p, Num c, Every Num as, Every Num bs, Known Length as) => Double -> (forall s. OpB s (p : as) bs) -> LossFunction bs c -> Optimizer (f (Tuple as, Tuple bs)) p
+adamOptimizer :: forall p as bs c. (Floating p, Num c, Every Num as, Every Num bs, Known Length as) => Adam -> (forall s. OpB s (p : as) bs) -> LossFunction bs c -> Optimizer (Tuple as, Tuple bs) p
+data Adam
+Adam :: Double -> Double -> Double -> Double -> Adam
+[adamStep] :: Adam -> Double
+[adamDecay1] :: Adam -> Double
+[adamDecay2] :: Adam -> Double
+[adamEpsilon] :: Adam -> Double
 slidingParts :: Nat n -> [a] -> [Vec n a]
 slidingPartsSplit :: Nat n -> [(a, b)] -> [(Vec n a, Vec n b)]
 slidingPartsLast :: Nat (S n) -> [(a, b)] -> [(Vec (S n) a, b)]
 asFeedback :: [a] -> [(a, a)]
+instance GHC.Classes.Eq Learn.Neural.Train.Adam
+instance GHC.Show.Show Learn.Neural.Train.Adam
+instance Data.Default.Class.Default Learn.Neural.Train.Adam
 
 module Learn.Neural.Network
 data LChain :: Type
