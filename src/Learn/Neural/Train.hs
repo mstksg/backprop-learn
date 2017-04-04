@@ -1,7 +1,9 @@
+{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE Strict              #-}
 {-# LANGUAGE TypeInType          #-}
@@ -15,6 +17,8 @@ module Learn.Neural.Train (
   , optimizeList_
   , sgdOptimizer
   , sgdMiniBatchOptimizer
+  , adamOptimizer
+  , Adam(..)
   , slidingParts
   , slidingPartsSplit
   , slidingPartsLast
@@ -22,6 +26,7 @@ module Learn.Neural.Train (
   ) where
 
 
+import           Data.Default
 import           Data.Foldable
 import           Data.Kind
 import           Data.List hiding        ((\\))
@@ -114,6 +119,50 @@ sgdMiniBatchOptimizer r run l = MkO () $ \xts p () ->
               only <$> (l ts ~$ ys)
         g = F.fold (lmap (uncurry f) F.mean) xts
     in  (p - realToFrac r * g, ())
+
+data Adam = Adam
+    { adamStep    :: Double
+    , adamDecay1  :: Double
+    , adamDecay2  :: Double
+    , adamEpsilon :: Double
+    }
+  deriving (Show, Eq)
+
+instance Default Adam where
+    def = Adam { adamStep    = 0.001
+               , adamDecay1  = 0.9
+               , adamDecay2  = 0.999
+               , adamEpsilon = 1e-8
+               }
+
+adamOptimizer
+    :: forall p as bs c. (Floating p, Num c, Every Num as, Every Num bs, Known Length as)
+    => Adam
+    -> (forall s. OpB s (p ': as) bs)
+    -> LossFunction bs c
+    -> Optimizer (Tuple as, Tuple bs) p
+adamOptimizer Adam{..} run l = MkO (1::Double,0::p,0::p) $ \(xs, ts) p0 (!t, !m0, !v0) ->
+    let o :: BPOp s (p ': as) '[ c ]
+        o = withInps $ \inps -> do
+              ys <- run ~$$ inps
+              only <$> (l ts ~$ ys)
+    in  case gradBPOp o (p0 ::< xs) of
+          I g :< _ ->
+            let m1, v1 :: p
+                m1 = ad1 * m0 + ad1' * g
+                v1 = ad2 * v0 + ad2' * g * g
+                mHat = m1 / (1 - realToFrac (adamDecay1 ** t))
+                vHat = v1 / (1 - realToFrac (adamDecay2 ** t))
+                p1 = p0 - as * mHat / (sqrt vHat + ae)
+            in  (p1, (t + 1, m1, v1))
+  where
+    ad1, ad1', ad2, ad2', as, ae :: p
+    ad1  = realToFrac adamDecay1
+    ad1' = realToFrac (1 - adamDecay1)
+    ad2  = realToFrac adamDecay2
+    ad2' = realToFrac (1 - adamDecay2)
+    as   = realToFrac adamStep
+    ae   = realToFrac adamEpsilon
 
 slidingParts
     :: TCN.Nat n
