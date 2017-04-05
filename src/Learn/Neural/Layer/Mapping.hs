@@ -19,7 +19,7 @@
 module Learn.Neural.Layer.Mapping (
     Mapping
   , CommonMap(..)
-  , IdentMap, LogitMap, ReLUMap, ReLUpMap, ELUMap, ELUpMap
+  , IdentMap, ScaleMap, LogitMap, ReLUMap, ReLUpMap, ELUMap, ELUpMap
   , MapFunc(..)
   , PMapping
   , CommonPMap(..)
@@ -118,6 +118,7 @@ instance (BLAS b, Reifies s MapFunc, SingI i) => ComponentLayer r (Mapping s) b 
 
 data CommonMap :: Type where
     MF_Ident :: CommonMap
+    MF_Scale :: a -> CommonMap
     MF_Logit :: CommonMap
     MF_ReLU  :: CommonMap
     MF_ReLUp :: a -> CommonMap
@@ -126,6 +127,11 @@ data CommonMap :: Type where
 
 instance Reifies 'MF_Ident MapFunc where
     reflect _ = MF id
+instance Reifies s Double => Reifies ('MF_Scale s) MapFunc where
+    reflect _ = MF $ (realToFrac α *)
+      where
+        α :: Double
+        α = reflect (Proxy @s)
 instance Reifies 'MF_Logit MapFunc where
     reflect _ = MF $ \x -> 1 / (1 + exp (-x))
 instance Reifies 'MF_ReLU MapFunc where
@@ -144,6 +150,7 @@ instance Reifies s Double => Reifies ('MF_ELUp s) MapFunc where
         α = reflect (Proxy @s)
 
 type IdentMap   = Mapping 'MF_Ident
+type ScaleMap s = Mapping ('MF_Scale s)
 type LogitMap   = Mapping 'MF_Logit
 type ReLUMap    = Mapping 'MF_ReLU
 type ReLUpMap s = Mapping ('MF_ReLUp s)

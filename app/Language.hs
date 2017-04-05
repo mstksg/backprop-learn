@@ -68,8 +68,8 @@ main = MWC.withSystemRandom $ \g -> do
         slices_ = slidingPartsSplit known . asFeedback $ holmes
     slices <- evaluate . force $ slices_
     putStrLn "Processed data"
-    let opt0 = adamOptimizer def (netOpRecurrent_ known)
-                (sumLossDecay crossEntropy known α)
+    let opt0 = batching $ adamOptimizer def (netOpRecurrent_ known)
+                            (sumLossDecay crossEntropy known α)
     net0 :: Network 'Recurrent HM ( '[128] :~ FullyConnectedR' 'MF_Logit )
                                  '[ '[64 ] :~ ReLUMap
                                   , '[64 ] :~ FullyConnectedR' 'MF_Logit
@@ -90,21 +90,15 @@ main = MWC.withSystemRandom $ \g -> do
         t0 <- getCurrentTime
         -- n' <- evaluate $ optimizeList_ (bimap vecToProd only_ <$> chnk) n0
         (n', o') <- evaluate
-          $ optimizeList (bimap vecToProd vecToProd <$> chnk) n0 o0
-                           -- (sgdOptimizer rate (netOpRecurrentLast_ known) crossEntropy)
-                           -- (sgdOptimizer rate (netOpRecurrent_ known)
-                           -- (adamOptimizer def (netOpRecurrent_ known)
-                           --    (sumLossDecay crossEntropy known α)
-                           -- )
+          $ optimizeListBatches (bimap vecToProd vecToProd <$> chnk) n0 o0 25
         t1 <- getCurrentTime
         printf "Trained on %d points in %s.\n" batch (show (t1 `diffUTCTime` t0))
 
         forM_ (map (bimap toList (last . toList)) . take 3 $ chnk) $ \(lastChnk, x0) -> do
           let (ys, primed)   = runNetRecurrent n' lastChnk
-              -- test   = take 12 . toList $ runNetFeedbackForever concretize primed x0
               next :: HM '[128] -> IO ((Char, HM '[128]), HM '[128])
               next x = do
-                pick <- pickNext x g
+                pick <- pickNext 2 x g
                 return ((toChar pick, x), oneHot (only pick))
           test <- toList . fst
               <$> runNetFeedbackM (known @_ @_ @(N10 + N6)) next primed x0
@@ -142,15 +136,17 @@ main = MWC.withSystemRandom $ \g -> do
 
 pickNext
     :: (PrimMonad m, BLAS t, KnownNat n)
-    => t '[n]
+    => Double
+    -> t '[n]
     -> MWC.Gen (PrimState m)
     -> m (Finite n)
-pickNext x g = fmap fromIntegral
-             . flip MWC.categorical g
-             . fmap realToFrac
-             . VSi.fromSized
-             . textract
-             $ x
+pickNext α x g
+    = fmap fromIntegral
+    . flip MWC.categorical g
+    . fmap ((** α) . realToFrac)
+    . VSi.fromSized
+    . textract
+    $ x
 
 
 censor :: Char -> Char
