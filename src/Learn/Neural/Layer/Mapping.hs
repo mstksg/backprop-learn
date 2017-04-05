@@ -120,6 +120,7 @@ data CommonMap :: Type where
     MF_Ident :: CommonMap
     MF_Scale :: a -> CommonMap
     MF_Logit :: CommonMap
+    MF_Tanh  :: CommonMap
     MF_ReLU  :: CommonMap
     MF_ReLUp :: a -> CommonMap
     MF_ELU   :: CommonMap
@@ -134,6 +135,8 @@ instance Reifies s Double => Reifies ('MF_Scale s) MapFunc where
         α = reflect (Proxy @s)
 instance Reifies 'MF_Logit MapFunc where
     reflect _ = MF $ \x -> 1 / (1 + exp (-x))
+instance Reifies 'MF_Tanh MapFunc where
+    reflect _ = MF tanh
 instance Reifies 'MF_ReLU MapFunc where
     reflect _ = MF $ \x -> if x < 0 then 0 else x
 instance Reifies s Double => Reifies ('MF_ReLUp s) MapFunc where
@@ -152,6 +155,7 @@ instance Reifies s Double => Reifies ('MF_ELUp s) MapFunc where
 type IdentMap   = Mapping 'MF_Ident
 type ScaleMap s = Mapping ('MF_Scale s)
 type LogitMap   = Mapping 'MF_Logit
+type TanhMap    = Mapping 'MF_Tanh
 type ReLUMap    = Mapping 'MF_ReLU
 type ReLUpMap s = Mapping ('MF_ReLUp s)
 type ELUMap     = Mapping 'MF_ELU
