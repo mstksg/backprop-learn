@@ -28,6 +28,7 @@ import           Data.Type.Vector
 import           GHC.TypeLits hiding                         (type (+))
 import           Learn.Neural
 import           Learn.Neural.Layer.Recurrent.FullyConnected
+import           Learn.Neural.Layer.Recurrent.LSTM
 import           Numeric.BLAS.HMatrix
 import           Numeric.Backprop.Op hiding                  (head')
 import           Text.Printf hiding                          (toChar, fromChar)
@@ -70,11 +71,17 @@ main = MWC.withSystemRandom $ \g -> do
     putStrLn "Processed data"
     let opt0 = batching $ adamOptimizer def (netOpRecurrent_ known)
                             (sumLossDecay crossEntropy known α)
-    net0 :: Network 'Recurrent HM ( '[128] :~ FullyConnectedR' 'MF_Logit )
-                                 '[ '[64 ] :~ ReLUMap
-                                  , '[64 ] :~ FullyConnectedR' 'MF_Logit
-                                  , '[32 ] :~ ReLUMap
-                                  , '[32 ] :~ FullyConnected
+    -- net0 :: Network 'Recurrent HM ( '[128] :~ FullyConnectedR' 'MF_Logit )
+    --                              '[ '[64 ] :~ ReLUMap
+    --                               , '[64 ] :~ FullyConnectedR' 'MF_Logit
+    --                               , '[32 ] :~ ReLUMap
+    --                               , '[32 ] :~ FullyConnected
+    --                               , '[128] :~ SoftMax '[128]
+    --                               ]
+    --                               '[128] <- initDefNet g
+    net0 :: Network 'Recurrent HM ( '[128] :~ LSTM )
+                                 '[ '[192] :~ ReLUMap
+                                  , '[192] :~ LSTM
                                   , '[128] :~ SoftMax '[128]
                                   ]
                                   '[128] <- initDefNet g
@@ -115,22 +122,13 @@ main = MWC.withSystemRandom $ \g -> do
               (amax p)
           putStrLn "---"
 
-        -- let (x1,_) = runNet primed x0
-        -- print $ iamax x1
-        -- print $ tindex (only (iamax x1)) x1
-        -- putStrLn
-        --   $ map oneHotChar (toList lastChnk) ++
-        --       '|' : map oneHotChar test
-
         let (test, _) = runNetRecurrentLast n' . vecNonEmpty . fst . head $ chnk
         let n'' | isNaN (amax test) = n0
                 | otherwise         = n'
         return ((), (n'', o'))
   where
     batch :: Int
-    batch = 5000
-    -- rate :: Double
-    -- rate  = 0.002
+    batch = 500
     α :: Double
     α = 4/5
 

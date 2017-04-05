@@ -12,6 +12,7 @@
 {-# LANGUAGE UndecidableInstances      #-}
 
 module Learn.Neural.Layer.Recurrent.LSTM (
+  LSTM
   ) where
 
 import           Data.Kind
@@ -66,31 +67,31 @@ instance ( BLAS b
     componentOp = bpOp . withInps $ \(x :< p :< s :< Ø) -> do
         fI :< fS :< fB :< rI :< rS :< rB :< cI :< cS :< cB :< oI :< oS :< oB :< Ø <- gTuple #<~ p
         sC :< sH :< Ø <- gTuple #<~ s
-        let forget   = logistic $
-                         sum [ matVecOp .$ (fI :< x  :< Ø)
-                             , matVecOp .$ (fS :< sH :< Ø)
-                             , fB
-                             ]
-            remember = logistic $
-                         sum [ matVecOp .$ (rI :< x  :< Ø)
-                             , matVecOp .$ (rS :< sH :< Ø)
-                             , rB
-                             ]
-            commit   = tanh $
-                         sum [ matVecOp .$ (cI :< x  :< Ø)
-                             , matVecOp .$ (cS :< sH :< Ø)
-                             , cB
-                             ]
-            out      = logistic $
-                         sum [ matVecOp .$ (oI :< x  :< Ø)
-                             , matVecOp .$ (oS :< sH :< Ø)
-                             , oB
-                             ]
-        sC'      <- bindVar $ forget * sC + remember * commit
-        finalOut <- bindVar $ out * tanh sC'
-        s' :< Ø <- isoVar @s @_ @'[b '[o], b '[o]] @'[CState LSTM b '[i] '[o]]
-                     (from gTuple . tup1)
-                     (sC' :< finalOut :< Ø)
+        let forget   = sum [ matVecOp .$ (fI :< x  :< Ø)
+                           , matVecOp .$ (fS :< sH :< Ø)
+                           , fB
+                           ]
+            remember = sum [ matVecOp .$ (rI :< x  :< Ø)
+                           , matVecOp .$ (rS :< sH :< Ø)
+                           , rB
+                           ]
+            commit   = sum [ matVecOp .$ (cI :< x  :< Ø)
+                           , matVecOp .$ (cS :< sH :< Ø)
+                           , cB
+                           ]
+            out      = sum [ matVecOp .$ (oI :< x  :< Ø)
+                           , matVecOp .$ (oS :< sH :< Ø)
+                           , oB
+                           ]
+        forget'   <- tmapOp logistic ~$ (forget   :< Ø)
+        remember' <- tmapOp logistic ~$ (remember :< Ø)
+        commit'   <- tmapOp tanh     ~$ (commit   :< Ø)
+        out'      <- tmapOp logistic ~$ (out      :< Ø)
+        sC'       <- tmapOp tanh ~$ ((forget' * sC + remember' * commit') :< Ø)
+        finalOut  <- bindVar $ out' * sC'
+        s' :< Ø   <- isoVar @s @_ @'[b '[o], b '[o]] @'[CState LSTM b '[i] '[o]]
+                       (from gTuple . tup1)
+                       (sC' :< finalOut :< Ø)
         return $ finalOut :< s' :< Ø
       where
         logistic :: Floating a => a -> a
