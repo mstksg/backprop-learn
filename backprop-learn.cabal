@@ -23,6 +23,7 @@ library
                        Learn.Neural.Layer.Identity
                        Learn.Neural.Layer.Mapping
                        Learn.Neural.Layer.Recurrent.FullyConnected
+                       Learn.Neural.Layer.Recurrent.LSTM
                        Learn.Neural.Loss
                        Learn.Neural.Network
                        Learn.Neural.Test
@@ -38,6 +39,7 @@ library
                      , deepseq
                      , finite-typelits
                      , foldl
+                     , generics-lift
                      , generics-sop
                      , hmatrix    >= 0.18
                      , mono-traversable

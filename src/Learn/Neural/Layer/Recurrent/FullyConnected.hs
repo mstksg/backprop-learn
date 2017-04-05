@@ -101,7 +101,8 @@ instance ( BLAS b
         s0 <- opIso (iso _fcrState FCRS) ~$ (s :< Ø)
         y  <- matVecOp ~$ (wI :< x  :< Ø)
         s1 <- matVecOp ~$ (wS :< s0 :< Ø)
-        z  <- bindVar $ y + s1 + b
+        let z = y + s1 + b
+        -- z  <- bindVar $ y + s1 + b
         s' <- opIso (iso FCRS _fcrState) ~$ (s1 :< Ø)
         return $ z :< s' :< Ø
 
