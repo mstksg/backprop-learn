@@ -200,8 +200,8 @@ instance ( BLAS b
         s0 <- opIso (iso _fcrState' FCRS') ~$ (s :< Ø)
         y  <- matVecOp ~$ (wI :< x  :< Ø)
         s1 <- matVecOp ~$ (wS :< s0 :< Ø)
-        let z = y + s1 + b
         s2 <- tmapOp (runMapFunc mf) ~$ (s1 :< Ø)
+        let z = y + s2 + b
         s' <- opIso (iso FCRS' _fcrState') ~$ (s2 :< Ø)
         return $ z :< s' :< Ø
       where
