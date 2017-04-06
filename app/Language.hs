@@ -80,8 +80,10 @@ main = MWC.withSystemRandom $ \g -> do
     --                               ]
     --                               '[128] <- initDefNet g
     net0 :: Network 'Recurrent HM ( '[128] :~ LSTM )
-                                 '[ '[192] :~ ReLUMap
-                                  , '[192] :~ LSTM
+                                 '[ '[64]  :~ ReLUMap
+                                  , '[64]  :~ LSTM
+                                  , '[32]  :~ ReLUMap
+                                  , '[32]  :~ FullyConnected
                                   , '[128] :~ SoftMax '[128]
                                   ]
                                   '[128] <- initDefNet g
@@ -105,7 +107,7 @@ main = MWC.withSystemRandom $ \g -> do
           let (ys, primed)   = runNetRecurrent n' lastChnk
               next :: HM '[128] -> IO ((Char, HM '[128]), HM '[128])
               next x = do
-                pick <- pickNext 2 x g
+                pick <- pickNext 4 x g
                 return ((toChar pick, x), oneHot (only pick))
           test <- toList . fst
               <$> runNetFeedbackM (known @_ @_ @(N10 + N6)) next primed x0
@@ -128,7 +130,7 @@ main = MWC.withSystemRandom $ \g -> do
         return ((), (n'', o'))
   where
     batch :: Int
-    batch = 500
+    batch = 1000
     α :: Double
     α = 4/5
 
