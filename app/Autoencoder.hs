@@ -23,6 +23,7 @@ import           Data.List
 import           Data.List.Split
 import           Data.Maybe
 import           Data.Ord
+import           Data.Singletons
 import           Data.Time.Clock
 import           Data.Type.Product hiding                    (toList, head')
 import           Data.Type.Vector
@@ -66,7 +67,49 @@ main = MWC.withSystemRandom $ \g -> do
         =<< readFile "data/holmes.txt"
     putStrLn "Loaded data"
     let slices :: [(HM '[128], HM '[256])]
-        slices = zipWith3 (\x y z -> (y, _)) holmes (drop 1 holmes) (drop 2 holmes)
-    putStrLn "hey"
+        slices =
+          zipWith3 (\x y z -> (y, tload sing (textract x VSi.++ textract z)))
+            holmes (drop 1 holmes) (drop 2 holmes)
+    slices' <- liftIO . fmap V.toList $ MWC.uniformShuffle (V.fromList slices) g
+    let (test,train) = splitAt (length slices `div` 50) slices'
+    -- mapM_ print slices
+    net0 :: Network 'FeedForward HM
+              ( '[128] :~ FullyConnected )
+             '[ '[16 ] :~ LogitMap
+              , '[16 ] :~ FullyConnected
+              , '[2  ] :~ LogitMap
+              , '[2  ] :~ FullyConnected
+              , '[24 ] :~ LogitMap
+              , '[24 ] :~ FullyConnected
+              , '[256] :~ LogitMap
+              ]
+             '[256] <- initDefNet g
+    flip evalStateT net0 . forM_ [1..] $ \e -> do
+      train' <- liftIO . fmap V.toList $ MWC.uniformShuffle (V.fromList train) g
+      liftIO $ printf "[Epoch %d]\n" (e :: Int)
+      let chunkUp   = chunksOf batch train'
+          numChunks = length chunkUp
+
+      forM_ ([1..] `zip` chunkUp) $ \(b, chnk) -> StateT $ \n0 -> do
+        printf "(Epoch %d, Batch %d / %d)\n" e (b :: Int) numChunks
+
+        t0 <- getCurrentTime
+        n' <- evaluate $ optimizeList_ (bimap only_ only_ <$> chnk) n0
+                                       -- (sgdOptimizer rate netOpPure crossEntropy)
+                                       (adamOptimizer def netOpPure crossEntropy)
+        t1 <- getCurrentTime
+        printf "Trained on %d points in %s.\n" batch (show (t1 `diffUTCTime` t0))
+
+        let trainScore = testNetList crossEntropyTest (someNet n') chnk
+            testScore  = testNetList crossEntropyTest (someNet n') test
+        printf "Training Log Cross Entropy:   %.2f\n" (log trainScore)
+        printf "Validation Log Cross Entropy: %.2f\n" (log testScore)
+
+        return ((), n')
+  where
+    rate :: Double
+    rate  = 0.02
+    batch :: Int
+    batch = 10000
 
 

@@ -6,6 +6,7 @@ module Learn.Neural.Test (
     TestFunc
   , maxTest
   , rmseTest
+  , crossEntropyTest
   , testNet
   , testNetList
   ) where
@@ -26,6 +27,9 @@ rmseTest :: KnownNat n => TestFunc '[n]
 rmseTest x y = realToFrac $ e `dot` e
   where
     e = axpy (-1) x y
+
+crossEntropyTest :: KnownNat n => TestFunc '[n]
+crossEntropyTest r t = negate $ realToFrac (tmap log r `dot` t)
 
 testNet
     :: (BLAS b, Num (b i), Num (b o))

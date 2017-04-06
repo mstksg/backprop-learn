@@ -117,6 +117,7 @@ executable backprop-learn-autoencoder
                      , finite-typelits
                      , mwc-random
                      , primitive
+                     , singletons
                      , split
                      , time
                      , transformers
