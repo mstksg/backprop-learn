@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes   #-}
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
@@ -40,6 +41,9 @@ module Learn.Neural.Network (
   , initDefNet
   , SomeNet(..)
   , someNet
+  , takeNet
+  , dropNet
+  , splitNet
   ) where
 
 import           Control.Monad.Primitive
@@ -56,6 +60,7 @@ import           Numeric.Backprop.Op
 import           System.Random.MWC
 import           Type.Class.Known
 import           Type.Class.Witness
+import           Type.Family.List
 import qualified Data.List.NonEmpty      as NE
 import qualified Data.Type.Nat           as TCN
 
@@ -461,3 +466,38 @@ liftNet2 f = go
         l1 :& n1 -> \case
           l2 :& n2 -> f l1 l2 :& go s n1 n2
 
+takeNet
+    :: forall i c hs h d js o r b. ()
+    => NetStruct r b (i :~ c) hs h
+    -> Network   r b (i :~ c) (hs ++ (h :~ d) ': js) o
+    -> Network   r b (i :~ c) hs h
+takeNet = \case
+    NSExt -> \case
+      l :& _ -> NetExt l
+    NSInt (s :: NetStruct r b (k :~ e) ks h) -> \case
+      (l :: Layer r c b i k) :& (n :: Network r b (k :~ e) (ks ++ (h :~ d) ': js) o) ->
+        l :& takeNet @k @e @ks @h @d @js @o @r @b s n
+
+splitNet
+    :: forall i c hs h d js o r b. ()
+    => NetStruct r b (i :~ c) hs h
+    -> Network   r b (i :~ c) (hs ++ (h :~ d) ': js) o
+    -> (Network r b (i :~ c) hs h, Network r b (h :~ d) js o)
+splitNet = \case
+    NSExt -> \case
+      l :& n -> (NetExt l, n)
+    NSInt s -> \case
+      l :& n ->
+        case splitNet s n of
+          (n1, n2) -> (l :& n1, n2)
+
+dropNet
+    :: forall i c hs h d js o r b. ()
+    => NetStruct r b (i :~ c) hs h
+    -> Network   r b (i :~ c) (hs ++ (h :~ d) ': js) o
+    -> Network r b (h :~ d) js o
+dropNet = \case
+    NSExt -> \case
+      _ :& n -> n
+    NSInt s -> \case
+      _ :& n -> dropNet s n
