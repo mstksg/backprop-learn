@@ -17,6 +17,7 @@ import           Data.Kind
 import           Data.Singletons.Prelude
 import           Data.Singletons.TypeLits
 import           GHC.Generics                   (Generic)
+import           GHC.Generics.Numeric
 import           Learn.Neural.Layer
 import           Numeric.BLAS
 import           Numeric.Backprop

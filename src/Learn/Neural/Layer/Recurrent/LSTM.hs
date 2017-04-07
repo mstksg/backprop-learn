@@ -89,9 +89,8 @@ instance ( BLAS b
         out'      <- tmapOp logistic ~$ (out      :< Ø)
         sC'       <- tmapOp tanh ~$ ((forget' * sC + remember' * commit') :< Ø)
         finalOut  <- bindVar $ out' * sC'
-        s' :< Ø   <- isoVar @s @_ @'[b '[o], b '[o]] @'[CState LSTM b '[i] '[o]]
-                       (from gTuple . tup1)
-                       (sC' :< finalOut :< Ø)
+        s' :< Ø   <- isoVar (from (gTuple @(CState LSTM b '[i] '[o])) . tup1)
+                            (sC' :< finalOut :< Ø)
         return $ finalOut :< s' :< Ø
       where
         logistic :: Floating a => a -> a

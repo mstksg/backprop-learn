@@ -9,12 +9,10 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 
--- import           Data.Type.Combinator
 import           Control.Applicative
 import           Control.DeepSeq
 import           Control.Exception
 import           Control.Monad.IO.Class
-import           Control.Monad.Primitive
 import           Control.Monad.Trans.State
 import           Data.Bifunctor
 import           Data.Char
@@ -25,25 +23,15 @@ import           Data.List
 import           Data.List.Split
 import           Data.Maybe
 import           Data.Ord
-import           Data.Singletons
 import           Data.Time.Clock
-import           Data.Type.Product hiding                    (toList, head')
-import           Data.Type.Vector
-import           GHC.TypeLits hiding                         (type (+))
+import           Data.Type.Product hiding                       (toList, head')
 import           Learn.Neural
-import           Learn.Neural.Layer.Recurrent.FullyConnected
-import           Learn.Neural.Layer.Recurrent.LSTM
 import           Numeric.BLAS.HMatrix
-import           Numeric.Backprop.Op hiding                  (head')
-import           Text.Printf hiding                          (toChar, fromChar)
+import           Text.Printf hiding                             (toChar, fromChar)
 import           Type.Class.Known
-import           Type.Family.Nat
-import qualified Data.List.NonEmpty                          as NE
-import qualified Data.Type.Nat                               as TCN
-import qualified Data.Vector                                 as V
-import qualified Data.Vector.Sized                           as VSi
-import qualified System.Random.MWC                           as MWC
-import qualified System.Random.MWC.Distributions             as MWC
+import qualified Data.Vector                                    as V
+import qualified System.Random.MWC                              as MWC
+import qualified System.Random.MWC.Distributions                as MWC
 
 
 type ASCII = Finite 128
@@ -99,7 +87,6 @@ main = MWC.withSystemRandom $ \g -> do
 
         t0 <- getCurrentTime
         n' <- evaluate $ optimizeListBatches_ (bimap only_ only_ <$> chnk) n0
-                                       -- (sgdOptimizer rate netOpPure crossEntropy)
                                        (batching (adamOptimizer def netOpPure crossEntropy))
                                        25
         t1 <- getCurrentTime
@@ -123,8 +110,6 @@ main = MWC.withSystemRandom $ \g -> do
 
         return ((), n')
   where
-    rate :: Double
-    rate  = 0.02
     batch :: Int
     batch = 10000
 
