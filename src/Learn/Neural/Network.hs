@@ -9,6 +9,7 @@
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE Strict                #-}
+{-# LANGUAGE TupleSections         #-}
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeInType            #-}
@@ -44,6 +45,8 @@ module Learn.Neural.Network (
   , takeNet
   , dropNet
   , splitNet
+  , traceNet
+  , traceNetPure
   ) where
 
 import           Control.Monad.Primitive
@@ -69,6 +72,10 @@ data LChain :: Type where
     (:~) :: [Nat] -> Type -> LChain
 
 type s :~ c = s ':~ c
+
+type family NetTrace (c :: [LChain]) :: [[Nat]] where
+    NetTrace '[]              = '[]
+    NetTrace ((d :~ c) ': cs) = d ': NetTrace cs
 
 data Network :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> Type where
     NetExt :: (ComponentLayer r c b i o, CConstr c b i o)
@@ -501,3 +508,41 @@ dropNet = \case
       _ :& n -> n
     NSInt s -> \case
       _ :& n -> dropNet s n
+
+traceNet
+    :: forall r b i c hs o. (Num (b i), Num (b o), BLAS b)
+    => Network r b (i :~ c) hs o
+    -> b i
+    -> ((Prod b (NetTrace hs), b o), Network r b (i :~ c) hs o)
+traceNet = go
+  where
+    go  :: forall j d js. (Num (b j))
+        => Network r b (j :~ d) js o
+        -> b j
+        -> ((Prod b (NetTrace js), b o), Network r b (j :~ d) js o)
+    go = \case
+      NetExt l -> \x ->
+        let (y, l') = runLayer l x
+        in  ((Ø, y), NetExt l')
+      l :& n -> \x ->
+        let (y, l')       = runLayer l x
+            ((tr, z), n') = traceNet n y
+        in  ((y :< tr, z), l' :& n')
+
+traceNetPure
+    :: forall b i c hs o. (Num (b i), Num (b o), BLAS b)
+    => Network 'FeedForward b (i :~ c) hs o
+    -> b i
+    -> (Prod b (NetTrace hs), b o)
+traceNetPure = go
+  where
+    go  :: forall j d js. (Num (b j))
+        => Network 'FeedForward b (j :~ d) js o
+        -> b j
+        -> (Prod b (NetTrace js), b o)
+    go = \case
+      NetExt l -> (Ø,) . runLayerPure l
+      l :& n -> \x ->
+        let y       = runLayerPure l x
+            (tr, z) = traceNetPure n y
+        in  (y :< tr, z)

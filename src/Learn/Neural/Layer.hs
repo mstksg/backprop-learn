@@ -11,6 +11,7 @@
 {-# LANGUAGE RankNTypes             #-}
 {-# LANGUAGE ScopedTypeVariables    #-}
 {-# LANGUAGE Strict                 #-}
+{-# LANGUAGE TupleSections          #-}
 {-# LANGUAGE TypeApplications       #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE TypeInType             #-}
@@ -22,12 +23,16 @@ module Learn.Neural.Layer (
   , ComponentFF(..)
   , componentOpDefault
   , RunMode(..)
+  , runComponent
+  , runComponentFF
   , Layer(..)
   , RunModeWit(..)
   , ComponentLayer(..)
   , layerOp
   , layerOpPure
   , initLayer
+  , runLayer
+  , runLayerPure
   ) where
 
 
@@ -103,6 +108,25 @@ componentOpDefault = bpOp . withInps $ \(x :< p :< s :< Ø) -> do
 class Component c b i o => ComponentLayer (r :: RunMode) c b i o where
     componentRunMode :: RunModeWit r c b i o
 
+runComponent
+    :: (Component c b i o, Num (b i), Num (b o), CConstr c b i o)
+    => CParam c b i o
+    -> CState c b i o
+    -> b i
+    -> (b o, CState c b i o)
+runComponent p s x = 
+    case runOpB componentOp (x ::< p ::< s ::< Ø) of
+      I y :< I s' :< Ø -> (y, s')
+            
+runComponentFF
+    :: (ComponentFF c b i o, Num (b i), Num (b o), CConstr c b i o)
+    => CParam c b i o
+    -> b i
+    -> b o
+runComponentFF p x = 
+    case runOpB componentOpFF (x ::< p ::< Ø) of
+      I y :< Ø -> y
+            
 data Layer :: RunMode -> Type -> ([Nat] -> Type) -> [Nat] -> [Nat] -> Type where
     LFeedForward
         :: ComponentFF c b i o
@@ -111,7 +135,7 @@ data Layer :: RunMode -> Type -> ([Nat] -> Type) -> [Nat] -> [Nat] -> Type where
     LRecurrent
         :: CParam c b i o
         -> CState c b i o
-         -> Layer 'Recurrent c b i o
+        -> Layer 'Recurrent c b i o
 
 instance ComponentLayer r c b i o => Num (Layer r c b i o) where
     (+) = liftLayer2 (+) (+)
@@ -178,7 +202,7 @@ layerOp = OpM $ \(I l :< I x :< Ø) -> case l of
       return (LRecurrent p s' ::< y ::< Ø, gF')
 
 layerOpPure
-    :: forall c i o b s. (Component c b i o, BLAS b, Num (b i), Num (b o), CConstr c b i o)
+    :: forall c i o b s. (BLAS b, Num (b i), Num (b o), CConstr c b i o)
     => OpB s '[ Layer 'FeedForward c b i o, b i ] '[ b o ]
 layerOpPure = OpM $ \(I l :< I x :< Ø) -> case l of
     LFeedForward p -> do
@@ -206,3 +230,21 @@ initLayer si so conf g = case componentRunMode @r @c @b @i @o of
       s <- initState @c @b si so conf g
       return $ LRecurrent p s
 
+runLayer
+    :: (Component c b i o, Num (b i), Num (b o), CConstr c b i o)
+    => Layer r c b i o
+    -> b i
+    -> (b o, Layer r c b i o)
+runLayer = \case
+    l@(LFeedForward p) -> (,l) . runComponentFF p
+    LRecurrent p s     -> \x ->
+      let (y, s') = runComponent p s x
+      in  (y, LRecurrent p s')
+
+runLayerPure
+    :: (Num (b i), Num (b o), CConstr c b i o)
+    => Layer 'FeedForward c b i o
+    -> b i
+    -> b o
+runLayerPure = \case
+    LFeedForward p -> runComponentFF p
