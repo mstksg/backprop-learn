@@ -80,10 +80,10 @@ main = MWC.withSystemRandom $ \g -> do
     --                               ]
     --                               '[128] <- initDefNet g
     net0 :: Network 'Recurrent HM ( '[128] :~ LSTM )
-                                 '[ '[64]  :~ ReLUMap
-                                  , '[64]  :~ LSTM
-                                  , '[32]  :~ ReLUMap
-                                  , '[32]  :~ FullyConnected
+                                 '[ '[96 ] :~ ReLUMap
+                                  , '[96 ] :~ LSTM
+                                  , '[64 ] :~ ReLUMap
+                                  , '[64 ] :~ FullyConnected
                                   , '[128] :~ SoftMax '[128]
                                   ]
                                   '[128] <- initDefNet g
@@ -132,7 +132,7 @@ main = MWC.withSystemRandom $ \g -> do
     batch :: Int
     batch = 1000
     α :: Double
-    α = 4/5
+    α = 2/3
 
 pickNext
     :: (PrimMonad m, BLAS t, KnownNat n)
