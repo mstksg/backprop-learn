@@ -382,6 +382,24 @@ instance Type.Class.Known.Known (Learn.Neural.Network.NetStruct r b (i Learn.Neu
 instance Type.Class.Known.Known (Learn.Neural.Network.NetStruct r b (i Learn.Neural.Network.:~ c) hs) o => GHC.Float.Floating (Learn.Neural.Network.Network r b (i Learn.Neural.Network.:~ c) hs o)
 
 module Learn.Neural.Network.Dropout
+
+-- | For something like
+--   
+--   <pre>
+--   l1 <a>:&amp;</a> l2 :&amp; <a>NetExt</a> l3
+--   </pre>
+--   
+--   you could have
+--   
+--   <pre>
+--   0.2 <a>:&amp;%</a> 0.3 :&amp;% DOExt
+--   </pre>
+--   
+--   Would would represent a 20% dropout after <tt>l1</tt> and a 30%
+--   dropout after <tt>l2</tt>. By conscious design decision, <a>DOExt</a>
+--   does not take any dropout rate, and it is therefore impossible to have
+--   dropout after the final layer before the output. It is also not
+--   possible to have dropout before the first layer, after the input.
 data Dropout :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> Type
 [DOExt] :: Dropout r b (i :~ c) '[] o
 [:&%] :: (Num (b h), SingI h) => !Double -> !(Dropout r b (h :~ d) hs o) -> Dropout r b (i :~ c) ((h :~ d) : hs) o
