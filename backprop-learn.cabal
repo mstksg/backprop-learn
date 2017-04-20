@@ -27,6 +27,7 @@ library
                        Learn.Neural.Layer.Recurrent.LSTM
                        Learn.Neural.Loss
                        Learn.Neural.Network
+                       Learn.Neural.Network.Dropout
                        Learn.Neural.Test
                        Learn.Neural.Train
                        Numeric.BLAS

@@ -2,24 +2,36 @@
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE Strict              #-}
 {-# LANGUAGE TypeInType          #-}
 {-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 module Learn.Neural.Train (
-    Optimizer(..)
+    OptimizerM(..)
+  , Optimizer
+  , pattern MkO
   , runOptimizer
+  , runOptimizerM
   , runOptimizer_
+  , runOptimizerM_
   , optimizeList
+  , optimizeListM
   , optimizeList_
+  , optimizeListM_
   , optimizeListBatches
+  , optimizeListBatchesM
   , optimizeListBatches_
+  , optimizeListBatchesM_
   , batching
   , sgdOptimizer
+  , sgdOptimizerM
   , adamOptimizer
+  , adamOptimizerM
   , Adam(..)
   , slidingParts
   , slidingPartsSplit
@@ -29,13 +41,13 @@ module Learn.Neural.Train (
   ) where
 
 
+-- import           Data.Bifunctor
+-- import           Data.Foldable
 import           Data.Default
-import           Data.Foldable
 import           Data.Kind
 import           Data.List hiding        ((\\))
 import           Data.List.Split
 import           Data.Maybe
-import           Data.Profunctor
 import           Data.Type.Combinator
 import           Data.Type.Index
 import           Data.Type.Length
@@ -48,23 +60,38 @@ import           Type.Family.Nat
 import qualified Control.Foldl           as F
 import qualified Data.Type.Nat           as TCN
 
-data Optimizer :: Type -> Type -> Type where
-    MkO :: { oState  :: s
-           , oGrad   :: a -> p -> p
-           , oUpdate :: p -> p -> s -> (p, s)       -- ^ params, grad, state
-           }
-        -> Optimizer a p
+data OptimizerM :: (Type -> Type) -> Type -> Type -> Type where
+    MkOM :: { oState  :: s
+            , oGrad   :: a -> p -> m p
+            , oUpdate :: p -> p -> s -> m (p, s)       -- ^ params, grad, state
+            }
+         -> OptimizerM m a p
+
+type Optimizer = OptimizerM I
+
+pattern MkO :: s -> (a -> p -> p) -> (p -> p -> s -> (p, s)) -> Optimizer a p
+pattern MkO s g u <- MkOM s (\g' x -> getI . g' x -> g) (\u' x y -> getI . u' x y -> u)
+  where
+    MkO s g u = MkOM s (\x -> I . g x) (\x y -> I . u x y)
 
 runOptimizer
     :: a
     -> p
     -> Optimizer a p
     -> (p, Optimizer a p)
-runOptimizer x p = \case
-    MkO s g u ->
-      let gr = g x p
-          (p', s') = u p gr s
-      in  (p', MkO s' g u)
+runOptimizer x p = getI . runOptimizerM x p
+
+runOptimizerM
+    :: Monad m
+    => a
+    -> p
+    -> OptimizerM m a p
+    -> m (p, OptimizerM m a p)
+runOptimizerM x p = \case
+    MkOM s g u -> do
+      gr       <- g x p
+      (p', s') <- u p gr s
+      return (p', MkOM s' g u)
 
 runOptimizer_
     :: a
@@ -73,18 +100,47 @@ runOptimizer_
     -> p
 runOptimizer_ x p = fst . runOptimizer x p
 
+runOptimizerM_
+    :: Monad m
+    => a
+    -> p
+    -> OptimizerM m a p
+    -> m p
+runOptimizerM_ x p = fmap fst . runOptimizerM x p
+
 data STup a b = STup !a !b
 
+sTupTup :: STup a b -> (a, b)
+sTupTup (STup x y) = (x, y)
+
+tupSTup :: (a, b) -> STup a b
+tupSTup (x, y) = STup x y
+
 optimizeList
-    :: [a]
+    :: forall a p. ()
+    => [a]
     -> p
     -> Optimizer a p
     -> (p, Optimizer a p)
-optimizeList xs p0 o0 = case foldl' f (STup p0 o0) xs of
-    STup p o -> (p, o)
+optimizeList xs p0 o0 = F.fold f xs
   where
-    f (STup p o) x = case runOptimizer x p o of
-      (p', o') -> STup p' o'
+    f :: F.Fold a (p, Optimizer a p)
+    f = F.Fold (\(STup p o) x -> tupSTup $ runOptimizer x p o)
+               (STup p0 o0)
+               sTupTup
+
+optimizeListM
+    :: forall m a p. Monad m
+    => [a]
+    -> p
+    -> OptimizerM m a p
+    -> m (p, OptimizerM m a p)
+optimizeListM xs p0 o0 = F.foldM f xs
+  where
+    f :: F.FoldM m a (p, OptimizerM m a p)
+    f = F.FoldM (\(STup p o) x -> tupSTup <$> runOptimizerM x p o)
+                (return (STup p0 o0))
+                (return . sTupTup)
 
 optimizeList_
     :: [a]
@@ -92,6 +148,14 @@ optimizeList_
     -> Optimizer a p
     -> p
 optimizeList_ xs p0 = fst . optimizeList xs p0
+
+optimizeListM_
+    :: Monad m
+    => [a]
+    -> p
+    -> OptimizerM m a p
+    -> m p
+optimizeListM_ xs p0 = fmap fst . optimizeListM xs p0
 
 optimizeListBatches
     :: [a]
@@ -101,6 +165,15 @@ optimizeListBatches
     -> (p, Optimizer [a] p)
 optimizeListBatches xs p0 o b = optimizeList (chunksOf b xs) p0 o
 
+optimizeListBatchesM
+    :: Monad m
+    => [a]
+    -> p
+    -> OptimizerM m [a] p
+    -> Int
+    -> m (p, OptimizerM m [a] p)
+optimizeListBatchesM xs p0 o b = optimizeListM (chunksOf b xs) p0 o
+
 optimizeListBatches_
     :: [a]
     -> p
@@ -109,23 +182,40 @@ optimizeListBatches_
     -> p
 optimizeListBatches_ xs p0 o b = optimizeList_ (chunksOf b xs) p0 o
 
+optimizeListBatchesM_
+    :: Monad m
+    => [a]
+    -> p
+    -> OptimizerM m [a] p
+    -> Int
+    -> m p
+optimizeListBatchesM_ xs p0 o b = optimizeListM_ (chunksOf b xs) p0 o
+
 sgdOptimizer
     :: forall p as bs c. (Fractional p, Num c, Every Num as, Every Num bs, Known Length as)
     => Double
     -> (forall s. OpB s (p ': as) bs)
     -> LossFunction bs c
     -> Optimizer (Tuple as, Tuple bs) p
-sgdOptimizer r run l = MkO () g u
+sgdOptimizer r run = sgdOptimizerM r (return (OpBS run))
+
+sgdOptimizerM
+    :: forall m p as bs c. (Fractional p, Num c, Every Num as, Every Num bs, Known Length as, Monad m)
+    => Double
+    -> m (OpBS (p ': as) bs)
+    -> LossFunction bs c
+    -> OptimizerM m (Tuple as, Tuple bs) p
+sgdOptimizerM r run l = MkOM () g u
   where
-    g :: (Tuple as, Tuple bs) -> p -> p
-    g (xs, ts) p = getI . head' $ gradBPOp o (p ::< xs)
-      where
-        o :: BPOp s (p ': as) '[ c ]
-        o = withInps $ \inps -> do
-          ys <- run ~$$ inps
-          only <$> (l ts ~$ ys)
-    u :: p -> p -> () -> (p, ())
-    u p gr () = (p - realToFrac r * gr, ())
+    g :: (Tuple as, Tuple bs) -> p -> m p
+    g (xs, ts) p = flip fmap run $ \(o0 :: OpBS (p ': as) bs) ->
+        let o :: BPOp s (p ': as) '[ c ]
+            o = withInps $ \inps -> do
+              ys <- runOpBS o0 ~$$ inps
+              only <$> (l ts ~$ ys)
+        in  getI . head' $ gradBPOp o (p ::< xs)
+    u :: p -> p -> () -> m (p, ())
+    u p gr () = return (p - realToFrac r * gr, ())
 
 data Adam = Adam
     { adamStep    :: Double
@@ -148,19 +238,27 @@ adamOptimizer
     -> (forall s. OpB s (p ': as) bs)
     -> LossFunction bs c
     -> Optimizer (Tuple as, Tuple bs) p
-adamOptimizer Adam{..} run l = MkO s0 g u
+adamOptimizer a run = adamOptimizerM a (return (OpBS run))
+
+adamOptimizerM
+    :: forall m p as bs c. (Floating p, Num c, Every Num as, Every Num bs, Known Length as, Monad m)
+    => Adam
+    -> m (OpBS (p ': as) bs)
+    -> LossFunction bs c
+    -> OptimizerM m (Tuple as, Tuple bs) p
+adamOptimizerM Adam{..} run l = MkOM s0 g u
   where
     s0 :: (Double, p, p)
     s0 = (1, 0, 0)
-    g :: (Tuple as, Tuple bs) -> p -> p
-    g (xs, ts) p = getI . head' $ gradBPOp o (p ::< xs)
-      where
-        o :: BPOp s (p ': as) '[ c ]
-        o = withInps $ \inps -> do
-              ys <- run ~$$ inps
+    g :: (Tuple as, Tuple bs) -> p -> m p
+    g (xs, ts) p = flip fmap run $ \(o0 :: OpBS (p ': as) bs) ->
+        let o :: BPOp s (p ': as) '[ c ]
+            o = withInps $ \inps -> do
+              ys <- runOpBS o0 ~$$ inps
               only <$> (l ts ~$ ys)
-    u :: p -> p -> (Double, p, p) -> (p, (Double, p, p))
-    u p0 gr (t, m0, v0) = (p1, (t + 1, m1, v1))
+        in  getI . head' $ gradBPOp o (p ::< xs)
+    u :: p -> p -> (Double, p, p) -> m (p, (Double, p, p))
+    u p0 gr (t, m0, v0) = return (p1, (t + 1, m1, v1))
       where
         m1, v1 :: p
         m1 = ad1 * m0 + ad1' * gr
@@ -177,14 +275,24 @@ adamOptimizer Adam{..} run l = MkO s0 g u
     ae   = realToFrac adamEpsilon
 
 batching
-    :: forall f a p. (Foldable f, Fractional p)
-    => Optimizer a p
-    -> Optimizer (f a) p
+    :: forall f m a p. (Foldable f, Fractional p, Monad m)
+    => OptimizerM m a p
+    -> OptimizerM m (f a) p
 batching = \case
-    MkO s g u ->
-      let g' :: f a -> p -> p
-          g' xs p = F.fold (lmap (`g` p) F.mean) xs
-      in  MkO s g' u
+    MkOM s g u ->
+      let g' :: f a -> p -> m p
+          g' xs p = F.foldM (premapM' (`g` p) (F.generalize F.mean)) xs
+      in  MkOM s g' u
+
+premapM'
+    :: Monad m
+    => (a -> m b)
+    -> F.FoldM m b r
+    -> F.FoldM m a r
+premapM' f (F.FoldM step begin done) = F.FoldM step' begin done
+  where
+    step' x a = step x =<< f a
+{-# INLINABLE premapM' #-}
 
 slidingParts
     :: TCN.Nat n
