@@ -42,6 +42,7 @@ module Learn.Neural.Network (
   , initDefNet
   , SomeNet(..)
   , someNet
+  , withSomeNet
   , takeNet
   , dropNet
   , splitNet
@@ -383,6 +384,12 @@ someNet
     => Network r b (i :~ c) hs o
     -> SomeNet r b i o
 someNet = SomeNet known
+
+withSomeNet
+    :: SomeNet r b i o
+    -> (forall c hs. NetStruct r b (i :~ c) hs o -> Network r b (i :~ c) hs o -> q)
+    -> q
+withSomeNet (SomeNet s n) f = f s n
 
 instance (Known (NetStruct r b (i :~ c) hs) o)
             => Num (Network r b (i :~ c) hs o) where
