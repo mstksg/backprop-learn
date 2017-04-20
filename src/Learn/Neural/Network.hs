@@ -87,6 +87,8 @@ data Network :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> Typ
            -> Network r b (h :~ d) hs               o
            -> Network r b (i :~ c) ((h :~ d) ': hs) o
 
+infixr 4 :&
+
 netOp
     :: forall b i c hs o r s. (BLAS b, Num (b i), Num (b o))
     => OpB s '[ Network r b (i :~ c) hs o, b i ] '[ Network r b (i :~ c) hs o, b o ]
@@ -304,6 +306,8 @@ data NetConf :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> Typ
           => CConf c b i h
           -> NetConf r b (h :~ d) hs               o
           -> NetConf r b (i :~ c) ((h :~ d) ': hs) o
+
+infixr 4 :&~
 
 initNet
     :: forall b i c hs o m r.

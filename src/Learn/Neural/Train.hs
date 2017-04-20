@@ -108,14 +108,6 @@ runOptimizerM_
     -> m p
 runOptimizerM_ x p = fmap fst . runOptimizerM x p
 
-data STup a b = STup !a !b
-
-sTupTup :: STup a b -> (a, b)
-sTupTup (STup x y) = (x, y)
-
-tupSTup :: (a, b) -> STup a b
-tupSTup (x, y) = STup x y
-
 optimizeList
     :: forall a p. ()
     => [a]
@@ -125,9 +117,9 @@ optimizeList
 optimizeList xs p0 o0 = F.fold f xs
   where
     f :: F.Fold a (p, Optimizer a p)
-    f = F.Fold (\(STup p o) x -> tupSTup $ runOptimizer x p o)
-               (STup p0 o0)
-               sTupTup
+    f = F.Fold (\(!p, !o) x -> runOptimizer x p o)
+               (p0, o0)
+               id
 
 optimizeListM
     :: forall m a p. Monad m
@@ -138,9 +130,9 @@ optimizeListM
 optimizeListM xs p0 o0 = F.foldM f xs
   where
     f :: F.FoldM m a (p, OptimizerM m a p)
-    f = F.FoldM (\(STup p o) x -> tupSTup <$> runOptimizerM x p o)
-                (return (STup p0 o0))
-                (return . sTupTup)
+    f = F.FoldM (\(!p, !o) x -> runOptimizerM x p o)
+                (return (p0, o0))
+                return
 
 optimizeList_
     :: [a]

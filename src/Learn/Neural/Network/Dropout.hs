@@ -41,6 +41,23 @@ data NetworkDO :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> T
            }
         -> NetworkDO r b i hs o
 
+-- | For something like
+--
+-- @
+-- l1 ':&' l2 :& 'NetExt' l3
+-- @
+--
+-- you could have
+--
+-- @
+-- 0.2 ':&%' 0.3 :&% DOExt
+-- @
+--
+-- Would would represent a 20% dropout after @l1@ and a 30% dropout after
+-- @l2@.  By conscious design decision, 'DOExt' does not take any dropout
+-- rate, and it is therefore impossible to have dropout after the final
+-- layer before the output.  It is also not possible to have dropout before
+-- the first layer, after the input.
 data Dropout :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> Type where
     DOExt
         :: Dropout r b (i :~ c) '[] o
@@ -49,6 +66,8 @@ data Dropout :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> Typ
         => !Double
         -> !(Dropout r b (h :~ d) hs o)
         -> Dropout r b (i :~ c) ((h :~ d) ': hs) o
+
+infixr 4 :&%
 
 instance Known (NetStruct r b (i :~ c) hs) o => Num (Dropout r b (i :~ c) hs o) where
     (+) = zipDO (+)
