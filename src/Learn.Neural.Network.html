@@ -1,69 +1,81 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DataKinds             #-}</span><span>
-</span><a name="line-2"></a><span class="hs-pragma">{-# LANGUAGE FlexibleContexts      #-}</span><span>
-</span><a name="line-3"></a><span class="hs-pragma">{-# LANGUAGE FlexibleInstances     #-}</span><span>
-</span><a name="line-4"></a><span class="hs-pragma">{-# LANGUAGE GADTs                 #-}</span><span>
-</span><a name="line-5"></a><span class="hs-pragma">{-# LANGUAGE KindSignatures        #-}</span><span>
-</span><a name="line-6"></a><span class="hs-pragma">{-# LANGUAGE LambdaCase            #-}</span><span>
-</span><a name="line-7"></a><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses #-}</span><span>
-</span><a name="line-8"></a><span class="hs-pragma">{-# LANGUAGE RankNTypes            #-}</span><span>
-</span><a name="line-9"></a><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables   #-}</span><span>
-</span><a name="line-10"></a><span class="hs-pragma">{-# LANGUAGE Strict                #-}</span><span>
-</span><a name="line-11"></a><span class="hs-pragma">{-# LANGUAGE TypeApplications      #-}</span><span>
-</span><a name="line-12"></a><span class="hs-pragma">{-# LANGUAGE TypeFamilies          #-}</span><span>
-</span><a name="line-13"></a><span class="hs-pragma">{-# LANGUAGE TypeInType            #-}</span><span>
-</span><a name="line-14"></a><span class="hs-pragma">{-# LANGUAGE TypeOperators         #-}</span><span>
-</span><a name="line-15"></a><span class="hs-pragma">{-# LANGUAGE UndecidableInstances  #-}</span><span>
-</span><a name="line-16"></a><span>
-</span><a name="line-17"></a><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Learn</span><span class="hs-operator">.</span><span class="hs-identifier">Neural</span><span class="hs-operator">.</span><span class="hs-identifier">Network</span><span> </span><span class="hs-special">(</span><span>
-</span><a name="line-18"></a><span>    </span><a href="Learn.Neural.Network.html#LChain"><span class="hs-identifier hs-type">LChain</span></a><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
-</span><a name="line-19"></a><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><a href="Learn.Neural.Network.html#%3A~"><span class="hs-operator hs-type">:~</span></a><span class="hs-special">)</span><span>
-</span><a name="line-20"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#Network"><span class="hs-identifier hs-type">Network</span></a><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
-</span><a name="line-21"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#netOp"><span class="hs-identifier hs-var">netOp</span></a><span>
-</span><a name="line-22"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#netOpPure"><span class="hs-identifier hs-var">netOpPure</span></a><span>
-</span><a name="line-23"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#netOpRecurrent"><span class="hs-identifier hs-var">netOpRecurrent</span></a><span>
-</span><a name="line-24"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#netOpRecurrent_"><span class="hs-identifier hs-var">netOpRecurrent_</span></a><span>
-</span><a name="line-25"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#netOpRecurrentLast"><span class="hs-identifier hs-var">netOpRecurrentLast</span></a><span>
-</span><a name="line-26"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#netOpRecurrentLast_"><span class="hs-identifier hs-var">netOpRecurrentLast_</span></a><span>
-</span><a name="line-27"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#runNet"><span class="hs-identifier hs-var">runNet</span></a><span>
-</span><a name="line-28"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#runNetPure"><span class="hs-identifier hs-var">runNetPure</span></a><span>
-</span><a name="line-29"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#runNetRecurrent"><span class="hs-identifier hs-var">runNetRecurrent</span></a><span>
-</span><a name="line-30"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#runNetRecurrentLast"><span class="hs-identifier hs-var">runNetRecurrentLast</span></a><span>
-</span><a name="line-31"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#runNetFeedback"><span class="hs-identifier hs-var">runNetFeedback</span></a><span>
-</span><a name="line-32"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#runNetFeedbackM"><span class="hs-identifier hs-var">runNetFeedbackM</span></a><span>
-</span><a name="line-33"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#runNetFeedbackForever"><span class="hs-identifier hs-var">runNetFeedbackForever</span></a><span>
-</span><a name="line-34"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#NetConf"><span class="hs-identifier hs-type">NetConf</span></a><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
-</span><a name="line-35"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#initNet"><span class="hs-identifier hs-var">initNet</span></a><span>
-</span><a name="line-36"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#NetStruct"><span class="hs-identifier hs-type">NetStruct</span></a><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
-</span><a name="line-37"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#defNetConf%27"><span class="hs-identifier hs-var">defNetConf'</span></a><span>
-</span><a name="line-38"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#defNetConf"><span class="hs-identifier hs-var">defNetConf</span></a><span>
-</span><a name="line-39"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#initDefNet%27"><span class="hs-identifier hs-var">initDefNet'</span></a><span>
-</span><a name="line-40"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#initDefNet"><span class="hs-identifier hs-var">initDefNet</span></a><span>
-</span><a name="line-41"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#SomeNet"><span class="hs-identifier hs-type">SomeNet</span></a><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
-</span><a name="line-42"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#someNet"><span class="hs-identifier hs-var">someNet</span></a><span>
-</span><a name="line-43"></a><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
-</span><a name="line-44"></a><span>
-</span><a name="line-45"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Control</span><span class="hs-operator">.</span><span class="hs-identifier">Monad</span><span class="hs-operator">.</span><span class="hs-identifier">Primitive</span><span>
-</span><a name="line-46"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Control</span><span class="hs-operator">.</span><span class="hs-identifier">Monad</span><span class="hs-operator">.</span><span class="hs-identifier">ST</span><span>
-</span><a name="line-47"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Kind</span><span>
-</span><a name="line-48"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Singletons</span><span>
-</span><a name="line-49"></a><span class="hs-keyword">import</span><span>           </span><a href="Data.Type.Util.html"><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Util</span></a><span>
-</span><a name="line-50"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Vector</span><span>
-</span><a name="line-51"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">GHC</span><span class="hs-operator">.</span><span class="hs-identifier">TypeLits</span><span>
-</span><a name="line-52"></a><span class="hs-keyword">import</span><span>           </span><a href="Learn.Neural.Layer.html"><span class="hs-identifier">Learn</span><span class="hs-operator">.</span><span class="hs-identifier">Neural</span><span class="hs-operator">.</span><span class="hs-identifier">Layer</span></a><span>
-</span><a name="line-53"></a><span class="hs-keyword">import</span><span>           </span><a href="Numeric.BLAS.html"><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">BLAS</span></a><span>
-</span><a name="line-54"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Backprop</span><span>
-</span><a name="line-55"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Backprop</span><span class="hs-operator">.</span><span class="hs-identifier">Op</span><span>
-</span><a name="line-56"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">System</span><span class="hs-operator">.</span><span class="hs-identifier">Random</span><span class="hs-operator">.</span><span class="hs-identifier">MWC</span><span>
-</span><a name="line-57"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Class</span><span class="hs-operator">.</span><span class="hs-identifier">Known</span><span>
-</span><a name="line-58"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Class</span><span class="hs-operator">.</span><span class="hs-identifier">Witness</span><span>
-</span><a name="line-59"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">List</span><span class="hs-operator">.</span><span class="hs-identifier">NonEmpty</span><span>      </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">NE</span><span>
-</span><a name="line-60"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Nat</span><span>           </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">TCN</span><span>
-</span><a name="line-61"></a><span>
-</span><a name="line-62"></a><span>
-</span><a name="line-63"></a><span class="hs-keyword">data</span><span> </span><a name="LChain"><a href="Learn.Neural.Network.html#LChain"><span class="hs-identifier">LChain</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Type</span><span> </span><span class="hs-keyword">where</span><span>
-</span><a name="line-64"></a><span>    </span><span class="hs-special">(</span><a name="%3A~"><a href="Learn.Neural.Network.html#%3A~"><span class="hs-operator">:~</span></a></a><span class="hs-special">)</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-identifier hs-type">Nat</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Type</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Learn.Neural.Network.html#LChain"><span class="hs-identifier hs-type">LChain</span></a><span>
-</span><a name="line-65"></a><span>
-</span><a name="line-66"></a><span class="hs-keyword">type</span><span> </span><a name="local-6989586621679361097"><a href="#local-6989586621679361097"><span class="hs-identifier">s</span></a></a><span> </span><a name="%3A~"><a href="Learn.Neural.Network.html#%3A~"><span class="hs-operator">:~</span></a></a><span> </span><a name="local-6989586621679361098"><a href="#local-6989586621679361098"><span class="hs-identifier">c</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a href="#local-6989586621679361097"><span class="hs-identifier hs-type">s</span></a><span> </span><span class="hs-char">':~ c
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE AllowAmbiguousTypes   #-}</span><span>
+</span><a name="line-2"></a><span class="hs-pragma">{-# LANGUAGE DataKinds             #-}</span><span>
+</span><a name="line-3"></a><span class="hs-pragma">{-# LANGUAGE FlexibleContexts      #-}</span><span>
+</span><a name="line-4"></a><span class="hs-pragma">{-# LANGUAGE FlexibleInstances     #-}</span><span>
+</span><a name="line-5"></a><span class="hs-pragma">{-# LANGUAGE GADTs                 #-}</span><span>
+</span><a name="line-6"></a><span class="hs-pragma">{-# LANGUAGE KindSignatures        #-}</span><span>
+</span><a name="line-7"></a><span class="hs-pragma">{-# LANGUAGE LambdaCase            #-}</span><span>
+</span><a name="line-8"></a><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses #-}</span><span>
+</span><a name="line-9"></a><span class="hs-pragma">{-# LANGUAGE RankNTypes            #-}</span><span>
+</span><a name="line-10"></a><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables   #-}</span><span>
+</span><a name="line-11"></a><span class="hs-pragma">{-# LANGUAGE Strict                #-}</span><span>
+</span><a name="line-12"></a><span class="hs-pragma">{-# LANGUAGE TupleSections         #-}</span><span>
+</span><a name="line-13"></a><span class="hs-pragma">{-# LANGUAGE TypeApplications      #-}</span><span>
+</span><a name="line-14"></a><span class="hs-pragma">{-# LANGUAGE TypeFamilies          #-}</span><span>
+</span><a name="line-15"></a><span class="hs-pragma">{-# LANGUAGE TypeInType            #-}</span><span>
+</span><a name="line-16"></a><span class="hs-pragma">{-# LANGUAGE TypeOperators         #-}</span><span>
+</span><a name="line-17"></a><span class="hs-pragma">{-# LANGUAGE UndecidableInstances  #-}</span><span>
+</span><a name="line-18"></a><span>
+</span><a name="line-19"></a><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Learn</span><span class="hs-operator">.</span><span class="hs-identifier">Neural</span><span class="hs-operator">.</span><span class="hs-identifier">Network</span><span> </span><span class="hs-special">(</span><span>
+</span><a name="line-20"></a><span>    </span><a href="Learn.Neural.Network.html#LChain"><span class="hs-identifier hs-type">LChain</span></a><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><a name="line-21"></a><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><a href="Learn.Neural.Network.html#%3A~"><span class="hs-operator hs-type">:~</span></a><span class="hs-special">)</span><span>
+</span><a name="line-22"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#Network"><span class="hs-identifier hs-type">Network</span></a><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><a name="line-23"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#netOp"><span class="hs-identifier hs-var">netOp</span></a><span>
+</span><a name="line-24"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#netOpPure"><span class="hs-identifier hs-var">netOpPure</span></a><span>
+</span><a name="line-25"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#netOpRecurrent"><span class="hs-identifier hs-var">netOpRecurrent</span></a><span>
+</span><a name="line-26"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#netOpRecurrent_"><span class="hs-identifier hs-var">netOpRecurrent_</span></a><span>
+</span><a name="line-27"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#netOpRecurrentLast"><span class="hs-identifier hs-var">netOpRecurrentLast</span></a><span>
+</span><a name="line-28"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#netOpRecurrentLast_"><span class="hs-identifier hs-var">netOpRecurrentLast_</span></a><span>
+</span><a name="line-29"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#runNet"><span class="hs-identifier hs-var">runNet</span></a><span>
+</span><a name="line-30"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#runNetPure"><span class="hs-identifier hs-var">runNetPure</span></a><span>
+</span><a name="line-31"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#runNetRecurrent"><span class="hs-identifier hs-var">runNetRecurrent</span></a><span>
+</span><a name="line-32"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#runNetRecurrentLast"><span class="hs-identifier hs-var">runNetRecurrentLast</span></a><span>
+</span><a name="line-33"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#runNetFeedback"><span class="hs-identifier hs-var">runNetFeedback</span></a><span>
+</span><a name="line-34"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#runNetFeedbackM"><span class="hs-identifier hs-var">runNetFeedbackM</span></a><span>
+</span><a name="line-35"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#runNetFeedbackForever"><span class="hs-identifier hs-var">runNetFeedbackForever</span></a><span>
+</span><a name="line-36"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#NetConf"><span class="hs-identifier hs-type">NetConf</span></a><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><a name="line-37"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#initNet"><span class="hs-identifier hs-var">initNet</span></a><span>
+</span><a name="line-38"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#NetStruct"><span class="hs-identifier hs-type">NetStruct</span></a><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><a name="line-39"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#defNetConf%27"><span class="hs-identifier hs-var">defNetConf'</span></a><span>
+</span><a name="line-40"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#defNetConf"><span class="hs-identifier hs-var">defNetConf</span></a><span>
+</span><a name="line-41"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#initDefNet%27"><span class="hs-identifier hs-var">initDefNet'</span></a><span>
+</span><a name="line-42"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#initDefNet"><span class="hs-identifier hs-var">initDefNet</span></a><span>
+</span><a name="line-43"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#SomeNet"><span class="hs-identifier hs-type">SomeNet</span></a><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><a name="line-44"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#someNet"><span class="hs-identifier hs-var">someNet</span></a><span>
+</span><a name="line-45"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#takeNet"><span class="hs-identifier hs-var">takeNet</span></a><span>
+</span><a name="line-46"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#dropNet"><span class="hs-identifier hs-var">dropNet</span></a><span>
+</span><a name="line-47"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#splitNet"><span class="hs-identifier hs-var">splitNet</span></a><span>
+</span><a name="line-48"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#traceNet"><span class="hs-identifier hs-var">traceNet</span></a><span>
+</span><a name="line-49"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Learn.Neural.Network.html#traceNetPure"><span class="hs-identifier hs-var">traceNetPure</span></a><span>
+</span><a name="line-50"></a><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-51"></a><span>
+</span><a name="line-52"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Control</span><span class="hs-operator">.</span><span class="hs-identifier">Monad</span><span class="hs-operator">.</span><span class="hs-identifier">Primitive</span><span>
+</span><a name="line-53"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Control</span><span class="hs-operator">.</span><span class="hs-identifier">Monad</span><span class="hs-operator">.</span><span class="hs-identifier">ST</span><span>
+</span><a name="line-54"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Kind</span><span>
+</span><a name="line-55"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Singletons</span><span>
+</span><a name="line-56"></a><span class="hs-keyword">import</span><span>           </span><a href="Data.Type.Util.html"><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Util</span></a><span>
+</span><a name="line-57"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Vector</span><span>
+</span><a name="line-58"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">GHC</span><span class="hs-operator">.</span><span class="hs-identifier">TypeLits</span><span>
+</span><a name="line-59"></a><span class="hs-keyword">import</span><span>           </span><a href="Learn.Neural.Layer.html"><span class="hs-identifier">Learn</span><span class="hs-operator">.</span><span class="hs-identifier">Neural</span><span class="hs-operator">.</span><span class="hs-identifier">Layer</span></a><span>
+</span><a name="line-60"></a><span class="hs-keyword">import</span><span>           </span><a href="Numeric.BLAS.html"><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">BLAS</span></a><span>
+</span><a name="line-61"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Backprop</span><span>
+</span><a name="line-62"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Backprop</span><span class="hs-operator">.</span><span class="hs-identifier">Op</span><span>
+</span><a name="line-63"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">System</span><span class="hs-operator">.</span><span class="hs-identifier">Random</span><span class="hs-operator">.</span><span class="hs-identifier">MWC</span><span>
+</span><a name="line-64"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Class</span><span class="hs-operator">.</span><span class="hs-identifier">Known</span><span>
+</span><a name="line-65"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Class</span><span class="hs-operator">.</span><span class="hs-identifier">Witness</span><span>
+</span><a name="line-66"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Family</span><span class="hs-operator">.</span><span class="hs-identifier">List</span><span>
+</span><a name="line-67"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">List</span><span class="hs-operator">.</span><span class="hs-identifier">NonEmpty</span><span>      </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">NE</span><span>
+</span><a name="line-68"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Nat</span><span>           </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">TCN</span><span>
+</span><a name="line-69"></a><span>
+</span><a name="line-70"></a><span>
+</span><a name="line-71"></a><span class="hs-keyword">data</span><span> </span><a name="LChain"><a href="Learn.Neural.Network.html#LChain"><span class="hs-identifier">LChain</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Type</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-72"></a><span>    </span><span class="hs-special">(</span><a name="%3A~"><a href="Learn.Neural.Network.html#%3A~"><span class="hs-operator">:~</span></a></a><span class="hs-special">)</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-identifier hs-type">Nat</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Type</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Learn.Neural.Network.html#LChain"><span class="hs-identifier hs-type">LChain</span></a><span>
+</span><a name="line-73"></a><span>
+</span><a name="line-74"></a><span class="hs-keyword">type</span><span> </span><a name="local-6989586621679478247"><a href="#local-6989586621679478247"><span class="hs-identifier">s</span></a></a><span> </span><a name="%3A~"><a href="Learn.Neural.Network.html#%3A~"><span class="hs-operator">:~</span></a></a><span> </span><a name="local-6989586621679478248"><a href="#local-6989586621679478248"><span class="hs-identifier">c</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a href="#local-6989586621679478247"><span class="hs-identifier hs-type">s</span></a><span> </span><span class="hs-char">':~ c
+
+type family NetTrace (c :: [LChain]) :: [[Nat]] where
+    NetTrace '[]              = '[]
+    NetTrace ((d :~ c) ': cs) = d ': NetTrace cs
 
 data Network :: RunMode -&gt; ([Nat] -&gt; Type) -&gt; LChain -&gt; [LChain] -&gt; [Nat] -&gt; Type where
     NetExt :: (ComponentLayer r c b i o, CConstr c b i o)
@@ -234,46 +246,48 @@ runNetRecurrentLast n0 (x NE.:| xs) = case xs of
 runNetFeedback
     :: (Num (b i), Num (b o), BLAS b)
     =&gt; TCN.Nat n
-    -&gt; (b o -&gt; b i)
+    -&gt; (b o -&gt; (a, b i))
     -&gt; Network 'Recurrent b (i :~ c) hs o
     -&gt; b i
-    -&gt; (VecT n b o, Network 'Recurrent b (i :~ c) hs o)
+    -&gt; (Vec n a, Network 'Recurrent b (i :~ c) hs o)
 runNetFeedback = \case
     TCN.Z_   -&gt; \_ n0 _ -&gt;
       (&#216;V, n0)
     TCN.S_ n -&gt; \f n0 x -&gt;
       let (y , n1) = runNet n0 x
-          (ys, n2) = runNetFeedback n f n1 (f y)
-      in  (y :* ys, n2)
+          (r , z ) = f y
+          (rs, n2) = runNetFeedback n f n1 z
+      in  (r :+ rs, n2)
 
 runNetFeedbackM
     :: (Num (b i), Num (b o), BLAS b, Monad m)
     =&gt; TCN.Nat n
-    -&gt; (b o -&gt; m (b i))
+    -&gt; (b o -&gt; m (a, b i))
     -&gt; Network 'Recurrent b (i :~ c) hs o
     -&gt; b i
-    -&gt; m (VecT n b o, Network 'Recurrent b (i :~ c) hs o)
+    -&gt; m (Vec n a, Network 'Recurrent b (i :~ c) hs o)
 runNetFeedbackM = \case
     TCN.Z_   -&gt; \_ n0 _ -&gt;
       return (&#216;V, n0)
     TCN.S_ n -&gt; \f n0 x -&gt; do
       let (y , n1) = runNet n0 x
-      x' &lt;- f y
-      (ys, n2) &lt;- runNetFeedbackM n f n1 x'
-      return (y :* ys, n2)
+      (r, z) &lt;- f y
+      (rs, n2) &lt;- runNetFeedbackM n f n1 z
+      return (r :+ rs, n2)
 
 runNetFeedbackForever
     :: (Num (b i), Num (b o), BLAS b)
-    =&gt; (b o -&gt; b i)
+    =&gt; (b o -&gt; (a, b i))
     -&gt; Network 'Recurrent b (i :~ c) hs o
     -&gt; b i
-    -&gt; [b o]
+    -&gt; [a]
 runNetFeedbackForever f = go
   where
-    go n0 x = y:ys
+    go n0 x = r:rs
       where
         (y, n1) = runNet n0 x
-        ~ys     = go n1 (f y)
+        (r, z ) = f y
+        ~rs     = go n1 z
 
 data NetConf :: RunMode -&gt; ([Nat] -&gt; Type) -&gt; LChain -&gt; [LChain] -&gt; [Nat] -&gt; Type where
     NCExt :: ( ComponentLayer r c b i o
@@ -459,4 +473,77 @@ liftNet2 f = go
         l1 :&amp; n1 -&gt; \case
           l2 :&amp; n2 -&gt; f l1 l2 :&amp; go s n1 n2
 
+takeNet
+    :: forall i c hs h d js o r b. ()
+    =&gt; NetStruct r b (i :~ c) hs h
+    -&gt; Network   r b (i :~ c) (hs ++ (h :~ d) ': js) o
+    -&gt; Network   r b (i :~ c) hs h
+takeNet = \case
+    NSExt -&gt; \case
+      l :&amp; _ -&gt; NetExt l
+    NSInt (s :: NetStruct r b (k :~ e) ks h) -&gt; \case
+      (l :: Layer r c b i k) :&amp; (n :: Network r b (k :~ e) (ks ++ (h :~ d) ': js) o) -&gt;
+        l :&amp; takeNet @k @e @ks @h @d @js @o @r @b s n
+
+splitNet
+    :: forall i c hs h d js o r b. ()
+    =&gt; NetStruct r b (i :~ c) hs h
+    -&gt; Network   r b (i :~ c) (hs ++ (h :~ d) ': js) o
+    -&gt; (Network r b (i :~ c) hs h, Network r b (h :~ d) js o)
+splitNet = \case
+    NSExt -&gt; \case
+      l :&amp; n -&gt; (NetExt l, n)
+    NSInt s -&gt; \case
+      l :&amp; n -&gt;
+        case splitNet s n of
+          (n1, n2) -&gt; (l :&amp; n1, n2)
+
+dropNet
+    :: forall i c hs h d js o r b. ()
+    =&gt; NetStruct r b (i :~ c) hs h
+    -&gt; Network   r b (i :~ c) (hs ++ (h :~ d) ': js) o
+    -&gt; Network r b (h :~ d) js o
+dropNet = \case
+    NSExt -&gt; \case
+      _ :&amp; n -&gt; n
+    NSInt s -&gt; \case
+      _ :&amp; n -&gt; dropNet s n
+
+traceNet
+    :: forall r b i c hs o. (Num (b i), Num (b o), BLAS b)
+    =&gt; Network r b (i :~ c) hs o
+    -&gt; b i
+    -&gt; ((Prod b (NetTrace hs), b o), Network r b (i :~ c) hs o)
+traceNet = go
+  where
+    go  :: forall j d js. (Num (b j))
+        =&gt; Network r b (j :~ d) js o
+        -&gt; b j
+        -&gt; ((Prod b (NetTrace js), b o), Network r b (j :~ d) js o)
+    go = \case
+      NetExt l -&gt; \x -&gt;
+        let (y, l') = runLayer l x
+        in  ((&#216;, y), NetExt l')
+      l :&amp; n -&gt; \x -&gt;
+        let (y, l')       = runLayer l x
+            ((tr, z), n') = traceNet n y
+        in  ((y :&lt; tr, z), l' :&amp; n')
+
+traceNetPure
+    :: forall b i c hs o. (Num (b i), Num (b o), BLAS b)
+    =&gt; Network 'FeedForward b (i :~ c) hs o
+    -&gt; b i
+    -&gt; (Prod b (NetTrace hs), b o)
+traceNetPure = go
+  where
+    go  :: forall j d js. (Num (b j))
+        =&gt; Network 'FeedForward b (j :~ d) js o
+        -&gt; b j
+        -&gt; (Prod b (NetTrace js), b o)
+    go = \case
+      NetExt l -&gt; (&#216;,) . runLayerPure l
+      l :&amp; n -&gt; \x -&gt;
+        let y       = runLayerPure l x
+            (tr, z) = traceNetPure n y
+        in  (y :&lt; tr, z)
 </span></pre></body></html>

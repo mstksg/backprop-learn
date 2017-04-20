@@ -39,7 +39,7 @@
 </span><a name="line-39"></a><span>
 </span><a name="line-40"></a><span class="hs-keyword">data</span><span> </span><a name="FullyConnectedR"><a href="Learn.Neural.Layer.Recurrent.FullyConnected.html#FullyConnectedR"><span class="hs-identifier">FullyConnectedR</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Type</span><span>
 </span><a name="line-41"></a><span>
-</span><a name="line-42"></a><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier hs-type">Generic</span><span> </span><span class="hs-special">(</span><a href="Learn.Neural.Layer.html#CParam"><span class="hs-identifier hs-type">CParam</span></a><span> </span><a href="Learn.Neural.Layer.Recurrent.FullyConnected.html#FullyConnectedR"><span class="hs-identifier hs-type">FullyConnectedR</span></a><span> </span><a href="#local-6989586621679286346"><span class="hs-identifier hs-type">b</span></a><span> </span><span class="hs-char">'[i] '[o])
+</span><a name="line-42"></a><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier hs-type">Generic</span><span> </span><span class="hs-special">(</span><a href="Learn.Neural.Layer.html#CParam"><span class="hs-identifier hs-type">CParam</span></a><span> </span><a href="Learn.Neural.Layer.Recurrent.FullyConnected.html#FullyConnectedR"><span class="hs-identifier hs-type">FullyConnectedR</span></a><span> </span><a href="#local-6989586621679336041"><span class="hs-identifier hs-type">b</span></a><span> </span><span class="hs-char">'[i] '[o])
 instance SOP.Generic (CParam FullyConnectedR b '[i] '[o])
 
 instance (Num (b '[o,o]), Num (b '[o,i]), Num (b '[o]))
@@ -101,7 +101,7 @@ instance ( BLAS b
         s0 &lt;- opIso (iso _fcrState FCRS) ~$ (s :&lt; &#216;)
         y  &lt;- matVecOp ~$ (wI :&lt; x  :&lt; &#216;)
         s1 &lt;- matVecOp ~$ (wS :&lt; s0 :&lt; &#216;)
-        z  &lt;- bindVar $ y + s1 + b
+        let z = y + s1 + b
         s' &lt;- opIso (iso FCRS _fcrState) ~$ (s1 :&lt; &#216;)
         return $ z :&lt; s' :&lt; &#216;
 
@@ -200,8 +200,8 @@ instance ( BLAS b
         s0 &lt;- opIso (iso _fcrState' FCRS') ~$ (s :&lt; &#216;)
         y  &lt;- matVecOp ~$ (wI :&lt; x  :&lt; &#216;)
         s1 &lt;- matVecOp ~$ (wS :&lt; s0 :&lt; &#216;)
-        z  &lt;- bindVar $ y + s1 + b
         s2 &lt;- tmapOp (runMapFunc mf) ~$ (s1 :&lt; &#216;)
+        let z = y + s2 + b
         s' &lt;- opIso (iso FCRS' _fcrState') ~$ (s2 :&lt; &#216;)
         return $ z :&lt; s' :&lt; &#216;
       where

@@ -39,6 +39,7 @@ toScalar :: Tensor t => t '[] -> Scalar t
 fromList' :: Tensor t => Sing s -> [Scalar t] -> Maybe (t s)
 fromList :: Tensor t => Sing s -> [Scalar t] -> Maybe (t s)
 tmapOp :: (Tensor t, SingI s) => (forall q. AD q (Forward (Scalar t)) -> AD q (Forward (Scalar t))) -> Op '[t s] '[t s]
+tzipOp :: forall t s. (Tensor t, SingI s) => (forall q. Reifies q Tape => Reverse q (Scalar t) -> Reverse q (Scalar t) -> Reverse q (Scalar t)) -> Op '[t s, t s] '[t s]
 tzipNOp :: forall t s n. (Tensor t, SingI s, Known Nat n) => (forall q. Reifies q Tape => Vec n (Reverse q (Scalar t)) -> Reverse q (Scalar t)) -> Op (Replicate n (t s)) '[t s]
 tkonstOp :: forall t s. Tensor t => Sing s -> Op '[Scalar t] '[t s]
 tsumOp :: forall t s. (Tensor t, SingI s) => Op '[t s] '[Scalar t]
@@ -100,6 +101,8 @@ componentOpDefault :: forall c b i o s. (ComponentFF c b i o, BLAS b, Num (b i),
 data RunMode
 FeedForward :: RunMode
 Recurrent :: RunMode
+runComponent :: (Component c b i o, Num (b i), Num (b o), CConstr c b i o) => CParam c b i o -> CState c b i o -> b i -> (b o, CState c b i o)
+runComponentFF :: (ComponentFF c b i o, Num (b i), Num (b o), CConstr c b i o) => CParam c b i o -> b i -> b o
 data Layer :: RunMode -> Type -> ([Nat] -> Type) -> [Nat] -> [Nat] -> Type
 [LFeedForward] :: ComponentFF c b i o => CParam c b i o -> Layer r c b i o
 [LRecurrent] :: CParam c b i o -> CState c b i o -> Layer Recurrent c b i o
@@ -109,8 +112,10 @@ data RunModeWit :: RunMode -> Type -> ([Nat] -> Type) -> [Nat] -> [Nat] -> Type
 class Component c b i o => ComponentLayer (r :: RunMode) c b i o
 componentRunMode :: ComponentLayer r c b i o => RunModeWit r c b i o
 layerOp :: forall r c i o b s. (Component c b i o, BLAS b, Num (b i), Num (b o), CConstr c b i o) => OpB s '[Layer r c b i o, b i] '[Layer r c b i o, b o]
-layerOpPure :: forall c i o b s. (Component c b i o, BLAS b, Num (b i), Num (b o), CConstr c b i o) => OpB s '[Layer FeedForward c b i o, b i] '[b o]
+layerOpPure :: forall c i o b s. (BLAS b, Num (b i), Num (b o), CConstr c b i o) => OpB s '[Layer FeedForward c b i o, b i] '[b o]
 initLayer :: forall r c b i o m. (PrimMonad m, BLAS b, ComponentLayer r c b i o, CConstr c b i o) => Sing i -> Sing o -> CConf c b i o -> Gen (PrimState m) -> m (Layer r c b i o)
+runLayer :: (Component c b i o, Num (b i), Num (b o), CConstr c b i o) => Layer r c b i o -> b i -> (b o, Layer r c b i o)
+runLayerPure :: (Num (b i), Num (b o), CConstr c b i o) => Layer FeedForward c b i o -> b i -> b o
 instance Learn.Neural.Layer.ComponentLayer r c b i o => GHC.Num.Num (Learn.Neural.Layer.Layer r c b i o)
 instance Learn.Neural.Layer.ComponentLayer r c b i o => GHC.Real.Fractional (Learn.Neural.Layer.Layer r c b i o)
 instance Learn.Neural.Layer.ComponentLayer r c b i o => GHC.Float.Floating (Learn.Neural.Layer.Layer r c b i o)
@@ -132,6 +137,19 @@ instance forall k (b :: [GHC.Types.Nat] -> GHC.Types.Type) (s :: k) (i :: [GHC.T
 instance forall k (b :: [GHC.Types.Nat] -> GHC.Types.Type) (s :: k) (i :: [GHC.Types.Nat]) (o :: [GHC.Types.Nat]). (Numeric.BLAS.BLAS b, Data.Reflection.Reifies s (Learn.Neural.Layer.Applying.TensorOp i o), Data.Singletons.SingI i, Data.Singletons.SingI o) => Learn.Neural.Layer.ComponentFF (Learn.Neural.Layer.Applying.Applying s) b i o
 instance forall k (b :: [GHC.Types.Nat] -> GHC.Types.Type) (s :: k) (i :: [GHC.Types.Nat]) (o :: [GHC.Types.Nat]) (r :: Learn.Neural.Layer.RunMode). (Numeric.BLAS.BLAS b, Data.Reflection.Reifies s (Learn.Neural.Layer.Applying.TensorOp i o), Data.Singletons.SingI i, Data.Singletons.SingI o) => Learn.Neural.Layer.ComponentLayer r (Learn.Neural.Layer.Applying.Applying s) b i o
 instance Data.Singletons.SingI i => Data.Reflection.Reifies ('Learn.Neural.Layer.Applying.TO_Softmax i) (Learn.Neural.Layer.Applying.TensorOp i i)
+
+module Learn.Neural.Layer.Compose
+instance GHC.Generics.Generic (Learn.Neural.Layer.CState (Learn.Neural.Layer.Compose.Comp l j h) b i o)
+instance GHC.Generics.Generic (Learn.Neural.Layer.CParam (Learn.Neural.Layer.Compose.Comp l j h) b i o)
+instance (Numeric.BLAS.BLAS b, Learn.Neural.Layer.Component l b i h, Learn.Neural.Layer.Component j b h o) => Learn.Neural.Layer.Component (Learn.Neural.Layer.Compose.Comp l j h) b i o
+instance (Generics.SOP.Universe.Generic (Learn.Neural.Layer.CState l b i h), Generics.SOP.Universe.Generic (Learn.Neural.Layer.CState j b h o)) => Generics.SOP.Universe.Generic (Learn.Neural.Layer.CState (Learn.Neural.Layer.Compose.Comp l j h) b i o)
+instance (Generics.SOP.Universe.Generic (Learn.Neural.Layer.CParam l b i h), Generics.SOP.Universe.Generic (Learn.Neural.Layer.CParam j b h o)) => Generics.SOP.Universe.Generic (Learn.Neural.Layer.CParam (Learn.Neural.Layer.Compose.Comp l j h) b i o)
+instance (GHC.Num.Num (Learn.Neural.Layer.CParam l b i h), GHC.Num.Num (Learn.Neural.Layer.CParam j b h o)) => GHC.Num.Num (Learn.Neural.Layer.CParam (Learn.Neural.Layer.Compose.Comp l j h) b i o)
+instance (GHC.Real.Fractional (Learn.Neural.Layer.CParam l b i h), GHC.Real.Fractional (Learn.Neural.Layer.CParam j b h o)) => GHC.Real.Fractional (Learn.Neural.Layer.CParam (Learn.Neural.Layer.Compose.Comp l j h) b i o)
+instance (GHC.Float.Floating (Learn.Neural.Layer.CParam l b i h), GHC.Float.Floating (Learn.Neural.Layer.CParam j b h o)) => GHC.Float.Floating (Learn.Neural.Layer.CParam (Learn.Neural.Layer.Compose.Comp l j h) b i o)
+instance (GHC.Num.Num (Learn.Neural.Layer.CState l b i h), GHC.Num.Num (Learn.Neural.Layer.CState j b h o)) => GHC.Num.Num (Learn.Neural.Layer.CState (Learn.Neural.Layer.Compose.Comp l j h) b i o)
+instance (GHC.Real.Fractional (Learn.Neural.Layer.CState l b i h), GHC.Real.Fractional (Learn.Neural.Layer.CState j b h o)) => GHC.Real.Fractional (Learn.Neural.Layer.CState (Learn.Neural.Layer.Compose.Comp l j h) b i o)
+instance (GHC.Float.Floating (Learn.Neural.Layer.CState l b i h), GHC.Float.Floating (Learn.Neural.Layer.CState j b h o)) => GHC.Float.Floating (Learn.Neural.Layer.CState (Learn.Neural.Layer.Compose.Comp l j h) b i o)
 
 module Learn.Neural.Layer.FullyConnected
 data FullyConnected :: Type
@@ -163,12 +181,15 @@ module Learn.Neural.Layer.Mapping
 data Mapping :: k -> Type
 data CommonMap :: Type
 [MF_Ident] :: CommonMap
+[MF_Scale] :: a -> CommonMap
 [MF_Logit] :: CommonMap
+[MF_Tanh] :: CommonMap
 [MF_ReLU] :: CommonMap
 [MF_ReLUp] :: a -> CommonMap
 [MF_ELU] :: CommonMap
 [MF_ELUp] :: a -> CommonMap
 type IdentMap = Mapping MF_Ident
+type ScaleMap s = Mapping (MF_Scale s)
 type LogitMap = Mapping MF_Logit
 type ReLUMap = Mapping MF_ReLU
 type ReLUpMap s = Mapping (MF_ReLUp s)
@@ -195,7 +216,9 @@ instance forall k (b :: [GHC.Types.Nat] -> GHC.Types.Type) (s :: k) (i :: [GHC.T
 instance forall k (b :: [GHC.Types.Nat] -> GHC.Types.Type) (s :: k) (i :: [GHC.Types.Nat]). (Numeric.BLAS.BLAS b, Data.Reflection.Reifies s Learn.Neural.Layer.Mapping.MapFunc, Data.Singletons.SingI i) => Learn.Neural.Layer.ComponentFF (Learn.Neural.Layer.Mapping.Mapping s) b i i
 instance forall k (b :: [GHC.Types.Nat] -> GHC.Types.Type) (s :: k) (i :: [GHC.Types.Nat]) (r :: Learn.Neural.Layer.RunMode). (Numeric.BLAS.BLAS b, Data.Reflection.Reifies s Learn.Neural.Layer.Mapping.MapFunc, Data.Singletons.SingI i) => Learn.Neural.Layer.ComponentLayer r (Learn.Neural.Layer.Mapping.Mapping s) b i i
 instance Data.Reflection.Reifies 'Learn.Neural.Layer.Mapping.MF_Ident Learn.Neural.Layer.Mapping.MapFunc
+instance forall a (s :: a). Data.Reflection.Reifies s GHC.Types.Double => Data.Reflection.Reifies ('Learn.Neural.Layer.Mapping.MF_Scale s) Learn.Neural.Layer.Mapping.MapFunc
 instance Data.Reflection.Reifies 'Learn.Neural.Layer.Mapping.MF_Logit Learn.Neural.Layer.Mapping.MapFunc
+instance Data.Reflection.Reifies 'Learn.Neural.Layer.Mapping.MF_Tanh Learn.Neural.Layer.Mapping.MapFunc
 instance Data.Reflection.Reifies 'Learn.Neural.Layer.Mapping.MF_ReLU Learn.Neural.Layer.Mapping.MapFunc
 instance forall a (s :: a). Data.Reflection.Reifies s GHC.Types.Double => Data.Reflection.Reifies ('Learn.Neural.Layer.Mapping.MF_ReLUp s) Learn.Neural.Layer.Mapping.MapFunc
 instance Data.Reflection.Reifies 'Learn.Neural.Layer.Mapping.MF_ELU Learn.Neural.Layer.Mapping.MapFunc
@@ -218,7 +241,9 @@ data FullyConnectedR :: Type
 data FullyConnectedR' :: k -> Type
 data CommonMap :: Type
 [MF_Ident] :: CommonMap
+[MF_Scale] :: a -> CommonMap
 [MF_Logit] :: CommonMap
+[MF_Tanh] :: CommonMap
 [MF_ReLU] :: CommonMap
 [MF_ReLUp] :: a -> CommonMap
 [MF_ELU] :: CommonMap
@@ -246,6 +271,21 @@ instance forall k (b :: [GHC.Types.Nat] -> *) (o :: GHC.Types.Nat) (s :: k) (i :
 instance forall k (b :: [GHC.Types.Nat] -> GHC.Types.Type) (i :: GHC.Types.Nat) (o :: GHC.Types.Nat) (s :: k). (Numeric.BLAS.BLAS b, GHC.TypeLits.KnownNat i, GHC.TypeLits.KnownNat o, GHC.Float.Floating (b '[o]), GHC.Float.Floating (b '[o, i]), GHC.Float.Floating (b '[o, o]), Data.Reflection.Reifies s Learn.Neural.Layer.Mapping.MapFunc) => Learn.Neural.Layer.Component (Learn.Neural.Layer.Recurrent.FullyConnected.FullyConnectedR' s) b '[i] '[o]
 instance forall k (b :: [GHC.Types.Nat] -> GHC.Types.Type) (i :: GHC.Types.Nat) (o :: GHC.Types.Nat) (s :: k). (Numeric.BLAS.BLAS b, GHC.TypeLits.KnownNat i, GHC.TypeLits.KnownNat o, GHC.Float.Floating (b '[o]), GHC.Float.Floating (b '[o, i]), GHC.Float.Floating (b '[o, o]), Data.Reflection.Reifies s Learn.Neural.Layer.Mapping.MapFunc) => Learn.Neural.Layer.ComponentLayer 'Learn.Neural.Layer.Recurrent (Learn.Neural.Layer.Recurrent.FullyConnected.FullyConnectedR' s) b '[i] '[o]
 
+module Learn.Neural.Layer.Recurrent.LSTM
+data LSTM :: Type
+instance GHC.Generics.Generic (Learn.Neural.Layer.CState Learn.Neural.Layer.Recurrent.LSTM.LSTM b '[i] '[o])
+instance GHC.Generics.Generic (Learn.Neural.Layer.CParam Learn.Neural.Layer.Recurrent.LSTM.LSTM b '[i] '[o])
+instance (Numeric.BLAS.BLAS b, GHC.TypeLits.KnownNat i, GHC.TypeLits.KnownNat o, GHC.Float.Floating (b '[o]), GHC.Float.Floating (b '[o, i]), GHC.Float.Floating (b '[o, o])) => Learn.Neural.Layer.Component Learn.Neural.Layer.Recurrent.LSTM.LSTM b '[i] '[o]
+instance (Numeric.BLAS.BLAS b, GHC.TypeLits.KnownNat i, GHC.TypeLits.KnownNat o, GHC.Float.Floating (b '[o]), GHC.Float.Floating (b '[o, i]), GHC.Float.Floating (b '[o, o])) => Learn.Neural.Layer.ComponentLayer 'Learn.Neural.Layer.Recurrent Learn.Neural.Layer.Recurrent.LSTM.LSTM b '[i] '[o]
+instance Generics.SOP.Universe.Generic (Learn.Neural.Layer.CState Learn.Neural.Layer.Recurrent.LSTM.LSTM b '[i] '[o])
+instance Generics.SOP.Universe.Generic (Learn.Neural.Layer.CParam Learn.Neural.Layer.Recurrent.LSTM.LSTM b '[i] '[o])
+instance (GHC.Num.Num (b '[o, i]), GHC.Num.Num (b '[o, o]), GHC.Num.Num (b '[o])) => GHC.Num.Num (Learn.Neural.Layer.CParam Learn.Neural.Layer.Recurrent.LSTM.LSTM b '[i] '[o])
+instance (GHC.Real.Fractional (b '[o, i]), GHC.Real.Fractional (b '[o, o]), GHC.Real.Fractional (b '[o])) => GHC.Real.Fractional (Learn.Neural.Layer.CParam Learn.Neural.Layer.Recurrent.LSTM.LSTM b '[i] '[o])
+instance (GHC.Float.Floating (b '[o, i]), GHC.Float.Floating (b '[o, o]), GHC.Float.Floating (b '[o])) => GHC.Float.Floating (Learn.Neural.Layer.CParam Learn.Neural.Layer.Recurrent.LSTM.LSTM b '[i] '[o])
+instance (GHC.Num.Num (b '[o, i]), GHC.Num.Num (b '[o, o]), GHC.Num.Num (b '[o])) => GHC.Num.Num (Learn.Neural.Layer.CState Learn.Neural.Layer.Recurrent.LSTM.LSTM b '[i] '[o])
+instance (GHC.Real.Fractional (b '[o, i]), GHC.Real.Fractional (b '[o, o]), GHC.Real.Fractional (b '[o])) => GHC.Real.Fractional (Learn.Neural.Layer.CState Learn.Neural.Layer.Recurrent.LSTM.LSTM b '[i] '[o])
+instance (GHC.Float.Floating (b '[o, i]), GHC.Float.Floating (b '[o, o]), GHC.Float.Floating (b '[o])) => GHC.Float.Floating (Learn.Neural.Layer.CState Learn.Neural.Layer.Recurrent.LSTM.LSTM b '[i] '[o])
+
 module Learn.Neural.Loss
 type LossFunction as b = forall s. Tuple as -> OpB s as '[b]
 crossEntropy :: forall b n. (BLAS b, KnownNat n, Num (b '[n])) => LossFunction '[b '[n]] (Scalar b)
@@ -255,15 +295,26 @@ sumLossDecay :: forall n a b. (Num a, Num b) => LossFunction '[a] b -> Nat n -> 
 zipLoss :: forall n a b. (Num a, Num b) => LossFunction '[a] b -> Vec n b -> LossFunction (Replicate n a) b
 
 module Learn.Neural.Train
-data Optimizer :: Type -> Type -> Type
-[MkO] :: {oState :: s, oUpdate :: a -> p -> s -> (p, s)} -> Optimizer a p
+data OptimizerM :: (Type -> Type) -> Type -> Type -> Type
+[MkOM] :: {oState :: s, oGrad :: a -> p -> m p, oUpdate :: p -> p -> s -> m (p, s)  params, grad, state} -> OptimizerM m a p
+type Optimizer = OptimizerM I
 runOptimizer :: a -> p -> Optimizer a p -> (p, Optimizer a p)
+runOptimizerM :: Monad m => a -> p -> OptimizerM m a p -> m (p, OptimizerM m a p)
 runOptimizer_ :: a -> p -> Optimizer a p -> p
-optimizeList :: [a] -> p -> Optimizer a p -> (p, Optimizer a p)
+runOptimizerM_ :: Monad m => a -> p -> OptimizerM m a p -> m p
+optimizeList :: forall a p. [a] -> p -> Optimizer a p -> (p, Optimizer a p)
+optimizeListM :: forall m a p. Monad m => [a] -> p -> OptimizerM m a p -> m (p, OptimizerM m a p)
 optimizeList_ :: [a] -> p -> Optimizer a p -> p
+optimizeListM_ :: Monad m => [a] -> p -> OptimizerM m a p -> m p
+optimizeListBatches :: [a] -> p -> Optimizer [a] p -> Int -> (p, Optimizer [a] p)
+optimizeListBatchesM :: Monad m => [a] -> p -> OptimizerM m [a] p -> Int -> m (p, OptimizerM m [a] p)
+optimizeListBatches_ :: [a] -> p -> Optimizer [a] p -> Int -> p
+optimizeListBatchesM_ :: Monad m => [a] -> p -> OptimizerM m [a] p -> Int -> m p
+batching :: forall f m a p. (Foldable f, Fractional p, Monad m) => OptimizerM m a p -> OptimizerM m (f a) p
 sgdOptimizer :: forall p as bs c. (Fractional p, Num c, Every Num as, Every Num bs, Known Length as) => Double -> (forall s. OpB s (p : as) bs) -> LossFunction bs c -> Optimizer (Tuple as, Tuple bs) p
-sgdMiniBatchOptimizer :: forall f p as bs c. (Foldable f, Fractional p, Num c, Every Num as, Every Num bs, Known Length as) => Double -> (forall s. OpB s (p : as) bs) -> LossFunction bs c -> Optimizer (f (Tuple as, Tuple bs)) p
+sgdOptimizerM :: forall m p as bs c. (Fractional p, Num c, Every Num as, Every Num bs, Known Length as, Monad m) => Double -> m (OpBS (p : as) bs) -> LossFunction bs c -> OptimizerM m (Tuple as, Tuple bs) p
 adamOptimizer :: forall p as bs c. (Floating p, Num c, Every Num as, Every Num bs, Known Length as) => Adam -> (forall s. OpB s (p : as) bs) -> LossFunction bs c -> Optimizer (Tuple as, Tuple bs) p
+adamOptimizerM :: forall m p as bs c. (Floating p, Num c, Every Num as, Every Num bs, Known Length as, Monad m) => Adam -> m (OpBS (p : as) bs) -> LossFunction bs c -> OptimizerM m (Tuple as, Tuple bs) p
 data Adam
 Adam :: Double -> Double -> Double -> Double -> Adam
 [adamStep] :: Adam -> Double
@@ -274,6 +325,12 @@ slidingParts :: Nat n -> [a] -> [Vec n a]
 slidingPartsSplit :: Nat n -> [(a, b)] -> [(Vec n a, Vec n b)]
 slidingPartsLast :: Nat (S n) -> [(a, b)] -> [(Vec (S n) a, b)]
 asFeedback :: [a] -> [(a, a)]
+
+-- | A class for types with a default value.
+class Default a
+
+-- | The default value for this type.
+def :: Default a => a
 instance GHC.Classes.Eq Learn.Neural.Train.Adam
 instance GHC.Show.Show Learn.Neural.Train.Adam
 instance Data.Default.Class.Default Learn.Neural.Train.Adam
@@ -295,9 +352,9 @@ runNet :: (Num (b i), Num (b o), BLAS b) => Network r b (i :~ c) hs o -> b i -> 
 runNetPure :: (Num (b i), Num (b o), BLAS b) => Network FeedForward b (i :~ c) hs o -> b i -> b o
 runNetRecurrent :: (Num (b i), Num (b o), BLAS b) => Network Recurrent b (i :~ c) hs o -> [b i] -> ([b o], Network Recurrent b (i :~ c) hs o)
 runNetRecurrentLast :: (Num (b i), Num (b o), BLAS b) => Network Recurrent b (i :~ c) hs o -> NonEmpty (b i) -> (b o, Network Recurrent b (i :~ c) hs o)
-runNetFeedback :: (Num (b i), Num (b o), BLAS b) => Nat n -> (b o -> b i) -> Network Recurrent b (i :~ c) hs o -> b i -> (VecT n b o, Network Recurrent b (i :~ c) hs o)
-runNetFeedbackM :: (Num (b i), Num (b o), BLAS b, Monad m) => Nat n -> (b o -> m (b i)) -> Network Recurrent b (i :~ c) hs o -> b i -> m (VecT n b o, Network Recurrent b (i :~ c) hs o)
-runNetFeedbackForever :: (Num (b i), Num (b o), BLAS b) => (b o -> b i) -> Network Recurrent b (i :~ c) hs o -> b i -> [b o]
+runNetFeedback :: (Num (b i), Num (b o), BLAS b) => Nat n -> (b o -> (a, b i)) -> Network Recurrent b (i :~ c) hs o -> b i -> (Vec n a, Network Recurrent b (i :~ c) hs o)
+runNetFeedbackM :: (Num (b i), Num (b o), BLAS b, Monad m) => Nat n -> (b o -> m (a, b i)) -> Network Recurrent b (i :~ c) hs o -> b i -> m (Vec n a, Network Recurrent b (i :~ c) hs o)
+runNetFeedbackForever :: (Num (b i), Num (b o), BLAS b) => (b o -> (a, b i)) -> Network Recurrent b (i :~ c) hs o -> b i -> [a]
 data NetConf :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> Type
 [NCExt] :: (ComponentLayer r c b i o, CConstr c b i o) => CConf c b i o -> NetConf r b (i :~ c) '[] o
 [:&~] :: (ComponentLayer r c b i h, CConstr c b i h, SingI h, Num (b h)) => CConf c b i h -> NetConf r b (h :~ d) hs o -> NetConf r b (i :~ c) ((h :~ d) : hs) o
@@ -312,16 +369,30 @@ initDefNet :: (PrimMonad m, BLAS b, SingI i, SingI o, Known (NetStruct r b (i :~
 data SomeNet :: RunMode -> ([Nat] -> Type) -> [Nat] -> [Nat] -> Type
 [SomeNet] :: NetStruct r b (i :~ c) hs o -> Network r b (i :~ c) hs o -> SomeNet r b i o
 someNet :: Known (NetStruct r b (i :~ c) hs) o => Network r b (i :~ c) hs o -> SomeNet r b i o
+takeNet :: forall i c hs h d js o r b. NetStruct r b (i :~ c) hs h -> Network r b (i :~ c) (hs ++ ((h :~ d) : js)) o -> Network r b (i :~ c) hs h
+dropNet :: forall i c hs h d js o r b. NetStruct r b (i :~ c) hs h -> Network r b (i :~ c) (hs ++ ((h :~ d) : js)) o -> Network r b (h :~ d) js o
+splitNet :: forall i c hs h d js o r b. NetStruct r b (i :~ c) hs h -> Network r b (i :~ c) (hs ++ ((h :~ d) : js)) o -> (Network r b (i :~ c) hs h, Network r b (h :~ d) js o)
+traceNet :: forall r b i c hs o. (Num (b i), Num (b o), BLAS b) => Network r b (i :~ c) hs o -> b i -> ((Prod b (NetTrace hs), b o), Network r b (i :~ c) hs o)
+traceNetPure :: forall b i c hs o. (Num (b i), Num (b o), BLAS b) => Network FeedForward b (i :~ c) hs o -> b i -> (Prod b (NetTrace hs), b o)
 instance (Learn.Neural.Layer.ComponentLayer r c b i o, Learn.Neural.Layer.CConstr c b i o) => Type.Class.Known.Known (Learn.Neural.Network.NetStruct r b (i Learn.Neural.Network.:~ c) '[]) o
 instance (Data.Singletons.SingI h, GHC.Num.Num (b h), Learn.Neural.Layer.ComponentLayer r c b i h, Learn.Neural.Layer.CConstr c b i h, Type.Class.Known.Known (Learn.Neural.Network.NetStruct r b (h Learn.Neural.Network.:~ d) hs) o) => Type.Class.Known.Known (Learn.Neural.Network.NetStruct r b (i Learn.Neural.Network.:~ c) (h Learn.Neural.Network.:~ d : hs)) o
 instance Type.Class.Known.Known (Learn.Neural.Network.NetStruct r b (i Learn.Neural.Network.:~ c) hs) o => GHC.Num.Num (Learn.Neural.Network.Network r b (i Learn.Neural.Network.:~ c) hs o)
 instance Type.Class.Known.Known (Learn.Neural.Network.NetStruct r b (i Learn.Neural.Network.:~ c) hs) o => GHC.Real.Fractional (Learn.Neural.Network.Network r b (i Learn.Neural.Network.:~ c) hs o)
 instance Type.Class.Known.Known (Learn.Neural.Network.NetStruct r b (i Learn.Neural.Network.:~ c) hs) o => GHC.Float.Floating (Learn.Neural.Network.Network r b (i Learn.Neural.Network.:~ c) hs o)
 
+module Learn.Neural.Network.Dropout
+data Dropout :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> Type
+[DOExt] :: !Double -> Dropout r b (i :~ c) '[] o
+[:&%] :: (Num (b h), SingI h) => !Double -> !(Dropout r b (h :~ d) hs o) -> Dropout r b (i :~ c) ((h :~ d) : hs) o
+data NetworkDO :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> Type
+[NDO] :: {ndoDropout :: !(Dropout r b i hs o), ndoNetwork :: !(Network r b i hs o)} -> NetworkDO r b i hs o
+netOpDO :: forall m b i c hs o r. (BLAS b, Num (b i), Num (b o), PrimMonad m, SingI o) => Dropout r b (i :~ c) hs o -> Gen (PrimState m) -> m (OpBS '[Network r b (i :~ c) hs o, b i] '[Network r b (i :~ c) hs o, b o])
+
 module Learn.Neural.Test
 type TestFunc o = forall b. (BLAS b, Num (b o)) => b o -> b o -> Double
 maxTest :: KnownNat n => TestFunc '[n]
 rmseTest :: KnownNat n => TestFunc '[n]
+crossEntropyTest :: KnownNat n => TestFunc '[n]
 testNet :: (BLAS b, Num (b i), Num (b o)) => TestFunc o -> SomeNet FeedForward b i o -> b i -> b o -> Double
 testNetList :: (BLAS b, Num (b i), Num (b o)) => TestFunc o -> SomeNet FeedForward b i o -> [(b i, b o)] -> Double
 
