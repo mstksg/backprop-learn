@@ -43,8 +43,7 @@
 </span><a name="line-43"></a><span>
 </span><a name="line-44"></a><span class="hs-keyword">data</span><span> </span><a name="Dropout"><a href="Learn.Neural.Network.Dropout.html#Dropout"><span class="hs-identifier">Dropout</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><a href="Learn.Neural.Layer.html#RunMode"><span class="hs-identifier hs-type">RunMode</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="hs-identifier hs-type">Nat</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Type</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Learn.Neural.Network.html#LChain"><span class="hs-identifier hs-type">LChain</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><a href="Learn.Neural.Network.html#LChain"><span class="hs-identifier hs-type">LChain</span></a><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-identifier hs-type">Nat</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Type</span><span> </span><span class="hs-keyword">where</span><span>
 </span><a name="line-45"></a><span>    </span><a name="DOExt"><a href="Learn.Neural.Network.Dropout.html#DOExt"><span class="hs-identifier">DOExt</span></a></a><span>
-</span><a name="line-46"></a><span>        </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-identifier hs-type">Double</span><span>
-</span><a name="line-47"></a><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><a href="Learn.Neural.Network.Dropout.html#Dropout"><span class="hs-identifier hs-type">Dropout</span></a><span> </span><a href="#local-6989586621679541786"><span class="hs-identifier hs-type">r</span></a><span> </span><a href="#local-6989586621679541787"><span class="hs-identifier hs-type">b</span></a><span> </span><span class="hs-special">(</span><a href="#local-6989586621679541788"><span class="hs-identifier hs-type">i</span></a><span> </span><span class="hs-operator">:~</span><span> </span><a href="#local-6989586621679541789"><span class="hs-identifier hs-type">c</span></a><span class="hs-special">)</span><span> </span><span class="hs-char">'[] o
+</span><a name="line-46"></a><span>        </span><span class="hs-glyph">::</span><span> </span><a href="Learn.Neural.Network.Dropout.html#Dropout"><span class="hs-identifier hs-type">Dropout</span></a><span> </span><a href="#local-6989586621679541786"><span class="hs-identifier hs-type">r</span></a><span> </span><a href="#local-6989586621679541787"><span class="hs-identifier hs-type">b</span></a><span> </span><span class="hs-special">(</span><a href="#local-6989586621679541788"><span class="hs-identifier hs-type">i</span></a><span> </span><span class="hs-operator">:~</span><span> </span><a href="#local-6989586621679541789"><span class="hs-identifier hs-type">c</span></a><span class="hs-special">)</span><span> </span><span class="hs-char">'[] o
     (:&amp;%)
         :: (Num (b h), SingI h)
         =&gt; !Double
@@ -69,7 +68,7 @@ konstDO s0 x = go s0
   where
     go :: NetStruct r b j js o -&gt; Dropout r b j js o
     go = \case
-      NSExt   -&gt; DOExt x
+      NSExt   -&gt; DOExt
       NSInt s -&gt; x :&amp;% go s
 
 konstDO'
@@ -87,7 +86,7 @@ mapDO f = go
   where
     go :: Dropout r b j js o -&gt; Dropout r b j js o
     go = \case
-      DOExt x -&gt; DOExt (f x)
+      DOExt   -&gt; DOExt
       x :&amp;% d -&gt; f x :&amp;% go d
       
 zipDO
@@ -100,8 +99,8 @@ zipDO f = go
   where
     go :: Dropout r b j js o -&gt; Dropout r b j js o -&gt; Dropout r b j js o
     go = \case
-      DOExt x -&gt; \case
-        DOExt y -&gt; DOExt (f x y)
+      DOExt -&gt; \case
+        DOExt -&gt; DOExt
       x :&amp;% dx -&gt; \case
         y :&amp;% dy -&gt; f x y :&amp;% go dx dy
       
@@ -111,20 +110,17 @@ netOpDO
     -&gt; Gen (PrimState m)
     -&gt; m (OpBS '[ Network r b (i :~ c) hs o, b i ] '[ Network r b (i :~ c) hs o, b o ])
 netOpDO = \case
-    DOExt r -&gt; \g -&gt; do
-      mask &lt;- genA @b (sing @_ @o) $ \_ -&gt; bool (1 / (1 - realToFrac r)) 0 &lt;$&gt; bernoulli r g
-      return $ OpBS $ OpM $ \(I n :&lt; I x :&lt; &#216;) -&gt; case n of
-        NetExt (l :: Layer r c b i o) -&gt; do
-          (I l' :&lt; I y :&lt; &#216;, gF) &lt;- runOpM' (layerOp @r @c @i @o @b) (l ::&lt; x ::&lt; &#216;)
-          let y' = tzip (*) mask y
-              gF' = fmap (\case I dL :&lt; I dX :&lt; &#216; -&gt; NetExt dL ::&lt; dX ::&lt; &#216;)
-                  . gF
-                  . (\case Just (NetExt dL) :&lt; dY :&lt; &#216; -&gt;
-                             Just dL :&lt; Just (maybe mask (tzip (*) mask) dY) :&lt; &#216;
-                           Nothing          :&lt; dY :&lt; &#216; -&gt;
-                             Nothing :&lt; Just (maybe mask (tzip (*) mask) dY) :&lt; &#216;
-                    )
-          return (NetExt l' ::&lt; y' ::&lt; &#216;, gF')
+    DOExt -&gt; \_ -&gt; return $ OpBS $ OpM $ \(I n :&lt; I x :&lt; &#216;) -&gt; case n of
+      NetExt (l :: Layer r c b i o) -&gt; do
+        (I l' :&lt; I y :&lt; &#216;, gF) &lt;- runOpM' (layerOp @r @c @i @o @b) (l ::&lt; x ::&lt; &#216;)
+        let gF' = fmap (\case I dL :&lt; I dX :&lt; &#216; -&gt; NetExt dL ::&lt; dX ::&lt; &#216;)
+                . gF
+                . (\case Just (NetExt dL) :&lt; dY :&lt; &#216; -&gt;
+                           Just dL :&lt; dY :&lt; &#216;
+                         Nothing          :&lt; dY :&lt; &#216; -&gt;
+                           Nothing :&lt; dY :&lt; &#216;
+                  )
+        return (NetExt l' ::&lt; y ::&lt; &#216;, gF')
     r :&amp;% (d :: Dropout r b (h :~ d) js o) -&gt; \g -&gt; do
       mask &lt;- genA @b (sing @_ @h) $ \_ -&gt; bool (1 / (1 - realToFrac r)) 0 &lt;$&gt; bernoulli r g
       no :: OpBS '[ Network r b (h :~ d) js o, b h ] '[ Network r b (h :~ d) js o, b o ]

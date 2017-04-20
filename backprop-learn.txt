@@ -383,7 +383,7 @@ instance Type.Class.Known.Known (Learn.Neural.Network.NetStruct r b (i Learn.Neu
 
 module Learn.Neural.Network.Dropout
 data Dropout :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> Type
-[DOExt] :: !Double -> Dropout r b (i :~ c) '[] o
+[DOExt] :: Dropout r b (i :~ c) '[] o
 [:&%] :: (Num (b h), SingI h) => !Double -> !(Dropout r b (h :~ d) hs o) -> Dropout r b (i :~ c) ((h :~ d) : hs) o
 data NetworkDO :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> Type
 [NDO] :: {ndoDropout :: !(Dropout r b i hs o), ndoNetwork :: !(Network r b i hs o)} -> NetworkDO r b i hs o
