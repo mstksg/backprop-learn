@@ -24,6 +24,7 @@ module Numeric.Tensor (
   , fromList'
   , fromList
   , tmapOp
+  , tzipOp
   , tzipNOp
   , tkonstOp
   , tsumOp
@@ -52,6 +53,7 @@ import           Numeric.Backprop.Op
 import           Type.Class.Higher
 import           Type.Class.Known
 import           Type.Family.List hiding          (Reverse)
+import           Type.Family.Nat                  (N2)
 import qualified Data.Type.Nat                    as TCN
 import qualified Data.Vector.Sized                as V
 
@@ -199,6 +201,35 @@ tmapOp f = op1' $ \x ->
     let y  = tmap (fst . diff' f) x
         dy = tmap (diff f) x
     in  (only_ y, maybe dy (tzip (*) dy) . head')
+
+tzipOp
+    :: forall t s. (Tensor t, SingI s)
+    => (forall q. Reifies q Tape => Reverse q (Scalar t) -> Reverse q (Scalar t) -> Reverse q (Scalar t))
+    -> Op '[t s, t s] '[t s]
+tzipOp f = op2' $ \x y ->
+    let f' :: forall q. Reifies q Tape => Vec N2 (Reverse q (Scalar t)) -> Reverse q (Scalar t)
+        f' (I x' :* I y' :* ØV) = f x' y'
+        z = tzip (\x' y' -> fst $ grad' f' (x' :+ y' :+ ØV)) x y
+        g = \case
+          Nothing :< Ø ->
+            let dx = tzip (\x' y' -> case grad f' (x' :+ y' :+ ØV) of
+                                       I dx' :* _ -> dx'
+                          ) x y
+                dy = tzip (\x' y' -> case grad f' (x' :+ y' :+ ØV) of
+                                       _ :* I dy' :* _ -> dy'
+                          ) x y
+            in  (dx, dy)
+          Just dz :< Ø -> 
+            let dx = tzipN (\(I x' :* I y' :* I d :* ØV) ->
+                                case grad f' (x' :+ y' :+ ØV) of
+                                  I dx' :* _ :* ØV -> dx' * d
+                           ) (x :* y :* dz :* ØV)
+                dy = tzipN (\(I x' :* I y' :* I d :* ØV) ->
+                                case grad f' (x' :+ y' :+ ØV) of
+                                  _ :* I dy' :* ØV -> d * dy'
+                           ) (x :* y :* dz :* ØV)
+            in  (dx, dy)
+    in  (only_ z, g)
 
 tzipNOp
     :: forall t s n. (Tensor t, SingI s, Known TCN.Nat n)
