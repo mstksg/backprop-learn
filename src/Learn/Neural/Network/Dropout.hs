@@ -16,7 +16,6 @@ module Learn.Neural.Network.Dropout (
 
 
 import           Control.Monad.Primitive
-import           Control.Monad.ST
 import           Data.Bool
 import           Data.Kind
 import           Data.Singletons
@@ -48,16 +47,16 @@ data Dropout :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> Typ
         -> Dropout r b (i :~ c) ((h :~ d) ': hs) o
 
 netOpDO
-    :: forall m b i c hs o r s. (BLAS b, Num (b i), Num (b o), PrimMonad m, SingI o)
+    :: forall m b i c hs o r. (BLAS b, Num (b i), Num (b o), PrimMonad m, SingI o)
     => Dropout r b (i :~ c) hs o
     -> Gen (PrimState m)
-    -> m (OpB s '[ Network r b (i :~ c) hs o, b i ] '[ Network r b (i :~ c) hs o, b o ])
+    -> m (OpBS '[ Network r b (i :~ c) hs o, b i ] '[ Network r b (i :~ c) hs o, b o ])
 netOpDO = \case
     DOExt r -> \g -> do
       mask <- genA @b (sing @_ @o) $ \_ -> bool (1 / (1 - realToFrac r)) 0 <$> bernoulli r g
-      return . OpM $ \(I n :< I x :< Ø) -> case n of
+      return $ OpBS $ OpM $ \(I n :< I x :< Ø) -> case n of
         NetExt (l :: Layer r c b i o) -> do
-          (I l' :< I y :< Ø, gF) <- runOpM' (layerOp @r @c @i @o @b @s) (l ::< x ::< Ø)
+          (I l' :< I y :< Ø, gF) <- runOpM' (layerOp @r @c @i @o @b) (l ::< x ::< Ø)
           let y' = tzip (*) mask y
               gF' = fmap (\case I dL :< I dX :< Ø -> NetExt dL ::< dX ::< Ø)
                   . gF
@@ -69,14 +68,13 @@ netOpDO = \case
           return (NetExt l' ::< y' ::< Ø, gF')
     r :&% (d :: Dropout r b (h :~ d) js o) -> \g -> do
       mask <- genA @b (sing @_ @h) $ \_ -> bool (1 / (1 - realToFrac r)) 0 <$> bernoulli r g
-      no   <- netOpDO @m @b @h @d @js @o @r @s d g
-      return . OpM $ \(I n :< I x :< Ø) -> case n of
+      no :: OpBS '[ Network r b (h :~ d) js o, b h ] '[ Network r b (h :~ d) js o, b o ]
+            <- netOpDO @m @b @h @d @js @o @r d g
+      return $ OpBS $ OpM $ \(I n :< I x :< Ø) -> case n of
         (l :: Layer r c b i h) :& (n2 :: Network r b (h ':~ d) js o) -> do
-          (I l'  :< I y :< Ø, gF ) <- runOpM' (layerOp @r @c @i @h @b @s) (l  ::< x ::< Ø)
-          (I n2' :< I z :< Ø, gF') <- runOpM' no      (n2 ::< y ::< Ø)
-          let gF'' :: Prod Maybe '[ Network r b (i ':~ c) ((h ':~ d) ': js) o, b o ]
-                   -> ST s (Tuple '[ Network r b (i ':~ c) ((h ':~ d) ': js) o, b i ])
-              gF'' = \case Just (dL :& dN) :< dZ :< Ø -> do
+          (I l'  :< I y :< Ø, gF ) <- runOpM' (layerOp @r @c @i @h @b) (l  ::< x ::< Ø)
+          (I n2' :< I z :< Ø, gF') <- runOpM' (runOpBS no            ) (n2 ::< y ::< Ø)
+          let gF'' = \case Just (dL :& dN) :< dZ :< Ø -> do
                              I dN2 :< I dY :< Ø <- gF' (Just dN :< dZ       :< Ø)
                              let dY' = tzip (*) mask dY
                              I dL0 :< I dX :< Ø <- gF  (Just dL :< Just dY' :< Ø)

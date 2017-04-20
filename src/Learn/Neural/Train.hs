@@ -15,16 +15,23 @@ module Learn.Neural.Train (
     OptimizerM(..)
   , Optimizer
   , pattern MkO
-  , hoistOptimizer
   , runOptimizer
+  , runOptimizerM
   , runOptimizer_
+  , runOptimizerM_
   , optimizeList
+  , optimizeListM
   , optimizeList_
+  , optimizeListM_
   , optimizeListBatches
+  , optimizeListBatchesM
   , optimizeListBatches_
+  , optimizeListBatchesM_
   , batching
   , sgdOptimizer
+  , sgdOptimizerM
   , adamOptimizer
+  , adamOptimizerM
   , Adam(..)
   , slidingParts
   , slidingPartsSplit
@@ -34,9 +41,9 @@ module Learn.Neural.Train (
   ) where
 
 
-import           Data.Bifunctor
+-- import           Data.Bifunctor
+-- import           Data.Foldable
 import           Data.Default
-import           Data.Foldable
 import           Data.Kind
 import           Data.List hiding        ((\\))
 import           Data.List.Split
@@ -66,13 +73,6 @@ pattern MkO :: s -> (a -> p -> p) -> (p -> p -> s -> (p, s)) -> Optimizer a p
 pattern MkO s g u <- MkOM s (\g' x -> getI . g' x -> g) (\u' x y -> getI . u' x y -> u)
   where
     MkO s g u = MkOM s (\x -> I . g x) (\x y -> I . u x y)
-
-hoistOptimizer
-    :: (forall x. m x -> n x)
-    -> OptimizerM m a p
-    -> OptimizerM n a p
-hoistOptimizer f = \case
-    MkOM s g u -> MkOM s (\x -> f . g x) (\x y -> f . u x y)
 
 runOptimizer
     :: a
@@ -197,7 +197,7 @@ sgdOptimizer
     -> (forall s. OpB s (p ': as) bs)
     -> LossFunction bs c
     -> Optimizer (Tuple as, Tuple bs) p
-sgdOptimizer r run l = sgdOptimizerM r (return (OpBS run)) l
+sgdOptimizer r run = sgdOptimizerM r (return (OpBS run))
 
 sgdOptimizerM
     :: forall m p as bs c. (Fractional p, Num c, Every Num as, Every Num bs, Known Length as, Monad m)
@@ -238,19 +238,27 @@ adamOptimizer
     -> (forall s. OpB s (p ': as) bs)
     -> LossFunction bs c
     -> Optimizer (Tuple as, Tuple bs) p
-adamOptimizer Adam{..} run l = MkO s0 g u
+adamOptimizer a run = adamOptimizerM a (return (OpBS run))
+
+adamOptimizerM
+    :: forall m p as bs c. (Floating p, Num c, Every Num as, Every Num bs, Known Length as, Monad m)
+    => Adam
+    -> m (OpBS (p ': as) bs)
+    -> LossFunction bs c
+    -> OptimizerM m (Tuple as, Tuple bs) p
+adamOptimizerM Adam{..} run l = MkOM s0 g u
   where
     s0 :: (Double, p, p)
     s0 = (1, 0, 0)
-    g :: (Tuple as, Tuple bs) -> p -> p
-    g (xs, ts) p = getI . head' $ gradBPOp o (p ::< xs)
-      where
-        o :: BPOp s (p ': as) '[ c ]
-        o = withInps $ \inps -> do
-              ys <- run ~$$ inps
+    g :: (Tuple as, Tuple bs) -> p -> m p
+    g (xs, ts) p = flip fmap run $ \(o0 :: OpBS (p ': as) bs) ->
+        let o :: BPOp s (p ': as) '[ c ]
+            o = withInps $ \inps -> do
+              ys <- runOpBS o0 ~$$ inps
               only <$> (l ts ~$ ys)
-    u :: p -> p -> (Double, p, p) -> (p, (Double, p, p))
-    u p0 gr (t, m0, v0) = (p1, (t + 1, m1, v1))
+        in  getI . head' $ gradBPOp o (p ::< xs)
+    u :: p -> p -> (Double, p, p) -> m (p, (Double, p, p))
+    u p0 gr (t, m0, v0) = return (p1, (t + 1, m1, v1))
       where
         m1, v1 :: p
         m1 = ad1 * m0 + ad1' * gr
