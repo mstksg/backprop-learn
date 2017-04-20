@@ -43,8 +43,7 @@ data NetworkDO :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> T
 
 data Dropout :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> Type where
     DOExt
-        :: !Double
-        -> Dropout r b (i :~ c) '[] o
+        :: Dropout r b (i :~ c) '[] o
     (:&%)
         :: (Num (b h), SingI h)
         => !Double
@@ -69,7 +68,7 @@ konstDO s0 x = go s0
   where
     go :: NetStruct r b j js o -> Dropout r b j js o
     go = \case
-      NSExt   -> DOExt x
+      NSExt   -> DOExt
       NSInt s -> x :&% go s
 
 konstDO'
@@ -87,7 +86,7 @@ mapDO f = go
   where
     go :: Dropout r b j js o -> Dropout r b j js o
     go = \case
-      DOExt x -> DOExt (f x)
+      DOExt   -> DOExt
       x :&% d -> f x :&% go d
       
 zipDO
@@ -100,8 +99,8 @@ zipDO f = go
   where
     go :: Dropout r b j js o -> Dropout r b j js o -> Dropout r b j js o
     go = \case
-      DOExt x -> \case
-        DOExt y -> DOExt (f x y)
+      DOExt -> \case
+        DOExt -> DOExt
       x :&% dx -> \case
         y :&% dy -> f x y :&% go dx dy
       
@@ -111,20 +110,17 @@ netOpDO
     -> Gen (PrimState m)
     -> m (OpBS '[ Network r b (i :~ c) hs o, b i ] '[ Network r b (i :~ c) hs o, b o ])
 netOpDO = \case
-    DOExt r -> \g -> do
-      mask <- genA @b (sing @_ @o) $ \_ -> bool (1 / (1 - realToFrac r)) 0 <$> bernoulli r g
-      return $ OpBS $ OpM $ \(I n :< I x :< Ø) -> case n of
-        NetExt (l :: Layer r c b i o) -> do
-          (I l' :< I y :< Ø, gF) <- runOpM' (layerOp @r @c @i @o @b) (l ::< x ::< Ø)
-          let y' = tzip (*) mask y
-              gF' = fmap (\case I dL :< I dX :< Ø -> NetExt dL ::< dX ::< Ø)
-                  . gF
-                  . (\case Just (NetExt dL) :< dY :< Ø ->
-                             Just dL :< Just (maybe mask (tzip (*) mask) dY) :< Ø
-                           Nothing          :< dY :< Ø ->
-                             Nothing :< Just (maybe mask (tzip (*) mask) dY) :< Ø
-                    )
-          return (NetExt l' ::< y' ::< Ø, gF')
+    DOExt -> \_ -> return $ OpBS $ OpM $ \(I n :< I x :< Ø) -> case n of
+      NetExt (l :: Layer r c b i o) -> do
+        (I l' :< I y :< Ø, gF) <- runOpM' (layerOp @r @c @i @o @b) (l ::< x ::< Ø)
+        let gF' = fmap (\case I dL :< I dX :< Ø -> NetExt dL ::< dX ::< Ø)
+                . gF
+                . (\case Just (NetExt dL) :< dY :< Ø ->
+                           Just dL :< dY :< Ø
+                         Nothing          :< dY :< Ø ->
+                           Nothing :< dY :< Ø
+                  )
+        return (NetExt l' ::< y ::< Ø, gF')
     r :&% (d :: Dropout r b (h :~ d) js o) -> \g -> do
       mask <- genA @b (sing @_ @h) $ \_ -> bool (1 / (1 - realToFrac r)) 0 <$> bernoulli r g
       no :: OpBS '[ Network r b (h :~ d) js o, b h ] '[ Network r b (h :~ d) js o, b o ]
