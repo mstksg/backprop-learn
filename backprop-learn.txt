@@ -369,6 +369,7 @@ initDefNet :: (PrimMonad m, BLAS b, SingI i, SingI o, Known (NetStruct r b (i :~
 data SomeNet :: RunMode -> ([Nat] -> Type) -> [Nat] -> [Nat] -> Type
 [SomeNet] :: NetStruct r b (i :~ c) hs o -> Network r b (i :~ c) hs o -> SomeNet r b i o
 someNet :: Known (NetStruct r b (i :~ c) hs) o => Network r b (i :~ c) hs o -> SomeNet r b i o
+withSomeNet :: SomeNet r b i o -> (forall c hs. NetStruct r b (i :~ c) hs o -> Network r b (i :~ c) hs o -> q) -> q
 takeNet :: forall i c hs h d js o r b. NetStruct r b (i :~ c) hs h -> Network r b (i :~ c) (hs ++ ((h :~ d) : js)) o -> Network r b (i :~ c) hs h
 dropNet :: forall i c hs h d js o r b. NetStruct r b (i :~ c) hs h -> Network r b (i :~ c) (hs ++ ((h :~ d) : js)) o -> Network r b (h :~ d) js o
 splitNet :: forall i c hs h d js o r b. NetStruct r b (i :~ c) hs h -> Network r b (i :~ c) (hs ++ ((h :~ d) : js)) o -> (Network r b (i :~ c) hs h, Network r b (h :~ d) js o)
