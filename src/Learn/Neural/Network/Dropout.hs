@@ -1,15 +1,19 @@
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE GADTs               #-}
-{-# LANGUAGE KindSignatures      #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE Strict              #-}
-{-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE TypeInType          #-}
-{-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE FlexibleContexts     #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE GADTs                #-}
+{-# LANGUAGE KindSignatures       #-}
+{-# LANGUAGE LambdaCase           #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE Strict               #-}
+{-# LANGUAGE TypeApplications     #-}
+{-# LANGUAGE TypeInType           #-}
+{-# LANGUAGE TypeOperators        #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Learn.Neural.Network.Dropout (
     Dropout(..)
+  , konstDO, mapDO, zipDO
   , NetworkDO(..)
   , netOpDO
   ) where
@@ -29,6 +33,7 @@ import           Numeric.Backprop
 import           Numeric.Backprop.Op
 import           System.Random.MWC
 import           System.Random.MWC.Distributions
+import           Type.Class.Known
 
 data NetworkDO :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> Type where
     NDO :: { ndoDropout :: !(Dropout r b i hs o)
@@ -46,6 +51,54 @@ data Dropout :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> Typ
         -> !(Dropout r b (h :~ d) hs o)
         -> Dropout r b (i :~ c) ((h :~ d) ': hs) o
 
+instance Known (NetStruct r b (i :~ c) hs) o => Num (Dropout r b (i :~ c) hs o) where
+    (+) = zipDO (+)
+    (-) = zipDO (-)
+    (*) = zipDO (*)
+    negate = mapDO negate
+    signum = mapDO signum
+    abs    = mapDO abs
+    fromInteger = konstDO known . fromInteger
+
+konstDO
+    :: forall r b i hs o. ()
+    => NetStruct r b i hs o
+    -> Double
+    -> Dropout r b i hs o
+konstDO s0 x = go s0
+  where
+    go :: NetStruct r b j js o -> Dropout r b j js o
+    go = \case
+      NSExt   -> DOExt x
+      NSInt s -> x :&% go s
+
+mapDO
+    :: forall r b i hs o. ()
+    => (Double -> Double)
+    -> Dropout r b i hs o
+    -> Dropout r b i hs o
+mapDO f = go
+  where
+    go :: Dropout r b j js o -> Dropout r b j js o
+    go = \case
+      DOExt x -> DOExt (f x)
+      x :&% d -> f x :&% go d
+      
+zipDO
+    :: forall r b i hs o. ()
+    => (Double -> Double -> Double)
+    -> Dropout r b i hs o
+    -> Dropout r b i hs o
+    -> Dropout r b i hs o
+zipDO f = go
+  where
+    go :: Dropout r b j js o -> Dropout r b j js o -> Dropout r b j js o
+    go = \case
+      DOExt x -> \case
+        DOExt y -> DOExt (f x y)
+      x :&% dx -> \case
+        y :&% dy -> f x y :&% go dx dy
+      
 netOpDO
     :: forall m b i c hs o r. (BLAS b, Num (b i), Num (b o), PrimMonad m, SingI o)
     => Dropout r b (i :~ c) hs o
