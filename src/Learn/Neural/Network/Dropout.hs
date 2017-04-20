@@ -13,9 +13,9 @@
 
 module Learn.Neural.Network.Dropout (
     Dropout(..)
-  , konstDO, mapDO, zipDO
   , NetworkDO(..)
   , netOpDO
+  , konstDO, konstDO', mapDO, zipDO
   ) where
 
 
@@ -58,7 +58,7 @@ instance Known (NetStruct r b (i :~ c) hs) o => Num (Dropout r b (i :~ c) hs o) 
     negate = mapDO negate
     signum = mapDO signum
     abs    = mapDO abs
-    fromInteger = konstDO known . fromInteger
+    fromInteger = konstDO' . fromInteger
 
 konstDO
     :: forall r b i hs o. ()
@@ -71,6 +71,12 @@ konstDO s0 x = go s0
     go = \case
       NSExt   -> DOExt x
       NSInt s -> x :&% go s
+
+konstDO'
+    :: forall r b i hs o. Known (NetStruct r b i hs) o
+    => Double
+    -> Dropout r b i hs o
+konstDO' = konstDO known
 
 mapDO
     :: forall r b i hs o. ()
