@@ -32,18 +32,19 @@ import           System.Random.MWC
 import           System.Random.MWC.Distributions
 
 data NetworkDO :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> Type where
-    NDO :: Dropout r b i hs o
-        -> Network r b i hs o
+    NDO :: { ndoDropout :: !(Dropout r b i hs o)
+           , ndoNetwork :: !(Network r b i hs o)
+           }
         -> NetworkDO r b i hs o
 
 data Dropout :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> Type where
     DOExt
-        :: Double
+        :: !Double
         -> Dropout r b (i :~ c) '[] o
     (:&%)
         :: (Num (b h), SingI h)
-        => Double
-        -> Dropout r b (h :~ d) hs o
+        => !Double
+        -> !(Dropout r b (h :~ d) hs o)
         -> Dropout r b (i :~ c) ((h :~ d) ': hs) o
 
 netOpDO
