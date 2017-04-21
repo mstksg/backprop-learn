@@ -17,7 +17,6 @@ import           Data.List.Split
 import           Data.Time.Clock
 import           Data.Traversable
 import           Data.Tuple
-import           Data.Type.Combinator
 import           Data.Type.Product
 import           Learn.Neural
 import           Numeric.BLAS.HMatrix
@@ -58,6 +57,12 @@ main = MWC.withSystemRandom $ \g -> do
                                     , '[10 ] :~ SoftMax '[10]
                                     ]
                                     '[10] <- initDefNet g
+    let dout = alongNet net0 $ Nothing
+                           :&% Just 0.2
+                           :&% Nothing
+                           :&% Just 0.2
+                           :&% Nothing
+                           :&% DOExt
     flip evalStateT net0 . forM_ [1..] $ \e -> do
       train' <- liftIO . fmap V.toList $ MWC.uniformShuffle (V.fromList train) g
       liftIO $ printf "[Epoch %d]\n" (e :: Int)
@@ -66,9 +71,11 @@ main = MWC.withSystemRandom $ \g -> do
         printf "(Batch %d)\n" (b :: Int)
 
         t0 <- getCurrentTime
-        n' <- evaluate $ optimizeList_ (bimap only_ only_ <$> chnk) n0
-                                       -- (sgdOptimizer rate netOpPure crossEntropy)
-                                       (adamOptimizer def netOpPure crossEntropy)
+        -- n' <- evaluate $ optimizeList_ (bimap only_ only_ <$> chnk) n0
+        --                                -- (sgdOptimizer rate netOpPure crossEntropy)
+        --                                (adamOptimizer def netOpPure crossEntropy)
+        n' <- optimizeListM_ (bimap only_ only_ <$> chnk) n0
+                             (adamOptimizerM def (netOpDOPure dout g) crossEntropy)
         t1 <- getCurrentTime
         printf "Trained on %d points in %s.\n" batch (show (t1 `diffUTCTime` t0))
 
@@ -79,7 +86,7 @@ main = MWC.withSystemRandom $ \g -> do
 
         return ((), n')
   where
-    rate :: Double
-    rate  = 0.02
+    -- rate :: Double
+    -- rate  = 0.02
     batch :: Int
     batch = 5000

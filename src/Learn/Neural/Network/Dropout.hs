@@ -15,7 +15,9 @@ module Learn.Neural.Network.Dropout (
     Dropout(..)
   , NetworkDO(..)
   , netOpDO
-  , konstDO, konstDO', mapDO, zipDO
+  , netOpDOPure
+  , konstDO, konstDO', mapDO, mapDO'
+  , alongNet
   ) where
 
 
@@ -23,6 +25,7 @@ import           Control.Monad.Primitive
 import           Data.Bool
 import           Data.Kind
 import           Data.Singletons
+import           Data.Traversable
 import           Data.Type.Combinator
 import           Data.Type.Product
 import           GHC.TypeLits
@@ -63,25 +66,22 @@ data Dropout :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> Typ
         :: Dropout r b (i :~ c) '[] o
     (:&%)
         :: (Num (b h), SingI h)
-        => !Double
+        => !(Maybe Double)
         -> !(Dropout r b (h :~ d) hs o)
         -> Dropout r b (i :~ c) ((h :~ d) ': hs) o
 
 infixr 4 :&%
 
-instance Known (NetStruct r b (i :~ c) hs) o => Num (Dropout r b (i :~ c) hs o) where
-    (+) = zipDO (+)
-    (-) = zipDO (-)
-    (*) = zipDO (*)
-    negate = mapDO negate
-    signum = mapDO signum
-    abs    = mapDO abs
-    fromInteger = konstDO' . fromInteger
+alongNet
+    :: n r b i hs o
+    -> Dropout r b i hs o
+    -> Dropout r b i hs o
+alongNet _ d = d
 
 konstDO
     :: forall r b i hs o. ()
     => NetStruct r b i hs o
-    -> Double
+    -> Maybe Double
     -> Dropout r b i hs o
 konstDO s0 x = go s0
   where
@@ -92,7 +92,7 @@ konstDO s0 x = go s0
 
 konstDO'
     :: forall r b i hs o. Known (NetStruct r b i hs) o
-    => Double
+    => Maybe Double
     -> Dropout r b i hs o
 konstDO' = konstDO known
 
@@ -106,22 +106,19 @@ mapDO f = go
     go :: Dropout r b j js o -> Dropout r b j js o
     go = \case
       DOExt   -> DOExt
-      x :&% d -> f x :&% go d
+      x :&% d -> fmap f x :&% go d
       
-zipDO
+mapDO'
     :: forall r b i hs o. ()
-    => (Double -> Double -> Double)
+    => (Maybe Double -> Maybe Double)
     -> Dropout r b i hs o
     -> Dropout r b i hs o
-    -> Dropout r b i hs o
-zipDO f = go
+mapDO' f = go
   where
-    go :: Dropout r b j js o -> Dropout r b j js o -> Dropout r b j js o
+    go :: Dropout r b j js o -> Dropout r b j js o
     go = \case
-      DOExt -> \case
-        DOExt -> DOExt
-      x :&% dx -> \case
-        y :&% dy -> f x y :&% go dx dy
+      DOExt   -> DOExt
+      x :&% d -> f x :&% go d
       
 netOpDO
     :: forall m b i c hs o r. (BLAS b, Num (b i), Num (b o), PrimMonad m, SingI o)
@@ -141,7 +138,8 @@ netOpDO = \case
                   )
         return (NetExt l' ::< y ::< Ø, gF')
     r :&% (d :: Dropout r b (h :~ d) js o) -> \g -> do
-      mask <- genA @b (sing @_ @h) $ \_ -> bool (1 / (1 - realToFrac r)) 0 <$> bernoulli r g
+      mask <- forM r $ \r' ->
+        genA @b (sing @_ @h) $ \_ -> bool (1 / (1 - realToFrac r')) 0 <$> bernoulli r' g
       no :: OpBS '[ Network r b (h :~ d) js o, b h ] '[ Network r b (h :~ d) js o, b o ]
             <- netOpDO @m @b @h @d @js @o @r d g
       return $ OpBS $ OpM $ \(I n :< I x :< Ø) -> case n of
@@ -150,12 +148,40 @@ netOpDO = \case
           (I n2' :< I z :< Ø, gF') <- runOpM' (runOpBS no            ) (n2 ::< y ::< Ø)
           let gF'' = \case Just (dL :& dN) :< dZ :< Ø -> do
                              I dN2 :< I dY :< Ø <- gF' (Just dN :< dZ       :< Ø)
-                             let dY' = tzip (*) mask dY
+                             let dY' = maybe dY (tzip (*) dY) mask
                              I dL0 :< I dX :< Ø <- gF  (Just dL :< Just dY' :< Ø)
                              return $ (dL0 :& dN2) ::< dX ::< Ø
                            Nothing         :< dZ :< Ø -> do
                              I dN2 :< I dY :< Ø <- gF' (Nothing :< dZ       :< Ø)
-                             let dY' = tzip (*) mask dY
+                             let dY' = maybe dY (tzip (*) dY) mask
                              I dL0 :< I dX :< Ø <- gF  (Nothing :< Just dY' :< Ø)
                              return $ (dL0 :& dN2) ::< dX ::< Ø
           return ((l' :& n2') ::< z ::< Ø, gF'')
+
+netOpDOPure
+    :: forall m b i c hs o. (BLAS b, Num (b i), Num (b o), PrimMonad m, SingI o)
+    => Dropout 'FeedForward b (i :~ c) hs o
+    -> Gen (PrimState m)
+    -> m (OpBS '[ Network 'FeedForward b (i :~ c) hs o, b i ] '[ b o ])
+netOpDOPure = \case
+    DOExt -> \_ -> return $ OpBS $ OpM $ \(I n :< I x :< Ø) -> case n of
+      NetExt (l :: Layer 'FeedForward c b i o) -> do
+        (I y :< Ø, gF) <- runOpM' (layerOpPure @c @i @o @b) (l ::< x ::< Ø)
+        let gF' = fmap (\case I dL :< I dX :< Ø -> NetExt dL ::< dX ::< Ø)
+                . gF
+        return (y ::< Ø, gF')
+    r :&% (d :: Dropout 'FeedForward b (h :~ d) js o) -> \g -> do
+      mask <- forM r $ \r' ->
+        genA @b (sing @_ @h) $ \_ -> bool (1 / (1 - realToFrac r')) 0 <$> bernoulli r' g
+      no :: OpBS '[ Network 'FeedForward b (h :~ d) js o, b h ] '[ b o ]
+            <- netOpDOPure @m @b @h @d @js @o d g
+      return $ OpBS $ OpM $ \(I n :< I x :< Ø) -> case n of
+        (l :: Layer 'FeedForward c b i h) :& (n2 :: Network 'FeedForward b (h ':~ d) js o) -> do
+          (I y :< Ø, gF ) <- runOpM' (layerOpPure @c @i @h @b) (l  ::< x ::< Ø)
+          (I z :< Ø, gF') <- runOpM' (runOpBS no             ) (n2 ::< y ::< Ø)
+          let gF'' dZ = do
+                I dN2 :< I dY :< Ø <- gF' dZ
+                let dY' = maybe dY (tzip (*) dY) mask
+                I dL0 :< I dX :< Ø <- gF (Just dY' :< Ø)
+                return $ (dL0 :& dN2) ::< dX ::< Ø
+          return (z ::< Ø, gF'')
