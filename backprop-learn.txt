@@ -402,15 +402,16 @@ module Learn.Neural.Network.Dropout
 --   possible to have dropout before the first layer, after the input.
 data Dropout :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> Type
 [DOExt] :: Dropout r b (i :~ c) '[] o
-[:&%] :: (Num (b h), SingI h) => !Double -> !(Dropout r b (h :~ d) hs o) -> Dropout r b (i :~ c) ((h :~ d) : hs) o
+[:&%] :: (Num (b h), SingI h) => !(Maybe Double) -> !(Dropout r b (h :~ d) hs o) -> Dropout r b (i :~ c) ((h :~ d) : hs) o
 data NetworkDO :: RunMode -> ([Nat] -> Type) -> LChain -> [LChain] -> [Nat] -> Type
 [NDO] :: {ndoDropout :: !(Dropout r b i hs o), ndoNetwork :: !(Network r b i hs o)} -> NetworkDO r b i hs o
 netOpDO :: forall m b i c hs o r. (BLAS b, Num (b i), Num (b o), PrimMonad m, SingI o) => Dropout r b (i :~ c) hs o -> Gen (PrimState m) -> m (OpBS '[Network r b (i :~ c) hs o, b i] '[Network r b (i :~ c) hs o, b o])
-konstDO :: forall r b i hs o. NetStruct r b i hs o -> Double -> Dropout r b i hs o
-konstDO' :: forall r b i hs o. Known (NetStruct r b i hs) o => Double -> Dropout r b i hs o
+netOpDOPure :: forall m b i c hs o. (BLAS b, Num (b i), Num (b o), PrimMonad m, SingI o) => Dropout FeedForward b (i :~ c) hs o -> Gen (PrimState m) -> m (OpBS '[Network FeedForward b (i :~ c) hs o, b i] '[b o])
+konstDO :: forall r b i hs o. NetStruct r b i hs o -> Maybe Double -> Dropout r b i hs o
+konstDO' :: forall r b i hs o. Known (NetStruct r b i hs) o => Maybe Double -> Dropout r b i hs o
 mapDO :: forall r b i hs o. (Double -> Double) -> Dropout r b i hs o -> Dropout r b i hs o
-zipDO :: forall r b i hs o. (Double -> Double -> Double) -> Dropout r b i hs o -> Dropout r b i hs o -> Dropout r b i hs o
-instance Type.Class.Known.Known (Learn.Neural.Network.NetStruct r b (i Learn.Neural.Network.:~ c) hs) o => GHC.Num.Num (Learn.Neural.Network.Dropout.Dropout r b (i Learn.Neural.Network.:~ c) hs o)
+mapDO' :: forall r b i hs o. (Maybe Double -> Maybe Double) -> Dropout r b i hs o -> Dropout r b i hs o
+alongNet :: n r b i hs o -> Dropout r b i hs o -> Dropout r b i hs o
 
 module Learn.Neural.Test
 type TestFunc o = forall b. (BLAS b, Num (b o)) => b o -> b o -> Double
