@@ -61,7 +61,7 @@ instance forall k (f :: k -> GHC.Types.Type). Type.Class.Known.Known (Numeric.Te
 instance forall a (f :: a -> GHC.Types.Type) (as :: [a]) (bs :: [a]) (a1 :: a) (b :: a). (Type.Class.Known.Known (Numeric.Tensor.DoubleProd f as) bs, Type.Class.Known.Known f a1, Type.Class.Known.Known f b) => Type.Class.Known.Known (Numeric.Tensor.DoubleProd f (a1 : as)) (b : bs)
 
 module Numeric.BLAS
-class Tensor b => BLAS (b :: [Nat] -> Type)
+class Tensor b => BLAS (b :: [Nat] -> Type) where syr α x a = ger α x x a syrk α a c = gemm α a (transp a) c
 transp :: (BLAS b, KnownNat m, KnownNat n) => b '[m, n] -> b '[n, m]
 scal :: (BLAS b, KnownNat n) => Scalar b -> b '[n] -> b '[n]
 axpy :: (BLAS b, KnownNat n) => Scalar b -> b '[n] -> b '[n] -> b '[n]
@@ -71,9 +71,9 @@ asum :: (BLAS b, KnownNat n) => b '[n] -> Scalar b
 iamax :: (BLAS b, KnownNat n) => b '[n] -> Finite n
 gemv :: (BLAS b, KnownNat m, KnownNat n) => Scalar b -> b '[m, n] -> b '[n] -> Maybe (Scalar b, b '[m]) -> b '[m]
 ger :: (BLAS b, KnownNat m, KnownNat n) => Scalar b -> b '[m] -> b '[n] -> Maybe (b '[m, n]) -> b '[m, n]
-syr :: (BLAS b, KnownNat n) => Scalar b -> b '[n] -> b '[n, n] -> b '[n, n]
+syr :: (BLAS b, KnownNat n) => Scalar b -> b '[n] -> Maybe (b '[n, n]) -> b '[n, n]
 gemm :: (BLAS b, KnownNat m, KnownNat o, KnownNat n) => Scalar b -> b '[m, o] -> b '[o, n] -> Maybe (Scalar b, b '[m, n]) -> b '[m, n]
-syrk :: (BLAS b, KnownNat m, KnownNat n) => Scalar b -> b '[m, n] -> Scalar b -> b '[m, m] -> b '[m, m]
+syrk :: (BLAS b, KnownNat m, KnownNat n) => Scalar b -> b '[m, n] -> Maybe (Scalar b, b '[m, m]) -> b '[m, m]
 matVec :: (KnownNat m, KnownNat n, BLAS b) => b '[m, n] -> b '[n] -> b '[m]
 vecMat :: (KnownNat m, KnownNat n, BLAS b) => b '[m] -> b '[m, n] -> b '[n]
 outer :: (KnownNat m, KnownNat n, BLAS b) => b '[m] -> b '[n] -> b '[m, n]
@@ -444,3 +444,4 @@ newtype NV :: [Nat] -> Type
 [NV] :: {getNV :: NV' b} -> NV b
 instance GHC.Generics.Generic (Numeric.BLAS.NVector.NV a)
 instance Numeric.Tensor.Tensor Numeric.BLAS.NVector.NV
+instance Numeric.BLAS.BLAS Numeric.BLAS.NVector.NV

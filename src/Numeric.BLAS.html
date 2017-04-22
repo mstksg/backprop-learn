@@ -96,10 +96,11 @@
         -&gt; b '[m, n]  -- ^ x y' + A
 
     syr :: KnownNat n
-        =&gt; Scalar b     -- ^ &#945;
-        -&gt; b '[n]    -- ^ x
-        -&gt; b '[n, n]  -- ^ A
-        -&gt; b '[n, n]  -- ^ x x' + A
+        =&gt; Scalar b           -- ^ &#945;
+        -&gt; b '[n]             -- ^ x
+        -&gt; Maybe (b '[n, n])  -- ^ A
+        -&gt; b '[n, n]          -- ^ x x' + A
+    syr &#945; x a = ger &#945; x x a
 
     -- Level 3
     gemm
@@ -114,9 +115,9 @@
         :: (KnownNat m, KnownNat n)
         =&gt; Scalar b     -- ^ &#945;
         -&gt; b '[m, n]  -- ^ A
-        -&gt; Scalar b     -- ^ &#946;
-        -&gt; b '[m, m]  -- ^ C
+        -&gt; Maybe (Scalar b, b '[m, m])  -- ^ &#946;, C
         -&gt; b '[m, m]  -- ^ &#945; A A' + &#946; C
+    syrk &#945; a c = gemm &#945; a (transp a) c
 
 matVec
     :: (KnownNat m, KnownNat n, BLAS b)
