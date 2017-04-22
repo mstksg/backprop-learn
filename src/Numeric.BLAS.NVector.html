@@ -1,0 +1,161 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DataKinds              #-}</span><span>
+</span><a name="line-2"></a><span class="hs-pragma">{-# LANGUAGE DeriveGeneric          #-}</span><span>
+</span><a name="line-3"></a><span class="hs-pragma">{-# LANGUAGE GADTs                  #-}</span><span>
+</span><a name="line-4"></a><span class="hs-pragma">{-# LANGUAGE InstanceSigs           #-}</span><span>
+</span><a name="line-5"></a><span class="hs-pragma">{-# LANGUAGE KindSignatures         #-}</span><span>
+</span><a name="line-6"></a><span class="hs-pragma">{-# LANGUAGE LambdaCase             #-}</span><span>
+</span><a name="line-7"></a><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables    #-}</span><span>
+</span><a name="line-8"></a><span class="hs-pragma">{-# LANGUAGE TypeApplications       #-}</span><span>
+</span><a name="line-9"></a><span class="hs-pragma">{-# LANGUAGE TypeFamilyDependencies #-}</span><span>
+</span><a name="line-10"></a><span class="hs-pragma">{-# LANGUAGE TypeInType             #-}</span><span>
+</span><a name="line-11"></a><span class="hs-pragma">{-# LANGUAGE TypeOperators          #-}</span><span>
+</span><a name="line-12"></a><span>
+</span><a name="line-13"></a><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">BLAS</span><span class="hs-operator">.</span><span class="hs-identifier">NVector</span><span> </span><span class="hs-special">(</span><span>
+</span><a name="line-14"></a><span>    </span><a href="Numeric.BLAS.NVector.html#NV"><span class="hs-identifier hs-type">NV</span></a><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><a name="line-15"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="Numeric.BLAS.NVector.html#NV%27"><span class="hs-identifier hs-type">NV'</span></a><span>
+</span><a name="line-16"></a><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-17"></a><span>
+</span><a name="line-18"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Control</span><span class="hs-operator">.</span><span class="hs-identifier">Monad</span><span>
+</span><a name="line-19"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Control</span><span class="hs-operator">.</span><span class="hs-identifier">Monad</span><span class="hs-operator">.</span><span class="hs-identifier">Trans</span><span class="hs-operator">.</span><span class="hs-identifier">State</span><span>
+</span><a name="line-20"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Kind</span><span>
+</span><a name="line-21"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Maybe</span><span>
+</span><a name="line-22"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Monoid</span><span> </span><span class="hs-keyword">hiding</span><span>         </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Product</span><span class="hs-special">)</span><span>
+</span><a name="line-23"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Singletons</span><span>
+</span><a name="line-24"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Singletons</span><span class="hs-operator">.</span><span class="hs-identifier">Prelude</span><span>
+</span><a name="line-25"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Singletons</span><span class="hs-operator">.</span><span class="hs-identifier">TypeLits</span><span>
+</span><a name="line-26"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Type</span><span class="hs-operator">.</span><span class="hs-identifier">Product</span><span>
+</span><a name="line-27"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">GHC</span><span class="hs-operator">.</span><span class="hs-identifier">Generics</span><span>               </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Generic</span><span class="hs-special">)</span><span>
+</span><a name="line-28"></a><span class="hs-keyword">import</span><span>           </span><a href="Numeric.Tensor.html"><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Tensor</span></a><span>
+</span><a name="line-29"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Vector</span><span>                </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">UV</span><span>
+</span><a name="line-30"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Vector</span><span class="hs-operator">.</span><span class="hs-identifier">Sized</span><span>          </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">V</span><span>
+</span><a name="line-31"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Vector</span><span class="hs-operator">.</span><span class="hs-identifier">Storable</span><span>       </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">UVS</span><span>
+</span><a name="line-32"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Vector</span><span class="hs-operator">.</span><span class="hs-identifier">Storable</span><span class="hs-operator">.</span><span class="hs-identifier">Sized</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">VS</span><span>
+</span><a name="line-33"></a><span>
+</span><a name="line-34"></a><span>
+</span><a name="line-35"></a><span class="hs-keyword">type</span><span> </span><span class="hs-keyword">family</span><span> </span><a name="NV%27"><a href="Numeric.BLAS.NVector.html#NV%27"><span class="hs-identifier">NV'</span></a></a><span> </span><span class="hs-special">(</span><a name="local-6989586621679687948"><a href="#local-6989586621679687948"><span class="hs-identifier">s</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-identifier hs-type">Nat</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><a name="local-6989586621679687949"><a href="#local-6989586621679687949"><span class="hs-identifier">h</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Type</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">h</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">s</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-36"></a><span>    </span><span class="hs-identifier">NV'</span><span> </span><span class="hs-char">'[]       = Double
+    NV' (n ': ns) = V.Vector n (NV' ns)
+
+newtype NV :: [Nat] -&gt; Type where
+    NV  :: { getNV :: NV' b }
+        -&gt; NV b
+  deriving (Generic)
+
+genNV :: Sing ns -&gt; (Prod Finite ns -&gt; Double) -&gt; NV' ns
+genNV = \case
+    SNil -&gt; \f -&gt; f &#216;
+    SNat `SCons` ss -&gt; \f -&gt; V.generate_ $ \i -&gt;
+      genNV ss (f . (i :&lt;))
+
+genNVA
+    :: Applicative f
+    =&gt; Sing ns
+    -&gt; (Prod Finite ns -&gt; f Double)
+    -&gt; f (NV' ns)
+genNVA = \case
+    SNil -&gt; \f -&gt; f &#216;
+    SNat `SCons` ss -&gt; \f -&gt; sequenceA . V.generate_ $ \i -&gt;
+      genNVA ss (f . (i :&lt;))
+
+sumNV
+    :: Sing ns
+    -&gt; NV' ns
+    -&gt; Double
+sumNV = \case
+    SNil -&gt; id
+    _ `SCons` ss -&gt; V.sum . fmap (sumNV ss)
+
+mapNV
+    :: Sing ns
+    -&gt; (Double -&gt; Double)
+    -&gt; NV' ns
+    -&gt; NV' ns
+mapNV = \case
+    SNil -&gt; id
+    _ `SCons` ss -&gt; \f -&gt; fmap (mapNV ss f)
+
+zipNV
+    :: Sing ns
+    -&gt; (Double -&gt; Double -&gt; Double)
+    -&gt; NV' ns
+    -&gt; NV' ns
+    -&gt; NV' ns
+zipNV = \case
+    SNil -&gt; id
+    _ `SCons` ss -&gt; \f -&gt; V.zipWith (zipNV ss f)
+
+indexNV
+    :: Sing ns
+    -&gt; Prod Finite ns
+    -&gt; NV' ns
+    -&gt; Double
+indexNV = \case
+    SNil -&gt; \case
+      &#216; -&gt; id
+    SNat `SCons` ss -&gt; \case
+      i :&lt; is -&gt; indexNV ss is . flip V.index i
+
+loadNV
+    :: Sing ns
+    -&gt; V.Vector (Product ns) Double
+    -&gt; NV' ns
+loadNV = \case
+    SNil -&gt; V.head
+    sn@SNat `SCons` ss -&gt; case sProduct ss of
+      sp@SNat -&gt; fromJust
+               . V.fromList
+               . evalState (replicateM (fromInteger (fromSing sn)) (
+                              loadNV ss . fromJust . V.toSized
+                                &lt;$&gt; state (UV.splitAt (fromInteger (fromSing sp)))
+                           ))
+               . V.fromSized
+
+nvElems
+    :: Sing ns
+    -&gt; NV' ns
+    -&gt; [Double]
+nvElems s n = appEndo (go s n) []
+  where
+    go :: Sing ms -&gt; NV' ms -&gt; Endo [Double]
+    go = \case
+      SNil -&gt; \x   -&gt; Endo (x:)
+      _ `SCons` ss -&gt; foldMap (go ss)
+
+sliceNV
+    :: ProdMap Slice ns ms
+    -&gt; NV' ns
+    -&gt; NV' ms
+sliceNV = \case
+    PMZ -&gt; id
+    PMS (Slice sL sC@SNat _) pms -&gt;
+      let l = fromIntegral $ fromSing sL
+          c = fromIntegral $ fromSing sC
+      in  fmap (sliceNV pms)
+            . fromJust . V.toSized
+            . UV.take c
+            . UV.drop l
+            . V.fromSized
+
+instance Tensor NV where
+    type Scalar NV = Double
+
+    gen s  = NV . genNV s
+    genA s = fmap NV . genNVA s
+    tsum   = sumNV sing . getNV
+    tmap f = NV . mapNV sing f . getNV
+    tzip f xs ys = NV $ zipNV sing f (getNV xs) (getNV ys)
+
+    tsize :: forall s. SingI s =&gt; NV s -&gt; Int
+    tsize _ = fromIntegral $ product (fromSing (sing @_ @s))
+
+    tindex i = indexNV sing i . getNV
+
+    tload s = NV . loadNV s
+    textract = withKnownNat (sProduct ss) $
+        fromJust . V.fromList . nvElems ss . getNV
+      where
+        ss = sing
+
+    tslice p = NV . sliceNV p . getNV
+
+</span></pre></body></html>

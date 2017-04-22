@@ -438,3 +438,9 @@ instance Numeric.BLAS.BLAS Numeric.BLAS.HMatrix.HM
 instance Numeric.Tensor.Tensor Numeric.BLAS.HMatrix.HM
 instance Data.Singletons.SingI s => Data.MonoTraversable.MonoFunctor (Numeric.BLAS.HMatrix.HM s)
 instance Data.Singletons.SingI s => Data.MonoTraversable.MonoFoldable (Numeric.BLAS.HMatrix.HM s)
+
+module Numeric.BLAS.NVector
+newtype NV :: [Nat] -> Type
+[NV] :: {getNV :: NV' b} -> NV b
+instance GHC.Generics.Generic (Numeric.BLAS.NVector.NV a)
+instance Numeric.Tensor.Tensor Numeric.BLAS.NVector.NV
