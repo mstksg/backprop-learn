@@ -23,6 +23,8 @@ module Numeric.Tensor (
   , toScalar
   , fromList'
   , fromList
+  , convert, convert'
+  , tlist
   , tmapOp
   , tzipOp
   , tzipNOp
@@ -193,6 +195,12 @@ fromList
 fromList s = case sProduct s of
     SNat -> fmap (tload s) . V.fromList
 
+tlist
+    :: (Tensor t, SingI s)
+    => t s
+    -> [Scalar t]
+tlist = toList . textract
+
 tmapOp
     :: (Tensor t, SingI s)
     => (forall q. AD q (Forward (Scalar t)) -> AD q (Forward (Scalar t)))
@@ -219,7 +227,7 @@ tzipOp f = op2' $ \x y ->
                                        _ :* I dy' :* _ -> dy'
                           ) x y
             in  (dx, dy)
-          Just dz :< Ø -> 
+          Just dz :< Ø ->
             let dx = tzipN (\(I x' :* I y' :* I d :* ØV) ->
                                 case grad f' (x' :+ y' :+ ØV) of
                                   I dx' :* _ :* ØV -> dx' * d
@@ -268,4 +276,17 @@ scaleOp = op2' $ \α x ->
 
 oneHot :: (Tensor t, SingI s) => Prod Finite s -> t s
 oneHot i = gen sing $ \j -> if i `eq1` j then 1 else 0
+
+convert'
+    :: (Tensor t, Tensor t', SingI ns)
+    => (Scalar t -> Scalar t')
+    -> t ns
+    -> t' ns
+convert' f = tload sing . fmap f . textract
+
+convert
+    :: (Tensor t, Tensor t', SingI ns, Scalar t ~ Scalar t')
+    => t ns
+    -> t' ns
+convert = convert' id
 
