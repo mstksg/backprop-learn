@@ -38,6 +38,9 @@ fromScalar :: Tensor t => Scalar t -> t '[]
 toScalar :: Tensor t => t '[] -> Scalar t
 fromList' :: Tensor t => Sing s -> [Scalar t] -> Maybe (t s)
 fromList :: Tensor t => Sing s -> [Scalar t] -> Maybe (t s)
+convert :: (Tensor t, Tensor t', SingI ns, Scalar t ~ Scalar t') => t ns -> t' ns
+convert' :: (Tensor t, Tensor t', SingI ns) => (Scalar t -> Scalar t') -> t ns -> t' ns
+tlist :: (Tensor t, SingI s) => t s -> [Scalar t]
 tmapOp :: (Tensor t, SingI s) => (forall q. AD q (Forward (Scalar t)) -> AD q (Forward (Scalar t))) -> Op '[t s] '[t s]
 tzipOp :: forall t s. (Tensor t, SingI s) => (forall q. Reifies q Tape => Reverse q (Scalar t) -> Reverse q (Scalar t) -> Reverse q (Scalar t)) -> Op '[t s, t s] '[t s]
 tzipNOp :: forall t s n. (Tensor t, SingI s, Known Nat n) => (forall q. Reifies q Tape => Vec n (Reverse q (Scalar t)) -> Reverse q (Scalar t)) -> Op (Replicate n (t s)) '[t s]
