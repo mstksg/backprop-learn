@@ -32,6 +32,7 @@ library
                        Learn.Neural.Train
                        Numeric.BLAS
                        Numeric.BLAS.HMatrix
+                       Numeric.BLAS.NVector
                        Numeric.Tensor
   other-modules:       Data.Type.Util
   build-depends:       base >= 4.7 && < 5

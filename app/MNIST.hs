@@ -89,4 +89,4 @@ main = MWC.withSystemRandom $ \g -> do
     -- rate :: Double
     -- rate  = 0.02
     batch :: Int
-    batch = 5000
+    batch = 2500
