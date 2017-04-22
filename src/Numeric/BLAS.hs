@@ -96,10 +96,11 @@ class Tensor b => BLAS (b :: [Nat] -> Type) where
         -> b '[m, n]  -- ^ x y' + A
 
     syr :: KnownNat n
-        => Scalar b     -- ^ α
-        -> b '[n]    -- ^ x
-        -> b '[n, n]  -- ^ A
-        -> b '[n, n]  -- ^ x x' + A
+        => Scalar b           -- ^ α
+        -> b '[n]             -- ^ x
+        -> Maybe (b '[n, n])  -- ^ A
+        -> b '[n, n]          -- ^ x x' + A
+    syr α x a = ger α x x a
 
     -- Level 3
     gemm
@@ -114,9 +115,9 @@ class Tensor b => BLAS (b :: [Nat] -> Type) where
         :: (KnownNat m, KnownNat n)
         => Scalar b     -- ^ α
         -> b '[m, n]  -- ^ A
-        -> Scalar b     -- ^ β
-        -> b '[m, m]  -- ^ C
+        -> Maybe (Scalar b, b '[m, m])  -- ^ β, C
         -> b '[m, m]  -- ^ α A A' + β C
+    syrk α a c = gemm α a (transp a) c
 
 matVec
     :: (KnownNat m, KnownNat n, BLAS b)

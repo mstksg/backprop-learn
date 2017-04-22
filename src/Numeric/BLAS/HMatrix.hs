@@ -32,6 +32,7 @@ import           Data.Function
 import           Data.Kind
 import           Data.Maybe
 import           Data.MonoTraversable
+import           Data.Monoid                  (Endo(..))
 import           Data.Singletons
 import           Data.Singletons.Prelude
 import           Data.Singletons.TypeLits
@@ -79,11 +80,9 @@ instance BLAS HM where
     ger  α (HM x) (HM y) = \case
         Just (HM a) -> HM (konst α * outer x y + a)
         Nothing     -> HM (konst α * outer x y)
-    syr  α (HM x) (HM a)          = HM (konst α * outer x x + a)
     gemm α (HM a) (HM b) = \case
         Just (β, HM c) -> HM (konst α * (a <> b) + konst β * c)
         Nothing        -> HM (konst α * (a <> b))
-    syrk α (HM a) β (HM c)        = HM (konst α * (a <> tr a) + konst β * c)
 
 instance Tensor HM where
     type Scalar  HM = Double
@@ -402,13 +401,13 @@ instance SingI s => MonoFunctor (HM s) where
           SNat `SCons` ns@(_ `SCons` (_ `SCons` _)) -> fmap (go ns)
 
 helems :: forall s. SingI s => HM s -> [Double]
-helems = go sing . getHM
+helems = flip appEndo [] . go sing . getHM
   where
-    go :: Sing ns -> HM' ns -> [Double]
+    go :: Sing ns -> HM' ns -> Endo [Double]
     go = \case
-      SNil                                      -> (:[])
-      SNat `SCons` SNil                         -> LA.toList . extract
-      SNat `SCons` (SNat `SCons` SNil)          -> concat . LA.toLists . extract
+      SNil                                      -> \x -> Endo (x:)
+      SNat `SCons` SNil                         -> Endo . (++) . LA.toList . extract
+      SNat `SCons` (SNat `SCons` SNil)          -> foldMap (Endo . (++)) . LA.toLists . extract
       SNat `SCons` ns@(_ `SCons` (_ `SCons` _)) -> foldMap (go ns)
 
 instance SingI s => MonoFoldable (HM s) where

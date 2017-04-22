@@ -15,16 +15,18 @@ module Numeric.BLAS.NVector (
   , NV'
   ) where
 
+import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.Trans.State
 import           Data.Kind
 import           Data.Maybe
-import           Data.Monoid hiding         (Product)
+import           Data.Monoid                (Endo(..))
 import           Data.Singletons
 import           Data.Singletons.Prelude
 import           Data.Singletons.TypeLits
 import           Data.Type.Product
 import           GHC.Generics               (Generic)
+import           Numeric.BLAS
 import           Numeric.Tensor
 import qualified Data.Vector                as UV
 import qualified Data.Vector.Sized          as V
@@ -157,4 +159,33 @@ instance Tensor NV where
         ss = sing
 
     tslice p = NV . sliceNV p . getNV
+
+instance BLAS NV where
+    transp = NV . sequenceA  . getNV
+    scal α = NV . fmap (α *) . getNV
+    axpy α (NV xs) (NV ys) = NV $ liftA2 (\x y -> α * x + y) xs ys
+    dot (NV xs) (NV ys) = V.sum $ V.zipWith (*) xs ys
+    norm2 = V.sum . fmap (**2) . getNV
+    asum  = V.sum . fmap abs . getNV
+    iamax = fromIntegral . UV.maxIndex . fmap abs . V.fromSized . getNV
+
+    gemv α (NV a) (NV xs) b = maybe id (uncurry axpy) b
+                            . NV
+                            . fmap (V.sum . V.zipWith (\x -> (* (x * α))) xs)
+                            $ a
+
+    ger α (NV xs) (NV ys) a = NV . addA $ fmap (\x -> fmap (* (x * α)) ys) xs
+      where
+        addA = case a of
+          Nothing      -> id
+          Just (NV a') -> (V.zipWith . V.zipWith) (+) a'
+
+
+    gemm α (NV ass) (NV bss) c = NV . addC $
+        fmap (sumVs . V.zipWith (\bs a -> fmap (* (α * a)) bs) bss) ass
+      where
+        sumVs = V.foldl' (V.zipWith (+)) (V.generate (\_ -> 0))
+        addC = case c of
+          Nothing -> id
+          Just (β, NV css) -> (V.zipWith . V.zipWith) (\c' -> (+ (β * c'))) css
 
