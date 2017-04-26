@@ -132,12 +132,6 @@ instance Tensor HM where
         -> HM s -> HM s -> HM s
     tzip f (HM x0) (HM y0) = HM $ hzip f sing x0 y0
 
-    tsize
-        :: forall s. SingI s
-        => HM s
-        -> Int
-    tsize _ = fromIntegral $ product (fromSing (sing @_ @s))
-
     tindex
         :: forall s. SingI s
         => Prod Finite s

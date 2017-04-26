@@ -24,6 +24,7 @@ module Numeric.Tensor (
   , fromList'
   , fromList
   , convert, convert'
+  , tsize
   , tlist
   , tmapOp
   , tzipOp
@@ -76,7 +77,6 @@ data Conv :: Nat -> Nat -> Type where
 
 class RealFloat (Scalar t)
         => Tensor (t :: [Nat] -> Type) where
-    -- type IndexT t :: k -> Type
     type Scalar t :: Type
 
     genA
@@ -113,11 +113,6 @@ class RealFloat (Scalar t)
     tzipN f xs = gen sing $ \i ->
         f $ vmap (I . tindex i) xs
 
-    tsize
-        :: SingI s
-        => t s
-        -> Int
-
     tindex
         :: SingI s
         => Prod Finite s
@@ -153,7 +148,10 @@ class RealFloat (Scalar t)
         :: SingI s
         => t s
         -> V.Vector (Product s) (Scalar t)
-    {-# MINIMAL genA, tsum, tsize, tindex, tconv, textract, tslice #-}
+    {-# MINIMAL genA, tsum, tindex, tconv, textract, tslice #-}
+
+tsize :: forall (s :: [Nat]) t. SingI s => t s -> Integer
+tsize _ = product (fromSing (sing @[Nat] @s))
 
 type family Product (ns :: [Nat]) :: Nat where
     Product '[]       = 1
@@ -254,7 +252,7 @@ tzipNOp f = Op $ \xs ->
 tkonstOp :: forall t s. Tensor t => Sing s -> Op '[Scalar t] '[t s]
 tkonstOp s = withSingI s $ op1' $ \x ->
     let res = tkonst s x
-    in  (only_ res, maybe (fromIntegral (tsize res)) tsum . head')
+    in  (only_ res, maybe (fromIntegral (product (fromSing s))) tsum . head')
 
 tsumOp
     :: forall t s. (Tensor t, SingI s)

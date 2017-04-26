@@ -147,9 +147,6 @@ instance Tensor NV where
     tmap f = NV . mapNV sing f . getNV
     tzip f xs ys = NV $ zipNV sing f (getNV xs) (getNV ys)
 
-    tsize :: forall s. SingI s => NV s -> Int
-    tsize _ = fromIntegral $ product (fromSing (sing @_ @s))
-
     tindex i = indexNV sing i . getNV
 
     tload s = NV . loadNV s
