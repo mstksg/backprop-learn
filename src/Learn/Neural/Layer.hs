@@ -114,19 +114,19 @@ runComponent
     -> CState c b i o
     -> b i
     -> (b o, CState c b i o)
-runComponent p s x = 
+runComponent p s x =
     case runOpB componentOp (x ::< p ::< s ::< Ø) of
       I y :< I s' :< Ø -> (y, s')
-            
+
 runComponentFF
     :: (ComponentFF c b i o, Num (b i), Num (b o), CConstr c b i o)
     => CParam c b i o
     -> b i
     -> b o
-runComponentFF p x = 
+runComponentFF p x =
     case runOpB componentOpFF (x ::< p ::< Ø) of
       I y :< Ø -> y
-            
+
 data Layer :: RunMode -> Type -> ([Nat] -> Type) -> [Nat] -> [Nat] -> Type where
     LFeedForward
         :: ComponentFF c b i o

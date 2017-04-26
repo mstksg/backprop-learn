@@ -91,7 +91,7 @@ class RealFloat (Scalar t)
     gen s f = getI $ genA s (I . f)
 
     tkonst :: Sing s -> Scalar t -> t s
-    tkonst s x = gen s $ \_ -> x
+    tkonst s x = gen s (const x)
 
     tsum :: SingI s => t s -> Scalar t
     tmap :: SingI s => (Scalar t -> Scalar t) -> t s -> t s

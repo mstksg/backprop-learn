@@ -180,7 +180,6 @@ instance BLAS NV where
           Nothing      -> id
           Just (NV a') -> (V.zipWith . V.zipWith) (+) a'
 
-
     gemm α (NV ass) (NV bss) c = NV . addC $
         fmap (sumVs . V.zipWith (\bs a -> fmap (* (α * a)) bs) bss) ass
       where
