@@ -30,20 +30,24 @@
 </span><a name="line-30"></a><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
 </span><a name="line-31"></a><span>
 </span><a name="line-32"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Finite</span><span>
-</span><a name="line-33"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Kind</span><span>
-</span><a name="line-34"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Maybe</span><span>
-</span><a name="line-35"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Singletons</span><span>
-</span><a name="line-36"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Singletons</span><span class="hs-operator">.</span><span class="hs-identifier">TypeLits</span><span>
-</span><a name="line-37"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Backprop</span><span class="hs-operator">.</span><span class="hs-identifier">Op</span><span>
-</span><a name="line-38"></a><span class="hs-keyword">import</span><span>           </span><a href="Numeric.Tensor.html"><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Tensor</span></a><span>
-</span><a name="line-39"></a><span>
-</span><a name="line-40"></a><span class="hs-keyword">class</span><span> </span><a href="Numeric.Tensor.html#Tensor"><span class="hs-identifier hs-type">Tensor</span></a><span> </span><a href="#local-6989586621679202480"><span class="hs-identifier hs-type">b</span></a><span> </span><span class="hs-glyph">=&gt;</span><span> </span><a name="BLAS"><a href="Numeric.BLAS.html#BLAS"><span class="hs-identifier">BLAS</span></a></a><span> </span><span class="hs-special">(</span><a name="local-6989586621679202480"><a href="#local-6989586621679202480"><span class="hs-identifier">b</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-identifier hs-type">Nat</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Type</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
-</span><a name="line-41"></a><span>
-</span><a name="line-42"></a><span>    </span><span class="hs-identifier">transp</span><span>
-</span><a name="line-43"></a><span>        </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">KnownNat</span><span> </span><a href="#local-6989586621679202481"><span class="hs-identifier hs-type">m</span></a><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">KnownNat</span><span> </span><a href="#local-6989586621679202482"><span class="hs-identifier hs-type">n</span></a><span class="hs-special">)</span><span>
-</span><a name="line-44"></a><span>        </span><span class="hs-glyph">=&gt;</span><span> </span><a href="#local-6989586621679202480"><span class="hs-identifier hs-type">b</span></a><span> </span><span class="hs-char">'[m, n]
+</span><a name="line-33"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Finite</span><span class="hs-operator">.</span><span class="hs-identifier">Internal</span><span>
+</span><a name="line-34"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Foldable</span><span> </span><span class="hs-keyword">hiding</span><span>     </span><span class="hs-special">(</span><span class="hs-identifier hs-var">asum</span><span class="hs-special">)</span><span>
+</span><a name="line-35"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Kind</span><span>
+</span><a name="line-36"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Maybe</span><span>
+</span><a name="line-37"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Ord</span><span>
+</span><a name="line-38"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Singletons</span><span>
+</span><a name="line-39"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">Singletons</span><span class="hs-operator">.</span><span class="hs-identifier">TypeLits</span><span>
+</span><a name="line-40"></a><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Backprop</span><span class="hs-operator">.</span><span class="hs-identifier">Op</span><span>
+</span><a name="line-41"></a><span class="hs-keyword">import</span><span>           </span><a href="Numeric.Tensor.html"><span class="hs-identifier">Numeric</span><span class="hs-operator">.</span><span class="hs-identifier">Tensor</span></a><span>
+</span><a name="line-42"></a><span>
+</span><a name="line-43"></a><span class="hs-keyword">class</span><span> </span><a href="Numeric.Tensor.html#Tensor"><span class="hs-identifier hs-type">Tensor</span></a><span> </span><a href="#local-6989586621679202922"><span class="hs-identifier hs-type">b</span></a><span> </span><span class="hs-glyph">=&gt;</span><span> </span><a name="BLAS"><a href="Numeric.BLAS.html#BLAS"><span class="hs-identifier">BLAS</span></a></a><span> </span><span class="hs-special">(</span><a name="local-6989586621679202922"><a href="#local-6989586621679202922"><span class="hs-identifier">b</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-identifier hs-type">Nat</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Type</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-44"></a><span>
+</span><a name="line-45"></a><span>    </span><span class="hs-identifier">transp</span><span>
+</span><a name="line-46"></a><span>        </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">KnownNat</span><span> </span><a href="#local-6989586621679202923"><span class="hs-identifier hs-type">m</span></a><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">KnownNat</span><span> </span><a href="#local-6989586621679202924"><span class="hs-identifier hs-type">n</span></a><span class="hs-special">)</span><span>
+</span><a name="line-47"></a><span>        </span><span class="hs-glyph">=&gt;</span><span> </span><a href="#local-6989586621679202922"><span class="hs-identifier hs-type">b</span></a><span> </span><span class="hs-char">'[m, n]
         -&gt; b '[n, m]
-
+    transp x = gen sing $ \case
+        n :&lt; m :&lt; &#216; -&gt; tindex (m :&lt; n :&lt; &#216;) x
 
     -- Level 1
     scal
@@ -51,6 +55,7 @@
         =&gt; Scalar b     -- ^ &#945;
         -&gt; b '[n]    -- ^ x
         -&gt; b '[n]    -- ^ &#945; x
+    scal &#945; = tmap (&#945; *)
 
     axpy
         :: KnownNat n
@@ -58,26 +63,31 @@
         -&gt; b '[n]    -- ^ x
         -&gt; b '[n]    -- ^ y
         -&gt; b '[n]    -- ^ &#945; x + y
+    axpy &#945; = tzip (\x y -&gt; &#945; * x + y)
 
     dot :: KnownNat n
         =&gt; b '[n]    -- ^ x
         -&gt; b '[n]    -- ^ y
         -&gt; Scalar b     -- ^ x' y
+    dot x y = tsum (tzip (*) x y)
 
     norm2
         :: KnownNat n
         =&gt; b '[n]    -- ^ x
         -&gt; Scalar b     -- ^ ||x||
+    norm2 = tsum . tmap (** 2)
 
     asum
         :: KnownNat n
         =&gt; b '[n]    -- ^ x
         -&gt; Scalar b     -- ^ sum_i |x_i|
+    asum = tsum . tmap abs
 
     iamax
         :: KnownNat n
         =&gt; b '[n]    -- ^ x
         -&gt; Finite n     -- ^ argmax_i |x_i|
+    iamax = Finite . fst . maximumBy (comparing snd) . zip [0..] . tlist . tmap abs
 
     -- Level 2
     gemv
@@ -87,13 +97,17 @@
         -&gt; b '[n]    -- ^ x
         -&gt; Maybe (Scalar b, b '[m])    -- ^ &#946;, y
         -&gt; b '[m]    -- ^ &#945; A x + &#946; y
+    gemv &#945; a x b = maybe id (uncurry axpy) b . gen sing $ \case
+        i :&lt; &#216; -&gt; &#945; * dot x (treshape sing (tslice (SliceSingle i `PMS` SliceAll `PMS` PMZ) a))
 
     ger :: (KnownNat m, KnownNat n)
         =&gt; Scalar b     -- ^ &#945;
         -&gt; b '[m]    -- ^ x
         -&gt; b '[n]    -- ^ y
         -&gt; Maybe (b '[m, n])  -- ^ A
-        -&gt; b '[m, n]  -- ^ x y' + A
+        -&gt; b '[m, n]  -- ^ &#945; x y' + A
+    ger &#945; x y b = maybe id (tzip (+)) b . gen sing $ \case
+        i :&lt; j :&lt; &#216; -&gt; &#945; * tindex (i :&lt; &#216;) x * tindex (j :&lt; &#216;) y
 
     syr :: KnownNat n
         =&gt; Scalar b           -- ^ &#945;
@@ -110,6 +124,12 @@
         -&gt; b '[o, n]  -- ^ B
         -&gt; Maybe (Scalar b, b '[m, n])  -- ^ &#946;, C
         -&gt; b '[m, n]  -- ^ &#945; A B + &#946; C
+    gemm &#945; a b c = maybe id (uncurry f) c . gen sing $ \case
+        i :&lt; j :&lt; &#216; -&gt;
+            &#945; * dot (treshape sing (tslice (SliceSingle i `PMS` SliceAll `PMS` PMZ) a))
+                    (treshape sing (tslice (SliceAll `PMS` SliceSingle j `PMS` PMZ) b))
+      where
+        f &#946; = tzip (\d r -&gt; &#946; * d + r)
 
     syrk
         :: (KnownNat m, KnownNat n)
@@ -118,6 +138,8 @@
         -&gt; Maybe (Scalar b, b '[m, m])  -- ^ &#946;, C
         -&gt; b '[m, m]  -- ^ &#945; A A' + &#946; C
     syrk &#945; a c = gemm &#945; a (transp a) c
+
+    {-# MINIMAL #-}
 
 matVec
     :: (KnownNat m, KnownNat n, BLAS b)

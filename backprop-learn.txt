@@ -29,6 +29,10 @@ data ProdMap :: (a -> b -> Type) -> [a] -> [b] -> Type
 [PMZ] :: ProdMap f '[] '[]
 [PMS] :: f a b -> ProdMap f as bs -> ProdMap f (a : as) (b : bs)
 data Slice :: Nat -> Nat -> Type
+[SliceTake] :: Sing c -> Sing r -> Slice (c + r) c
+[SliceDrop] :: Sing l -> Sing c -> Slice (l + c) c
+[SliceSingle] :: Finite c -> Slice c 1
+[SliceAll] :: Slice c c
 [Slice] :: Sing l -> Sing c -> Sing r -> Slice ((l + c) + r) c
 data Conv :: Nat -> Nat -> Type
 [Conv] :: {convMaskDim :: Sing m, convImageDim :: Sing s, convStride :: Finite s, convOffset :: Finite s} -> Conv m s
@@ -64,7 +68,7 @@ instance forall k (f :: k -> GHC.Types.Type). Type.Class.Known.Known (Numeric.Te
 instance forall a (f :: a -> GHC.Types.Type) (as :: [a]) (bs :: [a]) (a1 :: a) (b :: a). (Type.Class.Known.Known (Numeric.Tensor.DoubleProd f as) bs, Type.Class.Known.Known f a1, Type.Class.Known.Known f b) => Type.Class.Known.Known (Numeric.Tensor.DoubleProd f (a1 : as)) (b : bs)
 
 module Numeric.BLAS
-class Tensor b => BLAS (b :: [Nat] -> Type) where syr α x a = ger α x x a syrk α a c = gemm α a (transp a) c
+class Tensor b => BLAS (b :: [Nat] -> Type) where transp x = gen sing $ \case { n :< m :< Ø -> tindex (m :< n :< Ø) x } scal α = tmap (α *) axpy α = tzip (\ x y -> α * x + y) dot x y = tsum (tzip (*) x y) norm2 = tsum . tmap (** 2) asum = tsum . tmap abs iamax = Finite . fst . maximumBy (comparing snd) . zip [0 .. ] . tlist . tmap abs gemv α a x b = maybe id (uncurry axpy) b . gen sing $ \case { i :< Ø -> α * dot x (treshape sing (tslice (SliceSingle i `PMS` SliceAll `PMS` PMZ) a)) } ger α x y b = maybe id (tzip (+)) b . gen sing $ \case { i :< j :< Ø -> α * tindex (i :< Ø) x * tindex (j :< Ø) y } syr α x a = ger α x x a gemm α a b c = maybe id (uncurry f) c . gen sing $ \case { i :< j :< Ø -> α * dot (treshape sing (tslice (SliceSingle i `PMS` SliceAll `PMS` PMZ) a)) (treshape sing (tslice (SliceAll `PMS` SliceSingle j `PMS` PMZ) b)) } where f β = tzip (\ d r -> β * d + r) syrk α a c = gemm α a (transp a) c
 transp :: (BLAS b, KnownNat m, KnownNat n) => b '[m, n] -> b '[n, m]
 scal :: (BLAS b, KnownNat n) => Scalar b -> b '[n] -> b '[n]
 axpy :: (BLAS b, KnownNat n) => Scalar b -> b '[n] -> b '[n] -> b '[n]
@@ -451,6 +455,7 @@ unsafeReIndex :: Sing ns -> Prod Finite ns -> (Integer, Integer)
 instance GHC.Show.Show (Numeric.BLAS.FVector.FV a)
 instance GHC.Generics.Generic (Numeric.BLAS.FVector.FV a)
 instance Numeric.Tensor.Tensor Numeric.BLAS.FVector.FV
+instance Numeric.BLAS.BLAS Numeric.BLAS.FVector.FV
 
 module Numeric.BLAS.NVector
 newtype NV :: [Nat] -> Type
