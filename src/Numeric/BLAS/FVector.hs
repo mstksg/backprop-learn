@@ -126,13 +126,12 @@ instance BLAS FV where
     gemm α (FV as) bs cs =
           FV
         . maybe id (uncurry f) cs
-        . over (chunks innerSizeO) muller
+        . over (chunks innerSize) muller
         $ as
       where
-        innerSizeO = fromIntegral $ natVal (Proxy @o)
-        innerSizeN = fromIntegral $ natVal (Proxy @n)
+        innerSize = fromIntegral $ natVal (Proxy @o)
         muller r =
-            over (chunkDown innerSizeN) (\c -> α * VU.sum (VU.zipWith (*) r c))
+            over (chunkDown innerSize) (\c -> α * VU.sum (VU.zipWith (*) r c))
           . getFV
           $ transp bs
         f β (FV cs') = VU.zipWith (\c b -> β * c + b) cs'
@@ -154,7 +153,7 @@ unsafeReIndex
     -> (Integer, Integer)
 unsafeReIndex = \case
     SNil -> \case
-      Ø                     -> (0, 0)
+      Ø                     -> (0, 1)
     SNat `SCons` ss -> \case
       (i :: Finite n) :< is ->
         let (j, jSize) = unsafeReIndex ss is

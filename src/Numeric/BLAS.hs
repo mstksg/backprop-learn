@@ -21,7 +21,10 @@ module Numeric.BLAS (
     BLAS(..)
   , matVec
   , vecMat
+  , matMat
   , outer
+  , diag
+  , eye
   , amax
   , concretize
   , matVecOp
@@ -160,12 +163,36 @@ vecMat
     -> b '[n]
 vecMat x a = gemv 1 (transp a) x Nothing
 
+matMat
+    :: (KnownNat m, KnownNat o, KnownNat n, BLAS b)
+    => b '[m, o]
+    -> b '[o, n]
+    -> b '[m, n]
+matMat a b = gemm 1 a b Nothing
+
 outer
     :: (KnownNat m, KnownNat n, BLAS b)
     => b '[m]
     -> b '[n]
     -> b '[m, n]
 outer x y = ger 1 x y Nothing
+
+diag
+    :: (KnownNat n, Tensor b)
+    => b '[n]
+    -> b '[n, n]
+diag x = gen sing $ \case
+    i :< j :< Ø
+      | i `equals` j -> tindex (i :< Ø) x
+      | otherwise    -> 0
+
+eye
+    :: (KnownNat n, Tensor b)
+    => b '[n, n]
+eye = gen sing $ \case
+    i :< j :< Ø
+      | i `equals` j -> 1
+      | otherwise    -> 0
 
 amax
     :: forall b n. (BLAS b, KnownNat n)
