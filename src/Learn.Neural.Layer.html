@@ -50,7 +50,7 @@
 </span><a name="line-50"></a><span>             </span><span class="hs-glyph">|</span><span> </span><a name="Recurrent"><a href="Learn.Neural.Layer.html#Recurrent"><span class="hs-identifier">Recurrent</span></a></a><span>
 </span><a name="line-51"></a><span>
 </span><a name="line-52"></a><span class="hs-keyword">data</span><span> </span><a name="RunModeWit"><a href="Learn.Neural.Layer.html#RunModeWit"><span class="hs-identifier">RunModeWit</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><a href="Learn.Neural.Layer.html#RunMode"><span class="hs-identifier hs-type">RunMode</span></a><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Type</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="hs-identifier hs-type">Nat</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Type</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-identifier hs-type">Nat</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-identifier hs-type">Nat</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier hs-type">Type</span><span> </span><span class="hs-keyword">where</span><span>
-</span><a name="line-53"></a><span>    </span><a name="RMIsFF"><a href="Learn.Neural.Layer.html#RMIsFF"><span class="hs-identifier">RMIsFF</span></a></a><span>  </span><span class="hs-glyph">::</span><span> </span><a href="Learn.Neural.Layer.html#ComponentFF"><span class="hs-identifier hs-type">ComponentFF</span></a><span> </span><a href="#local-6989586621679211315"><span class="hs-identifier hs-type">c</span></a><span> </span><a href="#local-6989586621679211316"><span class="hs-identifier hs-type">b</span></a><span> </span><a href="#local-6989586621679211317"><span class="hs-identifier hs-type">i</span></a><span> </span><a href="#local-6989586621679211318"><span class="hs-identifier hs-type">o</span></a><span> </span><span class="hs-glyph">=&gt;</span><span> </span><a href="Learn.Neural.Layer.html#RunModeWit"><span class="hs-identifier hs-type">RunModeWit</span></a><span> </span><a href="#local-6989586621679211319"><span class="hs-identifier hs-type">r</span></a><span> </span><a href="#local-6989586621679211315"><span class="hs-identifier hs-type">c</span></a><span> </span><a href="#local-6989586621679211316"><span class="hs-identifier hs-type">b</span></a><span> </span><a href="#local-6989586621679211317"><span class="hs-identifier hs-type">i</span></a><span> </span><a href="#local-6989586621679211318"><span class="hs-identifier hs-type">o</span></a><span>
+</span><a name="line-53"></a><span>    </span><a name="RMIsFF"><a href="Learn.Neural.Layer.html#RMIsFF"><span class="hs-identifier">RMIsFF</span></a></a><span>  </span><span class="hs-glyph">::</span><span> </span><a href="Learn.Neural.Layer.html#ComponentFF"><span class="hs-identifier hs-type">ComponentFF</span></a><span> </span><a href="#local-6989586621679211314"><span class="hs-identifier hs-type">c</span></a><span> </span><a href="#local-6989586621679211315"><span class="hs-identifier hs-type">b</span></a><span> </span><a href="#local-6989586621679211316"><span class="hs-identifier hs-type">i</span></a><span> </span><a href="#local-6989586621679211317"><span class="hs-identifier hs-type">o</span></a><span> </span><span class="hs-glyph">=&gt;</span><span> </span><a href="Learn.Neural.Layer.html#RunModeWit"><span class="hs-identifier hs-type">RunModeWit</span></a><span> </span><a href="#local-6989586621679211318"><span class="hs-identifier hs-type">r</span></a><span> </span><a href="#local-6989586621679211314"><span class="hs-identifier hs-type">c</span></a><span> </span><a href="#local-6989586621679211315"><span class="hs-identifier hs-type">b</span></a><span> </span><a href="#local-6989586621679211316"><span class="hs-identifier hs-type">i</span></a><span> </span><a href="#local-6989586621679211317"><span class="hs-identifier hs-type">o</span></a><span>
 </span><a name="line-54"></a><span>    </span><a name="RMNotFF"><a href="Learn.Neural.Layer.html#RMNotFF"><span class="hs-identifier">RMNotFF</span></a></a><span> </span><span class="hs-glyph">::</span><span> </span><a href="Learn.Neural.Layer.html#RunModeWit"><span class="hs-identifier hs-type">RunModeWit</span></a><span> </span><span class="hs-char">'Recurrent c b i o
 
 class (Floating (CParam c b i o), Floating (CState c b i o), BLAS b)
@@ -114,19 +114,19 @@ runComponent
     -&gt; CState c b i o
     -&gt; b i
     -&gt; (b o, CState c b i o)
-runComponent p s x = 
+runComponent p s x =
     case runOpB componentOp (x ::&lt; p ::&lt; s ::&lt; &#216;) of
       I y :&lt; I s' :&lt; &#216; -&gt; (y, s')
-            
+
 runComponentFF
     :: (ComponentFF c b i o, Num (b i), Num (b o), CConstr c b i o)
     =&gt; CParam c b i o
     -&gt; b i
     -&gt; b o
-runComponentFF p x = 
+runComponentFF p x =
     case runOpB componentOpFF (x ::&lt; p ::&lt; &#216;) of
       I y :&lt; &#216; -&gt; y
-            
+
 data Layer :: RunMode -&gt; Type -&gt; ([Nat] -&gt; Type) -&gt; [Nat] -&gt; [Nat] -&gt; Type where
     LFeedForward
         :: ComponentFF c b i o
