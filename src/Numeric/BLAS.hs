@@ -139,6 +139,8 @@ class Tensor b => BLAS (b :: [Nat] -> Type) where
         -> b '[m, m]  -- ^ α A A' + β C
     syrk α a c = gemm α a (transp a) c
 
+    {-# MINIMAL #-}
+
 matVec
     :: (KnownNat m, KnownNat n, BLAS b)
     => b '[m, n]

@@ -23,6 +23,7 @@ import           Data.Type.Combinator
 import           Data.Type.Product
 import           Data.Type.Vector
 import           GHC.Generics             (Generic)
+import           Numeric.BLAS
 import           Numeric.Tensor
 import qualified Data.Vector.Sized        as SV
 import qualified Data.Vector.Unboxed      as VU
@@ -68,7 +69,7 @@ instance Tensor FV where
                   dropper   = innerSize * fromIntegral (fromSing sL)
                   taker     = innerSize * fromIntegral (fromSing sC)
               in  VU.concat
-                . fmap (go ss pms)
+                . map (go ss pms)
                 . chunksOf innerSize
                 . VU.slice dropper taker
         chunksOf :: Int -> VU.Vector Double -> [VU.Vector Double]
@@ -87,6 +88,48 @@ instance Tensor FV where
         -> SV.Vector (Product s) Double
     textract = withKnownNat (sProduct (sing @_ @s)) $
       fromJust . SV.toSized . VU.convert . getFV
+
+instance BLAS FV where
+--     transp
+--         :: (KnownNat m, KnownNat n)
+--         => b '[m, n]
+--         -> b '[n, m]
+
+
+--     -- Level 1
+--     scal
+--         :: KnownNat n
+--         => Scalar b     -- ^ α
+--         -> b '[n]    -- ^ x
+--         -> b '[n]    -- ^ α x
+
+--     axpy
+--         :: KnownNat n
+--         => Scalar b     -- ^ α
+--         -> b '[n]    -- ^ x
+--         -> b '[n]    -- ^ y
+--         -> b '[n]    -- ^ α x + y
+
+--     dot :: KnownNat n
+--         => b '[n]    -- ^ x
+--         -> b '[n]    -- ^ y
+--         -> Scalar b     -- ^ x' y
+
+--     norm2
+--         :: KnownNat n
+--         => b '[n]    -- ^ x
+--         -> Scalar b     -- ^ ||x||
+
+--     asum
+--         :: KnownNat n
+--         => b '[n]    -- ^ x
+--         -> Scalar b     -- ^ sum_i |x_i|
+
+--     iamax
+--         :: KnownNat n
+--         => b '[n]    -- ^ x
+--         -> Finite n     -- ^ argmax_i |x_i|
+
 
 range :: Sing ns -> [Prod Finite ns]
 range = \case
