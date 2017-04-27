@@ -127,7 +127,8 @@ class RealFloat (Scalar t)
         -> t (s >: n)
 
     tslice
-        :: ProdMap Slice n m
+        :: (SingI n, SingI m)
+        => ProdMap Slice n m
         -> t n
         -> t m
 
