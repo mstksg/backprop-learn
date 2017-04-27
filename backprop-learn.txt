@@ -448,6 +448,7 @@ newtype FV :: [Nat] -> Type
 range :: Sing ns -> [Prod Finite ns]
 reIndex :: SingI ns => Prod Finite ns -> Finite (Product ns)
 unsafeReIndex :: Sing ns -> Prod Finite ns -> (Integer, Integer)
+instance GHC.Show.Show (Numeric.BLAS.FVector.FV a)
 instance GHC.Generics.Generic (Numeric.BLAS.FVector.FV a)
 instance Numeric.Tensor.Tensor Numeric.BLAS.FVector.FV
 
