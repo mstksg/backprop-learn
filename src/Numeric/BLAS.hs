@@ -30,8 +30,11 @@ module Numeric.BLAS (
   ) where
 
 import           Data.Finite
+import           Data.Finite.Internal
+import           Data.Foldable hiding     (asum)
 import           Data.Kind
 import           Data.Maybe
+import           Data.Ord
 import           Data.Singletons
 import           Data.Singletons.TypeLits
 import           Numeric.Backprop.Op
@@ -43,7 +46,8 @@ class Tensor b => BLAS (b :: [Nat] -> Type) where
         :: (KnownNat m, KnownNat n)
         => b '[m, n]
         -> b '[n, m]
-
+    transp x = gen sing $ \case
+        n :< m :< Ø -> tindex (m :< n :< Ø) x
 
     -- Level 1
     scal
@@ -51,6 +55,7 @@ class Tensor b => BLAS (b :: [Nat] -> Type) where
         => Scalar b     -- ^ α
         -> b '[n]    -- ^ x
         -> b '[n]    -- ^ α x
+    scal α = tmap (α *)
 
     axpy
         :: KnownNat n
@@ -58,26 +63,31 @@ class Tensor b => BLAS (b :: [Nat] -> Type) where
         -> b '[n]    -- ^ x
         -> b '[n]    -- ^ y
         -> b '[n]    -- ^ α x + y
+    axpy α = tzip (\x y -> α * x + y)
 
     dot :: KnownNat n
         => b '[n]    -- ^ x
         -> b '[n]    -- ^ y
         -> Scalar b     -- ^ x' y
+    dot x y = tsum (tzip (*) x y)
 
     norm2
         :: KnownNat n
         => b '[n]    -- ^ x
         -> Scalar b     -- ^ ||x||
+    norm2 = tsum . tmap (** 2)
 
     asum
         :: KnownNat n
         => b '[n]    -- ^ x
         -> Scalar b     -- ^ sum_i |x_i|
+    asum = tsum . tmap abs
 
     iamax
         :: KnownNat n
         => b '[n]    -- ^ x
         -> Finite n     -- ^ argmax_i |x_i|
+    iamax = Finite . fst . maximumBy (comparing snd) . zip [0..] . tlist . tmap abs
 
     -- Level 2
     gemv
@@ -87,13 +97,17 @@ class Tensor b => BLAS (b :: [Nat] -> Type) where
         -> b '[n]    -- ^ x
         -> Maybe (Scalar b, b '[m])    -- ^ β, y
         -> b '[m]    -- ^ α A x + β y
+    gemv α a x b = maybe id (uncurry axpy) b . gen sing $ \case
+        i :< Ø -> α * dot x (treshape sing (tslice (SliceSingle i `PMS` SliceAll `PMS` PMZ) a))
 
     ger :: (KnownNat m, KnownNat n)
         => Scalar b     -- ^ α
         -> b '[m]    -- ^ x
         -> b '[n]    -- ^ y
         -> Maybe (b '[m, n])  -- ^ A
-        -> b '[m, n]  -- ^ x y' + A
+        -> b '[m, n]  -- ^ α x y' + A
+    ger α x y b = maybe id (tzip (+)) b . gen sing $ \case
+        i :< j :< Ø -> α * tindex (i :< Ø) x * tindex (j :< Ø) y
 
     syr :: KnownNat n
         => Scalar b           -- ^ α
@@ -110,6 +124,12 @@ class Tensor b => BLAS (b :: [Nat] -> Type) where
         -> b '[o, n]  -- ^ B
         -> Maybe (Scalar b, b '[m, n])  -- ^ β, C
         -> b '[m, n]  -- ^ α A B + β C
+    gemm α a b c = maybe id (uncurry f) c . gen sing $ \case
+        i :< j :< Ø ->
+            α * dot (treshape sing (tslice (SliceSingle i `PMS` SliceAll `PMS` PMZ) a))
+                    (treshape sing (tslice (SliceAll `PMS` SliceSingle j `PMS` PMZ) b))
+      where
+        f β = tzip (\d r -> β * d + r)
 
     syrk
         :: (KnownNat m, KnownNat n)
