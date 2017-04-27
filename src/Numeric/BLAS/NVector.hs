@@ -18,6 +18,7 @@ module Numeric.BLAS.NVector (
 import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.Trans.State
+import           Data.Finite.Internal
 import           Data.Kind
 import           Data.Maybe
 import           Data.Monoid                (Endo(..))
@@ -26,6 +27,7 @@ import           Data.Singletons.Prelude
 import           Data.Singletons.TypeLits
 import           Data.Type.Product
 import           GHC.Generics               (Generic)
+import           GHC.TypeLits
 import           Numeric.BLAS
 import           Numeric.Tensor
 import qualified Data.Vector                as UV
@@ -164,7 +166,13 @@ instance BLAS NV where
     dot (NV xs) (NV ys) = V.sum $ V.zipWith (*) xs ys
     norm2 = V.sum . fmap (**2) . getNV
     asum  = V.sum . fmap abs . getNV
-    iamax = fromIntegral . UV.maxIndex . fmap abs . V.fromSized . getNV
+
+    iamax
+        :: forall n. KnownNat n
+        => NV '[n + 1]
+        -> Finite (n + 1)
+    iamax = withKnownNat (SNat @n %:+ SNat @1) $
+        Finite . fromIntegral . UV.maxIndex . fmap abs . V.fromSized . getNV
 
     gemv α (NV a) (NV xs) b = maybe id (uncurry axpy) b
                             . NV

@@ -38,6 +38,7 @@ import           Data.Singletons.Prelude
 import           Data.Singletons.TypeLits
 import           Data.Type.Product
 import           GHC.Generics                 (Generic)
+import           GHC.TypeLits
 import           Numeric.BLAS hiding          (outer)
 import           Numeric.LinearAlgebra.Static
 import           Type.Family.List hiding      (Reverse)
@@ -70,9 +71,15 @@ instance BLAS HM where
     dot    (HM x) (HM y) = x <.> y
     norm2  (HM x)        = norm_2 x
     asum   (HM x)        = norm_1 x
-    iamax  (HM x)        = Finite . fromIntegral
-                         . LA.maxIndex . extract
-                         $ abs x
+
+    iamax
+        :: forall n. KnownNat n
+        => HM '[n + 1]
+        -> Finite (n + 1)
+    iamax  (HM x)        = withKnownNat (SNat @n %:+ SNat @1) $
+        Finite . fromIntegral
+      . LA.maxIndex . extract
+      $ abs x
 
     gemv α (HM a) (HM x) = \case
         Just (β, HM y) -> HM (konst α * (a #> x) + konst β * y)

@@ -1,6 +1,7 @@
-{-# LANGUAGE DataKinds  #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE DataKinds     #-}
+{-# LANGUAGE LambdaCase    #-}
+{-# LANGUAGE RankNTypes    #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Learn.Neural.Test (
     TestFunc
@@ -19,7 +20,7 @@ import qualified Control.Foldl        as F
 
 type TestFunc o = forall b. (BLAS b, Num (b o)) => b o -> b o -> Double
 
-maxTest :: KnownNat n => TestFunc '[n]
+maxTest :: KnownNat n => TestFunc '[n + 1]
 maxTest x y | iamax x == iamax y = 1
             | otherwise          = 0
 

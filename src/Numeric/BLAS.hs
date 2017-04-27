@@ -14,6 +14,7 @@
 {-# LANGUAGE TypeApplications       #-}
 {-# LANGUAGE TypeFamilies           #-}
 {-# LANGUAGE TypeInType             #-}
+{-# LANGUAGE TypeOperators          #-}
 {-# LANGUAGE UndecidableInstances   #-}
 
 module Numeric.BLAS (
@@ -31,14 +32,17 @@ module Numeric.BLAS (
 
 import           Data.Finite
 import           Data.Finite.Internal
-import           Data.Foldable hiding     (asum)
+import           Data.Foldable hiding        (asum)
 import           Data.Kind
 import           Data.Maybe
 import           Data.Ord
 import           Data.Singletons
+import           Data.Singletons.Prelude.Num
 import           Data.Singletons.TypeLits
+import           GHC.TypeLits
 import           Numeric.Backprop.Op
 import           Numeric.Tensor
+import qualified Data.Vector.Sized           as V
 
 class Tensor b => BLAS (b :: [Nat] -> Type) where
 
@@ -84,10 +88,11 @@ class Tensor b => BLAS (b :: [Nat] -> Type) where
     asum = tsum . tmap abs
 
     iamax
-        :: KnownNat n
-        => b '[n]    -- ^ x
-        -> Finite n     -- ^ argmax_i |x_i|
-    iamax = Finite . fst . maximumBy (comparing snd) . zip [0..] . tlist . tmap abs
+        :: forall n. KnownNat n
+        => b '[n + 1]    -- ^ x
+        -> Finite (n + 1)     -- ^ argmax_i |x_i|
+    iamax = withKnownNat (SNat @n %:+ SNat @1) $
+        Finite . fromIntegral . V.maxIndex . textract . tmap abs
 
     -- Level 2
     gemv
@@ -163,15 +168,17 @@ outer
 outer x y = ger 1 x y Nothing
 
 amax
-    :: (BLAS b, KnownNat n)
-    => b '[n]
+    :: forall b n. (BLAS b, KnownNat n)
+    => b '[n + 1]
     -> Scalar b
 amax = do
     i <- only . iamax
-    tindex i
+    withKnownNat (SNat @n %:+ SNat @1) $
+      tindex i
 
-concretize :: (BLAS b, KnownNat n) => b '[n] -> b '[n]
-concretize = oneHot . only . iamax
+concretize :: forall b n. (BLAS b, KnownNat n) => b '[n + 1] -> b '[n + 1]
+concretize = withKnownNat (SNat @n %:+ SNat @1) $
+    oneHot . only . iamax
 
 matVecOp
     :: (KnownNat m, KnownNat n, BLAS b)

@@ -4,13 +4,15 @@
 {-# LANGUAGE InstanceSigs        #-}
 {-# LANGUAGE KindSignatures      #-}
 {-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeFamilies        #-}
+{-# LANGUAGE TypeOperators       #-}
 
-module Numeric.BLAS.FVector where
--- module Numeric.BLAS.FVector (
---   ) where
+module Numeric.BLAS.FVector (
+    FV(..)
+  ) where
 
 import           Data.Finite
 import           Data.Finite.Internal
@@ -23,6 +25,8 @@ import           Data.Type.Combinator
 import           Data.Type.Product
 import           Data.Type.Vector
 import           GHC.Generics             (Generic)
+import           GHC.TypeLits
+import           Lens.Micro
 import           Numeric.BLAS
 import           Numeric.Tensor
 import qualified Data.Vector.Sized        as SV
@@ -68,15 +72,8 @@ instance Tensor FV where
                   innerSize = fromIntegral (product (fromSing ss))
                   dropper   = innerSize * fromIntegral (fromSing sL)
                   taker     = innerSize * fromIntegral (fromSing sC)
-              in  VU.concat
-                . map (go ss pms)
-                . chunksOf innerSize
+              in  over (chunks innerSize) (go ss pms)
                 . VU.slice dropper taker
-        chunksOf :: Int -> VU.Vector Double -> [VU.Vector Double]
-        chunksOf l = unfoldr $ \xs -> do
-          if VU.length xs >= l
-            then Just (VU.splitAt l xs)
-            else Nothing
 
     tindex i (FV xs) = xs VU.! fromIntegral (getFinite (reIndex i))
 
@@ -90,46 +87,55 @@ instance Tensor FV where
       fromJust . SV.toSized . VU.convert . getFV
 
 instance BLAS FV where
---     transp
---         :: (KnownNat m, KnownNat n)
---         => b '[m, n]
---         -> b '[n, m]
 
+    iamax
+        :: forall n. KnownNat n
+        => FV '[n + 1]
+        -> Finite (n + 1)
+    iamax = withKnownNat (SNat @n %:+ SNat @1) $
+        Finite . fromIntegral . VU.maxIndex . VU.map abs . getFV
 
---     -- Level 1
---     scal
---         :: KnownNat n
---         => Scalar b     -- ^ α
---         -> b '[n]    -- ^ x
---         -> b '[n]    -- ^ α x
+    gemv
+        :: forall m n. (KnownNat m, KnownNat n)
+        => Double
+        -> FV '[m, n]
+        -> FV '[n]
+        -> Maybe (Double, FV '[m])
+        -> FV '[m]
+    gemv α (FV a) (FV x) b =
+          FV
+        . maybe id (\(β, FV ys) -> VU.zipWith (\y z -> β * y + z) ys) b
+        . over (chunkDown innerSize) (\r -> α * VU.sum (VU.zipWith (*) r x))
+        $ a
+      where
+        innerSize = fromIntegral $ natVal (Proxy @n)
 
---     axpy
---         :: KnownNat n
---         => Scalar b     -- ^ α
---         -> b '[n]    -- ^ x
---         -> b '[n]    -- ^ y
---         -> b '[n]    -- ^ α x + y
+    ger α (FV xs) (FV ys) b =
+          FV
+        . maybe id (\(FV zs) -> VU.zipWith (+) zs) b
+        . VU.concatMap (\x -> VU.map ((α * x) *) ys)
+        $ xs
 
---     dot :: KnownNat n
---         => b '[n]    -- ^ x
---         -> b '[n]    -- ^ y
---         -> Scalar b     -- ^ x' y
-
---     norm2
---         :: KnownNat n
---         => b '[n]    -- ^ x
---         -> Scalar b     -- ^ ||x||
-
---     asum
---         :: KnownNat n
---         => b '[n]    -- ^ x
---         -> Scalar b     -- ^ sum_i |x_i|
-
---     iamax
---         :: KnownNat n
---         => b '[n]    -- ^ x
---         -> Finite n     -- ^ argmax_i |x_i|
-
+    gemm
+        :: forall m o n. (KnownNat m, KnownNat o, KnownNat n)
+        => Double
+        -> FV '[m, o]
+        -> FV '[o, n]
+        -> Maybe (Double, FV '[m, n])
+        -> FV '[m, n]
+    gemm α (FV as) bs cs =
+          FV
+        . maybe id (uncurry f) cs
+        . over (chunks innerSizeO) muller
+        $ as
+      where
+        innerSizeO = fromIntegral $ natVal (Proxy @o)
+        innerSizeN = fromIntegral $ natVal (Proxy @n)
+        muller r =
+            over (chunkDown innerSizeN) (\c -> α * VU.sum (VU.zipWith (*) r c))
+          . getFV
+          $ transp bs
+        f β (FV cs') = VU.zipWith (\c b -> β * c + b) cs'
 
 range :: Sing ns -> [Prod Finite ns]
 range = \case
@@ -155,14 +161,20 @@ unsafeReIndex = \case
             iSize = jSize * (fromSing (SNat @n))
         in  (j + jSize * getFinite i, iSize)
 
--- unsafeReIndex
---     :: Integer
---     -> Sing ns
---     -> Prod Finite ns
--- unsafeReIndex i = \case
---     SNil -> Ø
---     s `SCons` ss ->
---       let (j,k) = i `divMod` fromSing s
---       in  Finite j :< unsafeReIndex k ss
+chunks
+    :: (VU.Unbox a, VU.Unbox b)
+    => Int
+    -> Traversal (VU.Vector a) (VU.Vector b) (VU.Vector a) (VU.Vector b)
+chunks n f = fmap VU.concat . traverse f . unfoldr u
+  where
+    u xs | VU.length xs >= n = Just (VU.splitAt n xs)
+         | otherwise         = Nothing
 
-
+chunkDown
+    :: (VU.Unbox a, VU.Unbox b)
+    => Int
+    -> Traversal (VU.Vector a) (VU.Vector b) (VU.Vector a) b
+chunkDown n f = fmap VU.fromList . traverse f . unfoldr u
+  where
+    u xs | VU.length xs >= n = Just (VU.splitAt n xs)
+         | otherwise         = Nothing
