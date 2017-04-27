@@ -64,6 +64,8 @@ data ProdMap :: (a -> b -> Type) -> [a] -> [b] -> Type where
     PMZ :: ProdMap f '[] '[]
     PMS :: f a b -> ProdMap f as bs -> ProdMap f (a ': as) (b ': bs)
 
+infixr 4 `PMS`
+
 data Slice :: Nat -> Nat -> Type where
     Slice :: Sing l -> Sing c -> Sing r -> Slice (l + c + r) c
 

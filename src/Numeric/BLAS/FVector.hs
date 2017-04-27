@@ -15,6 +15,7 @@ module Numeric.BLAS.FVector where
 import           Data.Finite
 import           Data.Finite.Internal
 import           Data.Kind
+import           Data.List
 import           Data.Maybe
 import           Data.Singletons.Prelude
 import           Data.Singletons.TypeLits
@@ -30,7 +31,7 @@ newtype FV :: [Nat] -> Type where
     FV  :: { getFV :: VU.Vector Double
            }
         -> FV b
-  deriving (Generic)
+  deriving (Generic, Show)
 
 instance Tensor FV where
     type Scalar FV = Double
@@ -61,11 +62,20 @@ instance Tensor FV where
             PMZ -> id
           SNat `SCons` ss -> \case
             PMS (Slice sL sC _) pms ->
-              let -- some wasted work here, but premature optimization blah blah
-                  innerSize = product (fromSing ss)
-                  dropper   = fromIntegral (innerSize * fromSing sL)
-                  taker     = fromIntegral (innerSize * fromSing sC)
-              in  go ss pms . VU.slice dropper taker
+              let -- some wasted work here in re-computing the product,
+                  -- but premature optimization blah blah
+                  innerSize = fromIntegral (product (fromSing ss))
+                  dropper   = innerSize * fromIntegral (fromSing sL)
+                  taker     = innerSize * fromIntegral (fromSing sC)
+              in  VU.concat
+                . fmap (go ss pms)
+                . chunksOf innerSize
+                . VU.slice dropper taker
+        chunksOf :: Int -> VU.Vector Double -> [VU.Vector Double]
+        chunksOf l = unfoldr $ \xs -> do
+          if VU.length xs >= l
+            then Just (VU.splitAt l xs)
+            else Nothing
 
     tindex i (FV xs) = xs VU.! fromIntegral (getFinite (reIndex i))
 
