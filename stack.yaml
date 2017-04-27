@@ -49,16 +49,13 @@ packages:
     git: https://github.com/mstksg/generics-lift.git
     commit: c8a127d522f47efbf4cce55c9276a1d19cd6a211
   extra-dep: true
-- location:
-    git: https://github.com/mstksg/finite-typelits.git
-    commit: 927352f94acec781c1504c3daf8534715fe6094e
-  extra-dep: true
 
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps:
 - type-combinators-0.2.4.3
 - mnist-idx-0.1.2.6
+- finite-typelits-0.1.2.0
 
 # Override default flag values for local packages and extra-deps
 flags: {}
