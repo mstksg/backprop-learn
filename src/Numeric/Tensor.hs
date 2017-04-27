@@ -67,7 +67,11 @@ data ProdMap :: (a -> b -> Type) -> [a] -> [b] -> Type where
 infixr 4 `PMS`
 
 data Slice :: Nat -> Nat -> Type where
-    Slice :: Sing l -> Sing c -> Sing r -> Slice (l + c + r) c
+    SliceTake   :: Sing c -> Sing r -> Slice (c + r) c
+    SliceDrop   :: Sing l -> Sing c -> Slice (l + c) c
+    SliceSingle :: Finite c -> Slice c 1
+    SliceAll    :: Slice c c
+    Slice       :: Sing l -> Sing c -> Sing r -> Slice (l + c + r) c
 
 data Conv :: Nat -> Nat -> Type where
     Conv :: { convMaskDim  :: Sing m
