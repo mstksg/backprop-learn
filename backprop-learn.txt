@@ -83,7 +83,10 @@ gemm :: (BLAS b, KnownNat m, KnownNat o, KnownNat n) => Scalar b -> b '[m, o] ->
 syrk :: (BLAS b, KnownNat m, KnownNat n) => Scalar b -> b '[m, n] -> Maybe (Scalar b, b '[m, m]) -> b '[m, m]
 matVec :: (KnownNat m, KnownNat n, BLAS b) => b '[m, n] -> b '[n] -> b '[m]
 vecMat :: (KnownNat m, KnownNat n, BLAS b) => b '[m] -> b '[m, n] -> b '[n]
+matMat :: (KnownNat m, KnownNat o, KnownNat n, BLAS b) => b '[m, o] -> b '[o, n] -> b '[m, n]
 outer :: (KnownNat m, KnownNat n, BLAS b) => b '[m] -> b '[n] -> b '[m, n]
+diag :: (KnownNat n, Tensor b) => b '[n] -> b '[n, n]
+eye :: (KnownNat n, Tensor b) => b '[n, n]
 amax :: forall b n. (BLAS b, KnownNat n) => b '[n + 1] -> Scalar b
 concretize :: forall b n. (BLAS b, KnownNat n) => b '[n + 1] -> b '[n + 1]
 matVecOp :: (KnownNat m, KnownNat n, BLAS b) => Op '[b '[m, n], b '[n]] '[b '[m]]
@@ -458,5 +461,6 @@ module Numeric.BLAS.NVector
 newtype NV :: [Nat] -> Type
 [NV] :: {getNV :: NV' b} -> NV b
 instance GHC.Generics.Generic (Numeric.BLAS.NVector.NV a)
+instance GHC.Show.Show (Numeric.BLAS.NVector.NV' a) => GHC.Show.Show (Numeric.BLAS.NVector.NV a)
 instance Numeric.Tensor.Tensor Numeric.BLAS.NVector.NV
 instance Numeric.BLAS.BLAS Numeric.BLAS.NVector.NV
