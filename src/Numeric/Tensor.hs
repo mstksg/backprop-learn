@@ -34,6 +34,7 @@ module Numeric.Tensor (
   , scaleOp
   , oneHot
   , Finite
+  , range
   ) where
 
 import           Control.Monad.Trans.State.Strict
@@ -81,7 +82,7 @@ data Conv :: Nat -> Nat -> Type where
             }
          -> Conv m s
 
-class RealFloat (Scalar t)
+class Floating (Scalar t)
         => Tensor (t :: [Nat] -> Type) where
     type Scalar t :: Type
 
@@ -90,6 +91,8 @@ class RealFloat (Scalar t)
         => Sing s
         -> (Prod Finite s -> f (Scalar t))
         -> f (t s)
+    genA s f = withKnownNat (sProduct s) $
+      fmap (tload s . fromJust . V.fromList) . traverse f $ range s
 
     gen :: forall s. Sing s
         -> (Prod Finite s -> Scalar t)
@@ -159,6 +162,11 @@ class RealFloat (Scalar t)
 
 tsize :: forall (s :: [Nat]) t. SingI s => t s -> Integer
 tsize _ = product (fromSing (sing @[Nat] @s))
+
+range :: Sing ns -> [Prod Finite ns]
+range = \case
+    SNil            -> [Ø]
+    SNat `SCons` ss -> (:<) <$> finites <*> range ss
 
 type family Product (ns :: [Nat]) :: Nat where
     Product '[]       = 1

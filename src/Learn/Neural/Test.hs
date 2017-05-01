@@ -18,19 +18,19 @@ import           Learn.Neural.Network
 import           Numeric.BLAS
 import qualified Control.Foldl        as F
 
-type TestFunc o = forall b. (BLAS b, Num (b o)) => b o -> b o -> Double
+type TestFunc o = forall b. (BLAS b, Num (b o)) => b o -> b o -> Scalar b
 
 maxTest :: KnownNat n => TestFunc '[n + 1]
 maxTest x y | iamax x == iamax y = 1
             | otherwise          = 0
 
 rmseTest :: KnownNat n => TestFunc '[n]
-rmseTest x y = realToFrac $ e `dot` e
+rmseTest x y = e `dot` e
   where
     e = axpy (-1) x y
 
 crossEntropyTest :: KnownNat n => TestFunc '[n]
-crossEntropyTest r t = negate $ realToFrac (tmap log r `dot` t)
+crossEntropyTest r t = negate $ (tmap log r `dot` t)
 
 testNet
     :: (BLAS b, Num (b i), Num (b o))
@@ -38,7 +38,7 @@ testNet
     -> SomeNet 'FeedForward b i o
     -> b i
     -> b o
-    -> Double
+    -> Scalar b
 testNet tf = \case
     SomeNet _ n -> \x t ->
       let y = runNetPure n x
@@ -49,5 +49,5 @@ testNetList
     => TestFunc o
     -> SomeNet 'FeedForward b i o
     -> [(b i, b o)]
-    -> Double
+    -> Scalar b
 testNetList tf n = F.fold F.mean . fmap (uncurry (testNet tf n))

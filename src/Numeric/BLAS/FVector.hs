@@ -136,11 +136,6 @@ instance BLAS FV where
           $ transp bs
         f β (FV cs') = VU.zipWith (\c b -> β * c + b) cs'
 
-range :: Sing ns -> [Prod Finite ns]
-range = \case
-    SNil            -> [Ø]
-    SNat `SCons` ss -> (:<) <$> finites <*> range ss
-
 reIndex
     :: SingI ns
     => Prod Finite ns

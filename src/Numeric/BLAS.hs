@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds              #-}
+{-# LANGUAGE DefaultSignatures      #-}
 {-# LANGUAGE DeriveFunctor          #-}
 {-# LANGUAGE FlexibleContexts       #-}
 {-# LANGUAGE FunctionalDependencies #-}
@@ -92,6 +93,11 @@ class Tensor b => BLAS (b :: [Nat] -> Type) where
 
     iamax
         :: forall n. KnownNat n
+        => b '[n + 1]    -- ^ x
+        -> Finite (n + 1)     -- ^ argmax_i |x_i|
+
+    default iamax
+        :: forall n. (KnownNat n, Ord (Scalar b))
         => b '[n + 1]    -- ^ x
         -> Finite (n + 1)     -- ^ argmax_i |x_i|
     iamax = withKnownNat (SNat @n %:+ SNat @1) $

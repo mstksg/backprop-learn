@@ -56,7 +56,7 @@ import qualified Type.Family.Nat                 as TCN
 data Mapping :: k -> Type
 
 newtype MapFunc :: Type where
-    MF :: { runMapFunc :: (forall a. RealFloat a => a -> a)
+    MF :: { runMapFunc :: (forall a. Floating a => a -> a)
           }
        -> MapFunc
 
@@ -138,16 +138,20 @@ instance Reifies 'MF_Logit MapFunc where
 instance Reifies 'MF_Tanh MapFunc where
     reflect _ = MF tanh
 instance Reifies 'MF_ReLU MapFunc where
-    reflect _ = MF $ \x -> if x < 0 then 0 else x
+    -- reflect _ = MF $ \x -> if x < 0 then 0 else x
+    reflect _ = MF $ \x -> x
 instance Reifies s Double => Reifies ('MF_ReLUp s) MapFunc where
-    reflect _ = MF $ \x -> if x < 0 then realToFrac α * x else x
+    -- reflect _ = MF $ \x -> if x < 0 then realToFrac α * x else x
+    reflect _ = MF $ \x -> x
       where
         α :: Double
         α = reflect (Proxy @s)
 instance Reifies 'MF_ELU MapFunc where
-    reflect _ = MF $ \x -> if x < 0 then exp x - 1 else x
+    -- reflect _ = MF $ \x -> if x < 0 then exp x - 1 else x
+    reflect _ = MF $ \x -> x
 instance Reifies s Double => Reifies ('MF_ELUp s) MapFunc where
-    reflect _ = MF $ \x -> if x < 0 then realToFrac α * (exp x - 1) else x
+    -- reflect _ = MF $ \x -> if x < 0 then realToFrac α * (exp x - 1) else x
+    reflect _ = MF $ \x -> x
       where
         α :: Double
         α = reflect (Proxy @s)
@@ -164,7 +168,7 @@ type ELUpMap s  = Mapping ('MF_ELUp s)
 data PMapping :: k -> TCN.N -> Type
 
 data PMapFunc :: TCN.N -> Type where
-    PMF :: { runPMapFunc :: (forall a. RealFloat a => (I :&: Vec n) a -> a)
+    PMF :: { runPMapFunc :: (forall a. Floating a => (I :&: Vec n) a -> a)
            , getPMapDef  :: Vec n (SomeC ContGen I)
            }
         -> PMapFunc n
@@ -262,12 +266,14 @@ data CommonPMap :: Type where
 
 instance Reifies 'PMF_PReLU (PMapFunc TCN.N1) where
     reflect _ = PMF (\case I x :&: (I α :* ØV) ->
-                            if x < 0 then α * x else x)
+                            -- if x < 0 then α * x else x)
+                            x)
                     (SomeC (I (uniformDistr 0 1)) :+ ØV)
 
 instance Reifies 'PMF_PELU (PMapFunc TCN.N1) where
     reflect _ = PMF (\case I x :&: (I α :* ØV) ->
-                            if x < 0 then α * (exp x - 1) else x)
+                            x)
+                            -- if x < 0 then α * (exp x - 1) else x)
                     (SomeC (I (uniformDistr 0 1)) :+ ØV)
 
 type PReLUMap = PMapping 'PMF_PReLU
