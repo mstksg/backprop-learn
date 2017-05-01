@@ -14,7 +14,6 @@
 
 module Numeric.Tensor (
     Tensor(..)
-  -- , DoubleProd(..)
   , ProdMap(..)
   , Slice(..)
   , Conv(..)
@@ -72,6 +71,7 @@ data Slice :: Nat -> Nat -> Type where
     SliceSingle :: Finite c -> Slice c 1
     SliceAll    :: Slice c c
     Slice       :: Sing l -> Sing c -> Sing r -> Slice (l + c + r) c
+
 
 data Conv :: Nat -> Nat -> Type where
     Conv :: { convMaskDim  :: Sing m
@@ -168,16 +168,6 @@ sProduct :: Sing as -> Sing (Product as)
 sProduct = \case
     SNil -> SNat
     s `SCons` ss -> s %:* sProduct ss
-
-data DoubleProd :: (k -> Type) -> [k] -> [k] -> Type where
-    DPZ :: DoubleProd f '[] '[]
-    DPS :: f a -> f b -> DoubleProd f as bs -> DoubleProd f (a ': as) (b ': bs)
-
-instance Known (DoubleProd f '[]) '[] where
-    known = DPZ
-
-instance (Known (DoubleProd f as) bs, Known f a, Known f b) => Known (DoubleProd f (a ': as)) (b ': bs) where
-    known = DPS known known known
 
 fromScalar :: Tensor t => Scalar t -> t '[]
 fromScalar x = gen SNil (\_ -> x)
