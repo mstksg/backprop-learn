@@ -4,3 +4,8 @@
 /TAGS
 /tags
 /out
+
+/.build
+/.shake
+/demo-exe
+/demo-js

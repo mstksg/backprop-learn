@@ -59,10 +59,11 @@ main = MWC.withSystemRandom $ \g -> do
     let slices :: [(HM '[128], HM '[128])]
         slices = concat . getZipList $ do
           skips <- traverse (ZipList . flip drop holmes) [0..2]
-          pure $ case skips of
-            [l1,l2,l3] ->
-              [(l2,l1),(l2,l3)]
-            _ -> []
+          pure (case skips of
+              [l1,l2,l3] ->
+                [(l2,l1),(l2,l3)]
+              _ -> []
+            )
     slices' <- liftIO . fmap V.toList $ MWC.uniformShuffle (V.fromList slices) g
     let (test,train) = splitAt (length slices `div` 50) slices'
     net0 :: Network 'FeedForward HM
