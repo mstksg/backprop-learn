@@ -50,6 +50,10 @@ packages:
     commit: c8a127d522f47efbf4cce55c9276a1d19cd6a211
   extra-dep: true
 - location:
+    git: https://github.com/mstksg/vector-sized.git
+    commit: f765ad2c9d148555e809e484340280f2c480dafa
+  extra-dep: true
+- location:
     git: https://github.com/ghcjs/ghcjs-base.git
     commit: dd7034ef8582ea8a175a71a988393a9d1ee86d6f
   extra-dep: true

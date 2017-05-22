@@ -1,19 +1,22 @@
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE GADTs               #-}
-{-# LANGUAGE InstanceSigs        #-}
-{-# LANGUAGE KindSignatures      #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE TypeFamilies        #-}
-{-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE GADTs                      #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE InstanceSigs               #-}
+{-# LANGUAGE KindSignatures             #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TypeApplications           #-}
+{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE TypeOperators              #-}
 
 module Numeric.BLAS.FVector (
     FV(..)
   ) where
 
+import           Control.DeepSeq
 import           Data.Finite
 import           Data.Finite.Internal
 import           Data.Kind
@@ -36,7 +39,7 @@ newtype FV :: [Nat] -> Type where
     FV  :: { getFV :: VU.Vector Double
            }
         -> FV b
-  deriving (Generic, Show)
+  deriving (Generic)
 
 instance Tensor FV where
     type Scalar FV = Double
@@ -177,3 +180,10 @@ chunkDown n f = fmap VU.fromList . traverse f . unfoldr u
   where
     u xs | VU.length xs >= n = Just (VU.splitAt n xs)
          | otherwise         = Nothing
+
+deriving instance NFData (FV s)
+deriving instance Show (FV s)
+-- deriving instance Num (FV s)
+-- deriving instance Fractional (FV s)
+-- deriving instance Floating (FV s)
+

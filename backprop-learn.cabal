@@ -72,12 +72,13 @@ executable backprop-learn-mnist
   build-depends:       base
                      , backprop-learn
                      , bifunctors
+                     , data-default
                      , deepseq
                      , finite-typelits
                      , hmatrix
-                     , data-default
                      , mnist-idx
                      , mwc-random
+                     , singletons
                      , split
                      , time
                      , transformers

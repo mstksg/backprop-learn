@@ -20,6 +20,7 @@ module Numeric.BLAS.NVector (
   ) where
 
 import           Control.Applicative
+import           Control.DeepSeq
 import           Control.Monad
 import           Control.Monad.Trans.State
 import           Data.Finite.Internal
@@ -48,8 +49,6 @@ newtype NV :: [Nat] -> Type where
     NV  :: { getNV :: NV' b }
         -> NV b
   deriving (Generic)
-
-deriving instance (Show (NV' a)) => Show (NV a)
 
 genNV :: Sing ns -> (Prod Finite ns -> Double) -> NV' ns
 genNV = \case
@@ -198,4 +197,10 @@ instance BLAS NV where
         addC = case c of
           Nothing -> id
           Just (β, NV css) -> (V.zipWith . V.zipWith) (\c' -> (+ (β * c'))) css
+
+deriving instance NFData (NV' s)     => NFData (NV s)
+deriving instance Show (NV' s)       => Show (NV s)
+deriving instance Num (NV' s)        => Num (NV s)
+deriving instance Fractional (NV' s) => Fractional (NV s)
+deriving instance Floating (NV' s)   => Floating (NV s)
 

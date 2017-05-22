@@ -6,6 +6,7 @@ import           Control.DeepSeq
 import           Control.Exception
 import           Control.Monad
 import           Control.Monad.IO.Class
+import           Data.Singletons
 import           Control.Monad.Trans.Maybe
 import           Control.Monad.Trans.State
 import           Data.Bifunctor
@@ -20,7 +21,7 @@ import           Data.Tuple
 import           Data.Type.Product
 import           Learn.Neural
 import           Numeric.BLAS.HMatrix
-import           Numeric.LinearAlgebra.Static
+import           Numeric.BLAS.NVector
 import           Text.Printf
 import qualified Data.Vector                     as V
 import qualified Data.Vector.Generic             as VG
@@ -40,7 +41,7 @@ loadMNIST fpI fpL = runMaybeT $ do
     liftIO . evaluate $ force r
   where
     mkImage :: VU.Vector Int -> Maybe (HM '[784])
-    mkImage = fmap HM . create . VG.convert . VG.map (\i -> fromIntegral i / 255)
+    mkImage = Learn.Neural.fromList sing . map (\i -> fromIntegral i / 255) . VG.toList
     mkLabel :: Int -> Maybe (HM '[10])
     mkLabel = fmap (oneHot . only) . packFinite . fromIntegral
 
@@ -57,12 +58,12 @@ main = MWC.withSystemRandom $ \g -> do
                                     , '[10 ] :~ SoftMax '[10]
                                     ]
                                     '[10] <- initDefNet g
-    let dout = alongNet net0 $ Nothing
-                           :&% Just 0.2
-                           :&% Nothing
-                           :&% Just 0.2
-                           :&% Nothing
-                           :&% DOExt
+    -- let dout = alongNet net0 $ Nothing
+    --                        :&% Just 0.2
+    --                        :&% Nothing
+    --                        :&% Just 0.2
+    --                        :&% Nothing
+    --                        :&% DOExt
     flip evalStateT net0 . forM_ [1..] $ \e -> do
       train' <- liftIO . fmap V.toList $ MWC.uniformShuffle (V.fromList train) g
       liftIO $ printf "[Epoch %d]\n" (e :: Int)
@@ -71,11 +72,11 @@ main = MWC.withSystemRandom $ \g -> do
         printf "(Batch %d)\n" (b :: Int)
 
         t0 <- getCurrentTime
-        -- n' <- evaluate $ optimizeList_ (bimap only_ only_ <$> chnk) n0
-        --                                -- (sgdOptimizer rate netOpPure crossEntropy)
-        --                                (adamOptimizer def netOpPure crossEntropy)
-        n' <- optimizeListM_ (bimap only_ only_ <$> chnk) n0
-                             (adamOptimizerM def (netOpDOPure dout g) crossEntropy)
+        n' <- evaluate $ optimizeList_ (bimap only_ only_ <$> chnk) n0
+                                       -- (sgdOptimizer rate netOpPure crossEntropy)
+                                       (adamOptimizer def netOpPure crossEntropy)
+        -- n' <- optimizeListM_ (bimap only_ only_ <$> chnk) n0
+        --                      (adamOptimizerM def (netOpDOPure dout g) crossEntropy)
         t1 <- getCurrentTime
         printf "Trained on %d points in %s.\n" batch (show (t1 `diffUTCTime` t0))
 

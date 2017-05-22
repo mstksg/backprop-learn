@@ -49,6 +49,10 @@ packages:
     git: https://github.com/mstksg/generics-lift.git
     commit: c8a127d522f47efbf4cce55c9276a1d19cd6a211
   extra-dep: true
+- location:
+    git: https://github.com/mstksg/vector-sized.git
+    commit: f765ad2c9d148555e809e484340280f2c480dafa
+  extra-dep: true
 
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)

@@ -1,6 +1,8 @@
 #!/usr/bin/env stack
 -- stack --install-ghc runghc --package shake
 
+{-# LANGUAGE ViewPatterns #-}
+
 import           Development.Shake
 import           Development.Shake.FilePath
 import           System.Directory
@@ -26,7 +28,7 @@ main = getDirectoryFilesIO "demo" ["/*.lhs", "/*.hs"] >>= \allDemos ->
       need (map (\f -> "demo-exe" </> dropExtension f) allDemos)
 
     "js" ~>
-      need (map (\f -> "demo-js" </> dropExtension f) allDemos)
+      need (map (\f -> "demo-js" </> (f -<.> "jsexe") </> "all.js") allDemos)
 
     "haddocks" ~> do
       need (("src" </>) <$> allSrc)
@@ -62,15 +64,19 @@ main = getDirectoryFilesIO "demo" ["/*.lhs", "/*.hs"] >>= \allDemos ->
                        "-Wall"
                        "-O2"
 
-    "demo-js/*" %> \f -> do
+    "demo-js/*.jsexe/all.js" %> \(takeDirectory -> f) -> do
       need ["install-ghcjs"]
-      [src] <- getDirectoryFiles "demo" $ (takeFileName f <.>) <$> ["hs","lhs"]
+      [src] <- getDirectoryFiles "demo" $ (takeFileName f -<.>) <$> ["hs","lhs"]
       liftIO $ do
+        -- createDirectoryIfMissing True (takeDirectory f)
         createDirectoryIfMissing True "demo-js"
         createDirectoryIfMissing True ".build"
-      removeFilesAfter "demo" ["/*.o"]
+      removeFilesAfter "demo" ["/*.o","/*.js_o"]
       cmd "stack exec" "--package backprop-learn"
                        "--package reflex-dom"
+                       "--package JuicyPixels"
+                       -- "--package jsaddle-wkwebview"
+                       "--package jsaddle-webkit2gtk"
                        "--stack-yaml stack-ghcjs.yaml"
                        "--"
                        "ghcjs"
