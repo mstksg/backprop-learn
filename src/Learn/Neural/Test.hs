@@ -1,17 +1,21 @@
-{-# LANGUAGE DataKinds     #-}
-{-# LANGUAGE LambdaCase    #-}
-{-# LANGUAGE RankNTypes    #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE TypeOperators       #-}
 
 module Learn.Neural.Test (
     TestFunc
   , maxTest
   , rmseTest
+  , squaredErrorTest
   , crossEntropyTest
   , testNet
   , testNetList
   ) where
 
+import           Data.Proxy
 import           GHC.TypeLits
 import           Learn.Neural.Layer
 import           Learn.Neural.Network
@@ -24,8 +28,13 @@ maxTest :: KnownNat n => TestFunc '[n + 1]
 maxTest x y | iamax x == iamax y = 1
             | otherwise          = 0
 
-rmseTest :: KnownNat n => TestFunc '[n]
-rmseTest x y = realToFrac $ e `dot` e
+rmseTest :: forall n. KnownNat n => TestFunc '[n]
+rmseTest x y = sqrt $ realToFrac (e `dot` e) / fromIntegral (natVal (Proxy @n))
+  where
+    e = axpy (-1) x y
+
+squaredErrorTest :: KnownNat n => TestFunc '[n]
+squaredErrorTest x y = realToFrac $ e `dot` e
   where
     e = axpy (-1) x y
 
