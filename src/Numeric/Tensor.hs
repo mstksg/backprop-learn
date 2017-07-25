@@ -20,6 +20,9 @@ module Numeric.Tensor (
   , Product, sProduct
   , fromScalar
   , toScalar
+  , singleton
+  , twoItems
+  , threeItems
   , fromList'
   , fromList
   , convert, convert'
@@ -174,6 +177,22 @@ fromScalar x = gen SNil (\_ -> x)
 
 toScalar :: Tensor t => t '[] -> Scalar t
 toScalar = tindex Ø
+
+singleton :: (Product ns ~ 1, Tensor t) => Sing ns -> Scalar t -> t ns
+singleton s x = tload s $ V.singleton x
+
+twoItems :: (Product ns ~ 2, Tensor t) => Sing ns -> Scalar t -> Scalar t -> t ns
+twoItems s x y = tload s . fromJust $ V.fromList [x, y]
+
+threeItems :: (Product ns ~ 3, Tensor t) => Sing ns -> Scalar t -> Scalar t -> Scalar t -> t ns
+threeItems s x y z = tload s . fromJust $ V.fromList [x, y, z]
+
+    -- treshape
+    --     :: (SingI s1, Product s1 ~ Product s2)
+    --     => Sing s2
+    --     -> t s1
+    --     -> t s2
+    -- treshape s = tload s . textract
 
 fromList'
     :: Tensor t
