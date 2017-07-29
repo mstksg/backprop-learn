@@ -105,7 +105,7 @@ instance ( BLAS b
         s' <- opIso (iso FCRS _fcrState) ~$ (s1 :< Ø)
         return $ z :< s' :< Ø
 
-    defConf = FCRC (normalDistr 0 0.5)
+    defConf = FCRC (normalDistr 0 0.01)
     initParam = \case
       i `SCons` SNil -> \case
         so@(o `SCons` SNil) -> \(FCRC d) g -> do
@@ -208,7 +208,7 @@ instance ( BLAS b
         mf :: MapFunc
         mf = reflect (Proxy @s)
 
-    defConf = FCRC' (normalDistr 0 0.5)
+    defConf = FCRC' (normalDistr 0 0.01)
 
     initParam = \case
       i `SCons` SNil -> \case

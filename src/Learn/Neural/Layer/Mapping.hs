@@ -263,12 +263,12 @@ data CommonPMap :: Type where
 instance Reifies 'PMF_PReLU (PMapFunc TCN.N1) where
     reflect _ = PMF (\case I x :&: (I α :* ØV) ->
                             if x < 0 then α * x else x)
-                    (SomeC (I (uniformDistr 0 1)) :+ ØV)
+                    (SomeC (I (uniformDistr 0 0.01)) :+ ØV)
 
 instance Reifies 'PMF_PELU (PMapFunc TCN.N1) where
     reflect _ = PMF (\case I x :&: (I α :* ØV) ->
                             if x < 0 then α * (exp x - 1) else x)
-                    (SomeC (I (uniformDistr 0 1)) :+ ØV)
+                    (SomeC (I (uniformDistr 0 0.01)) :+ ØV)
 
 type PReLUMap = PMapping 'PMF_PReLU
 type PELUMap  = PMapping 'PMF_PELU

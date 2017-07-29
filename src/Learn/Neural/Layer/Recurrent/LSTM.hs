@@ -96,7 +96,7 @@ instance ( BLAS b
         logistic :: Floating a => a -> a
         logistic x = 1 / (1 + exp (-x))
 
-    defConf = LC (normalDistr 0 0.5)
+    defConf = LC (normalDistr 0 0.01)
     initParam = \case
       i `SCons` SNil -> \case
         so@(o `SCons` SNil) -> \(LC d) g -> do

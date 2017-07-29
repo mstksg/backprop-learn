@@ -93,7 +93,7 @@ instance (BLAS b, KnownNat i, KnownNat o, Floating (b '[o,i]), Floating (b '[o])
 
     initState _ _ _ _ = return FCS
 
-    defConf = FCC (normalDistr 0 0.5)
+    defConf = FCC (normalDistr 0 0.01)
 
 instance (BLAS b, KnownNat i, KnownNat o, Floating (b '[o,i]), Floating (b '[o]))
         => ComponentFF FullyConnected b '[i] '[o] where
