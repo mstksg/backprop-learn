@@ -19,7 +19,7 @@
 module Learn.Neural.Layer.Mapping (
     Mapping
   , CommonMap(..)
-  , IdentMap, ScaleMap, LogitMap, ReLUMap, ReLUpMap, ELUMap, ELUpMap
+  , IdentMap, ScaleMap, LogitMap, TanhMap, ReLUMap, ReLUpMap, ELUMap, ELUpMap
   , MapFunc(..)
   , PMapping
   , CommonPMap(..)

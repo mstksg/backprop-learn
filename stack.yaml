@@ -15,7 +15,7 @@
 # resolver:
 #  name: custom-snapshot
 #  location: "./custom-snapshot.yaml"
-resolver: lts-8.5
+resolver: nightly-2017-08-06
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -49,13 +49,30 @@ packages:
     git: https://github.com/mstksg/generics-lift.git
     commit: c8a127d522f47efbf4cce55c9276a1d19cd6a211
   extra-dep: true
+- location:
+    git: https://github.com/albertoruiz/hmatrix.git
+    commit: 24fa00edb95f61db49f74c09157b898a60fc3d19
+  subdirs:
+  - packages/base
+  extra-dep: true
+# - location:
+#     git: https://github.com/mstksg/conduit-audio.git
+#     commit: 620978069870b45fcb0617ddcd5ecc0d22591ff4
+#   subdirs:
+#   - conduit-audio
+#   - conduit-audio-sndfile
+#   extra-dep: true
 
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps:
 - type-combinators-0.2.4.3
-- mnist-idx-0.1.2.6
+- mnist-idx-0.1.2.8
 - finite-typelits-0.1.2.0
+# - conduit-audio-0.2.0.2
+# - conduit-audio-sndfile-0.1.2
+# - hsndfile-0.8.0
+# - hsndfile-vector-0.5.2
 
 # Override default flag values for local packages and extra-deps
 flags: {}

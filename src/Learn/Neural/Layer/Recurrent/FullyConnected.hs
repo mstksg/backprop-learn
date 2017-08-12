@@ -180,9 +180,9 @@ instance ( BLAS b
          , Floating (b '[o])
          , Floating (b '[o,i])
          , Floating (b '[o,o])
-         , Reifies s MapFunc
+         , Reifies c MapFunc
          )
-      => Component (FullyConnectedR' s) b '[i] '[o] where
+      => Component (FullyConnectedR' c) b '[i] '[o] where
     data CParam  (FullyConnectedR' c) b '[i] '[o] =
             FCRP' { _fcrInpWeights'   :: !(b '[o,i])
                   , _fcrStateWeights' :: !(b '[o,o])
@@ -206,7 +206,7 @@ instance ( BLAS b
         return $ z :< s' :< Ø
       where
         mf :: MapFunc
-        mf = reflect (Proxy @s)
+        mf = reflect (Proxy @c)
 
     defConf = FCRC' (normalDistr 0 0.01)
 
