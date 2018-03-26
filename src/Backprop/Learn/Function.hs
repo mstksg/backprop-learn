@@ -6,13 +6,15 @@
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeInType            #-}
 {-# LANGUAGE TypeOperators         #-}
 
 module Backprop.Learn.Function (
     FixedFunc(..)
   , ParamFunc(..), compPF, parPF, idPF, fixedParam, learnParam
-  , PFChain(..), (-++)
+  , nilPF, (-~>), (-!>), (->!), (-++)
   , softMax
   , logisticFunc, scaleFunc, tanhFunc, mapFunc, reLU, eLU
   , pScale, pMap
@@ -21,7 +23,6 @@ module Backprop.Learn.Function (
 import           Backprop.Learn
 import           Control.Category
 import           Control.Monad.Primitive
-import           Data.Kind
 import           Data.Type.Length
 import           GHC.TypeNats
 import           Numeric.Backprop
@@ -91,42 +92,51 @@ parPF f g = PF { _pfInit = \gen -> T2 <$> _pfInit f gen <*> _pfInit g gen
                     (_pfFunc g (p ^^. t2_2) (x ^^. t2_2))
                }
 
--- TODO: kill the chain, unnecessary
 
-data PFChain :: [Type] -> Type -> Type -> Type where
-    PFCNil :: PFChain '[] a a
-    (:-?>) :: Num b
-           => ParamFunc p a b
-           -> PFChain ps b c
-           -> PFChain (p ': ps) a c
-    (:-!>) :: Num b
-           => FixedFunc a b
-           -> PFChain ps b c
-           -> PFChain ps a c
-infixr 5 :-?>
-infixr 5 :-!>
+nilPF :: ParamFunc (T '[]) a a
+nilPF = PF { _pfInit = const (pure TNil)
+           , _pfFunc = const id
+           }
 
-instance (Known Length ps, ListC (Num <$> ps), Num a, Num b)
-      => Learn (T ps) a b (PFChain ps a b) where
-    initParam = \case
-      PFCNil      -> \_ -> pure TNil
-      pf :-?> pcs -> \g -> (:&) <$> initParam pf g
-                                <*> initParam pcs g
-      _  :-!> pcs -> initParam pcs
+(-~>)
+    :: (Known Length ps, ListC (Num <$> ps), Num p)
+    => ParamFunc p a b
+    -> ParamFunc (T ps) b c
+    -> ParamFunc (T (p ': ps)) a c
+f -~> fs = PF { _pfInit = \g  -> (:&) <$> _pfInit f g <*> _pfInit fs g
+              , _pfFunc = \ps -> _pfFunc fs (ps ^^. tTail)
+                               . _pfFunc f  (ps ^^. tHead)
+              }
+infixr 5 -~>
 
-    runFixed = \case
-      PFCNil      -> const id
-      pf :-?> pcs -> \ps -> runFixed pcs (ps ^^. tTail)
-                          . runFixed pf  (ps ^^. tHead)
-      ff :-!> pcs -> \ps -> runFixed pcs ps
-                          . runFixedFunc ff
+(-!>)
+    :: FixedFunc a b
+    -> ParamFunc p b c
+    -> ParamFunc p a c
+f -!> g = PF { _pfInit = _pfInit g
+             , _pfFunc = \p -> _pfFunc g p . runFixedFunc f
+             }
+infixr 5 -!>
 
-(-++) :: PFChain ps a b -> PFChain qs b c -> PFChain (ps ++ qs) a c
-(-++) = \case
-    PFCNil      -> id
-    pf :-?> pcs -> (pf :-?>) . (pcs -++)
-    ff :-!> pcs -> (ff :-!>) . (pcs -++)
-infixr 4 -++
+(->!)
+    :: ParamFunc p a b
+    -> FixedFunc b c
+    -> ParamFunc p a c
+f ->! g = PF { _pfInit = _pfInit f
+             , _pfFunc = \p -> runFixedFunc g . _pfFunc f p
+             }
+infixr 5 ->!
+
+(-++)
+    :: forall ps qs a b c. (Known Length ps, Known Length qs, ListC (Num <$> ps), ListC (Num <$> qs))
+    => ParamFunc (T ps) a b
+    -> ParamFunc (T qs) b c
+    -> ParamFunc (T (ps ++ qs)) a c
+fs -++ gs = PF { _pfInit = \g  -> tAppend <$> _pfInit fs g <*> _pfInit gs g
+               , _pfFunc = \ps -> _pfFunc gs (ps ^^. tDrop @ps @qs known)
+                                . _pfFunc fs (ps ^^. tTake @ps @qs known)
+               }
+infixr 5 -++
 
 softMax :: KnownNat i => FixedFunc (R i) (R i)
 softMax = FF $ \x ->  let expx = exp x

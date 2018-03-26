@@ -20,7 +20,8 @@
 module Backprop.Learn (
     module L
   , Chain(..), (~:++)
-  , LearnFunc(..), learnFunc, (~>), nilLF, (~!++), (~++!), (~++)
+  , LearnFunc(..), learnFunc, (~~>), nilLF, (~!>), (~>!), (~++)
+  , parLF, compLF
   , (:.~)
 ) where
 
@@ -98,49 +99,78 @@ learnFunc l = LF { _lfInitParam = initParam l
                  , _lfRunStoch  = runStoch l
                  }
 
+parLF
+    :: (Num p, Num q, Num a, Num b, Num c, Num d)
+    => LearnFunc p a c
+    -> LearnFunc q b d
+    -> LearnFunc (T2 p q) (T2 a b) (T2 c d)
+parLF f g = LF { _lfInitParam = \gen -> T2 <$> _lfInitParam f gen
+                                           <*> _lfInitParam g gen
+               , _lfRunFixed  = \p x -> isoVar2 T2 t2Tup
+                       (_lfRunFixed f (p ^^. t2_1) (x ^^. t2_1))
+                       (_lfRunFixed g (p ^^. t2_2) (x ^^. t2_2))
+               , _lfRunStoch  = \gen p x -> isoVar2 T2 t2Tup
+                   <$> _lfRunStoch f gen (p ^^. t2_1) (x ^^. t2_1)
+                   <*> _lfRunStoch g gen (p ^^. t2_2) (x ^^. t2_2)
+               }
+
+compLF
+    :: (Num p, Num q)
+    => LearnFunc p b c
+    -> LearnFunc q a b
+    -> LearnFunc (T2 p q) a c
+compLF f g = LF { _lfInitParam = \gen -> T2 <$> _lfInitParam f gen
+                                            <*> _lfInitParam g gen
+                , _lfRunFixed  = \p -> _lfRunFixed f (p ^^. t2_1)
+                                     . _lfRunFixed g (p ^^. t2_2)
+                , _lfRunStoch  = \gen p -> _lfRunStoch f gen (p ^^. t2_1)
+                                       <=< _lfRunStoch g gen (p ^^. t2_2)
+                }
+
+
 nilLF :: LearnFunc (T '[]) a a
 nilLF = LF { _lfInitParam = const (pure TNil)
            , _lfRunFixed  = const id
            , _lfRunStoch  = \_ -> const pure
            }
 
-(~>)
+(~~>)
     :: (Num p, ListC (Num <$> ps), Known Length ps)
     => LearnFunc p a b
     -> LearnFunc (T ps) b c
     -> LearnFunc (T (p ': ps)) a c
-l ~> ls = LF { _lfInitParam = \g  -> (:&) <$> _lfInitParam l  g
-                                          <*> _lfInitParam ls g
-             , _lfRunFixed  = \ps -> _lfRunFixed ls (ps ^^. tTail)
-                                   . _lfRunFixed l  (ps ^^. tHead)
-             , _lfRunStoch  = \g ps -> _lfRunStoch ls g (ps ^^. tTail)
-                                   <=< _lfRunStoch l  g (ps ^^. tHead)
-             }
-infixr 5 ~>
+l ~~> ls = LF { _lfInitParam = \g  -> (:&) <$> _lfInitParam l  g
+                                           <*> _lfInitParam ls g
+              , _lfRunFixed  = \ps -> _lfRunFixed ls (ps ^^. tTail)
+                                    . _lfRunFixed l  (ps ^^. tHead)
+              , _lfRunStoch  = \g ps -> _lfRunStoch ls g (ps ^^. tTail)
+                                    <=< _lfRunStoch l  g (ps ^^. tHead)
+              }
+infixr 5 ~~>
 
-(~!++)
+(~!>)
     :: LearnFunc NoParam a b
-    -> LearnFunc (T ps) b c
-    -> LearnFunc (T ps) a c
-ls ~!++ ks = LF { _lfInitParam = _lfInitParam ks
-                , _lfRunFixed  = \ps -> _lfRunFixed ks ps
-                                      . _lfRunFixed ls (constVar NoParam)
-                , _lfRunStoch  = \g ps -> _lfRunStoch ks g ps
-                                      <=< _lfRunStoch ls g (constVar NoParam)
-                }
-infixr 5 ~!++
+    -> LearnFunc p b c
+    -> LearnFunc p a c
+l ~!> k = LF { _lfInitParam = _lfInitParam k
+             , _lfRunFixed  = \p -> _lfRunFixed k p
+                                  . _lfRunFixed l (constVar NoParam)
+             , _lfRunStoch  = \g p -> _lfRunStoch k g p
+                                  <=< _lfRunStoch l g (constVar NoParam)
+             }
+infixr 5 ~!>
 
-(~++!)
+(~>!)
     :: LearnFunc (T ps) a b
     -> LearnFunc NoParam b c
     -> LearnFunc (T ps) a c
-ls ~++! ks = LF { _lfInitParam = _lfInitParam ls
-                , _lfRunFixed  = \ps -> _lfRunFixed ks (constVar NoParam)
-                                      . _lfRunFixed ls ps
-                , _lfRunStoch  = \g ps -> _lfRunStoch ks g (constVar NoParam)
-                                      <=< _lfRunStoch ls g ps
-                }
-infixr 5 ~++!
+l ~>! k = LF { _lfInitParam = _lfInitParam l
+             , _lfRunFixed  = \p -> _lfRunFixed k (constVar NoParam)
+                                  . _lfRunFixed l p
+             , _lfRunStoch  = \g p -> _lfRunStoch k g (constVar NoParam)
+                                  <=< _lfRunStoch l g p
+             }
+infixr 5 ~>!
 
 (~++)
     :: forall ps qs a b c. (Known Length ps, Known Length qs, ListC (Num <$> ps), ListC (Num <$> qs))
