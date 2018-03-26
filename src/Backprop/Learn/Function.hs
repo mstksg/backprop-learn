@@ -91,6 +91,8 @@ parPF f g = PF { _pfInit = \gen -> T2 <$> _pfInit f gen <*> _pfInit g gen
                     (_pfFunc g (p ^^. t2_2) (x ^^. t2_2))
                }
 
+-- TODO: kill the chain, unnecessary
+
 data PFChain :: [Type] -> Type -> Type -> Type where
     PFCNil :: PFChain '[] a a
     (:-?>) :: Num b

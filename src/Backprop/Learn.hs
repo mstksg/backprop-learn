@@ -14,12 +14,14 @@
 {-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE TypeInType             #-}
 {-# LANGUAGE TypeOperators          #-}
+{-# LANGUAGE UndecidableInstances   #-}
 {-# LANGUAGE ViewPatterns           #-}
 
 module Backprop.Learn (
     module L
   , Chain(..), (~:++)
   , LearnFunc(..), learnFunc, (~>), nilLF, (~!++), (~++!), (~++)
+  , (:.~)
 ) where
 
 import           Backprop.Learn.Class    as L
@@ -153,3 +155,13 @@ ls ~++ ks = LF { _lfInitParam = \g -> tAppend <$> _lfInitParam ls g
                                      <=< _lfRunStoch ls g (ps ^^. tTake @ps @qs known)
                }
 
+-- | Simple composition of 'Learn' instances
+data l :.~ k = l :.~ k
+infixr 7 :.~
+
+instance (Learn p b c l, Learn q a b k) => Learn (T2 p q) a c (l :.~ k) where
+    initParam (l :.~ k) g = T2 <$> initParam l g <*> initParam k g
+    runFixed (l :.~ k) ps = runFixed l (ps ^^. t2_1)
+                          . runFixed k (ps ^^. t2_2)
+    runStoch (l :.~ k) g ps = runStoch l g (ps ^^. t2_1)
+                          <=< runStoch k g (ps ^^. t2_2)
