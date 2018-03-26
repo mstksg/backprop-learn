@@ -21,14 +21,14 @@ module Backprop.Learn.Class
 --   <i>trained parameters</i> of the model.
 --   
 --   If no trained parameters exist, <a>NoParam</a> can be used. This will
---   automatically derive <a>initParams</a>.
+--   automatically derive <a>initParam</a>.
 class (Num p, Num a, Num b) => Learn p a b l | l -> p, l -> a, l -> b
 
 -- | Initialization of trainiable model parameters.
-initParams :: (Learn p a b l, PrimMonad m) => l -> Gen (PrimState m) -> m p
+initParam :: (Learn p a b l, PrimMonad m) => l -> Gen (PrimState m) -> m p
 
 -- | Initialization of trainiable model parameters.
-initParams :: (Learn p a b l, PrimMonad m, p ~ NoParam) => l -> Gen (PrimState m) -> m p
+initParam :: (Learn p a b l, PrimMonad m, p ~ NoParam) => l -> Gen (PrimState m) -> m p
 
 -- | Run the model.
 runFixed :: (Learn p a b l, Reifies s W) => l -> BVar s p -> BVar s a -> BVar s b
@@ -40,7 +40,7 @@ runFixed :: (Learn p a b l, Reifies s W) => l -> BVar s p -> BVar s a -> BVar s 
 runStoch :: (Learn p a b l, PrimMonad m, Reifies s W) => l -> Gen (PrimState m) -> BVar s p -> BVar s a -> m (BVar s b)
 
 -- | Useful convenience type for trained models without learnable
---   parameters. Can be used to automatically derive <a>initParams</a> if
+--   parameters. Can be used to automatically derive <a>initParam</a> if
 --   given as a model's parmaeters.
 type NoParam = T0
 
@@ -71,3 +71,36 @@ fcWeights :: Functor f => (L o i -> f (L o k)) -> FCP i o -> f (FCP k o)
 instance GHC.Generics.Generic (Backprop.Learn.FullyConnected.FCP i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.FullyConnected.FCP i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Class.Learn (Backprop.Learn.FullyConnected.FCP i o) (Internal.Static.R i) (Internal.Static.R o) (Backprop.Learn.FullyConnected.FC i o)
+
+module Backprop.Learn.Function
+newtype FixedFunc a b
+FF :: (forall s. Reifies s W => BVar s a -> BVar s b) -> FixedFunc a b
+[runFixedFunc] :: FixedFunc a b -> forall s. Reifies s W => BVar s a -> BVar s b
+data ParamFunc p a b
+PF :: (forall m. PrimMonad m => Gen (PrimState m) -> m p) -> (forall s. Reifies s W => BVar s p -> BVar s a -> BVar s b) -> ParamFunc p a b
+[_pfInit] :: ParamFunc p a b -> forall m. PrimMonad m => Gen (PrimState m) -> m p
+[_pfFunc] :: ParamFunc p a b -> forall s. Reifies s W => BVar s p -> BVar s a -> BVar s b
+compPF :: (Num p, Num q) => ParamFunc p b c -> ParamFunc q a b -> ParamFunc (T2 p q) a c
+parPF :: (Num p, Num q, Num a, Num b, Num c, Num d) => ParamFunc p a c -> ParamFunc q b d -> ParamFunc (T2 p q) (T2 a b) (T2 c d)
+idPF :: ParamFunc NoParam a a
+fixedParam :: FixedFunc a b -> ParamFunc NoParam a b
+learnParam :: Learn p a b l => l -> ParamFunc p a b
+data PFChain :: [Type] -> Type -> Type -> Type
+[PFCNil] :: PFChain '[] a a
+[:-?>] :: Num b => ParamFunc p a b -> PFChain ps b c -> PFChain (p : ps) a c
+[:-!>] :: Num b => FixedFunc a b -> PFChain ps b c -> PFChain ps a c
+(-++) :: PFChain ps a b -> PFChain qs b c -> PFChain (ps ++ qs) a c
+infixr 4 -++
+softMax :: KnownNat i => FixedFunc (R i) (R i)
+logisticFunc :: Floating a => FixedFunc a a
+scaleFunc :: Num a => a -> FixedFunc a a
+tanhFunc :: Floating a => FixedFunc a a
+mapFunc :: KnownNat i => (forall s. Reifies s W => BVar s Double -> BVar s Double) -> FixedFunc (R i) (R i)
+reLU :: KnownNat i => FixedFunc (R i) (R i)
+eLU :: KnownNat i => FixedFunc (R i) (R i)
+pScale :: (KnownNat i, ContGen d) => d -> ParamFunc Double (R i) (R i)
+pMap :: KnownNat i => (forall m. PrimMonad m => Gen (PrimState m) -> m p) -> (forall s. Reifies s W => BVar s p -> BVar s Double -> BVar s Double) -> ParamFunc p (R i) (R i)
+instance (Type.Class.Known.Known [*] (Data.Type.Length.Length *) ps, Type.Family.List.ListC ((Type.Family.List.<$>) * GHC.Types.Constraint GHC.Num.Num ps), GHC.Num.Num a, GHC.Num.Num b) => Backprop.Learn.Class.Learn (Numeric.Backprop.Tuple.T ps) a b (Backprop.Learn.Function.PFChain ps a b)
+instance (GHC.Num.Num p, GHC.Num.Num a, GHC.Num.Num b) => Backprop.Learn.Class.Learn p a b (Backprop.Learn.Function.ParamFunc p a b)
+instance (GHC.Num.Num a, GHC.Num.Num b) => Backprop.Learn.Class.Learn Backprop.Learn.Class.NoParam a b (Backprop.Learn.Function.FixedFunc a b)
+instance Control.Category.Category * Backprop.Learn.Function.FixedFunc
