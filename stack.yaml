@@ -39,7 +39,7 @@ packages:
 - '.'
 - location:
     git: https://github.com/mstksg/backprop.git
-    commit: f7a7ff7352bf86b4fd15b4b462a118a909b44dd7
+    commit: 4831f968310f23cb65a6b45c2e5d9062097d9e2c
   extra-dep: true
 # - location:
 #     git: https://github.com/mstksg/type-combinators-singletons.git

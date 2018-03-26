@@ -31,7 +31,7 @@ newtype FC (i :: Nat) (o :: Nat) =
 -- | Construct an @'FC' i o@ using a given distribution from the
 -- /statistics/ library.
 fc :: ContGen d => d -> FC i o
-fc d = FC $ \g -> genContVar d g
+fc d = FC (genContVar d)
 
 -- | Fully connected feed-forward layer parameters.
 data FCP i o = FCP { _fcBias    :: !(R o)

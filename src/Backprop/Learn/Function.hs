@@ -11,10 +11,11 @@
 
 module Backprop.Learn.Function (
     FixedFunc(..)
-  , ParamFunc(..), compPF, parPF, idPF
-  , softMax
-  , logisticMap, scaleMap, tanhMap
+  , ParamFunc(..), compPF, parPF, idPF, fixedParam, learnParam
   , PFChain(..), (-++)
+  , softMax
+  , logisticFunc, scaleFunc, tanhFunc, mapFunc, reLU, eLU
+  , pScale, pMap
   ) where
 
 import           Backprop.Learn
@@ -25,11 +26,12 @@ import           Data.Type.Length
 import           GHC.TypeNats
 import           Numeric.Backprop
 import           Numeric.Backprop.Tuple
-import           Numeric.LinearAlgebra.Static.Backprop hiding ((<>))
-import           Prelude hiding                               ((.), id)
+import           Numeric.LinearAlgebra.Static.Backprop
+import           Prelude hiding                        ((.), id)
+import           Statistics.Distribution
 import           Type.Class.Known
 import           Type.Family.List
-import qualified System.Random.MWC                            as MWC
+import qualified System.Random.MWC                     as MWC
 
 newtype FixedFunc a b =
     FF { runFixedFunc :: forall s. Reifies s W => BVar s a -> BVar s b }
@@ -50,6 +52,24 @@ instance (Num p, Num a, Num b) => Learn p a b (ParamFunc p a b) where
     initParam = _pfInit
     runFixed  = _pfFunc
 
+learnParam
+    :: Learn p a b l
+    => l
+    -> ParamFunc p a b
+learnParam l = PF { _pfInit = initParam l
+                  , _pfFunc = runFixed l
+                  }
+
+fixedParam
+    :: FixedFunc a b
+    -> ParamFunc NoParam a b
+fixedParam f = PF { _pfInit = const (pure NoParam)
+                 , _pfFunc = \_ -> runFixedFunc f
+                 }
+
+idPF :: ParamFunc NoParam a a
+idPF = fixedParam id
+
 compPF
     :: (Num p, Num q)
     => ParamFunc p b c
@@ -59,11 +79,6 @@ compPF f g = PF { _pfInit = \gen -> T2 <$> _pfInit f gen <*> _pfInit g gen
                 , _pfFunc = \p   -> _pfFunc f (p ^^. t2_1)
                                   . _pfFunc g (p ^^. t2_2)
                 }
-
-idPF :: ParamFunc NoParam a a
-idPF = PF { _pfInit = const (pure NoParam)
-          , _pfFunc = \_ -> id
-          }
 
 parPF
     :: (Num p, Num q, Num a, Num b, Num c, Num d)
@@ -116,23 +131,37 @@ softMax = FF $ \x ->  let expx = exp x
                       in  expx / konst (norm_1V expx)
 
 
-logisticMap :: Floating a => FixedFunc a a
-logisticMap = FF $ \x -> 1 / (1 + exp (-x))
+logisticFunc :: Floating a => FixedFunc a a
+logisticFunc = FF $ \x -> 1 / (1 + exp (-x))
 
-scaleMap :: Num a => a -> FixedFunc a a
-scaleMap c = FF (* constVar c)
+scaleFunc :: Num a => a -> FixedFunc a a
+scaleFunc c = FF (* constVar c)
 
-tanhMap :: Floating a => FixedFunc a a
-tanhMap = FF tanh
+tanhFunc :: Floating a => FixedFunc a a
+tanhFunc = FF tanh
 
--- reLU :: FixedMap i
--- reLU = FM $ \x -> if x < 0 then
+mapFunc
+    :: KnownNat i
+    => (forall s. Reifies s W => BVar s Double -> BVar s Double)
+    -> FixedFunc (R i) (R i)
+mapFunc f = FF (vmap' f)
 
-    -- MF_Ident :: CommonMap
-    -- MF_Scale :: a -> CommonMap
-    -- MF_Logit :: CommonMap
-    -- MF_Tanh  :: CommonMap
-    -- MF_ReLU  :: CommonMap
-    -- MF_ReLUp :: a -> CommonMap
-    -- MF_ELU   :: CommonMap
-    -- MF_ELUp  :: a -> CommonMap
+reLU :: KnownNat i => FixedFunc (R i) (R i)
+reLU = mapFunc $ \x -> if x < 0 then 0 else x
+
+eLU :: KnownNat i => FixedFunc (R i) (R i)
+eLU = mapFunc $ \x -> if x < 0 then exp x - 1 else x
+
+pScale :: (KnownNat i, ContGen d) => d -> ParamFunc Double (R i) (R i)
+pScale d = PF { _pfInit = genContVar d
+              , _pfFunc = \p x -> konst p * x
+              }
+
+pMap
+    :: KnownNat i
+    => (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m p)
+    -> (forall s. Reifies s W => BVar s p -> BVar s Double -> BVar s Double)
+    -> ParamFunc p (R i) (R i)
+pMap i f = PF { _pfInit = i
+              , _pfFunc = \p -> vmap (f p)
+              }
