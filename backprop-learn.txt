@@ -46,6 +46,32 @@ type NoParam = T0
 
 module Backprop.Learn
 
+-- | Chain components linearly, retaining the ability to deconstruct at a
+--   later time.
+data Chain :: [Type] -> [Type] -> Type -> Type -> Type
+[CNil] :: Chain '[] '[] a a
+[:~>] :: (Learn p a b l, Num b) => l -> Chain ls ps b c -> Chain (l : ls) (p : ps) a c
+(~:++) :: forall ls ks ps qs a b c. (Known Length ps, Known Length qs, ListC (Num <$> ps), ListC (Num <$> qs)) => Chain ls ps a b -> Chain ks qs b c -> Chain (ls ++ ks) (ps ++ qs) a c
+infixl 5 ~:++
+
+-- | Data type representing trainable models.
+--   
+--   Useful for performant composition, but you lose the ability to
+--   decompose parts.
+data LearnFunc :: Type -> Type -> Type -> Type
+[LF] :: {_lfInitParam :: forall m. PrimMonad m => Gen (PrimState m) -> m p, _lfRunFixed :: forall s. Reifies s W => BVar s p -> BVar s a -> BVar s b, _lfRunStoch :: forall m s. (PrimMonad m, Reifies s W) => Gen (PrimState m) -> BVar s p -> BVar s a -> m (BVar s b)} -> LearnFunc p a b
+learnFunc :: Learn p a b l => l -> LearnFunc p a b
+(~>) :: (Num p, ListC (Num <$> ps), Known Length ps) => LearnFunc p a b -> LearnFunc (T ps) b c -> LearnFunc (T (p : ps)) a c
+infixr 5 ~>
+nilLF :: LearnFunc (T '[]) a a
+(~!++) :: LearnFunc NoParam a b -> LearnFunc (T ps) b c -> LearnFunc (T ps) a c
+infixr 5 ~!++
+(~++!) :: LearnFunc (T ps) a b -> LearnFunc NoParam b c -> LearnFunc (T ps) a c
+infixr 5 ~++!
+(~++) :: forall ps qs a b c. (Known Length ps, Known Length qs, ListC (Num <$> ps), ListC (Num <$> qs)) => LearnFunc (T ps) a b -> LearnFunc (T qs) b c -> LearnFunc (T (ps ++ qs)) a c
+instance (GHC.Num.Num p, GHC.Num.Num a, GHC.Num.Num b) => Backprop.Learn.Class.Learn p a b (Backprop.Learn.LearnFunc p a b)
+instance (Type.Family.List.ListC ((Type.Family.List.<$>) * GHC.Types.Constraint GHC.Num.Num ps), Type.Class.Known.Known [*] (Data.Type.Length.Length *) ps, GHC.Num.Num a, GHC.Num.Num b) => Backprop.Learn.Class.Learn (Numeric.Backprop.Tuple.T ps) a b (Backprop.Learn.Chain ls ps a b)
+
 module Backprop.Learn.Dropout
 instance GHC.TypeNats.KnownNat n => Backprop.Learn.Class.Learn Backprop.Learn.Class.NoParam (Internal.Static.R n) (Internal.Static.R n) (Backprop.Learn.Dropout.DO n)
 
