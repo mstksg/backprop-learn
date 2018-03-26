@@ -61,14 +61,16 @@ infixl 5 ~:++
 data LearnFunc :: Type -> Type -> Type -> Type
 [LF] :: {_lfInitParam :: forall m. PrimMonad m => Gen (PrimState m) -> m p, _lfRunFixed :: forall s. Reifies s W => BVar s p -> BVar s a -> BVar s b, _lfRunStoch :: forall m s. (PrimMonad m, Reifies s W) => Gen (PrimState m) -> BVar s p -> BVar s a -> m (BVar s b)} -> LearnFunc p a b
 learnFunc :: Learn p a b l => l -> LearnFunc p a b
-(~>) :: (Num p, ListC (Num <$> ps), Known Length ps) => LearnFunc p a b -> LearnFunc (T ps) b c -> LearnFunc (T (p : ps)) a c
-infixr 5 ~>
+(~~>) :: (Num p, ListC (Num <$> ps), Known Length ps) => LearnFunc p a b -> LearnFunc (T ps) b c -> LearnFunc (T (p : ps)) a c
+infixr 5 ~~>
 nilLF :: LearnFunc (T '[]) a a
-(~!++) :: LearnFunc NoParam a b -> LearnFunc (T ps) b c -> LearnFunc (T ps) a c
-infixr 5 ~!++
-(~++!) :: LearnFunc (T ps) a b -> LearnFunc NoParam b c -> LearnFunc (T ps) a c
-infixr 5 ~++!
+(~!>) :: LearnFunc NoParam a b -> LearnFunc p b c -> LearnFunc p a c
+infixr 5 ~!>
+(~>!) :: LearnFunc (T ps) a b -> LearnFunc NoParam b c -> LearnFunc (T ps) a c
+infixr 5 ~>!
 (~++) :: forall ps qs a b c. (Known Length ps, Known Length qs, ListC (Num <$> ps), ListC (Num <$> qs)) => LearnFunc (T ps) a b -> LearnFunc (T qs) b c -> LearnFunc (T (ps ++ qs)) a c
+parLF :: (Num p, Num q, Num a, Num b, Num c, Num d) => LearnFunc p a c -> LearnFunc q b d -> LearnFunc (T2 p q) (T2 a b) (T2 c d)
+compLF :: (Num p, Num q) => LearnFunc p b c -> LearnFunc q a b -> LearnFunc (T2 p q) a c
 
 -- | Simple composition of <a>Learn</a> instances
 data l (:.~) k
@@ -115,12 +117,15 @@ parPF :: (Num p, Num q, Num a, Num b, Num c, Num d) => ParamFunc p a c -> ParamF
 idPF :: ParamFunc NoParam a a
 fixedParam :: FixedFunc a b -> ParamFunc NoParam a b
 learnParam :: Learn p a b l => l -> ParamFunc p a b
-data PFChain :: [Type] -> Type -> Type -> Type
-[PFCNil] :: PFChain '[] a a
-[:-?>] :: Num b => ParamFunc p a b -> PFChain ps b c -> PFChain (p : ps) a c
-[:-!>] :: Num b => FixedFunc a b -> PFChain ps b c -> PFChain ps a c
-(-++) :: PFChain ps a b -> PFChain qs b c -> PFChain (ps ++ qs) a c
-infixr 4 -++
+nilPF :: ParamFunc (T '[]) a a
+(-~>) :: (Known Length ps, ListC (Num <$> ps), Num p) => ParamFunc p a b -> ParamFunc (T ps) b c -> ParamFunc (T (p : ps)) a c
+infixr 5 -~>
+(-!>) :: FixedFunc a b -> ParamFunc p b c -> ParamFunc p a c
+infixr 5 -!>
+(->!) :: ParamFunc p a b -> FixedFunc b c -> ParamFunc p a c
+infixr 5 ->!
+(-++) :: forall ps qs a b c. (Known Length ps, Known Length qs, ListC (Num <$> ps), ListC (Num <$> qs)) => ParamFunc (T ps) a b -> ParamFunc (T qs) b c -> ParamFunc (T (ps ++ qs)) a c
+infixr 5 -++
 softMax :: KnownNat i => FixedFunc (R i) (R i)
 logisticFunc :: Floating a => FixedFunc a a
 scaleFunc :: Num a => a -> FixedFunc a a
@@ -130,7 +135,6 @@ reLU :: KnownNat i => FixedFunc (R i) (R i)
 eLU :: KnownNat i => FixedFunc (R i) (R i)
 pScale :: (KnownNat i, ContGen d) => d -> ParamFunc Double (R i) (R i)
 pMap :: KnownNat i => (forall m. PrimMonad m => Gen (PrimState m) -> m p) -> (forall s. Reifies s W => BVar s p -> BVar s Double -> BVar s Double) -> ParamFunc p (R i) (R i)
-instance (Type.Class.Known.Known [*] (Data.Type.Length.Length *) ps, Type.Family.List.ListC ((Type.Family.List.<$>) * GHC.Types.Constraint GHC.Num.Num ps), GHC.Num.Num a, GHC.Num.Num b) => Backprop.Learn.Class.Learn (Numeric.Backprop.Tuple.T ps) a b (Backprop.Learn.Function.PFChain ps a b)
 instance (GHC.Num.Num p, GHC.Num.Num a, GHC.Num.Num b) => Backprop.Learn.Class.Learn p a b (Backprop.Learn.Function.ParamFunc p a b)
 instance (GHC.Num.Num a, GHC.Num.Num b) => Backprop.Learn.Class.Learn Backprop.Learn.Class.NoParam a b (Backprop.Learn.Function.FixedFunc a b)
 instance Control.Category.Category * Backprop.Learn.Function.FixedFunc
