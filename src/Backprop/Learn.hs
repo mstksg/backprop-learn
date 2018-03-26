@@ -26,12 +26,14 @@ module Backprop.Learn (
 ) where
 
 import           Backprop.Learn.Class    as L
+import           Control.Category
 import           Control.Monad
 import           Control.Monad.Primitive
 import           Data.Kind
 import           Data.Type.Length
 import           Numeric.Backprop
 import           Numeric.Backprop.Tuple
+import           Prelude hiding          ((.), id)
 import           Type.Class.Known
 import           Type.Family.List
 import qualified System.Random.MWC       as MWC
@@ -92,6 +94,19 @@ instance (Num p, Num a, Num b) => Learn p a b (LearnFunc p a b) where
     initParam = _lfInitParam
     runFixed  = _lfRunFixed
     runStoch  = _lfRunStoch
+
+instance Num p => Category (LearnFunc p) where
+    id = LF { _lfInitParam = const (pure 0)
+            , _lfRunFixed  = const id
+            , _lfRunStoch  = \_ -> const pure
+            }
+    f . g = LF { _lfInitParam = \gen -> (+) <$> _lfInitParam f gen
+                                            <*> _lfInitParam g gen
+               , _lfRunFixed  = \p -> _lfRunFixed f p
+                                    . _lfRunFixed g p
+               , _lfRunStoch  = \gen p -> _lfRunStoch f gen p
+                                      <=< _lfRunStoch g gen p
+               }
 
 learnFunc :: Learn p a b l => l -> LearnFunc p a b
 learnFunc l = LF { _lfInitParam = initParam l

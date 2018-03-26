@@ -53,6 +53,14 @@ instance (Num p, Num a, Num b) => Learn p a b (ParamFunc p a b) where
     initParam = _pfInit
     runFixed  = _pfFunc
 
+instance Num p => Category (ParamFunc p) where
+    id = PF { _pfInit = \_ -> pure 0
+            , _pfFunc = \_ -> id
+            }
+    f . g = PF { _pfInit = \gen -> (+) <$> _pfInit f gen <*> _pfInit g gen
+               , _pfFunc = \p -> _pfFunc f p . _pfFunc g p
+               }
+
 learnParam
     :: Learn p a b l
     => l
