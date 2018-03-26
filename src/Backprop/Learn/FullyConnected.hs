@@ -3,12 +3,14 @@
 {-# LANGUAGE KindSignatures                           #-}
 {-# LANGUAGE MultiParamTypeClasses                    #-}
 {-# LANGUAGE RankNTypes                               #-}
+{-# LANGUAGE TypeFamilies                             #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
 module Backprop.Learn.FullyConnected (
     FC(..), fc
   , FCP(..), fcBias, fcWeights
   ) where
+
 
 import           Backprop.Learn.Class
 import           Control.Monad.Primitive
@@ -21,6 +23,7 @@ import           Numeric.OneLiner
 import           Statistics.Distribution
 import qualified Data.Vector.Storable.Sized            as SVS
 import qualified System.Random.MWC                     as MWC
+
 
 -- | Fully connected feed-forward layer with bias.  Parameterized by its
 -- initialization distribution.
@@ -53,7 +56,6 @@ fcBias
     -> f (FCP i o)
 fcBias f fcp = (\b -> fcp { _fcBias = b }) <$> f (_fcBias fcp)
 
-
 instance (KnownNat i, KnownNat o) => Num (FCP i o) where
     (+)         = gPlus
     (-)         = gMinus
@@ -63,9 +65,13 @@ instance (KnownNat i, KnownNat o) => Num (FCP i o) where
     signum      = gSignum
     fromInteger = gFromInteger
 
-instance (KnownNat i, KnownNat o) => Learn (FCP i o) (R i) (R o) (FC i o) where
-    initParam (FC f) g = FCP <$> (vecR <$> SVS.replicateM (f g))
-                             <*> (vecL <$> SVS.replicateM (f g))
+instance (KnownNat i, KnownNat o) => Learn (R i) (R o) (FC i o) where
+    type LParamMaybe (FC i o) = 'Just (FCP i o)
 
-    runFixed _ p x = (p ^^. fcWeights) #> x + (p ^^. fcBias)
+    initParam (FC f) g = J_ $
+        FCP <$> (vecR <$> SVS.replicateM (f g))
+            <*> (vecL <$> SVS.replicateM (f g))
+
+    runLearn _ (J_ p) = stateless $ \x ->
+        (p ^^. fcWeights) #> x + (p ^^. fcBias)
 

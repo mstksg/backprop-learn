@@ -36,6 +36,7 @@ library:
   - backprop >= 0.1.5
   - mwc-random
   - primitive
+  - transformers
   - hmatrix-backprop >= 0.1.1
   - one-liner-instances
   - hmatrix-vector-sized

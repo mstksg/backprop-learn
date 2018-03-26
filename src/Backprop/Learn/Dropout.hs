@@ -4,9 +4,10 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module Backprop.Learn.Dropout (
+    DO(..)
   ) where
 
-import           Backprop.Learn
+import           Backprop.Learn.Class
 import           Data.Bool
 import           GHC.TypeNats
 import           Numeric.Backprop
@@ -22,9 +23,10 @@ import qualified System.Random.MWC                     as MWC
 -- nodes every time.
 newtype DO (n :: Nat) = DO { _doRate :: Double }
 
-instance KnownNat n => Learn NoParam (R n) (R n) (DO n) where
-    runFixed (DO r) _     = (*) (constVar (realToFrac (1-r)))
-    runStoch (DO r) g _ x = (x *) . constVar . vecR <$> SVS.replicateM (mask g)
+instance KnownNat n => Learn (R n) (R n) (DO n) where
+    runLearn (DO r) _ = stateless (constVar (realToFrac (1-r)) *)
+    runLearnStoch (DO r) g _ = statelessM $ \x ->
+        (x *) . constVar . vecR <$> SVS.replicateM (mask g)
       where
         mask = fmap (bool 1 0 . (<= r))
              . MWC.uniform
