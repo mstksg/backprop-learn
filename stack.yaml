@@ -37,10 +37,10 @@ resolver: lts-11.0
 # will not be run. This is useful for tweaking upstream packages.
 packages:
 - '.'
-# - location:
-#     git: https://github.com/mstksg/backprop.git
-#     commit: 5c5fa4301cdae6f0b9c9607c18df01de32d288b7
-#   extra-dep: true
+- location:
+    git: https://github.com/mstksg/backprop.git
+    commit: f7a7ff7352bf86b4fd15b4b462a118a909b44dd7
+  extra-dep: true
 # - location:
 #     git: https://github.com/mstksg/type-combinators-singletons.git
 #     commit: 8bd05539987692ee745f0d78b83e5d72c7af21c4
@@ -53,10 +53,11 @@ packages:
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps:
-- backprop-0.1.4.0
+# - backprop-0.1.4.0
 # - type-combinators-0.2.4.3
 # - mnist-idx-0.1.2.6
 # - finite-typelits-0.1.2.0
+- hmatrix-backprop-0.1.1.0
 
 # Override default flag values for local packages and extra-deps
 flags: {}

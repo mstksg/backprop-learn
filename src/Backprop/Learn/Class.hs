@@ -1,5 +1,6 @@
 {-# LANGUAGE DefaultSignatures      #-}
 {-# LANGUAGE FlexibleContexts       #-}
+{-# LANGUAGE FlexibleInstances      #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses  #-}
 {-# LANGUAGE PatternSynonyms        #-}
@@ -16,7 +17,7 @@ import           Numeric.Backprop.Tuple
 import qualified System.Random.MWC       as MWC
 
 -- | Useful convenience type for trained models without learnable
--- parameters.  Can be used to automatically derive 'initParams' if given
+-- parameters.  Can be used to automatically derive 'initParam' if given
 -- as a model's parmaeters.
 type NoParam = T0
 
@@ -32,21 +33,21 @@ pattern NoParam = T0
 -- model, with @p@ representing the /trained parameters/ of the model.
 --
 -- If no trained parameters exist, 'NoParam' can be used.  This will
--- automatically derive 'initParams'.
+-- automatically derive 'initParam'.
 class (Num p, Num a, Num b) => Learn p a b l | l -> p, l -> a, l -> b where
     -- | Initialization of trainiable model parameters.
-    initParams
+    initParam
         :: PrimMonad m
         => l
         -> MWC.Gen (PrimState m)
         -> m p
 
-    default initParams
+    default initParam
         :: (PrimMonad m, p ~ NoParam)
         => l
         -> MWC.Gen (PrimState m)
         -> m p
-    initParams _ _ = pure T0
+    initParam _ _ = pure T0
 
     -- | Run the model.
     runFixed
@@ -68,4 +69,3 @@ class (Num p, Num a, Num b) => Learn p a b l | l -> p, l -> a, l -> b where
         -> BVar s a
         -> m (BVar s b)
     runStoch l _ x = pure . runFixed l x
-

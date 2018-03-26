@@ -33,15 +33,16 @@ library:
   # exposed-modules:
   # other-modules:
   dependencies:
-  - backprop >= 0.1.4
+  - backprop >= 0.1.5
   - mwc-random
   - primitive
-  - hmatrix-backprop
+  - hmatrix-backprop >= 0.1.1
   - one-liner-instances
   - hmatrix-vector-sized
   - vector-sized
   - ghc-typelits-knownnat
   - statistics
+  - type-combinators
 
 # dependencies:
 # - backprop

@@ -64,8 +64,8 @@ instance (KnownNat i, KnownNat o) => Num (FCP i o) where
     fromInteger = gFromInteger
 
 instance (KnownNat i, KnownNat o) => Learn (FCP i o) (R i) (R o) (FC i o) where
-    initParams (FC f) g = FCP <$> (vecR <$> SVS.replicateM (f g))
-                              <*> (vecL <$> SVS.replicateM (f g))
+    initParam (FC f) g = FCP <$> (vecR <$> SVS.replicateM (f g))
+                             <*> (vecL <$> SVS.replicateM (f g))
 
     runFixed _ p x = (p ^^. fcWeights) #> x + (p ^^. fcBias)
 
