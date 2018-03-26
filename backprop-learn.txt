@@ -76,6 +76,7 @@ compLF :: (Num p, Num q) => LearnFunc p b c -> LearnFunc q a b -> LearnFunc (T2 
 data l (:.~) k
 instance (Backprop.Learn.Class.Learn p b c l, Backprop.Learn.Class.Learn q a b k) => Backprop.Learn.Class.Learn (Numeric.Backprop.Tuple.T2 p q) a c (l Backprop.Learn.:.~ k)
 instance (GHC.Num.Num p, GHC.Num.Num a, GHC.Num.Num b) => Backprop.Learn.Class.Learn p a b (Backprop.Learn.LearnFunc p a b)
+instance GHC.Num.Num p => Control.Category.Category * (Backprop.Learn.LearnFunc p)
 instance (Type.Family.List.ListC ((Type.Family.List.<$>) * GHC.Types.Constraint GHC.Num.Num ps), Type.Class.Known.Known [*] (Data.Type.Length.Length *) ps, GHC.Num.Num a, GHC.Num.Num b) => Backprop.Learn.Class.Learn (Numeric.Backprop.Tuple.T ps) a b (Backprop.Learn.Chain ls ps a b)
 
 module Backprop.Learn.Dropout
@@ -136,5 +137,6 @@ eLU :: KnownNat i => FixedFunc (R i) (R i)
 pScale :: (KnownNat i, ContGen d) => d -> ParamFunc Double (R i) (R i)
 pMap :: KnownNat i => (forall m. PrimMonad m => Gen (PrimState m) -> m p) -> (forall s. Reifies s W => BVar s p -> BVar s Double -> BVar s Double) -> ParamFunc p (R i) (R i)
 instance (GHC.Num.Num p, GHC.Num.Num a, GHC.Num.Num b) => Backprop.Learn.Class.Learn p a b (Backprop.Learn.Function.ParamFunc p a b)
+instance GHC.Num.Num p => Control.Category.Category * (Backprop.Learn.Function.ParamFunc p)
 instance (GHC.Num.Num a, GHC.Num.Num b) => Backprop.Learn.Class.Learn Backprop.Learn.Class.NoParam a b (Backprop.Learn.Function.FixedFunc a b)
 instance Control.Category.Category * Backprop.Learn.Function.FixedFunc
