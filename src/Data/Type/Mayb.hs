@@ -1,19 +1,20 @@
-{-# LANGUAGE AllowAmbiguousTypes   #-}
-{-# LANGUAGE ConstraintKinds       #-}
-{-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE GADTs                 #-}
-{-# LANGUAGE KindSignatures        #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE PatternSynonyms       #-}
-{-# LANGUAGE RankNTypes            #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE StandaloneDeriving    #-}
-{-# LANGUAGE TypeApplications      #-}
-{-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE TypeInType            #-}
-{-# LANGUAGE TypeOperators         #-}
-{-# LANGUAGE UndecidableInstances  #-}
+{-# LANGUAGE AllowAmbiguousTypes    #-}
+{-# LANGUAGE ConstraintKinds        #-}
+{-# LANGUAGE FlexibleContexts       #-}
+{-# LANGUAGE FlexibleInstances      #-}
+{-# LANGUAGE GADTs                  #-}
+{-# LANGUAGE KindSignatures         #-}
+{-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE PatternSynonyms        #-}
+{-# LANGUAGE RankNTypes             #-}
+{-# LANGUAGE ScopedTypeVariables    #-}
+{-# LANGUAGE StandaloneDeriving     #-}
+{-# LANGUAGE TypeApplications       #-}
+{-# LANGUAGE TypeFamilies           #-}
+{-# LANGUAGE TypeFamilyDependencies #-}
+{-# LANGUAGE TypeInType             #-}
+{-# LANGUAGE TypeOperators          #-}
+{-# LANGUAGE UndecidableInstances   #-}
 
 module Data.Type.Mayb (
     MaybeC, MaybeToList, ListToMaybe
@@ -22,7 +23,7 @@ module Data.Type.Mayb (
   , zipMayb
   , zipMayb3
   , FromJust
-  , MaybeWit(..)
+  , MaybeWit(..), type (<$>)
   ) where
 
 import           Data.Kind
@@ -41,9 +42,13 @@ type family (<$>) (f :: k -> j) (m :: Maybe k) :: Maybe j where
     f <$> 'Just a  = 'Just (f a)
     f <$> 'Nothing = 'Nothing
 
-type family MaybeToList (m :: Maybe k) :: [k] where
+type family MaybeToList (m :: Maybe k) = (l :: [k]) | l -> m where
     MaybeToList 'Nothing  = '[]
     MaybeToList ('Just a) = '[a]
+
+-- type family ConsMaybe (ml :: (Maybe k, [k])) = (l :: (Bool, [k])) | l -> ml where
+--     ConsMaybe '( 'Nothing, as) = '( 'False, as      )
+--     ConsMaybe '( 'Just a , as) = '( 'True , a ': as )
 
 maybToList
     :: Mayb f m

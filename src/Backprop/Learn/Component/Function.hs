@@ -34,7 +34,7 @@ import           Control.Applicative
 import           Control.Category
 import           Control.Monad.Primitive
 import           Data.Type.Length
-import           Data.Type.Mayb
+import           Data.Type.Mayb hiding                 (type (<$>))
 import           GHC.TypeNats
 import           Numeric.Backprop
 import           Numeric.Backprop.Tuple
