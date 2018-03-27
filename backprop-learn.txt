@@ -42,7 +42,7 @@ module Backprop.Learn.Class
 --   by <tt>p</tt>, takes <tt>a</tt> as input, and returns <tt>b</tt> as
 --   outputs. <tt>l</tt> can be thought of as a value containing the
 --   <i>hyperparmaeters</i> of the model.
-class (MaybeC Num (LParamMaybe l), MaybeC Num (LStateMaybe l), Num a, Num b, KnownMayb (LParamMaybe l), KnownMayb (LStateMaybe l)) => Learn a b l | l -> a, l -> b where {
+class Learn a b l | l -> a, l -> b where {
     type family LParamMaybe l :: Maybe Type;
     type family LStateMaybe l :: Maybe Type;
     type LParamMaybe l =  'Nothing;
@@ -113,7 +113,7 @@ fromJ_ :: Mayb f ( 'Just a) -> f a
 type KnownMayb = Known (Mayb P)
 knownMayb :: KnownMayb p => Mayb P p
 
-module Backprop.Learn.Function
+module Backprop.Learn.Component.Function
 
 -- | A <tt><a>ParamFunc</a> p a b</tt> is a parameterized function from
 --   <tt>a</tt> to <tt>b</tt>, potentially with trainable parameter
@@ -125,10 +125,26 @@ PF :: (forall m. PrimMonad m => Gen (PrimState m) -> Mayb m p) -> (forall s. Rei
 
 -- | An unparameterized function. Has a <a>Category</a> instance.
 type FixedFunc = ParamFunc  'Nothing
+runFixedFunc :: () => FixedFunc a b -> forall s. Reifies Type s W => BVar s a -> BVar s b
 
 -- | Create a <a>ParamFunc</a> from any instance of <a>Learn</a> that does
 --   not have state.
 learnParam :: forall l a b. (Learn a b l, NoState l) => l -> ParamFunc (LParamMaybe l) a b
+
+-- | Pre- and post-compose a <a>ParamFunc</a>
+dimapPF :: FixedFunc a b -> FixedFunc c d -> ParamFunc p b c -> ParamFunc p a d
+
+-- | Precompose a <a>ParamFunc</a>
+lmapPF :: FixedFunc a b -> ParamFunc p b c -> ParamFunc p a c
+
+-- | Postcompose a <a>ParamFunc</a>
+rmapPF :: FixedFunc b c -> ParamFunc p a b -> ParamFunc p a c
+
+-- | Compose two <a>ParamFunc</a>s sequentially
+compPF :: (Num p, Num q) => ParamFunc ( 'Just p) a b -> ParamFunc ( 'Just q) b c -> ParamFunc ( 'Just (T2 p q)) a c
+
+-- | Compose two <a>ParamFunc</a>s in parallel
+parPF :: (Num p, Num q, Num a, Num b, Num c, Num d) => ParamFunc ( 'Just p) a c -> ParamFunc ( 'Just q) b d -> ParamFunc ( 'Just (T2 p q)) (T2 a b) (T2 c d)
 
 -- | Softmax normalizer
 softMax :: KnownNat i => FixedFunc (R i) (R i)
@@ -156,7 +172,7 @@ pScale :: (KnownNat i, ContGen d) => d -> ParamFunc ( 'Just Double) (R i) (R i)
 
 -- | Map a parameterized differentiable function over ever item in an
 --   <a>R</a>. The parameteri is trainable.
-pMap :: (KnownNat i, Num p) => (forall m. PrimMonad m => Gen (PrimState m) -> m p) -> (forall s. Reifies s W => BVar s p -> BVar s Double -> BVar s Double) -> ParamFunc ( 'Just p) (R i) (R i)
+pMap :: KnownNat i => (forall m. PrimMonad m => Gen (PrimState m) -> m p) -> (forall s. Reifies s W => BVar s p -> BVar s Double -> BVar s Double) -> ParamFunc ( 'Just p) (R i) (R i)
 
 -- | Compose two <a>ParamFunc</a>s on lists.
 (.-) :: forall ps qs a b c. (ListC (Num <$> ps), ListC (Num <$> qs), Known Length ps, Known Length qs) => ParamFunc ( 'Just (T ps)) b c -> ParamFunc ( 'Just (T qs)) a b -> ParamFunc ( 'Just (T (ps ++ qs))) a c
@@ -168,10 +184,10 @@ nilPF :: ParamFunc ( 'Just (T '[])) a a
 -- | <a>ParamFunc</a> taking a singleton list; meant to be used with
 --   <a>.-</a>
 onlyPF :: forall p a b. (KnownMayb p, MaybeC Num p) => ParamFunc p a b -> ParamFunc ( 'Just (T (MaybeToList p))) a b
-instance (GHC.Num.Num a, GHC.Num.Num b, Data.Type.Mayb.MaybeC GHC.Num.Num p, Data.Type.Mayb.KnownMayb p) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Function.ParamFunc p a b)
-instance (Data.Type.Mayb.MaybeC GHC.Num.Num p, Data.Type.Mayb.KnownMayb p) => Control.Category.Category (Backprop.Learn.Function.ParamFunc p)
+instance (GHC.Num.Num a, GHC.Num.Num b, Data.Type.Mayb.MaybeC GHC.Num.Num p, Data.Type.Mayb.KnownMayb p) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.Function.ParamFunc p a b)
+instance (Data.Type.Mayb.MaybeC GHC.Num.Num p, Data.Type.Mayb.KnownMayb p) => Control.Category.Category (Backprop.Learn.Component.Function.ParamFunc p)
 
-module Backprop.Learn.FullyConnected
+module Backprop.Learn.Component.FullyConnected
 
 -- | Fully connected feed-forward layer with bias. Parameterized by its
 --   initialization distribution.
@@ -190,11 +206,11 @@ FCP :: !(R o) -> !(L o i) -> FCP i o
 [_fcWeights] :: FCP i o -> !(L o i)
 fcBias :: Functor f => (R o -> f (R o)) -> FCP i o -> f (FCP i o)
 fcWeights :: Functor f => (L o i -> f (L o k)) -> FCP i o -> f (FCP k o)
-instance GHC.Generics.Generic (Backprop.Learn.FullyConnected.FCP i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.FullyConnected.FCP i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Class.Learn (Internal.Static.R i) (Internal.Static.R o) (Backprop.Learn.FullyConnected.FC i o)
+instance GHC.Generics.Generic (Backprop.Learn.Component.FullyConnected.FCP i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Component.FullyConnected.FCP i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Class.Learn (Internal.Static.R i) (Internal.Static.R o) (Backprop.Learn.Component.FullyConnected.FC i o)
 
-module Backprop.Learn.Dropout
+module Backprop.Learn.Component.Dropout
 
 -- | Dropout layer. Parameterized by dropout percentage (should be between
 --   0 and 1).
@@ -204,4 +220,23 @@ module Backprop.Learn.Dropout
 newtype DO (n :: Nat)
 DO :: Double -> DO
 [_doRate] :: DO -> Double
-instance GHC.TypeNats.KnownNat n => Backprop.Learn.Class.Learn (Internal.Static.R n) (Internal.Static.R n) (Backprop.Learn.Dropout.DO n)
+instance GHC.TypeNats.KnownNat n => Backprop.Learn.Class.Learn (Internal.Static.R n) (Internal.Static.R n) (Backprop.Learn.Component.Dropout.DO n)
+
+module Data.Type.NonEmpty
+data NETup :: NonEmpty Type -> Type
+[NET] :: a -> T as -> NETup (a :| as)
+netHead :: Functor f => (a -> f b) -> NETup (a :| as) -> f (NETup (b :| as))
+netTail :: Functor f => (T as -> f (T bs)) -> NETup (a :| as) -> f (NETup (a :| bs))
+unNet :: NETup (a :| as) -> (a, T as)
+netT :: NETup (a :| as) -> T (a : as)
+tNet :: T (a : as) -> NETup (a :| as)
+instance (GHC.Num.Num a, Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => GHC.Num.Num (Data.Type.NonEmpty.NETup (a 'Data.List.NonEmpty.:| as))
+
+module Backprop.Learn.Component.Combinator
+
+-- | Chain components linearly, retaining the ability to deconstruct at a
+--   later time.
+data Chain :: [Type] -> [Type] -> [Type] -> Type -> Type -> Type
+[CNil] :: Chain '[] '[] '[] a a
+[:~>] :: (Learn a b l, KnownMayb (LParamMaybe l), KnownMayb (LStateMaybe l), Known Length ps, Known Length ss) => l -> Chain ls ps ss b c -> Chain (l : ls) (MaybeToList (LParamMaybe l) ++ ps) (MaybeToList (LStateMaybe l) ++ ss) a c
+instance (Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> ps), Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> ss)) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.Combinator.Chain ls ps ss a b)
