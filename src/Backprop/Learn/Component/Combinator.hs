@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes    #-}
 {-# LANGUAGE ConstraintKinds        #-}
 {-# LANGUAGE DataKinds              #-}
 {-# LANGUAGE FlexibleContexts       #-}
@@ -18,6 +19,9 @@
 
 module Backprop.Learn.Component.Combinator (
     Chain(..)
+  , (~++)
+  , chainParamLength
+  , chainStateLength
   ) where
 
 import           Backprop.Learn.Class
@@ -25,12 +29,14 @@ import           Control.Monad
 import           Control.Monad.Primitive
 import           Data.Bifunctor
 import           Data.Kind
+import           Data.Type.Equality
 import           Data.Type.Length
 import           Data.Type.Mayb          as Mayb
 import           Data.Type.NonEmpty
 import           Numeric.Backprop
 import           Numeric.Backprop.Tuple
 import           Type.Class.Known
+import           Type.Class.Witness
 import           Type.Family.List        as List
 import qualified System.Random.MWC       as MWC
 
@@ -38,7 +44,7 @@ import qualified System.Random.MWC       as MWC
 -- a later time.
 data Chain :: [Type] -> [Type] -> [Type] -> Type -> Type -> Type where
     CNil  :: Chain '[] '[] '[] a a
-    (:~>) :: (Learn a b l, KnownMayb (LParamMaybe l), KnownMayb (LStateMaybe l), Known Length ps, Known Length ss)
+    (:~>) :: (Learn a b l, KnownMayb (LParamMaybe l), KnownMayb (LStateMaybe l))
           => l
           -> Chain ls        ps ss b c
           -> Chain (l ': ls) (MaybeToList (LParamMaybe l) ++ ps)
@@ -64,11 +70,11 @@ initChainParam
     -> Mayb m (NETup Mayb.<$> ToNonEmpty ps)
 initChainParam = \case
     CNil -> \_ -> N_
-    (l :: l) :~> (ls :: Chain ls' ps' ss' a' b) -> case knownMayb @(LParamMaybe l) of
+    (l :: l) :~> ls -> case knownMayb @(LParamMaybe l) of
       N_   -> initChainParam ls
       J_ _ -> \g -> J_ $ do
         q <- fromJ_ $ initParam l g
-        case known @_ @Length @ps' of
+        case chainParamLength ls of
           LZ   -> pure $ NET q TNil
           LS _ -> NET q . netT <$> fromJ_ (initChainParam ls g)
 
@@ -79,11 +85,11 @@ initChainState
     -> Mayb m (NETup Mayb.<$> ToNonEmpty ss)
 initChainState = \case
     CNil -> \_ -> N_
-    (l :: l) :~> (ls :: Chain ls' ps' ss' a' b) -> case knownMayb @(LStateMaybe l) of
+    (l :: l) :~> ls -> case knownMayb @(LStateMaybe l) of
       N_   -> initChainState ls
       J_ _ -> \g -> J_ $ do
         q <- fromJ_ $ initState l g
-        case known @_ @Length @ss' of
+        case chainStateLength ls of
           LZ   -> pure $ NET q TNil
           LS _ -> NET q . netT <$> fromJ_ (initChainState ls g)
 
@@ -95,58 +101,61 @@ runChainLearn
     -> Mayb (BVar s) (NETup Mayb.<$> ToNonEmpty ss)
     -> (BVar s b, Mayb (BVar s) (NETup Mayb.<$> ToNonEmpty ss))
 runChainLearn = \case
-    CNil -> \_ x _ -> (x, N_)
-    (l :: l) :~> (ls :: Chain ls' ps' ss' a' b) -> case knownMayb @(LParamMaybe l) of
+  CNil -> \_ x _ -> (x, N_)
+  (l :: l) :~> ls ->
+    let lenPs = chainParamLength ls
+        lenSs = chainStateLength ls
+    in case knownMayb @(LParamMaybe l) of
       N_ -> \ps x -> case knownMayb @(LStateMaybe l) of
         N_ -> \ss -> flip (runChainLearn ls ps) ss
                    . runLearnStateless l N_
                    $ x
-        J_ _ -> case known @_ @Length @ss' of
+        J_ _ -> case lenSs of
           LZ -> \case
             J_ (isoVar (tOnly . netT) (tNet . onlyT)->s) ->
               let (y, J_ s') = runLearn      l  N_ x (J_ s)
                   (z, _    ) = runChainLearn ls ps y N_
               in  (z, J_ $ isoVar (tNet . onlyT) (tOnly . netT) s')
           LS _ -> \case
-            J_ ss ->
+            J_ ss -> lenSs //
               let (y, J_ s' ) = runLearn      l  N_ x (J_ (ss ^^. netHead))
                   ssTail      = isoVar tNet netT $ ss ^^. netTail
                   (z, J_ ss') = runChainLearn ls ps y (J_ ssTail)
               in  (z, J_ $ isoVar2 NET unNet s' $ isoVar netT tNet ss')
-      J_ _ -> case known @_ @Length @ps' of
+      J_ _ -> case lenPs of
         LZ -> \case
           J_ (isoVar (tOnly . netT) (tNet . onlyT)->p) -> \x -> case knownMayb @(LStateMaybe l) of
             N_ -> \ss -> flip (runChainLearn ls N_) ss
                        . runLearnStateless l (J_ p)
                        $ x
-            J_ _ -> case known @_ @Length @ss' of
+            J_ _ -> case lenSs of
               LZ -> \case
                 J_ (isoVar (tOnly . netT) (tNet . onlyT)->s) ->
                   let (y, J_ s') = runLearn      l  (J_ p)  x (J_ s)
                       (z, _    ) = runChainLearn ls N_      y N_
                   in  (z, J_ $ isoVar (tNet . onlyT) (tOnly . netT) s')
               LS _ -> \case
-                J_ ss ->
+                J_ ss -> lenSs //
                   let (y, J_ s' ) = runLearn      l  (J_ p) x (J_ (ss ^^. netHead))
                       ssTail      = isoVar tNet netT $ ss ^^. netTail
                       (z, J_ ss') = runChainLearn ls N_     y (J_ ssTail)
                   in  (z, J_ $ isoVar2 NET unNet s' $ isoVar netT tNet ss')
         LS _ -> \case
-          J_ ps -> \x ->
+          J_ ps -> \x -> lenPs //
             let psHead = ps ^^. netHead
                 psTail = isoVar tNet netT $ ps ^^. netTail
             in  case knownMayb @(LStateMaybe l) of
                   N_ -> \ss -> flip (runChainLearn ls (J_ psTail)) ss
                              . runLearnStateless l (J_ psHead)
                              $ x
-                  J_ _ -> case known @_ @Length @ss' of
+                  J_ _ -> case lenSs of
                     LZ -> \case
                       J_ (isoVar (tOnly . netT) (tNet . onlyT)->s) ->
                         let (y, J_ s') = runLearn      l  (J_ psHead) x (J_ s)
                             (z, _    ) = runChainLearn ls (J_ psTail) y N_
                         in  (z, J_ $ isoVar (tNet . onlyT) (tOnly . netT) s')
                     LS _ -> \case
-                      J_ ss ->
+                      J_ ss -> lenSs //
                         let (y, J_ s' ) = runLearn      l  (J_ psHead) x (J_ (ss ^^. netHead))
                             ssTail      = isoVar tNet netT $ ss ^^. netTail
                             (z, J_ ss') = runChainLearn ls (J_ psTail) y (J_ ssTail)
@@ -162,13 +171,16 @@ runChainLearnStoch
     -> Mayb (BVar s) (NETup Mayb.<$> ToNonEmpty ss)
     -> m (BVar s b, Mayb (BVar s) (NETup Mayb.<$> ToNonEmpty ss))
 runChainLearnStoch = \case
-    CNil -> \_ _ x _ -> pure (x, N_)
-    (l :: l) :~> (ls :: Chain ls' ps' ss' a' b) -> \g -> case knownMayb @(LParamMaybe l) of
+  CNil -> \_ _ x _ -> pure (x, N_)
+  (l :: l) :~> ls -> \g ->
+    let lenPs = chainParamLength ls
+        lenSs = chainStateLength ls
+    in case knownMayb @(LParamMaybe l) of
       N_ -> \ps x -> case knownMayb @(LStateMaybe l) of
         N_ -> \ss -> flip (runChainLearnStoch ls g ps) ss
                  <=< runLearnStochStateless l g N_
                    $ x
-        J_ _ -> case known @_ @Length @ss' of
+        J_ _ -> case lenSs of
           LZ -> \case
             J_ (isoVar (tOnly . netT) (tNet . onlyT)->s) -> do
               (y, s') <- second fromJ_
@@ -176,20 +188,20 @@ runChainLearnStoch = \case
               (z, _ ) <- runChainLearnStoch ls g ps y N_
               pure (z, J_ $ isoVar (tNet . onlyT) (tOnly . netT) s')
           LS _ -> \case
-            J_ ss -> do
+            J_ ss -> lenSs // do
               (y, s' ) <- second fromJ_
                       <$> runLearnStoch      l  g N_ x (J_ (ss ^^. netHead))
               let ssTail = isoVar tNet netT $ ss ^^. netTail
               (z, ss') <- second fromJ_
                       <$> runChainLearnStoch ls g ps y (J_ ssTail)
               pure  (z, J_ $ isoVar2 NET unNet s' $ isoVar netT tNet ss')
-      J_ _ -> case known @_ @Length @ps' of
+      J_ _ -> case lenPs of
         LZ -> \case
           J_ (isoVar (tOnly . netT) (tNet . onlyT)->p) -> \x -> case knownMayb @(LStateMaybe l) of
             N_ -> \ss -> flip (runChainLearnStoch ls g N_) ss
                      <=< runLearnStochStateless l g (J_ p)
                        $ x
-            J_ _ -> case known @_ @Length @ss' of
+            J_ _ -> case lenSs of
               LZ -> \case
                 J_ (isoVar (tOnly . netT) (tNet . onlyT)->s) -> do
                   (y, s') <- second fromJ_
@@ -197,7 +209,7 @@ runChainLearnStoch = \case
                   (z, _ ) <- runChainLearnStoch ls g N_      y N_
                   pure (z, J_ $ isoVar (tNet . onlyT) (tOnly . netT) s')
               LS _ -> \case
-                J_ ss -> do
+                J_ ss -> lenSs // do
                   (y, s' ) <- second fromJ_
                           <$> runLearnStoch      l  g (J_ p) x (J_ (ss ^^. netHead))
                   let ssTail = isoVar tNet netT $ ss ^^. netTail
@@ -205,14 +217,14 @@ runChainLearnStoch = \case
                           <$> runChainLearnStoch ls g N_     y (J_ ssTail)
                   pure (z, J_ $ isoVar2 NET unNet s' $ isoVar netT tNet ss')
         LS _ -> \case
-          J_ ps -> \x ->
+          J_ ps -> \x -> lenPs //
             let psHead = ps ^^. netHead
                 psTail = isoVar tNet netT $ ps ^^. netTail
             in  case knownMayb @(LStateMaybe l) of
                   N_ -> \ss -> flip (runChainLearnStoch ls g (J_ psTail)) ss
                            <=< runLearnStochStateless l g (J_ psHead)
                              $ x
-                  J_ _ -> case known @_ @Length @ss' of
+                  J_ _ -> case lenSs of
                     LZ -> \case
                       J_ (isoVar (tOnly . netT) (tNet . onlyT)->s) -> do
                         (y, s') <- second fromJ_
@@ -220,7 +232,7 @@ runChainLearnStoch = \case
                         (z, _ ) <- runChainLearnStoch ls g (J_ psTail) y N_
                         pure (z, J_ $ isoVar (tNet . onlyT) (tOnly . netT) s')
                     LS _ -> \case
-                      J_ ss -> do
+                      J_ ss -> lenSs // do
                         (y, s' ) <- second fromJ_
                                 <$> runLearnStoch      l  g (J_ psHead) x (J_ (ss ^^. netHead))
                         let ssTail = isoVar tNet netT $ ss ^^. netTail
@@ -228,7 +240,55 @@ runChainLearnStoch = \case
                                 <$> runChainLearnStoch ls g (J_ psTail) y (J_ ssTail)
                         pure (z, J_ $ isoVar2 NET unNet s' $ isoVar netT tNet ss')
 
+-- | Appending 'Chain'
+(~++)
+    :: forall ls ms ps qs ss ts a b c. ()
+    => Chain ls ps ss a b
+    -> Chain ms qs ts b c
+    -> Chain (ls ++ ms) (ps ++ qs) (ss ++ ts) a c
+(~++) = \case
+    CNil     -> id
+    (l :: l) :~> (ls :: Chain ls' ps' ss' a' b) ->
+      case assocMaybAppend @(LParamMaybe l) @ps' @qs known of
+        Refl -> case assocMaybAppend @(LStateMaybe l) @ss' @ts known of
+          Refl -> \ms -> (l :~> (ls ~++ ms))
+            \\ appendLength (chainParamLength ls) (chainParamLength ms)
+            \\ appendLength (chainStateLength ls) (chainStateLength ms)
 
+chainParamLength
+    :: Chain ls ps ss a b
+    -> Length ps
+chainParamLength = \case
+    CNil -> LZ
+    (_ :: l) :~> ls -> case knownMayb @(LParamMaybe l) of
+      N_   -> chainParamLength ls
+      J_ _ -> LS $ chainParamLength ls
+
+chainStateLength
+    :: Chain ls ps ss a b
+    -> Length ss
+chainStateLength = \case
+    CNil -> LZ
+    (_ :: l) :~> ls -> case knownMayb @(LStateMaybe l) of
+      N_   -> chainStateLength ls
+      J_ _ -> LS $ chainStateLength ls
+
+
+appendLength
+    :: forall as bs. ()
+    => Length as
+    -> Length bs
+    -> Length (as ++ bs)
+appendLength LZ     = id
+appendLength (LS l) = LS . appendLength l
+
+assocMaybAppend
+    :: forall a bs cs. ()
+    => Mayb P a
+    -> (MaybeToList a ++ (bs ++ cs)) :~: ((MaybeToList a ++ bs) ++ cs)
+assocMaybAppend = \case
+    N_   -> Refl
+    J_ _ -> Refl
 
 ---- | Data type representing trainable models.
 ----
