@@ -24,6 +24,7 @@ module Backprop.Learn.Component.Function (
   , mapFunc
   , reLU
   , eLU
+  , peLU
   , pScale
   , pMap
   , (.-), nilPF, onlyPF
@@ -208,8 +209,21 @@ reLU :: KnownNat i => FixedFunc (R i) (R i)
 reLU = mapFunc $ \x -> if x < 0 then 0 else x
 
 -- | Exponential linear unit activation function
-eLU :: KnownNat i => FixedFunc (R i) (R i)
-eLU = mapFunc $ \x -> if x < 0 then exp x - 1 else x
+eLU :: KnownNat i
+    => Double           -- ^ scaling factor
+    -> FixedFunc (R i) (R i)
+eLU α = mapFunc $ \x -> if x < 0 then constVar α * exp x - 1 else x
+
+-- | Exponential linear unit activation function, parameterized on scaling
+-- factor.
+peLU
+    :: (KnownNat i, ContGen d)
+    => d
+    -> ParamFunc ('Just Double) (R i) (R i)
+peLU d = pMap (genContVar d) $ \α x ->
+          if x < 0
+            then α * exp x - 1
+            else x
 
 -- | Scaling function, but with a trainable scaling parameter.
 pScale :: (KnownNat i, ContGen d) => d -> ParamFunc ('Just Double) (R i) (R i)
