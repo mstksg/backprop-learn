@@ -165,7 +165,11 @@ mapFunc :: KnownNat i => (forall s. Reifies s W => BVar s Double -> BVar s Doubl
 reLU :: KnownNat i => FixedFunc (R i) (R i)
 
 -- | Exponential linear unit activation function
-eLU :: KnownNat i => FixedFunc (R i) (R i)
+eLU :: KnownNat i => Double -> FixedFunc (R i) (R i)
+
+-- | Exponential linear unit activation function, parameterized on scaling
+--   factor.
+peLU :: (KnownNat i, ContGen d) => d -> ParamFunc ( 'Just Double) (R i) (R i)
 
 -- | Scaling function, but with a trainable scaling parameter.
 pScale :: (KnownNat i, ContGen d) => d -> ParamFunc ( 'Just Double) (R i) (R i)
