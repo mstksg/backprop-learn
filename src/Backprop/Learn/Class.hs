@@ -24,14 +24,13 @@ module Backprop.Learn.Class (
   , stateless, statelessM
   , runLearnStateless
   , runLearnStochStateless
-  , Mayb(..), fromJ_
+  , Mayb(..), fromJ_, MaybeC, KnownMayb, knownMayb
   ) where
 
 import           Control.Monad.Primitive
 import           Data.Kind
 import           Data.Type.Mayb
 import           Numeric.Backprop
-import           Type.Class.Known
 import qualified GHC.TypeLits            as TL
 import qualified System.Random.MWC       as MWC
 
@@ -70,8 +69,8 @@ class ( MaybeC Num (LParamMaybe l)
       , MaybeC Num (LStateMaybe l)
       , Num a
       , Num b
-      , Known (Mayb P) (LParamMaybe l)
-      , Known (Mayb P) (LStateMaybe l)
+      , KnownMayb (LParamMaybe l)
+      , KnownMayb (LStateMaybe l)
       )
       => Learn a b l | l -> a, l -> b where
 

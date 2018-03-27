@@ -16,19 +16,22 @@
 {-# LANGUAGE UndecidableInstances  #-}
 
 module Data.Type.Mayb (
-    MaybeC
-  , Mayb(.., J_I), fromJ_
-  , P(..)
+    MaybeC, MaybeToList, ListToMaybe
+  , Mayb(.., J_I), fromJ_, maybToList, listToMayb
+  , P(..), KnownMayb, knownMayb
   , zipMayb
   , zipMayb3
   , FromJust
+  , MaybeWit(..)
   ) where
 
 import           Data.Kind
 import           Data.Type.Combinator
+import           Data.Type.Product
 import           Type.Class.Higher
 import           Type.Class.Known
-import qualified GHC.TypeLits           as TL
+import           Type.Class.Witness
+import qualified GHC.TypeLits         as TL
 
 type family MaybeC (c :: k -> Constraint) (m :: Maybe k) :: Constraint where
     MaybeC c ('Just a) = c a
@@ -37,6 +40,39 @@ type family MaybeC (c :: k -> Constraint) (m :: Maybe k) :: Constraint where
 type family (<$>) (f :: k -> j) (m :: Maybe k) :: Maybe j where
     f <$> 'Just a  = 'Just (f a)
     f <$> 'Nothing = 'Nothing
+
+type family MaybeToList (m :: Maybe k) :: [k] where
+    MaybeToList 'Nothing  = '[]
+    MaybeToList ('Just a) = '[a]
+
+maybToList
+    :: Mayb f m
+    -> Prod f (MaybeToList m)
+maybToList N_     = Ø
+maybToList (J_ x) = x :< Ø
+
+type family ListToMaybe (l :: [k]) :: Maybe k where
+    ListToMaybe '[]       = 'Nothing
+    ListToMaybe (a ': as) = 'Just a
+
+listToMayb
+    :: Prod f as
+    -> Mayb f (ListToMaybe as)
+listToMayb Ø        = N_
+listToMayb (x :< _) = J_ x
+
+class MaybeWit (c :: k -> Constraint) (m :: Maybe k) where
+    maybeWit :: Mayb (Wit1 c) m
+
+instance (MaybeC c m, Known (Mayb P) m) => MaybeWit c m where
+    maybeWit = case known @_ @(Mayb P) @m of
+        J_ _ -> J_ Wit1
+        N_   -> N_
+
+type KnownMayb = Known (Mayb P)
+
+knownMayb :: KnownMayb p => Mayb P p
+knownMayb = known
 
 data Mayb :: (k -> Type) -> Maybe k -> Type where
     N_ :: Mayb f 'Nothing

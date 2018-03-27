@@ -5,187 +5,176 @@
 {-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PatternSynonyms       #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeApplications      #-}
+{-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeInType            #-}
 {-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE UndecidableInstances  #-}
+{-# LANGUAGE ViewPatterns          #-}
 
 module Backprop.Learn.Function (
+    ParamFunc(.., FF), FixedFunc
+  , learnParam
+  , softMax
+  , logisticFunc
+  , scaleFunc
+  , tanhFunc
+  , mapFunc
+  , reLU
+  , eLU
+  , pScale
+  , pMap
+  , (.-), nilPF, onlyPF
   ) where
 
+import           Backprop.Learn.Class
+import           Control.Applicative
+import           Control.Category
+import           Control.Monad.Primitive
+import           Data.Type.Length
+import           Data.Type.Mayb
+import           GHC.TypeNats
+import           Numeric.Backprop
+import           Numeric.Backprop.Tuple
+import           Numeric.LinearAlgebra.Static.Backprop
+import           Prelude hiding                        ((.), id)
+import           Statistics.Distribution
+import           Type.Class.Higher
+import           Type.Class.Known
+import           Type.Class.Witness
+import           Type.Family.List
+import qualified System.Random.MWC                     as MWC
 
--- module Backprop.Learn.Function (
---     FixedFunc(..)
---   , ParamFunc(..), compPF, parPF, idPF, fixedParam, learnParam
---   , nilPF, (-~>), (-!>), (->!), (-++)
---   , softMax
---   , logisticFunc, scaleFunc, tanhFunc, mapFunc, reLU, eLU
---   , pScale, pMap
---   ) where
+-- | An unparameterized function.  Has a 'Category' instance.
+type FixedFunc = ParamFunc 'Nothing
 
--- import           Backprop.Learn
--- import           Control.Category
--- import           Control.Monad.Primitive
--- import           Data.Type.Length
--- import           GHC.TypeNats
--- import           Numeric.Backprop
--- import           Numeric.Backprop.Tuple
--- import           Numeric.LinearAlgebra.Static.Backprop
--- import           Prelude hiding                        ((.), id)
--- import           Statistics.Distribution
--- import           Type.Class.Known
--- import           Type.Family.List
--- import qualified System.Random.MWC                     as MWC
+pattern FF :: (forall s. Reifies s W => BVar s a -> BVar s b) -> FixedFunc a b
+pattern FF f <- (getFF->f) where
+    FF f = PF { _pfInit = const N_
+              , _pfFunc = const f
+              }
 
--- newtype FixedFunc a b =
---     FF { runFixedFunc :: forall s. Reifies s W => BVar s a -> BVar s b }
+getFF :: forall a b. FixedFunc a b -> (forall s. Reifies s W => BVar s a -> BVar s b)
+getFF ff = _pfFunc ff N_
 
--- instance (Num a, Num b) => Learn NoParam a b (FixedFunc a b) where
---     runFixed f _ = runFixedFunc f
+-- | A @'ParamFunc' p a b@ is a parameterized function from @a@ to @b@,
+-- potentially with trainable parameter @p@.
+data ParamFunc p a b =
+    PF { _pfInit :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> Mayb m p
+       , _pfFunc :: forall s. Reifies s W => Mayb (BVar s) p -> BVar s a -> BVar s b
+       }
 
--- instance Category FixedFunc where
---     id = FF id
---     f . g = FF $ runFixedFunc f . runFixedFunc g
+instance (Num a, Num b, MaybeC Num p, KnownMayb p) => Learn a b (ParamFunc p a b) where
+    type LParamMaybe (ParamFunc p a b) = p
 
--- data ParamFunc p a b =
---     PF { _pfInit :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m p
---        , _pfFunc :: forall s. Reifies s W => BVar s p -> BVar s a -> BVar s b
---        }
+    initParam = _pfInit
+    runLearn p = stateless . _pfFunc p
 
--- instance (Num p, Num a, Num b) => Learn p a b (ParamFunc p a b) where
---     initParam = _pfInit
---     runFixed  = _pfFunc
+instance (MaybeC Num p, KnownMayb p) => Category (ParamFunc p) where
+    id = PF { _pfInit = \_ -> map1 (pure 0 \\) $ maybeWit @_ @Num
+            , _pfFunc = \_ -> id
+            }
+    f . g = PF { _pfInit = \gen -> zipMayb3 (liftA2 (+) \\)
+                                     (maybeWit @_ @Num)
+                                     (_pfInit f gen)
+                                     (_pfInit g gen)
+               , _pfFunc = \p -> _pfFunc f p
+                               . _pfFunc g p
+               }
 
--- instance Num p => Category (ParamFunc p) where
---     id = PF { _pfInit = const (pure 0)
---             , _pfFunc = const id
---             }
---     f . g = PF { _pfInit = \gen -> (+) <$> _pfInit f gen <*> _pfInit g gen
---                , _pfFunc = \p -> _pfFunc f p . _pfFunc g p
---                }
+-- | Create a 'ParamFunc' from any instance of 'Learn' that does not have
+-- state.
+learnParam
+    :: forall l a b. (Learn a b l, NoState l)
+    => l
+    -> ParamFunc (LParamMaybe l) a b
+learnParam l = PF { _pfInit = initParam l
+                  , _pfFunc = runLearnStateless l
+                  }
 
--- learnParam
---     :: Learn p a b l
---     => l
---     -> ParamFunc p a b
--- learnParam l = PF { _pfInit = initParam l
---                   , _pfFunc = runFixed l
---                   }
+-- | 'ParamFunc' taking a singleton list; meant to be used with '.-'
+onlyPF
+    :: forall p a b. (KnownMayb p, MaybeC Num p)
+    => ParamFunc p a b
+    -> ParamFunc ('Just (T (MaybeToList p))) a b
+onlyPF f = PF { _pfInit = J_
+                        . fmap prodT
+                        . traverse1 (fmap I)
+                        . maybToList
+                        . _pfInit f
+              , _pfFunc = \(J_ ps) -> case knownMayb @p of
+                                   N_   -> _pfFunc f N_
+                                   J_ _ -> _pfFunc f (J_ (isoVar tOnly onlyT ps))
+              }
+  
 
--- fixedParam
---     :: FixedFunc a b
---     -> ParamFunc NoParam a b
--- fixedParam f = PF { _pfInit = const (pure NoParam)
---                  , _pfFunc = \_ -> runFixedFunc f
---                  }
+-- | Compose two 'ParamFunc's on lists.
+(.-)
+    :: forall ps qs a b c. (ListC (Num <$> ps), ListC (Num <$> qs), Known Length ps, Known Length qs)
+    => ParamFunc ('Just (T ps)) b c
+    -> ParamFunc ('Just (T qs)) a b
+    -> ParamFunc ('Just (T (ps ++ qs))) a c
+f .- g = PF { _pfInit = \gen -> J_ $ tAppend <$> fromJ_ (_pfInit f gen)
+                                             <*> fromJ_ (_pfInit g gen)
+            , _pfFunc = \(J_ ps) -> _pfFunc f (J_ (ps ^^. tTake @ps @qs known))
+                                  . _pfFunc g (J_ (ps ^^. tDrop @ps @qs known))
+            }
+infixr 9 .-
 
--- idPF :: ParamFunc NoParam a a
--- idPF = fixedParam id
+-- | The identity of '.-'
+nilPF :: ParamFunc ('Just (T '[])) a a
+nilPF = id
 
--- compPF
---     :: (Num p, Num q)
---     => ParamFunc p b c
---     -> ParamFunc q a b
---     -> ParamFunc (T2 p q) a c
--- compPF f g = PF { _pfInit = \gen -> T2 <$> _pfInit f gen <*> _pfInit g gen
---                 , _pfFunc = \p   -> _pfFunc f (p ^^. t2_1)
---                                   . _pfFunc g (p ^^. t2_2)
---                 }
+-- | Softmax normalizer
+softMax :: KnownNat i => FixedFunc (R i) (R i)
+softMax = FF $ \x -> let expx = exp x
+                     in  expx / konst (norm_1V expx)
 
--- parPF
---     :: (Num p, Num q, Num a, Num b, Num c, Num d)
---     => ParamFunc p a c
---     -> ParamFunc q b d
---     -> ParamFunc (T2 p q) (T2 a b) (T2 c d)
--- parPF f g = PF { _pfInit = \gen -> T2 <$> _pfInit f gen <*> _pfInit g gen
---                , _pfFunc = \p x -> isoVar2 T2 t2Tup
---                     (_pfFunc f (p ^^. t2_1) (x ^^. t2_1))
---                     (_pfFunc g (p ^^. t2_2) (x ^^. t2_2))
---                }
+-- | Logistic function, typically used as an activation function
+logisticFunc :: Floating a => FixedFunc a a
+logisticFunc = FF $ \x -> 1 / (1 + exp (-x))
 
+-- | Scaling function
+scaleFunc :: Num a => a -> FixedFunc a a
+scaleFunc c = FF (* constVar c)
 
--- nilPF :: ParamFunc (T '[]) a a
--- nilPF = PF { _pfInit = const (pure TNil)
---            , _pfFunc = const id
---            }
+-- | Tanh function
+tanhFunc :: Floating a => FixedFunc a a
+tanhFunc = FF tanh
 
--- (-~>)
---     :: (Known Length ps, ListC (Num <$> ps), Num p)
---     => ParamFunc p a b
---     -> ParamFunc (T ps) b c
---     -> ParamFunc (T (p ': ps)) a c
--- f -~> fs = PF { _pfInit = \g  -> (:&) <$> _pfInit f g <*> _pfInit fs g
---               , _pfFunc = \ps -> _pfFunc fs (ps ^^. tTail)
---                                . _pfFunc f  (ps ^^. tHead)
---               }
--- infixr 5 -~>
+-- | Map a differentiable function over every item in an 'R'
+mapFunc
+    :: KnownNat i
+    => (forall s. Reifies s W => BVar s Double -> BVar s Double)
+    -> FixedFunc (R i) (R i)
+mapFunc f = FF (vmap' f)
 
--- (-!>)
---     :: FixedFunc a b
---     -> ParamFunc p b c
---     -> ParamFunc p a c
--- f -!> g = PF { _pfInit = _pfInit g
---              , _pfFunc = \p -> _pfFunc g p . runFixedFunc f
---              }
--- infixr 5 -!>
+-- | Rectified linear unit activation function
+reLU :: KnownNat i => FixedFunc (R i) (R i)
+reLU = mapFunc $ \x -> if x < 0 then 0 else x
 
--- (->!)
---     :: ParamFunc p a b
---     -> FixedFunc b c
---     -> ParamFunc p a c
--- f ->! g = PF { _pfInit = _pfInit f
---              , _pfFunc = \p -> runFixedFunc g . _pfFunc f p
---              }
--- infixr 5 ->!
+-- | Exponential linear unit activation function
+eLU :: KnownNat i => FixedFunc (R i) (R i)
+eLU = mapFunc $ \x -> if x < 0 then exp x - 1 else x
 
--- (-++)
---     :: forall ps qs a b c. (Known Length ps, Known Length qs, ListC (Num <$> ps), ListC (Num <$> qs))
---     => ParamFunc (T ps) a b
---     -> ParamFunc (T qs) b c
---     -> ParamFunc (T (ps ++ qs)) a c
--- fs -++ gs = PF { _pfInit = \g  -> tAppend <$> _pfInit fs g <*> _pfInit gs g
---                , _pfFunc = \ps -> _pfFunc gs (ps ^^. tDrop @ps @qs known)
---                                 . _pfFunc fs (ps ^^. tTake @ps @qs known)
---                }
--- infixr 5 -++
+-- | Scaling function, but with a trainable scaling parameter.
+pScale :: (KnownNat i, ContGen d) => d -> ParamFunc ('Just Double) (R i) (R i)
+pScale d = PF { _pfInit = J_ . genContVar d
+              , _pfFunc = (*) . konst . fromJ_
+              }
 
--- softMax :: KnownNat i => FixedFunc (R i) (R i)
--- softMax = FF $ \x ->  let expx = exp x
---                       in  expx / konst (norm_1V expx)
+-- | Map a parameterized differentiable function over ever item in an 'R'.
+-- The parameteri is trainable.
+pMap
+    :: (KnownNat i, Num p)
+    => (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m p)
+    -> (forall s. Reifies s W => BVar s p -> BVar s Double -> BVar s Double)
+    -> ParamFunc ('Just p) (R i) (R i)
+pMap i f = PF { _pfInit = J_ . i
+              , _pfFunc = vmap . f . fromJ_
+              }
 
-
--- logisticFunc :: Floating a => FixedFunc a a
--- logisticFunc = FF $ \x -> 1 / (1 + exp (-x))
-
--- scaleFunc :: Num a => a -> FixedFunc a a
--- scaleFunc c = FF (* constVar c)
-
--- tanhFunc :: Floating a => FixedFunc a a
--- tanhFunc = FF tanh
-
--- mapFunc
---     :: KnownNat i
---     => (forall s. Reifies s W => BVar s Double -> BVar s Double)
---     -> FixedFunc (R i) (R i)
--- mapFunc f = FF (vmap' f)
-
--- reLU :: KnownNat i => FixedFunc (R i) (R i)
--- reLU = mapFunc $ \x -> if x < 0 then 0 else x
-
--- eLU :: KnownNat i => FixedFunc (R i) (R i)
--- eLU = mapFunc $ \x -> if x < 0 then exp x - 1 else x
-
--- pScale :: (KnownNat i, ContGen d) => d -> ParamFunc Double (R i) (R i)
--- pScale d = PF { _pfInit = genContVar d
---               , _pfFunc = \p x -> konst p * x
---               }
-
--- pMap
---     :: KnownNat i
---     => (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m p)
---     -> (forall s. Reifies s W => BVar s p -> BVar s Double -> BVar s Double)
---     -> ParamFunc p (R i) (R i)
--- pMap i f = PF { _pfInit = i
---               , _pfFunc = \p -> vmap (f p)
---               }
+-- TODO: vmap can do better.
