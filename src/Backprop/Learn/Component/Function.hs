@@ -13,7 +13,7 @@
 {-# LANGUAGE UndecidableInstances  #-}
 {-# LANGUAGE ViewPatterns          #-}
 
-module Backprop.Learn.Function (
+module Backprop.Learn.Component.Function (
     ParamFunc(.., FF), FixedFunc, runFixedFunc
   , learnParam
   , dimapPF, lmapPF, rmapPF, compPF, parPF

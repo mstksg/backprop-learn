@@ -3,7 +3,7 @@
 {-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module Backprop.Learn.Dropout (
+module Backprop.Learn.Component.Dropout (
     DO(..)
   ) where
 

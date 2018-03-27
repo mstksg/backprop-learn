@@ -6,7 +6,7 @@
 {-# LANGUAGE TypeFamilies                             #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
-module Backprop.Learn.FullyConnected (
+module Backprop.Learn.Component.FullyConnected (
     FC(..), fc
   , FCP(..), fcBias, fcWeights
   ) where
