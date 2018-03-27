@@ -10,24 +10,29 @@
 
 module Backprop.Learn
 
-module Backprop.Learn.Function
-
 module Data.Type.Mayb
 data Mayb :: (k -> Type) -> Maybe k -> Type
 [N_] :: Mayb f  'Nothing
 [J_] :: f a -> Mayb f ( 'Just a)
 fromJ_ :: Mayb f ( 'Just a) -> f a
+maybToList :: Mayb f m -> Prod f (MaybeToList m)
+listToMayb :: Prod f as -> Mayb f (ListToMaybe as)
 data P :: k -> Type
 [P] :: P a
+type KnownMayb = Known (Mayb P)
+knownMayb :: KnownMayb p => Mayb P p
 zipMayb :: (forall a. f a -> g a -> h a) -> Mayb f m -> Mayb g m -> Mayb h m
 zipMayb3 :: (forall a. f a -> g a -> h a -> i a) -> Mayb f m -> Mayb g m -> Mayb h m -> Mayb i m
-instance forall k (f :: k -> *) (m :: GHC.Base.Maybe k). Data.Type.Mayb.MaybeC * GHC.Show.Show ((Data.Type.Mayb.<$>) k * f m) => GHC.Show.Show (Data.Type.Mayb.Mayb k f m)
-instance forall k1 (k2 :: k1). Type.Class.Known.Known k1 (Data.Type.Mayb.P k1) k2
-instance forall k (m :: GHC.Base.Maybe k) (f :: k -> *). (Type.Class.Known.Known (GHC.Base.Maybe k) (Data.Type.Mayb.Mayb k (Data.Type.Mayb.P k)) m, Data.Type.Mayb.MaybeC * GHC.Num.Num ((Data.Type.Mayb.<$>) k * f m)) => GHC.Num.Num (Data.Type.Mayb.Mayb k f m)
-instance forall k (m :: GHC.Base.Maybe k) (f :: k -> *). (Type.Class.Known.Known (GHC.Base.Maybe k) (Data.Type.Mayb.Mayb k (Data.Type.Mayb.P k)) m, Data.Type.Mayb.MaybeC * GHC.Num.Num ((Data.Type.Mayb.<$>) k * f m), Data.Type.Mayb.MaybeC * GHC.Real.Fractional ((Data.Type.Mayb.<$>) k * f m)) => GHC.Real.Fractional (Data.Type.Mayb.Mayb k f m)
-instance forall k (f :: k -> *). Type.Class.Known.Known (GHC.Base.Maybe k) (Data.Type.Mayb.Mayb k f) ('GHC.Base.Nothing k)
-instance forall a1 (f :: a1 -> *) (a2 :: a1). Type.Class.Known.Known a1 f a2 => Type.Class.Known.Known (GHC.Base.Maybe a1) (Data.Type.Mayb.Mayb a1 f) ('GHC.Base.Just a1 a2)
-instance Type.Class.Higher.Functor1 k (GHC.Base.Maybe k) (Data.Type.Mayb.Mayb k)
+class MaybeWit (c :: k -> Constraint) (m :: Maybe k)
+maybeWit :: MaybeWit c m => Mayb (Wit1 c) m
+instance forall k (f :: k -> *) (m :: GHC.Base.Maybe k). Data.Type.Mayb.MaybeC GHC.Show.Show (f Data.Type.Mayb.<$> m) => GHC.Show.Show (Data.Type.Mayb.Mayb f m)
+instance forall k (c :: k -> GHC.Types.Constraint) (m :: GHC.Base.Maybe k). (Data.Type.Mayb.MaybeC c m, Type.Class.Known.Known (Data.Type.Mayb.Mayb Data.Type.Mayb.P) m) => Data.Type.Mayb.MaybeWit c m
+instance forall k1 (k2 :: k1). Type.Class.Known.Known Data.Type.Mayb.P k2
+instance forall k (m :: GHC.Base.Maybe k) (f :: k -> *). (Type.Class.Known.Known (Data.Type.Mayb.Mayb Data.Type.Mayb.P) m, Data.Type.Mayb.MaybeC GHC.Num.Num (f Data.Type.Mayb.<$> m)) => GHC.Num.Num (Data.Type.Mayb.Mayb f m)
+instance forall k (m :: GHC.Base.Maybe k) (f :: k -> *). (Type.Class.Known.Known (Data.Type.Mayb.Mayb Data.Type.Mayb.P) m, Data.Type.Mayb.MaybeC GHC.Num.Num (f Data.Type.Mayb.<$> m), Data.Type.Mayb.MaybeC GHC.Real.Fractional (f Data.Type.Mayb.<$> m)) => GHC.Real.Fractional (Data.Type.Mayb.Mayb f m)
+instance forall k (f :: k -> *). Type.Class.Known.Known (Data.Type.Mayb.Mayb f) 'GHC.Base.Nothing
+instance forall a1 (f :: a1 -> *) (a2 :: a1). Type.Class.Known.Known f a2 => Type.Class.Known.Known (Data.Type.Mayb.Mayb f) ('GHC.Base.Just a2)
+instance Type.Class.Higher.Functor1 Data.Type.Mayb.Mayb
 
 module Backprop.Learn.Class
 
@@ -37,7 +42,7 @@ module Backprop.Learn.Class
 --   by <tt>p</tt>, takes <tt>a</tt> as input, and returns <tt>b</tt> as
 --   outputs. <tt>l</tt> can be thought of as a value containing the
 --   <i>hyperparmaeters</i> of the model.
-class (MaybeC Num (LParamMaybe l), MaybeC Num (LStateMaybe l), Num a, Num b, Known (Mayb P) (LParamMaybe l), Known (Mayb P) (LStateMaybe l)) => Learn a b l | l -> a, l -> b where {
+class (MaybeC Num (LParamMaybe l), MaybeC Num (LStateMaybe l), Num a, Num b, KnownMayb (LParamMaybe l), KnownMayb (LStateMaybe l)) => Learn a b l | l -> a, l -> b where {
     type family LParamMaybe l :: Maybe Type;
     type family LStateMaybe l :: Maybe Type;
     type LParamMaybe l =  'Nothing;
@@ -105,6 +110,66 @@ data Mayb :: (k -> Type) -> Maybe k -> Type
 [N_] :: Mayb f  'Nothing
 [J_] :: f a -> Mayb f ( 'Just a)
 fromJ_ :: Mayb f ( 'Just a) -> f a
+type KnownMayb = Known (Mayb P)
+knownMayb :: KnownMayb p => Mayb P p
+
+module Backprop.Learn.Function
+
+-- | A <tt><a>ParamFunc</a> p a b</tt> is a parameterized function from
+--   <tt>a</tt> to <tt>b</tt>, potentially with trainable parameter
+--   <tt>p</tt>.
+data ParamFunc p a b
+PF :: (forall m. PrimMonad m => Gen (PrimState m) -> Mayb m p) -> (forall s. Reifies s W => Mayb (BVar s) p -> BVar s a -> BVar s b) -> ParamFunc p a b
+[_pfInit] :: ParamFunc p a b -> forall m. PrimMonad m => Gen (PrimState m) -> Mayb m p
+[_pfFunc] :: ParamFunc p a b -> forall s. Reifies s W => Mayb (BVar s) p -> BVar s a -> BVar s b
+
+-- | An unparameterized function. Has a <a>Category</a> instance.
+type FixedFunc = ParamFunc  'Nothing
+
+-- | Create a <a>ParamFunc</a> from any instance of <a>Learn</a> that does
+--   not have state.
+learnParam :: forall l a b. (Learn a b l, NoState l) => l -> ParamFunc (LParamMaybe l) a b
+
+-- | Softmax normalizer
+softMax :: KnownNat i => FixedFunc (R i) (R i)
+
+-- | Logistic function, typically used as an activation function
+logisticFunc :: Floating a => FixedFunc a a
+
+-- | Scaling function
+scaleFunc :: Num a => a -> FixedFunc a a
+
+-- | Tanh function
+tanhFunc :: Floating a => FixedFunc a a
+
+-- | Map a differentiable function over every item in an <a>R</a>
+mapFunc :: KnownNat i => (forall s. Reifies s W => BVar s Double -> BVar s Double) -> FixedFunc (R i) (R i)
+
+-- | Rectified linear unit activation function
+reLU :: KnownNat i => FixedFunc (R i) (R i)
+
+-- | Exponential linear unit activation function
+eLU :: KnownNat i => FixedFunc (R i) (R i)
+
+-- | Scaling function, but with a trainable scaling parameter.
+pScale :: (KnownNat i, ContGen d) => d -> ParamFunc ( 'Just Double) (R i) (R i)
+
+-- | Map a parameterized differentiable function over ever item in an
+--   <a>R</a>. The parameteri is trainable.
+pMap :: (KnownNat i, Num p) => (forall m. PrimMonad m => Gen (PrimState m) -> m p) -> (forall s. Reifies s W => BVar s p -> BVar s Double -> BVar s Double) -> ParamFunc ( 'Just p) (R i) (R i)
+
+-- | Compose two <a>ParamFunc</a>s on lists.
+(.-) :: forall ps qs a b c. (ListC (Num <$> ps), ListC (Num <$> qs), Known Length ps, Known Length qs) => ParamFunc ( 'Just (T ps)) b c -> ParamFunc ( 'Just (T qs)) a b -> ParamFunc ( 'Just (T (ps ++ qs))) a c
+infixr 9 .-
+
+-- | The identity of <a>.-</a>
+nilPF :: ParamFunc ( 'Just (T '[])) a a
+
+-- | <a>ParamFunc</a> taking a singleton list; meant to be used with
+--   <a>.-</a>
+onlyPF :: forall p a b. (KnownMayb p, MaybeC Num p) => ParamFunc p a b -> ParamFunc ( 'Just (T (MaybeToList p))) a b
+instance (GHC.Num.Num a, GHC.Num.Num b, Data.Type.Mayb.MaybeC GHC.Num.Num p, Data.Type.Mayb.KnownMayb p) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Function.ParamFunc p a b)
+instance (Data.Type.Mayb.MaybeC GHC.Num.Num p, Data.Type.Mayb.KnownMayb p) => Control.Category.Category (Backprop.Learn.Function.ParamFunc p)
 
 module Backprop.Learn.FullyConnected
 
