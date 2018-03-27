@@ -7,6 +7,7 @@
 {-# LANGUAGE KindSignatures         #-}
 {-# LANGUAGE LambdaCase             #-}
 {-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE RankNTypes             #-}
 {-# LANGUAGE ScopedTypeVariables    #-}
 {-# LANGUAGE TupleSections          #-}
 {-# LANGUAGE TypeApplications       #-}
@@ -22,23 +23,30 @@ module Backprop.Learn.Component.Combinator (
   , (~++)
   , chainParamLength
   , chainStateLength
+  , LearnFunc(..), learnFunc
+  , (.~)
+  , nilLF, onlyLF
   ) where
 
 import           Backprop.Learn.Class
+import           Control.Applicative
+import           Control.Category
 import           Control.Monad
 import           Control.Monad.Primitive
 import           Data.Bifunctor
 import           Data.Kind
 import           Data.Type.Equality
 import           Data.Type.Length
-import           Data.Type.Mayb          as Mayb
+import           Data.Type.Mayb                    as Mayb
 import           Data.Type.NonEmpty
 import           Numeric.Backprop
 import           Numeric.Backprop.Tuple
+import           Prelude hiding                    ((.), id)
+import           Type.Class.Higher
 import           Type.Class.Known
 import           Type.Class.Witness
-import           Type.Family.List        as List
-import qualified System.Random.MWC       as MWC
+import           Type.Family.List                  as List
+import qualified System.Random.MWC                 as MWC
 
 -- | Chain components linearly, retaining the ability to deconstruct at
 -- a later time.
@@ -290,19 +298,159 @@ assocMaybAppend = \case
     N_   -> Refl
     J_ _ -> Refl
 
----- | Data type representing trainable models.
-----
----- Useful for performant composition, but you lose the ability to decompose
----- parts.
---data LearnFunc :: Type -> Type -> Type -> Type where
---    LF :: { _lfInitParam :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m p
---          , _lfRunFixed  :: forall s. Reifies s W => BVar s p -> BVar s a -> BVar s b
---          , _lfRunStoch
---                :: forall m s. (PrimMonad m, Reifies s W)
---                => MWC.Gen (PrimState m)
---                -> BVar s p
---                -> BVar s a
---                -> m (BVar s b)
---          }
---       -> LearnFunc p a b
+-- | Data type representing trainable models.
+--
+-- Useful for performant composition, but you lose the ability to decompose
+-- parts.
+data LearnFunc :: Maybe Type -> Maybe Type -> Type -> Type -> Type where
+    LF :: { _lfInitParam :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> Mayb m p
+          , _lfInitState :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> Mayb m s
+          , _lfRunLearn
+               :: forall q. Reifies q W
+               => Mayb (BVar q) p
+               -> BVar q a
+               -> Mayb (BVar q) s
+               -> (BVar q b, Mayb (BVar q) s)
+          , _lfRunLearnStoch
+               :: forall m q. (PrimMonad m, Reifies q W)
+               => MWC.Gen (PrimState m)
+               -> Mayb (BVar q) p
+               -> BVar q a
+               -> Mayb (BVar q) s
+               -> m (BVar q b, Mayb (BVar q) s)
+          }
+       -> LearnFunc p s a b
 
+learnFunc
+    :: Learn a b l
+    => l
+    -> LearnFunc (LParamMaybe l) (LStateMaybe l) a b
+learnFunc l = LF { _lfInitParam     = initParam l
+                 , _lfInitState     = initState l
+                 , _lfRunLearn      = runLearn l
+                 , _lfRunLearnStoch = runLearnStoch l
+                 }
+
+instance Learn a b (LearnFunc p s a b) where
+    type LParamMaybe (LearnFunc p s a b) = p
+    type LStateMaybe (LearnFunc p s a b) = s
+
+    initParam     = _lfInitParam
+    initState     = _lfInitState
+    runLearn      = _lfRunLearn
+    runLearnStoch = _lfRunLearnStoch
+
+instance (MaybeC Num p, MaybeC Num s, KnownMayb p, KnownMayb s) => Category (LearnFunc p s) where
+    id = LF { _lfInitParam     = \_ -> map1 (pure 0 \\) $ maybeWit @_ @Num @p
+            , _lfInitState     = \_ -> map1 (pure 0 \\) $ maybeWit @_ @Num @s
+            , _lfRunLearn      = \_ -> (,)
+            , _lfRunLearnStoch = \_ _ x -> pure . (x,)
+            }
+    f . g = LF { _lfInitParam = \gen -> zipMayb3 (liftA2 (+) \\)
+                      (maybeWit @_ @Num @p)
+                      (_lfInitParam f gen)
+                      (_lfInitParam g gen)
+               , _lfInitState = \gen -> zipMayb3 (liftA2 (+) \\)
+                      (maybeWit @_ @Num @s)
+                      (_lfInitState f gen)
+                      (_lfInitState g gen)
+               , _lfRunLearn  = \p x s0 ->
+                    let (y, s1) = _lfRunLearn g p x s0
+                    in  _lfRunLearn f p y s1
+               , _lfRunLearnStoch = \gen p x s0 -> do
+                    (y, s1) <- _lfRunLearnStoch g gen p x s0
+                    _lfRunLearnStoch f gen p y s1
+               }
+
+-- | Compose two 'LearnFunc' on lists.
+(.~)
+    :: forall ps qs ss ts a b c.
+     ( ListC (Num List.<$> ps)
+     , ListC (Num List.<$> qs)
+     , ListC (Num List.<$> ss)
+     , ListC (Num List.<$> ts)
+     , ListC (Num List.<$> (ss ++ ts))
+     , Known Length ps
+     , Known Length qs
+     , Known Length ss
+     , Known Length ts
+     )
+    => LearnFunc ('Just (T ps        )) ('Just (T ss         )) b c
+    -> LearnFunc ('Just (T qs        )) ('Just (T ts         )) a b
+    -> LearnFunc ('Just (T (ps ++ qs))) ('Just (T (ss ++ ts ))) a c
+f .~ g = LF { _lfInitParam = \gen -> J_ $ tAppend <$> fromJ_ (_lfInitParam f gen)
+                                                  <*> fromJ_ (_lfInitParam g gen)
+            , _lfInitState = \gen -> J_ $ tAppend <$> fromJ_ (_lfInitState f gen)
+                                                  <*> fromJ_ (_lfInitState g gen)
+
+            , _lfRunLearn  = \(J_ psqs) x (J_ ssts) -> appendLength @ss @ts known known //
+                let (y, J_ ts) = _lfRunLearn g (J_ (psqs ^^. tDrop @ps @qs known))
+                                               x
+                                               (J_ (ssts ^^. tDrop @ss @ts known))
+                    (z, J_ ss) = _lfRunLearn f (J_ (psqs ^^. tTake @ps @qs known))
+                                               y
+                                               (J_ (ssts ^^. tTake @ss @ts known))
+                in  (z, J_ $ isoVar2 (tAppend @ss @ts) (tSplit @ss @ts known)
+                                     ss ts
+                    )
+            , _lfRunLearnStoch = \gen (J_ psqs) x (J_ ssts) -> appendLength @ss @ts known known // do
+                (y, ts) <- second fromJ_
+                       <$> _lfRunLearnStoch g gen (J_ (psqs ^^. tDrop @ps @qs known))
+                                                  x
+                                                  (J_ (ssts ^^. tDrop @ss @ts known))
+                (z, ss) <- second fromJ_
+                       <$> _lfRunLearnStoch f gen (J_ (psqs ^^. tTake @ps @qs known))
+                                                   y
+                                                   (J_ (ssts ^^. tTake @ss @ts known))
+                pure  (z, J_ $ isoVar2 (tAppend @ss @ts) (tSplit @ss @ts known)
+                                       ss ts
+                      )
+            }
+
+-- | Identity of '.~'
+nilLF :: LearnFunc ('Just (T '[])) ('Just (T '[])) a a
+nilLF = id
+
+-- | 'LearnFunc' with singleton lists; meant to be used with '.~'
+onlyLF
+    :: forall p s a b. (KnownMayb p, MaybeC Num p, KnownMayb s, MaybeC Num s)
+    => LearnFunc p s a b
+    -> LearnFunc ('Just (T (MaybeToList p))) ('Just (T (MaybeToList s))) a b
+onlyLF f = LF
+    { _lfInitParam = J_
+                   . fmap prodT
+                   . traverse1 (fmap I)
+                   . maybToList
+                   . _lfInitParam f
+    , _lfInitState = J_
+                   . fmap prodT
+                   . traverse1 (fmap I)
+                   . maybToList
+                   . _lfInitState f
+    , _lfRunLearn = \(J_ ps) x ssM@(J_ ss) -> case knownMayb @p of
+        N_ -> case knownMayb @s of
+          N_ -> (second . const) ssM
+              $ _lfRunLearn f N_ x N_
+          J_ _ -> second (J_ . isoVar onlyT tOnly . fromJ_)
+                $ _lfRunLearn f N_ x (J_ (isoVar tOnly onlyT ss))
+        J_ _ ->
+          let p = isoVar tOnly onlyT ps
+          in  case knownMayb @s of
+                N_ -> (second . const) ssM
+                    $ _lfRunLearn f (J_ p) x N_
+                J_ _ -> second (J_ . isoVar onlyT tOnly . fromJ_)
+                      $ _lfRunLearn f (J_ p) x (J_ (isoVar tOnly onlyT ss))
+    , _lfRunLearnStoch = \g (J_ ps) x ssM@(J_ ss) -> case knownMayb @p of
+        N_ -> case knownMayb @s of
+          N_ -> (fmap . second . const) ssM
+              $ _lfRunLearnStoch f g N_ x N_
+          J_ _ -> (fmap . second) (J_ . isoVar onlyT tOnly . fromJ_)
+                $ _lfRunLearnStoch f g N_ x (J_ (isoVar tOnly onlyT ss))
+        J_ _ ->
+          let p = isoVar tOnly onlyT ps
+          in  case knownMayb @s of
+                N_ -> (fmap . second . const) ssM
+                    $ _lfRunLearnStoch f g (J_ p) x N_
+                J_ _ -> (fmap . second) (J_ . isoVar onlyT tOnly . fromJ_)
+                      $ _lfRunLearnStoch f g (J_ p) x (J_ (isoVar tOnly onlyT ss))
+    }

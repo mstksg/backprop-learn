@@ -81,7 +81,7 @@ knownMayb = known
 
 data Mayb :: (k -> Type) -> Maybe k -> Type where
     N_ :: Mayb f 'Nothing
-    J_ :: f a -> Mayb f ('Just a)
+    J_ :: !(f a) -> Mayb f ('Just a)
 
 deriving instance MaybeC Show (f <$> m) => Show (Mayb f m)
 

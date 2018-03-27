@@ -232,7 +232,7 @@ pScale d = PF { _pfInit = J_ . genContVar d
               }
 
 -- | Map a parameterized differentiable function over ever item in an 'R'.
--- The parameteri is trainable.
+-- The parameter is trainable.
 pMap
     :: KnownNat i
     => (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m p)
