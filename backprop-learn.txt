@@ -53,13 +53,13 @@ class Learn a b l | l -> a, l -> b where {
 initParam :: (Learn a b l, PrimMonad m) => l -> Gen (PrimState m) -> LParam m l
 
 -- | Initialize parameters, given the hyperparameters in <tt>l</tt>.
-initParam :: (Learn a b l, (LParamMaybe l ~  'Nothing)) => l -> Gen (PrimState m) -> LParam m l
+initParam :: (Learn a b l, NoParam l) => l -> Gen (PrimState m) -> LParam m l
 
 -- | Initialize state, given the hyperparameters in <tt>l</tt>.
 initState :: (Learn a b l, PrimMonad m) => l -> Gen (PrimState m) -> LState m l
 
 -- | Initialize state, given the hyperparameters in <tt>l</tt>.
-initState :: (Learn a b l, (LStateMaybe l ~  'Nothing)) => l -> Gen (PrimState m) -> LState m l
+initState :: (Learn a b l, NoState l) => l -> Gen (PrimState m) -> LState m l
 
 -- | Run the model itself, deterministically.
 --   
