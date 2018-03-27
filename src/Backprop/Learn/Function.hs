@@ -2,8 +2,6 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
-{-# LANGUAGE KindSignatures        #-}
-{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PatternSynonyms       #-}
 {-# LANGUAGE RankNTypes            #-}
@@ -16,8 +14,9 @@
 {-# LANGUAGE ViewPatterns          #-}
 
 module Backprop.Learn.Function (
-    ParamFunc(.., FF), FixedFunc
+    ParamFunc(.., FF), FixedFunc, runFixedFunc
   , learnParam
+  , dimapPF, lmapPF, rmapPF, compPF, parPF
   , softMax
   , logisticFunc
   , scaleFunc
@@ -52,7 +51,7 @@ import qualified System.Random.MWC                     as MWC
 type FixedFunc = ParamFunc 'Nothing
 
 pattern FF :: (forall s. Reifies s W => BVar s a -> BVar s b) -> FixedFunc a b
-pattern FF f <- (getFF->f) where
+pattern FF { runFixedFunc } <- (getFF->runFixedFunc) where
     FF f = PF { _pfInit = const N_
               , _pfFunc = const f
               }
@@ -109,7 +108,7 @@ onlyPF f = PF { _pfInit = J_
                                    N_   -> _pfFunc f N_
                                    J_ _ -> _pfFunc f (J_ (isoVar tOnly onlyT ps))
               }
-  
+
 
 -- | Compose two 'ParamFunc's on lists.
 (.-)
@@ -127,6 +126,58 @@ infixr 9 .-
 -- | The identity of '.-'
 nilPF :: ParamFunc ('Just (T '[])) a a
 nilPF = id
+
+-- | Pre- and post-compose a 'ParamFunc'
+dimapPF
+    :: FixedFunc a b
+    -> FixedFunc c d
+    -> ParamFunc p b c
+    -> ParamFunc p a d
+dimapPF f g h = PF { _pfInit = _pfInit h
+                   , _pfFunc = \p -> runFixedFunc g
+                                  . _pfFunc h p
+                                  . runFixedFunc f
+                   }
+
+-- | Precompose a 'ParamFunc'
+lmapPF
+    :: FixedFunc a b
+    -> ParamFunc p b c
+    -> ParamFunc p a c
+lmapPF f = dimapPF f id
+
+-- | Postcompose a 'ParamFunc'
+rmapPF
+    :: FixedFunc b c
+    -> ParamFunc p a b
+    -> ParamFunc p a c
+rmapPF = dimapPF id
+
+-- | Compose two 'ParamFunc's sequentially
+compPF
+    :: (Num p, Num q)
+    => ParamFunc ('Just p) a b
+    -> ParamFunc ('Just q) b c
+    -> ParamFunc ('Just (T2 p q)) a c
+compPF f g = PF { _pfInit = \gen -> J_ $ T2 <$> fromJ_ (_pfInit f gen)
+                                            <*> fromJ_ (_pfInit g gen)
+                , _pfFunc = \(J_ pq) -> _pfFunc g (J_ (pq ^^. t2_2))
+                                      . _pfFunc f (J_ (pq ^^. t2_1))
+                }
+
+-- | Compose two 'ParamFunc's in parallel
+parPF
+    :: (Num p, Num q, Num a, Num b, Num c, Num d)
+    => ParamFunc ('Just p) a c
+    -> ParamFunc ('Just q) b d
+    -> ParamFunc ('Just (T2 p q)) (T2 a b) (T2 c d)
+parPF f g = PF { _pfInit = \gen -> J_ $ T2 <$> fromJ_ (_pfInit f gen)
+                                           <*> fromJ_ (_pfInit g gen)
+               , _pfFunc = \(J_ pq) xy ->
+                    isoVar2 T2 t2Tup (_pfFunc f (J_ (pq ^^. t2_1)) (xy ^^. t2_1))
+                                     (_pfFunc g (J_ (pq ^^. t2_2)) (xy ^^. t2_2))
+               }
+
 
 -- | Softmax normalizer
 softMax :: KnownNat i => FixedFunc (R i) (R i)
@@ -169,7 +220,7 @@ pScale d = PF { _pfInit = J_ . genContVar d
 -- | Map a parameterized differentiable function over ever item in an 'R'.
 -- The parameteri is trainable.
 pMap
-    :: (KnownNat i, Num p)
+    :: KnownNat i
     => (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m p)
     -> (forall s. Reifies s W => BVar s p -> BVar s Double -> BVar s Double)
     -> ParamFunc ('Just p) (R i) (R i)

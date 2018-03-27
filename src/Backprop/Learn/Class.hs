@@ -67,8 +67,8 @@ type LState f l = Mayb f (LStateMaybe l)
 -- containing the /hyperparmaeters/ of the model.
 class ( MaybeC Num (LParamMaybe l)
       , MaybeC Num (LStateMaybe l)
-      , Num a
-      , Num b
+      -- , Num a
+      -- , Num b
       , KnownMayb (LParamMaybe l)
       , KnownMayb (LStateMaybe l)
       )
