@@ -238,5 +238,10 @@ module Backprop.Learn.Component.Combinator
 --   later time.
 data Chain :: [Type] -> [Type] -> [Type] -> Type -> Type -> Type
 [CNil] :: Chain '[] '[] '[] a a
-[:~>] :: (Learn a b l, KnownMayb (LParamMaybe l), KnownMayb (LStateMaybe l), Known Length ps, Known Length ss) => l -> Chain ls ps ss b c -> Chain (l : ls) (MaybeToList (LParamMaybe l) ++ ps) (MaybeToList (LStateMaybe l) ++ ss) a c
+[:~>] :: (Learn a b l, KnownMayb (LParamMaybe l), KnownMayb (LStateMaybe l)) => l -> Chain ls ps ss b c -> Chain (l : ls) (MaybeToList (LParamMaybe l) ++ ps) (MaybeToList (LStateMaybe l) ++ ss) a c
+
+-- | Appending <a>Chain</a>
+(~++) :: forall ls ms ps qs ss ts a b c. () => Chain ls ps ss a b -> Chain ms qs ts b c -> Chain (ls ++ ms) (ps ++ qs) (ss ++ ts) a c
+chainParamLength :: Chain ls ps ss a b -> Length ps
+chainStateLength :: Chain ls ps ss a b -> Length ss
 instance (Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> ps), Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> ss)) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.Combinator.Chain ls ps ss a b)
