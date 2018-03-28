@@ -25,8 +25,8 @@ zipMayb :: (forall a. f a -> g a -> h a) -> Mayb f m -> Mayb g m -> Mayb h m
 zipMayb3 :: (forall a. f a -> g a -> h a -> i a) -> Mayb f m -> Mayb g m -> Mayb h m -> Mayb i m
 class MaybeWit (c :: k -> Constraint) (m :: Maybe k)
 maybeWit :: MaybeWit c m => Mayb (Wit1 c) m
-elimTupMaybe :: Mayb p a -> Mayb q b -> ((a ~  'Nothing, b ~  'Nothing) => r) -> (forall b'. (a ~  'Nothing, b ~  'Just b') => f b' -> r) -> (forall a'. (a ~  'Just a', b ~  'Nothing) => f a' -> r) -> (forall a' b'. (a ~  'Just a', b ~  'Just b') => f (T2 a' b') -> r) -> Mayb f (TupMaybe a b) -> r
-knownTupMaybe :: Mayb P a -> Mayb P b -> Mayb P (TupMaybe a b)
+splitTupMaybe :: forall f a b. (KnownMayb a, KnownMayb b) => (forall a' b'. (a ~  'Just a', b ~  'Just b') => f (T2 a' b') -> (f a', f b')) -> Mayb f (TupMaybe a b) -> (Mayb f a, Mayb f b)
+tupMaybe :: forall f a b. () => (forall a' b'. (a ~  'Just a', b ~  'Just b') => f a' -> f b' -> f (T2 a' b')) -> Mayb f a -> Mayb f b -> Mayb f (TupMaybe a b)
 instance forall k (f :: k -> *) (m :: GHC.Base.Maybe k). Data.Type.Mayb.MaybeC GHC.Show.Show (f Data.Type.Mayb.<$> m) => GHC.Show.Show (Data.Type.Mayb.Mayb f m)
 instance forall k (c :: k -> GHC.Types.Constraint) (m :: GHC.Base.Maybe k). (Data.Type.Mayb.MaybeC c m, Type.Class.Known.Known (Data.Type.Mayb.Mayb Data.Type.Mayb.P) m) => Data.Type.Mayb.MaybeWit c m
 instance forall k1 (k2 :: k1). Type.Class.Known.Known Data.Type.Mayb.P k2
@@ -125,17 +125,27 @@ knownMayb :: KnownMayb p => Mayb P p
 
 module Backprop.Learn.Component.State
 
--- | Unroll a stateful model into one taking a vector of sequential inputs.
---   
---   Useful when used before <a>DeState</a> or <a>FixState</a>
-newtype Unroll :: Nat -> Type -> Type
-[Unroll] :: {getUnroll :: l} -> Unroll n l
-
 -- | Make a model stateless by converting the state to a trained parameter,
 --   and dropping the modified state from the result.
 --   
 --   One of the ways to make a model stateless for training purposes.
 --   Useful when used after <a>Unroll</a>. See <a>FixState</a>, as well.
+--   
+--   Its parameters are:
+--   
+--   <ul>
+--   <li>If <tt>l</tt> has no parameter or state, nothing.</li>
+--   <li>If <tt>l</tt> has parameters but no state, just the original
+--   parameters.</li>
+--   <li>If <tt>l</tt> has no parameters but state, just the initial
+--   state.</li>
+--   <li>If <tt>l</tt> has parameters and state, a <a>T2</a> of the
+--   parameter and initial state.</li>
+--   </ul>
+--   
+--   However, this is really only meant to be used with types that have
+--   state. If used with a type with no state, this is essentially a
+--   no-op/identity.
 newtype DeState :: Type -> Type
 [DeState] :: {getDestate :: l} -> DeState l
 
@@ -144,8 +154,41 @@ newtype DeState :: Type -> Type
 --   
 --   One of the ways to make a model stateless for training purposes.
 --   Useful when used after <a>Unroll</a>. See <a>DeState</a>, as well.
+--   
+--   If used with a type with no state, is essentially a no-op/identity.
 data FixState :: Maybe Type -> Type -> Type
 [FS] :: {_fsLearn :: l, _fsInitState :: Mayb I s} -> FixState s l
+
+-- | Unroll a stateful model into one taking a vector of sequential inputs.
+--   
+--   Useful when used before <a>DeState</a> or <a>FixState</a>. See
+--   <a>UnrollDeState</a> and <a>UnrollFixState</a>.
+newtype Unroll :: Nat -> Type -> Type
+[Unroll] :: {getUnroll :: l} -> Unroll n l
+
+-- | Unroll a stateful model into a stateless one taking a vector of
+--   sequential inputs and treat the initial state as a trained parameter.
+--   
+--   <pre>
+--   instance <a>Learn</a> a b l
+--       =&gt; <a>Learn</a> (<a>Vector</a> n a) (<a>Vector</a> n b) (<a>UnrollDeState</a> n l)'
+--   
+--       type <a>LParamMaybe</a> (<a>UnrollFixState</a> n l) = 'TupMaybe (<a>LParamMaybe</a> l) (<a>LStateMaybe</a> l)
+--       type <a>LStateMaybe</a> (<a>UnrollFixState</a> n l) = '<a>Nothing</a>
+--   </pre>
+type UnrollDeState n l = DeState (Unroll n l)
+
+-- | Unroll a stateful model into a stateless one taking a vector of
+--   sequential inputs and fix the initial state.
+--   
+--   <pre>
+--   instance <a>Learn</a> a b l
+--       =&gt; <a>Learn</a> (<a>Vector</a> n a) (<a>Vector</a> n b) (<a>UnrollFixState</a> n l)'
+--   
+--       type <a>LParamMaybe</a> (<a>UnrollFixState</a> n l) = <a>LParamMaybe</a> l
+--       type <a>LStateMaybe</a> (<a>UnrollFixState</a> n l) = '<a>Nothing</a>
+--   </pre>
+type UnrollFixState n l = FixState (LParamMaybe l) (Unroll n l)
 instance (Backprop.Learn.Class.Learn a b l, Backprop.Learn.Class.LStateMaybe l ~ s) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.State.FixState s l)
 instance (Backprop.Learn.Class.Learn a b l, Data.Type.Mayb.KnownMayb (Backprop.Learn.Class.LParamMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Class.LStateMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Class.LParamMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Class.LStateMaybe l)) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.State.DeState l)
 instance (Backprop.Learn.Class.Learn a b l, GHC.TypeNats.KnownNat n, GHC.Num.Num a, GHC.Num.Num b) => Backprop.Learn.Class.Learn (Data.Vector.Sized.Vector n a) (Data.Vector.Sized.Vector n b) (Backprop.Learn.Component.State.Unroll n l)
@@ -294,6 +337,27 @@ data LearnFunc :: Maybe Type -> Maybe Type -> Type -> Type -> Type
 [LF] :: {_lfInitParam :: forall m. PrimMonad m => Gen (PrimState m) -> Mayb m p, _lfInitState :: forall m. PrimMonad m => Gen (PrimState m) -> Mayb m s, _lfRunLearn :: forall q. Reifies q W => Mayb (BVar q) p -> BVar q a -> Mayb (BVar q) s -> (BVar q b, Mayb (BVar q) s), _lfRunLearnStoch :: forall m q. (PrimMonad m, Reifies q W) => Gen (PrimState m) -> Mayb (BVar q) p -> BVar q a -> Mayb (BVar q) s -> m (BVar q b, Mayb (BVar q) s)} -> LearnFunc p s a b
 learnFunc :: Learn a b l => l -> LearnFunc (LParamMaybe l) (LStateMaybe l) a b
 
+-- | Pre- and post-compose pure parameterless functions to a model.
+--   
+--   A <tt><a>Dimap</a> b c a d</tt> takes a model from <tt>b</tt> to
+--   <tt>c</tt> and turns it into a model from <tt>a</tt> to <tt>d</tt>.
+data Dimap :: Type -> Type -> Type -> Type -> Type -> Type
+[DM] :: {_dmPre :: forall s. Reifies s W => BVar s a -> BVar s b, _dmPost :: forall s. Reifies s W => BVar s c -> BVar s d, _dmLearn :: l} -> Dimap b c a d l
+
+-- | Pre-compose a pure parameterless function to a model.
+--   
+--   An <tt><a>LMap</a> b c a</tt> takes a model from <tt>b</tt> to
+--   <tt>c</tt> and turns it into a model from <tt>a</tt> to <tt>c</tt>.
+type LMap b c a = Dimap b c a c
+lm :: (forall s. Reifies s W => BVar s a -> BVar s b) -> l -> LMap b c a l
+
+-- | Post-compose a pure parameterless function to a model.
+--   
+--   An <tt><tt>Rmap</tt> a b c</tt> takes a model from <tt>a</tt> to
+--   <tt>b</tt> and turns it into a model from <tt>a</tt> to <tt>c</tt>.
+type RMap a b = Dimap a b a
+rm :: (forall s. Reifies s W => BVar s b -> BVar s c) -> l -> RMap a b c l
+
 -- | Compose two <a>LearnFunc</a> on lists.
 (.~) :: forall ps qs ss ts a b c. (ListC (Num <$> ps), ListC (Num <$> qs), ListC (Num <$> ss), ListC (Num <$> ts), ListC (Num <$> (ss ++ ts)), Known Length ps, Known Length qs, Known Length ss, Known Length ts) => LearnFunc ( 'Just (T ps)) ( 'Just (T ss)) b c -> LearnFunc ( 'Just (T qs)) ( 'Just (T ts)) a b -> LearnFunc ( 'Just (T (ps ++ qs))) ( 'Just (T (ss ++ ts))) a c
 
@@ -302,7 +366,8 @@ nilLF :: LearnFunc ( 'Just (T '[])) ( 'Just (T '[])) a a
 
 -- | <a>LearnFunc</a> with singleton lists; meant to be used with <a>.~</a>
 onlyLF :: forall p s a b. (KnownMayb p, MaybeC Num p, KnownMayb s, MaybeC Num s) => LearnFunc p s a b -> LearnFunc ( 'Just (T (MaybeToList p))) ( 'Just (T (MaybeToList s))) a b
-instance (Backprop.Learn.Class.Learn a b l, Backprop.Learn.Class.Learn b c m, Data.Type.Mayb.KnownMayb (Backprop.Learn.Class.LParamMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Class.LParamMaybe m), Data.Type.Mayb.KnownMayb (Backprop.Learn.Class.LStateMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Class.LStateMaybe m)) => Backprop.Learn.Class.Learn a c (l Backprop.Learn.Component.Combinator.:.~ m)
+instance Backprop.Learn.Class.Learn b c l => Backprop.Learn.Class.Learn a d (Backprop.Learn.Component.Combinator.Dimap b c a d l)
+instance (Backprop.Learn.Class.Learn b c l, Backprop.Learn.Class.Learn a b m, Data.Type.Mayb.KnownMayb (Backprop.Learn.Class.LParamMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Class.LParamMaybe m), Data.Type.Mayb.KnownMayb (Backprop.Learn.Class.LStateMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Class.LStateMaybe m), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Class.LParamMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Class.LParamMaybe m), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Class.LStateMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Class.LStateMaybe m)) => Backprop.Learn.Class.Learn a c (l Backprop.Learn.Component.Combinator.:.~ m)
 instance Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.Combinator.LearnFunc p s a b)
 instance (Data.Type.Mayb.MaybeC GHC.Num.Num p, Data.Type.Mayb.MaybeC GHC.Num.Num s, Data.Type.Mayb.KnownMayb p, Data.Type.Mayb.KnownMayb s) => Control.Category.Category (Backprop.Learn.Component.Combinator.LearnFunc p s)
 instance (Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> ps), Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> ss)) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.Combinator.Chain ls ps ss a b)
