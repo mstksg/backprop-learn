@@ -7,6 +7,7 @@
 {-# LANGUAGE KindSignatures         #-}
 {-# LANGUAGE LambdaCase             #-}
 {-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE PatternSynonyms        #-}
 {-# LANGUAGE RankNTypes             #-}
 {-# LANGUAGE ScopedTypeVariables    #-}
 {-# LANGUAGE TupleSections          #-}
@@ -24,6 +25,7 @@ module Backprop.Learn.Component.Combinator (
   , chainParamLength
   , chainStateLength
   , LearnFunc(..), learnFunc
+  , Dimap(..), LMap, lm, RMap, rm
   , (.~)
   , nilLF, onlyLF
   ) where
@@ -507,3 +509,45 @@ instance ( Learn b c l
                   (\v -> (v ^^. t2_1, v ^^. t2_2))
                   st
 
+-- | Pre- and post-compose pure parameterless functions to a model.
+--
+-- A @'Dimap' b c a d@ takes a model from @b@ to @c@ and turns it into
+-- a model from @a@ to @d@.
+data Dimap :: Type -> Type -> Type -> Type -> Type -> Type where
+    DM :: { _dmPre   :: forall s. Reifies s W => BVar s a -> BVar s b
+          , _dmPost  :: forall s. Reifies s W => BVar s c -> BVar s d
+          , _dmLearn :: l
+          }
+       -> Dimap b c a d l
+
+-- | Pre-compose a pure parameterless function to a model.
+--
+-- An @'LMap' b c a@ takes a model from @b@ to @c@ and turns it into
+-- a model from @a@ to @c@.
+type LMap b c a = Dimap b c a c
+
+-- | Post-compose a pure parameterless function to a model.
+--
+-- An @'Rmap' a b c@ takes a model from @a@ to @b@ and turns it into
+-- a model from @a@ to @c@.
+type RMap a b = Dimap a b a
+
+lm  :: (forall s. Reifies s W => BVar s a -> BVar s b)
+    -> l
+    -> LMap b c a l
+lm f = DM f id
+
+rm  :: (forall s. Reifies s W => BVar s b -> BVar s c)
+    -> l
+    -> RMap a b c l
+rm = DM id
+
+instance Learn b c l => Learn a d (Dimap b c a d l) where
+    type LParamMaybe (Dimap b c a d l) = LParamMaybe l
+    type LStateMaybe (Dimap b c a d l) = LStateMaybe l
+
+    initParam (DM _ _ l) = initParam l
+    initState (DM _ _ l) = initState l
+
+    runLearn (DM f g l) p x = first g . runLearn l p (f x)
+    runLearnStoch (DM f g l) gen p x = (fmap . first) g . runLearnStoch l gen p (f x)

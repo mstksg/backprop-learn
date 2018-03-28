@@ -25,8 +25,7 @@ module Data.Type.Mayb (
   , zipMayb3
   , FromJust
   , MaybeWit(..), type (<$>)
-  , TupMaybe, knownTupMaybe
-  , splitTupMaybe, tupMaybe
+  , TupMaybe, splitTupMaybe, tupMaybe
   ) where
 
 import           Data.Bifunctor
@@ -207,15 +206,3 @@ splitTupMaybe f = case knownMayb @a of
         J_ x -> (J_ x, N_)
       J_ _ -> \case
         J_ xy -> bimap J_ J_ . f $ xy
-
-knownTupMaybe
-    :: Mayb P a
-    -> Mayb P b
-    -> Mayb P (TupMaybe a b)
-knownTupMaybe = \case
-  N_ -> \case
-    N_   -> N_
-    J_ p -> J_ p
-  J_ p -> \case
-    N_   -> J_ p
-    J_ _ -> J_ P

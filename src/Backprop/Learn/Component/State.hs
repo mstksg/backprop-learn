@@ -10,9 +10,9 @@
 {-# LANGUAGE UndecidableInstances  #-}
 
 module Backprop.Learn.Component.State (
-    Unroll(..)
-  , DeState(..)
+    DeState(..)
   , FixState(..)
+  , Unroll(..), UnrollDeState, UnrollFixState
   ) where
 
 import           Backprop.Learn.Class
@@ -29,12 +29,34 @@ import qualified Data.Vector.Sized         as SV
 
 -- | Unroll a stateful model into one taking a vector of sequential inputs.
 --
--- Useful when used before 'DeState' or 'FixState'
+-- Useful when used before 'DeState' or 'FixState'.  See 'UnrollDeState'
+-- and 'UnrollFixState'.
 newtype Unroll :: Nat -> Type -> Type where
     Unroll :: { getUnroll :: l } -> Unroll n l
 
--- type UnrollDeState n l = Comp
+-- | Unroll a stateful model into a stateless one taking a vector of
+-- sequential inputs and treat the initial state as a trained parameter.
+--
+-- @
+-- instance 'Learn' a b l
+--     => 'Learn' ('SV.Vector' n a) ('SV.Vector' n b) ('UnrollDeState' n l)'
+--
+--     type 'LParamMaybe' ('UnrollFixState' n l) = 'TupMaybe ('LParamMaybe' l) ('LStateMaybe' l)
+--     type 'LStateMaybe' ('UnrollFixState' n l) = ''Nothing'
+-- @
+type UnrollDeState  n l = DeState                  (Unroll n l)
 
+-- | Unroll a stateful model into a stateless one taking a vector of
+-- sequential inputs and fix the initial state.
+--
+-- @
+-- instance 'Learn' a b l
+--     => 'Learn' ('SV.Vector' n a) ('SV.Vector' n b) ('UnrollFixState' n l)'
+--
+--     type 'LParamMaybe' ('UnrollFixState' n l) = 'LParamMaybe' l
+--     type 'LStateMaybe' ('UnrollFixState' n l) = ''Nothing'
+-- @
+type UnrollFixState n l = FixState (LParamMaybe l) (Unroll n l)
 
 instance (Learn a b l, KnownNat n, Num a, Num b) => Learn (SV.Vector n a) (SV.Vector n b) (Unroll n l) where
     type LParamMaybe (Unroll n l) = LParamMaybe l
@@ -60,6 +82,17 @@ instance (Learn a b l, KnownNat n, Num a, Num b) => Learn (SV.Vector n a) (SV.Ve
 --
 -- One of the ways to make a model stateless for training purposes.  Useful
 -- when used after 'Unroll'.  See 'FixState', as well.
+--
+-- Its parameters are:
+--
+-- *   If @l@ has no parameter or state, nothing.
+-- *   If @l@ has parameters but no state, just the original parameters.
+-- *   If @l@ has no parameters but state, just the initial state.
+-- *   If @l@ has parameters and state, a 'T2' of the parameter and initial state.
+--
+-- However, this is really only meant to be used with types that have
+-- state.  If used with a type with no state, this is essentially
+-- a no-op/identity.
 newtype DeState :: Type -> Type where
     DeState :: { getDestate :: l } -> DeState l
 
@@ -98,6 +131,8 @@ instance (Learn a b l, KnownMayb (LParamMaybe l), KnownMayb (LStateMaybe l), May
 --
 -- One of the ways to make a model stateless for training purposes.  Useful
 -- when used after 'Unroll'.  See 'DeState', as well.
+--
+-- If used with a type with no state, is essentially a no-op/identity.
 data FixState :: Maybe Type -> Type -> Type where
     FS :: { _fsLearn     :: l
           , _fsInitState :: Mayb I s
