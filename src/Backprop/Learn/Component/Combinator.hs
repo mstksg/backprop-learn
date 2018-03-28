@@ -454,3 +454,26 @@ onlyLF f = LF
                 J_ _ -> (fmap . second) (J_ . isoVar onlyT tOnly . fromJ_)
                       $ _lfRunLearnStoch f g (J_ p) x (J_ (isoVar tOnly onlyT ss))
     }
+
+-- | Compose two layers sequentially
+data (:.~) :: Type -> Type -> Type where
+    (:.~) :: l -> m -> l :.~ m
+
+instance (Learn a b l, Learn b c m) => Learn a c (l :.~ m) where
+    type LParamMaybe (l :.~ m) = TupMaybe (LParamMaybe l) (LParamMaybe m)
+    type LStateMaybe (l :.~ m) = TupMaybe (LStateMaybe l) (LStateMaybe m)
+
+    initParam = undefined
+    initState = undefined
+
+        -- elimTupMaybe (knownMayb @(LParamMaybe l))
+        --              (knownMayb @(LStateMaybe l))
+        --              ((, N_) . runLearnStateless l N_ $ x)
+        --              ((second . const) N_ . runLearn l N_ x . J_)
+        --              ((, N_) . flip (runLearnStateless l) x . J_)
+        --              (\ps -> (second . const) N_
+        --                    . runLearn l (J_ (ps ^^. t2_1)) x
+        --                    $ J_ (ps ^^. t2_2)
+        --              )
+        --              t
+

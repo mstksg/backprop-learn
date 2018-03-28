@@ -19,8 +19,8 @@
 
 module Backprop.Learn.Class (
     Learn(..)
-  , LParamOf, LStateOf, NoParam, NoState
-  , LParam, LState
+  , LParam, LState, NoParam, NoState
+  , LParam_, LState_
   , stateless, statelessM
   , runLearnStateless
   , runLearnStochStateless
@@ -36,13 +36,13 @@ import qualified System.Random.MWC       as MWC
 
 -- | The trainable parameter type of a model.  Will be a compile-time error
 -- if the model has no trainable parameters.
-type LParamOf l = FromJust
+type LParam l = FromJust
     ('TL.ShowType l 'TL.:<>: 'TL.Text " has no trainable parameters")
     (LParamMaybe l)
 
 -- | The state type of a model.  Will be a compile-time error if the model
 -- has no state.
-type LStateOf l = FromJust
+type LState l = FromJust
     ('TL.ShowType l 'TL.:<>: 'TL.Text " has no trainable parameters")
     (LStateMaybe l)
 
@@ -54,11 +54,11 @@ type NoState l = LStateMaybe l ~ 'Nothing
 
 -- | Is 'N_' if there is @l@ has no trainable parameters; otherwise is 'J_'
 -- with @f p@, for trainable parameter type @p@.
-type LParam f l = Mayb f (LParamMaybe l)
+type LParam_ f l = Mayb f (LParamMaybe l)
 
 -- | Is 'N_' if there is @l@ has no state; otherwise is 'J_' with @f
 -- s@, for state type @s@.
-type LState f l = Mayb f (LStateMaybe l)
+type LState_ f l = Mayb f (LStateMaybe l)
 
 -- | Class for models that can be trained using gradient descent
 --
@@ -89,29 +89,33 @@ class Learn a b l | l -> a, l -> b where
     type LStateMaybe l = 'Nothing
 
     -- | Initialize parameters, given the hyperparameters in @l@.
+    --
+    -- Default definition provided for models with no state.
     initParam
         :: PrimMonad m
         => l
         -> MWC.Gen (PrimState m)
-        -> LParam m l
+        -> LParam_ m l
     default initParam
-        :: (LParamMaybe l ~ 'Nothing)
+        :: NoParam l
         => l
         -> MWC.Gen (PrimState m)
-        -> LParam m l
+        -> LParam_ m l
     initParam _ _ = N_
 
     -- | Initialize state, given the hyperparameters in @l@.
+    --
+    -- Default definition provided for models with no state.
     initState
         :: PrimMonad m
         => l
         -> MWC.Gen (PrimState m)
-        -> LState m l
+        -> LState_ m l
     default initState
-        :: (LStateMaybe l ~ 'Nothing)
+        :: NoState l
         => l
         -> MWC.Gen (PrimState m)
-        -> LState m l
+        -> LState_ m l
     initState _ _ = N_
 
     -- | Run the model itself, deterministically.
@@ -121,10 +125,10 @@ class Learn a b l | l -> a, l -> b where
     runLearn
         :: Reifies s W
         => l
-        -> LParam (BVar s) l
+        -> LParam_ (BVar s) l
         -> BVar s a
-        -> LState (BVar s) l
-        -> (BVar s b, LState (BVar s) l)
+        -> LState_ (BVar s) l
+        -> (BVar s b, LState_ (BVar s) l)
 
     -- | Run a model in stochastic mode.
     --
@@ -137,10 +141,10 @@ class Learn a b l | l -> a, l -> b where
         :: (Reifies s W, PrimMonad m)
         => l
         -> MWC.Gen (PrimState m)
-        -> LParam (BVar s) l
+        -> LParam_ (BVar s) l
         -> BVar s a
-        -> LState (BVar s) l
-        -> m (BVar s b, LState (BVar s) l)
+        -> LState_ (BVar s) l
+        -> m (BVar s b, LState_ (BVar s) l)
     runLearnStoch l _ p x s = pure (runLearn l p x s)
 
 -- | Useful for defining 'runLearn' if your model has no state.
@@ -159,7 +163,7 @@ statelessM f x s = (, s) <$> f x
 runLearnStateless
     :: (Learn a b l, Reifies s W, NoState l)
     => l
-    -> LParam (BVar s) l
+    -> LParam_ (BVar s) l
     -> BVar s a
     -> BVar s b
 runLearnStateless l p = fst . flip (runLearn l p) N_
@@ -168,7 +172,7 @@ runLearnStochStateless
     :: (Learn a b l, Reifies s W, NoState l, PrimMonad m)
     => l
     -> MWC.Gen (PrimState m)
-    -> LParam (BVar s) l
+    -> LParam_ (BVar s) l
     -> BVar s a
     -> m (BVar s b)
 runLearnStochStateless l g p = fmap fst . flip (runLearnStoch l g p) N_

@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleInstances      #-}
 {-# LANGUAGE GADTs                  #-}
 {-# LANGUAGE KindSignatures         #-}
+{-# LANGUAGE LambdaCase             #-}
 {-# LANGUAGE MultiParamTypeClasses  #-}
 {-# LANGUAGE PatternSynonyms        #-}
 {-# LANGUAGE RankNTypes             #-}
@@ -24,11 +25,13 @@ module Data.Type.Mayb (
   , zipMayb3
   , FromJust
   , MaybeWit(..), type (<$>)
+  , TupMaybe, elimTupMaybe
   ) where
 
 import           Data.Kind
 import           Data.Type.Combinator
 import           Data.Type.Product
+import           Numeric.Backprop.Tuple
 import           Type.Class.Higher
 import           Type.Class.Known
 import           Type.Class.Witness
@@ -165,4 +168,29 @@ instance (Known (Mayb P) m, MaybeC Num (f <$> m), MaybeC Fractional (f <$> m))
 type family FromJust (d :: TL.ErrorMessage) (m :: Maybe k) :: k where
     FromJust e ('Just a) = a
     FromJust e 'Nothing  = TL.TypeError e
+
+type family TupMaybe (a :: Maybe Type) (s :: Maybe Type) :: Maybe Type where
+    TupMaybe 'Nothing  'Nothing  = 'Nothing
+    TupMaybe 'Nothing  ('Just b) = 'Just b
+    TupMaybe ('Just a) 'Nothing  = 'Just a
+    TupMaybe ('Just a) ('Just b) = 'Just (T2 a b)
+
+elimTupMaybe
+    :: Mayb p a
+    -> Mayb q b
+    -> ((a ~ 'Nothing, b ~ 'Nothing) => r)
+    -> (forall b'. (a ~ 'Nothing, b ~ 'Just b') => f b' -> r)
+    -> (forall a'. (a ~ 'Just a', b ~ 'Nothing) => f a' -> r)
+    -> (forall a' b'. (a ~ 'Just a', b ~ 'Just b') => f (T2 a' b') -> r)
+    -> Mayb f (TupMaybe a b)
+    -> r
+elimTupMaybe = \case
+    N_   -> \case
+      N_   -> \nn _  _  _  _       -> nn
+      J_ _ -> \_  nj _  _  (J_ y ) -> nj y
+    J_ _ -> \case
+      N_   -> \_  _  jn _  (J_ x ) -> jn x
+      J_ _ -> \_  _  _  jj (J_ xy) -> jj xy
+    
+  
 

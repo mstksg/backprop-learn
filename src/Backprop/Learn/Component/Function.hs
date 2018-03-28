@@ -136,8 +136,8 @@ dimapPF
     -> ParamFunc p a d
 dimapPF f g h = PF { _pfInit = _pfInit h
                    , _pfFunc = \p -> runFixedFunc g
-                                  . _pfFunc h p
-                                  . runFixedFunc f
+                                   . _pfFunc h p
+                                   . runFixedFunc f
                    }
 
 -- | Precompose a 'ParamFunc'
