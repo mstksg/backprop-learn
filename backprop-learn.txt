@@ -25,6 +25,8 @@ zipMayb :: (forall a. f a -> g a -> h a) -> Mayb f m -> Mayb g m -> Mayb h m
 zipMayb3 :: (forall a. f a -> g a -> h a -> i a) -> Mayb f m -> Mayb g m -> Mayb h m -> Mayb i m
 class MaybeWit (c :: k -> Constraint) (m :: Maybe k)
 maybeWit :: MaybeWit c m => Mayb (Wit1 c) m
+elimTupMaybe :: Mayb p a -> Mayb q b -> ((a ~  'Nothing, b ~  'Nothing) => r) -> (forall b'. (a ~  'Nothing, b ~  'Just b') => f b' -> r) -> (forall a'. (a ~  'Just a', b ~  'Nothing) => f a' -> r) -> (forall a' b'. (a ~  'Just a', b ~  'Just b') => f (T2 a' b') -> r) -> Mayb f (TupMaybe a b) -> r
+knownTupMaybe :: Mayb P a -> Mayb P b -> Mayb P (TupMaybe a b)
 instance forall k (f :: k -> *) (m :: GHC.Base.Maybe k). Data.Type.Mayb.MaybeC GHC.Show.Show (f Data.Type.Mayb.<$> m) => GHC.Show.Show (Data.Type.Mayb.Mayb f m)
 instance forall k (c :: k -> GHC.Types.Constraint) (m :: GHC.Base.Maybe k). (Data.Type.Mayb.MaybeC c m, Type.Class.Known.Known (Data.Type.Mayb.Mayb Data.Type.Mayb.P) m) => Data.Type.Mayb.MaybeWit c m
 instance forall k1 (k2 :: k1). Type.Class.Known.Known Data.Type.Mayb.P k2
@@ -50,22 +52,30 @@ class Learn a b l | l -> a, l -> b where {
 }
 
 -- | Initialize parameters, given the hyperparameters in <tt>l</tt>.
-initParam :: (Learn a b l, PrimMonad m) => l -> Gen (PrimState m) -> LParam m l
+--   
+--   Default definition provided for models with no state.
+initParam :: (Learn a b l, PrimMonad m) => l -> Gen (PrimState m) -> LParam_ m l
 
 -- | Initialize parameters, given the hyperparameters in <tt>l</tt>.
-initParam :: (Learn a b l, NoParam l) => l -> Gen (PrimState m) -> LParam m l
+--   
+--   Default definition provided for models with no state.
+initParam :: (Learn a b l, NoParam l) => l -> Gen (PrimState m) -> LParam_ m l
 
 -- | Initialize state, given the hyperparameters in <tt>l</tt>.
-initState :: (Learn a b l, PrimMonad m) => l -> Gen (PrimState m) -> LState m l
+--   
+--   Default definition provided for models with no state.
+initState :: (Learn a b l, PrimMonad m) => l -> Gen (PrimState m) -> LState_ m l
 
 -- | Initialize state, given the hyperparameters in <tt>l</tt>.
-initState :: (Learn a b l, NoState l) => l -> Gen (PrimState m) -> LState m l
+--   
+--   Default definition provided for models with no state.
+initState :: (Learn a b l, NoState l) => l -> Gen (PrimState m) -> LState_ m l
 
 -- | Run the model itself, deterministically.
 --   
 --   If your model has no state, you can define this conveniently using
 --   <a>stateless</a>.
-runLearn :: (Learn a b l, Reifies s W) => l -> LParam (BVar s) l -> BVar s a -> LState (BVar s) l -> (BVar s b, LState (BVar s) l)
+runLearn :: (Learn a b l, Reifies s W) => l -> LParam_ (BVar s) l -> BVar s a -> LState_ (BVar s) l -> (BVar s b, LState_ (BVar s) l)
 
 -- | Run a model in stochastic mode.
 --   
@@ -74,15 +84,15 @@ runLearn :: (Learn a b l, Reifies s W) => l -> LParam (BVar s) l -> BVar s a -> 
 --   
 --   If your model has no state, you can define this conveniently using
 --   <tt>statelessStoch</tt>.
-runLearnStoch :: (Learn a b l, Reifies s W, PrimMonad m) => l -> Gen (PrimState m) -> LParam (BVar s) l -> BVar s a -> LState (BVar s) l -> m (BVar s b, LState (BVar s) l)
+runLearnStoch :: (Learn a b l, Reifies s W, PrimMonad m) => l -> Gen (PrimState m) -> LParam_ (BVar s) l -> BVar s a -> LState_ (BVar s) l -> m (BVar s b, LState_ (BVar s) l)
 
 -- | The trainable parameter type of a model. Will be a compile-time error
 --   if the model has no trainable parameters.
-type LParamOf l = FromJust ( 'ShowType l :<>:  'Text " has no trainable parameters") (LParamMaybe l)
+type LParam l = FromJust ( 'ShowType l :<>:  'Text " has no trainable parameters") (LParamMaybe l)
 
 -- | The state type of a model. Will be a compile-time error if the model
 --   has no state.
-type LStateOf l = FromJust ( 'ShowType l :<>:  'Text " has no trainable parameters") (LStateMaybe l)
+type LState l = FromJust ( 'ShowType l :<>:  'Text " has no trainable parameters") (LStateMaybe l)
 
 -- | Constraint specifying that a given model has no trainabale parameters.
 type NoParam l = LParamMaybe l ~  'Nothing
@@ -93,25 +103,52 @@ type NoState l = LStateMaybe l ~  'Nothing
 -- | Is <a>N_</a> if there is <tt>l</tt> has no trainable parameters;
 --   otherwise is <a>J_</a> with <tt>f p</tt>, for trainable parameter type
 --   <tt>p</tt>.
-type LParam f l = Mayb f (LParamMaybe l)
+type LParam_ f l = Mayb f (LParamMaybe l)
 
 -- | Is <a>N_</a> if there is <tt>l</tt> has no state; otherwise is
 --   <a>J_</a> with <tt>f s</tt>, for state type <tt>s</tt>.
-type LState f l = Mayb f (LStateMaybe l)
+type LState_ f l = Mayb f (LStateMaybe l)
 
 -- | Useful for defining <a>runLearn</a> if your model has no state.
 stateless :: (a -> b) -> (a -> s -> (b, s))
 
 -- | Useful for defining <a>runLearnStoch</a> if your model has no state.
 statelessM :: Functor m => (a -> m b) -> (a -> s -> m (b, s))
-runLearnStateless :: (Learn a b l, Reifies s W, NoState l) => l -> LParam (BVar s) l -> BVar s a -> BVar s b
-runLearnStochStateless :: (Learn a b l, Reifies s W, NoState l, PrimMonad m) => l -> Gen (PrimState m) -> LParam (BVar s) l -> BVar s a -> m (BVar s b)
+runLearnStateless :: (Learn a b l, Reifies s W, NoState l) => l -> LParam_ (BVar s) l -> BVar s a -> BVar s b
+runLearnStochStateless :: (Learn a b l, Reifies s W, NoState l, PrimMonad m) => l -> Gen (PrimState m) -> LParam_ (BVar s) l -> BVar s a -> m (BVar s b)
 data Mayb :: (k -> Type) -> Maybe k -> Type
 [N_] :: Mayb f  'Nothing
 [J_] :: !(f a) -> Mayb f ( 'Just a)
 fromJ_ :: Mayb f ( 'Just a) -> f a
 type KnownMayb = Known (Mayb P)
 knownMayb :: KnownMayb p => Mayb P p
+
+module Backprop.Learn.Component.State
+
+-- | Unroll a stateful model into one taking a vector of sequential inputs.
+--   
+--   Useful when used before <a>DeState</a> or <a>FixState</a>
+newtype Unroll :: Nat -> Type -> Type
+[Unroll] :: {getUnroll :: l} -> Unroll n l
+
+-- | Make a model stateless by converting the state to a trained parameter,
+--   and dropping the modified state from the result.
+--   
+--   One of the ways to make a model stateless for training purposes.
+--   Useful when used after <a>Unroll</a>. See <a>FixState</a>, as well.
+newtype DeState :: Type -> Type
+[DeState] :: {getDestate :: l} -> DeState l
+
+-- | Make a model stateless by pre-applying a fixed state and dropping the
+--   modified state from the result.
+--   
+--   One of the ways to make a model stateless for training purposes.
+--   Useful when used after <a>Unroll</a>. See <a>DeState</a>, as well.
+data FixState :: Maybe Type -> Type -> Type
+[FS] :: {_fsLearn :: l, _fsInitState :: Mayb I s} -> FixState s l
+instance (Backprop.Learn.Class.Learn a b l, Backprop.Learn.Class.LStateMaybe l ~ s) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.State.FixState s l)
+instance (Backprop.Learn.Class.Learn a b l, Data.Type.Mayb.KnownMayb (Backprop.Learn.Class.LParamMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Class.LStateMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Class.LParamMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Class.LStateMaybe l)) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.State.DeState l)
+instance (Backprop.Learn.Class.Learn a b l, GHC.TypeNats.KnownNat n, GHC.Num.Num a, GHC.Num.Num b) => Backprop.Learn.Class.Learn (Data.Vector.Sized.Vector n a) (Data.Vector.Sized.Vector n b) (Backprop.Learn.Component.State.Unroll n l)
 
 module Backprop.Learn.Component.Function
 
@@ -265,6 +302,7 @@ nilLF :: LearnFunc ( 'Just (T '[])) ( 'Just (T '[])) a a
 
 -- | <a>LearnFunc</a> with singleton lists; meant to be used with <a>.~</a>
 onlyLF :: forall p s a b. (KnownMayb p, MaybeC Num p, KnownMayb s, MaybeC Num s) => LearnFunc p s a b -> LearnFunc ( 'Just (T (MaybeToList p))) ( 'Just (T (MaybeToList s))) a b
+instance (Backprop.Learn.Class.Learn a b l, Backprop.Learn.Class.Learn b c m, Data.Type.Mayb.KnownMayb (Backprop.Learn.Class.LParamMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Class.LParamMaybe m), Data.Type.Mayb.KnownMayb (Backprop.Learn.Class.LStateMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Class.LStateMaybe m)) => Backprop.Learn.Class.Learn a c (l Backprop.Learn.Component.Combinator.:.~ m)
 instance Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.Combinator.LearnFunc p s a b)
 instance (Data.Type.Mayb.MaybeC GHC.Num.Num p, Data.Type.Mayb.MaybeC GHC.Num.Num s, Data.Type.Mayb.KnownMayb p, Data.Type.Mayb.KnownMayb s) => Control.Category.Category (Backprop.Learn.Component.Combinator.LearnFunc p s)
 instance (Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> ps), Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> ss)) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.Combinator.Chain ls ps ss a b)
