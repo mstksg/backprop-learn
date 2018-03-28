@@ -25,7 +25,7 @@ module Data.Type.Mayb (
   , zipMayb3
   , FromJust
   , MaybeWit(..), type (<$>)
-  , TupMaybe, elimTupMaybe
+  , TupMaybe, elimTupMaybe, knownTupMaybe
   ) where
 
 import           Data.Kind
@@ -169,7 +169,7 @@ type family FromJust (d :: TL.ErrorMessage) (m :: Maybe k) :: k where
     FromJust e ('Just a) = a
     FromJust e 'Nothing  = TL.TypeError e
 
-type family TupMaybe (a :: Maybe Type) (s :: Maybe Type) :: Maybe Type where
+type family TupMaybe (a :: Maybe Type) (b :: Maybe Type) :: Maybe Type where
     TupMaybe 'Nothing  'Nothing  = 'Nothing
     TupMaybe 'Nothing  ('Just b) = 'Just b
     TupMaybe ('Just a) 'Nothing  = 'Just a
@@ -192,5 +192,15 @@ elimTupMaybe = \case
       N_   -> \_  _  jn _  (J_ x ) -> jn x
       J_ _ -> \_  _  _  jj (J_ xy) -> jj xy
     
-  
 
+knownTupMaybe
+    :: Mayb P a
+    -> Mayb P b
+    -> Mayb P (TupMaybe a b)
+knownTupMaybe = \case
+  N_ -> \case
+    N_   -> N_
+    J_ p -> J_ p
+  J_ p -> \case
+    N_   -> J_ p
+    J_ _ -> J_ P

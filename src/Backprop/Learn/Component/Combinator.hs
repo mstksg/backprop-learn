@@ -459,21 +459,40 @@ onlyLF f = LF
 data (:.~) :: Type -> Type -> Type where
     (:.~) :: l -> m -> l :.~ m
 
-instance (Learn a b l, Learn b c m) => Learn a c (l :.~ m) where
+instance ( Learn a b l
+         , Learn b c m
+         , KnownMayb (LParamMaybe l)
+         , KnownMayb (LParamMaybe m)
+         , KnownMayb (LStateMaybe l)
+         , KnownMayb (LStateMaybe m)
+         )
+      => Learn a c (l :.~ m) where
     type LParamMaybe (l :.~ m) = TupMaybe (LParamMaybe l) (LParamMaybe m)
     type LStateMaybe (l :.~ m) = TupMaybe (LStateMaybe l) (LStateMaybe m)
 
-    initParam = undefined
-    initState = undefined
+    initParam (l :.~ m) g =
+        elimTupMaybe kl km
+                     N_
+                     (\_ -> initParam m g)
+                     (\_ -> initParam l g)
+                     (\_ -> J_ $ T2 <$> fromJ_ (initParam l g)
+                                    <*> fromJ_ (initParam m g)
+                     )
+                     (knownTupMaybe kl km)
+      where
+        kl = knownMayb @(LParamMaybe l)
+        km = knownMayb @(LParamMaybe m)
+    initState (l :.~ m) g =
+        elimTupMaybe kl km
+                     N_
+                     (\_ -> initState m g)
+                     (\_ -> initState l g)
+                     (\_ -> J_ $ T2 <$> fromJ_ (initState l g)
+                                    <*> fromJ_ (initState m g)
+                     )
+                     (knownTupMaybe kl km)
+      where
+        kl = knownMayb @(LStateMaybe l)
+        km = knownMayb @(LStateMaybe m)
 
-        -- elimTupMaybe (knownMayb @(LParamMaybe l))
-        --              (knownMayb @(LStateMaybe l))
-        --              ((, N_) . runLearnStateless l N_ $ x)
-        --              ((second . const) N_ . runLearn l N_ x . J_)
-        --              ((, N_) . flip (runLearnStateless l) x . J_)
-        --              (\ps -> (second . const) N_
-        --                    . runLearn l (J_ (ps ^^. t2_1)) x
-        --                    $ J_ (ps ^^. t2_2)
-        --              )
-        --              t
 
