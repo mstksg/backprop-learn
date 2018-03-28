@@ -3,7 +3,6 @@
 {-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE TupleSections         #-}
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeInType            #-}
@@ -78,29 +77,21 @@ instance (Learn a b l, KnownMayb (LParamMaybe l), KnownMayb (LStateMaybe l), May
         J_ _ -> J_ $ T2 <$> fromJ_ (initParam l g)
                         <*> fromJ_ (initState l g)
 
-    runLearn (DeState l) t x _ =
-        elimTupMaybe (knownMayb @(LParamMaybe l))
-                     (knownMayb @(LStateMaybe l))
-                     ((, N_) . runLearnStateless l N_ $ x)
-                     ((second . const) N_ . runLearn l N_ x . J_)
-                     ((, N_) . flip (runLearnStateless l) x . J_)
-                     (\ps -> (second . const) N_
-                           . runLearn l (J_ (ps ^^. t2_1)) x
-                           $ J_ (ps ^^. t2_2)
-                     )
-                     t
+    runLearn (DeState l) t x _ = (second . const) N_
+                               . runLearn l p x
+                               $ s
+      where
+        (p, s) = splitTupMaybe @_ @(LParamMaybe l) @(LStateMaybe l)
+                   (\v -> (v ^^. t2_1, v ^^. t2_2))
+                   t
 
-    runLearnStoch (DeState l) g t x _ =
-        elimTupMaybe (knownMayb @(LParamMaybe l))
-                     (knownMayb @(LStateMaybe l))
-                     (fmap (, N_) . runLearnStochStateless l g N_ $ x)
-                     ((fmap . second . const) N_ . runLearnStoch l g N_ x . J_)
-                     (fmap (, N_) . flip (runLearnStochStateless l g) x . J_)
-                     (\ps -> (fmap . second . const) N_
-                           . runLearnStoch l g (J_ (ps ^^. t2_1)) x
-                           $ J_ (ps ^^. t2_2)
-                     )
-                     t
+    runLearnStoch (DeState l) g t x _ = (fmap . second . const) N_
+                                      . runLearnStoch l g p x
+                                      $ s
+      where
+        (p, s) = splitTupMaybe @_ @(LParamMaybe l) @(LStateMaybe l)
+                   (\v -> (v ^^. t2_1, v ^^. t2_2))
+                   t
 
 -- | Make a model stateless by pre-applying a fixed state and dropping the
 -- modified state from the result.

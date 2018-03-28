@@ -25,9 +25,11 @@ module Data.Type.Mayb (
   , zipMayb3
   , FromJust
   , MaybeWit(..), type (<$>)
-  , TupMaybe, elimTupMaybe, knownTupMaybe
+  , TupMaybe, knownTupMaybe
+  , splitTupMaybe, tupMaybe
   ) where
 
+import           Data.Bifunctor
 import           Data.Kind
 import           Data.Type.Combinator
 import           Data.Type.Product
@@ -175,23 +177,36 @@ type family TupMaybe (a :: Maybe Type) (b :: Maybe Type) :: Maybe Type where
     TupMaybe ('Just a) 'Nothing  = 'Just a
     TupMaybe ('Just a) ('Just b) = 'Just (T2 a b)
 
-elimTupMaybe
-    :: Mayb p a
-    -> Mayb q b
-    -> ((a ~ 'Nothing, b ~ 'Nothing) => r)
-    -> (forall b'. (a ~ 'Nothing, b ~ 'Just b') => f b' -> r)
-    -> (forall a'. (a ~ 'Just a', b ~ 'Nothing) => f a' -> r)
-    -> (forall a' b'. (a ~ 'Just a', b ~ 'Just b') => f (T2 a' b') -> r)
+tupMaybe
+    :: forall f a b. ()
+    => (forall a' b'. (a ~ 'Just a', b ~ 'Just b') => f a' -> f b' -> f (T2 a' b'))
+    -> Mayb f a
+    -> Mayb f b
     -> Mayb f (TupMaybe a b)
-    -> r
-elimTupMaybe = \case
+tupMaybe f = \case
     N_   -> \case
-      N_   -> \nn _  _  _  _       -> nn
-      J_ _ -> \_  nj _  _  (J_ y ) -> nj y
-    J_ _ -> \case
-      N_   -> \_  _  jn _  (J_ x ) -> jn x
-      J_ _ -> \_  _  _  jj (J_ xy) -> jj xy
-    
+      N_   -> N_
+      J_ y -> J_ y
+    J_ x -> \case
+      N_   -> J_ x
+      J_ y -> J_ (f x y)
+
+splitTupMaybe
+    :: forall f a b. (KnownMayb a, KnownMayb b)
+    => (forall a' b'. (a ~ 'Just a', b ~ 'Just b') => f (T2 a' b') -> (f a', f b'))
+    -> Mayb f (TupMaybe a b)
+    -> (Mayb f a, Mayb f b)
+splitTupMaybe f = case knownMayb @a of
+    N_ -> case knownMayb @b of
+      N_ -> \case
+        N_ -> (N_, N_)
+      J_ _ -> \case
+        J_ y -> (N_, J_ y)
+    J_ _ -> case knownMayb @b of
+      N_ -> \case
+        J_ x -> (J_ x, N_)
+      J_ _ -> \case
+        J_ xy -> bimap J_ J_ . f $ xy
 
 knownTupMaybe
     :: Mayb P a

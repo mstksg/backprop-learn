@@ -459,40 +459,51 @@ onlyLF f = LF
 data (:.~) :: Type -> Type -> Type where
     (:.~) :: l -> m -> l :.~ m
 
-instance ( Learn a b l
-         , Learn b c m
+instance ( Learn b c l
+         , Learn a b m
          , KnownMayb (LParamMaybe l)
          , KnownMayb (LParamMaybe m)
          , KnownMayb (LStateMaybe l)
          , KnownMayb (LStateMaybe m)
+         , MaybeC Num (LParamMaybe l)
+         , MaybeC Num (LParamMaybe m)
+         , MaybeC Num (LStateMaybe l)
+         , MaybeC Num (LStateMaybe m)
          )
       => Learn a c (l :.~ m) where
     type LParamMaybe (l :.~ m) = TupMaybe (LParamMaybe l) (LParamMaybe m)
     type LStateMaybe (l :.~ m) = TupMaybe (LStateMaybe l) (LStateMaybe m)
 
-    initParam (l :.~ m) g =
-        elimTupMaybe kl km
-                     N_
-                     (\_ -> initParam m g)
-                     (\_ -> initParam l g)
-                     (\_ -> J_ $ T2 <$> fromJ_ (initParam l g)
-                                    <*> fromJ_ (initParam m g)
-                     )
-                     (knownTupMaybe kl km)
-      where
-        kl = knownMayb @(LParamMaybe l)
-        km = knownMayb @(LParamMaybe m)
-    initState (l :.~ m) g =
-        elimTupMaybe kl km
-                     N_
-                     (\_ -> initState m g)
-                     (\_ -> initState l g)
-                     (\_ -> J_ $ T2 <$> fromJ_ (initState l g)
-                                    <*> fromJ_ (initState m g)
-                     )
-                     (knownTupMaybe kl km)
-      where
-        kl = knownMayb @(LStateMaybe l)
-        km = knownMayb @(LStateMaybe m)
+    initParam (l :.~ m) g = tupMaybe @_ @(LParamMaybe l) @(LParamMaybe m)
+        (liftA2 T2)
+        (initParam l g)
+        (initParam m g)
 
+    initState (l :.~ m) g = tupMaybe @_ @(LStateMaybe l) @(LStateMaybe m)
+        (liftA2 T2)
+        (initState l g)
+        (initState m g)
+
+    runLearn (l :.~ m) pq x st = (z, tupMaybe (isoVar2 T2 t2Tup) s' t')
+      where
+        (p, q) = splitTupMaybe @_ @(LParamMaybe l) @(LParamMaybe m)
+                  (\v -> (v ^^. t2_1, v ^^. t2_2))
+                  pq
+        (s, t) = splitTupMaybe @_ @(LStateMaybe l) @(LStateMaybe m)
+                  (\v -> (v ^^. t2_1, v ^^. t2_2))
+                  st
+        (y, t') = runLearn m q x t
+        (z, s') = runLearn l p y s
+
+    runLearnStoch (l :.~ m) g pq x st = do
+        (y, t') <- runLearnStoch m g q x t
+        (z, s') <- runLearnStoch l g p y s
+        pure (z, tupMaybe (isoVar2 T2 t2Tup) s' t')
+      where
+        (p, q) = splitTupMaybe @_ @(LParamMaybe l) @(LParamMaybe m)
+                  (\v -> (v ^^. t2_1, v ^^. t2_2))
+                  pq
+        (s, t) = splitTupMaybe @_ @(LStateMaybe l) @(LStateMaybe m)
+                  (\v -> (v ^^. t2_1, v ^^. t2_2))
+                  st
 
