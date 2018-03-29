@@ -39,6 +39,7 @@ library:
   - transformers
   - hmatrix-backprop >= 0.1.1
   - one-liner-instances
+  - hmatrix
   - hmatrix-vector-sized
   - vector-sized
   - ghc-typelits-knownnat

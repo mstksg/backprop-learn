@@ -65,7 +65,7 @@ type LState_ f l = Mayb f (LStateMaybe l)
 -- An instance @l@ of @'Learn' a b@ is parameterized by @p@, takes @a@ as
 -- input, and returns @b@ as outputs.  @l@ can be thought of as a value
 -- containing the /hyperparmaeters/ of the model.
-class Learn a b l | l -> a, l -> b where
+class Learn a b l | l -> a b where
 
     -- | The trainable parameters of model @l@.
     --
