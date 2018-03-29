@@ -44,7 +44,7 @@ module Backprop.Learn.Class
 --   by <tt>p</tt>, takes <tt>a</tt> as input, and returns <tt>b</tt> as
 --   outputs. <tt>l</tt> can be thought of as a value containing the
 --   <i>hyperparmaeters</i> of the model.
-class Learn a b l | l -> a, l -> b where {
+class Learn a b l | l -> a b where {
     type family LParamMaybe l :: Maybe Type;
     type family LStateMaybe l :: Maybe Type;
     type LParamMaybe l =  'Nothing;
@@ -198,76 +198,189 @@ module Backprop.Learn.Component.Function
 -- | A <tt><a>ParamFunc</a> p a b</tt> is a parameterized function from
 --   <tt>a</tt> to <tt>b</tt>, potentially with trainable parameter
 --   <tt>p</tt>.
+--   
+--   A utility wrapper for a deterministic and stateless model.
 data ParamFunc p a b
 PF :: (forall m. PrimMonad m => Gen (PrimState m) -> Mayb m p) -> (forall s. Reifies s W => Mayb (BVar s) p -> BVar s a -> BVar s b) -> ParamFunc p a b
 [_pfInit] :: ParamFunc p a b -> forall m. PrimMonad m => Gen (PrimState m) -> Mayb m p
 [_pfFunc] :: ParamFunc p a b -> forall s. Reifies s W => Mayb (BVar s) p -> BVar s a -> BVar s b
 
+-- | Convenient type synonym for a <a>ParamFunc</a> with parameters.
+--   
+--   Mostly made to be easy to construct/deconstruct with <a>PFP</a>,
+--   <a>_pfpInit</a>, and <a>_pfpFunc</a>.
+type ParamFuncP p = ParamFunc ( 'Just p)
+_pfpInit :: () => ParamFuncP p a b -> forall (m :: * -> *). PrimMonad m => Gen PrimState m -> m p
+_pfpFunc :: () => ParamFuncP p a b -> forall s. Reifies Type s W => BVar s p -> BVar s a -> BVar s b
+
 -- | An unparameterized function. Has a <a>Category</a> instance.
+--   
+--   A <tt><a>FixedFunc</a> a b</tt> essentially the same as a:
+--   
+--   @<tt> forall s. <a>Reifies</a> s <a>W</a> =&gt; <a>BVar</a> s a -&gt;
+--   <a>BVar</a> s b </tt>@
+--   
+--   And the <a>FF</a> pattern (and <a>runFixedFunc</a> extractor) witness
+--   this.
+--   
+--   It is usually better to just use the functions directly, with
+--   combinators like <tt>Dimap</tt>, <tt>LMap</tt>, <tt>RMap</tt>,
+--   <a>dimapPF</a>, <a>lmapPF</a>, <a>rmapPF</a>, etc. This is just
+--   provided to let you work nicely with <a>ParamFunc</a> combinators.
 type FixedFunc = ParamFunc  'Nothing
 runFixedFunc :: () => FixedFunc a b -> forall s. Reifies Type s W => BVar s a -> BVar s b
+
+-- | Utility function to make a <a>ParamFunc</a> that maps a parameterized
+--   function over every item in the <a>R</a>. The parameter is shared
+--   across the entire map, and trained.
+paramMap :: KnownNat i => (forall m. PrimMonad m => Gen (PrimState m) -> Mayb m p) -> (forall s. Reifies s W => Mayb (BVar s) p -> BVar s Double -> BVar s Double) -> ParamFunc p (R i) (R i)
 
 -- | Create a <a>ParamFunc</a> from any instance of <a>Learn</a> that does
 --   not have state.
 learnParam :: forall l a b. (Learn a b l, NoState l) => l -> ParamFunc (LParamMaybe l) a b
 
 -- | Pre- and post-compose a <a>ParamFunc</a>
-dimapPF :: FixedFunc a b -> FixedFunc c d -> ParamFunc p b c -> ParamFunc p a d
+dimapPF :: (forall s. Reifies s W => BVar s a -> BVar s b) -> (forall s. Reifies s W => BVar s c -> BVar s d) -> ParamFunc p b c -> ParamFunc p a d
 
 -- | Precompose a <a>ParamFunc</a>
-lmapPF :: FixedFunc a b -> ParamFunc p b c -> ParamFunc p a c
+lmapPF :: (forall s. Reifies s W => BVar s a -> BVar s b) -> ParamFunc p b c -> ParamFunc p a c
 
 -- | Postcompose a <a>ParamFunc</a>
-rmapPF :: FixedFunc b c -> ParamFunc p a b -> ParamFunc p a c
+rmapPF :: (forall s. Reifies s W => BVar s b -> BVar s c) -> ParamFunc p a b -> ParamFunc p a c
 
 -- | Compose two <a>ParamFunc</a>s sequentially
+--   
+--   TODO: rewrite using <a>TupMaybe</a>
 compPF :: (Num p, Num q) => ParamFunc ( 'Just p) a b -> ParamFunc ( 'Just q) b c -> ParamFunc ( 'Just (T2 p q)) a c
 
 -- | Compose two <a>ParamFunc</a>s in parallel
+--   
+--   TODO: rewrite using <a>TupMaybe</a>
 parPF :: (Num p, Num q, Num a, Num b, Num c, Num d) => ParamFunc ( 'Just p) a c -> ParamFunc ( 'Just q) b d -> ParamFunc ( 'Just (T2 p q)) (T2 a b) (T2 c d)
 
--- | Softmax normalizer
-softMax :: KnownNat i => FixedFunc (R i) (R i)
-
--- | Logistic function, typically used as an activation function
-logisticFunc :: Floating a => FixedFunc a a
-
--- | Scaling function
-scaleFunc :: Num a => a -> FixedFunc a a
-
--- | Tanh function
-tanhFunc :: Floating a => FixedFunc a a
-
--- | Map a differentiable function over every item in an <a>R</a>
-mapFunc :: KnownNat i => (forall s. Reifies s W => BVar s Double -> BVar s Double) -> FixedFunc (R i) (R i)
-
--- | Rectified linear unit activation function
-reLU :: KnownNat i => FixedFunc (R i) (R i)
-
--- | Exponential linear unit activation function
-eLU :: KnownNat i => Double -> FixedFunc (R i) (R i)
-
--- | Exponential linear unit activation function, parameterized on scaling
---   factor.
-peLU :: (KnownNat i, ContGen d) => d -> ParamFunc ( 'Just Double) (R i) (R i)
-
--- | Scaling function, but with a trainable scaling parameter.
-pScale :: (KnownNat i, ContGen d) => d -> ParamFunc ( 'Just Double) (R i) (R i)
-
--- | Map a parameterized differentiable function over ever item in an
---   <a>R</a>. The parameter is trainable.
-pMap :: KnownNat i => (forall m. PrimMonad m => Gen (PrimState m) -> m p) -> (forall s. Reifies s W => BVar s p -> BVar s Double -> BVar s Double) -> ParamFunc ( 'Just p) (R i) (R i)
-
--- | Compose two <a>ParamFunc</a>s on lists.
-(.-) :: forall ps qs a b c. (ListC (Num <$> ps), ListC (Num <$> qs), Known Length ps, Known Length qs) => ParamFunc ( 'Just (T ps)) b c -> ParamFunc ( 'Just (T qs)) a b -> ParamFunc ( 'Just (T (ps ++ qs))) a c
+-- | Compose two <a>ParamFuncP</a>s on lists.
+(.-) :: forall ps qs a b c. (ListC (Num <$> ps), ListC (Num <$> qs), Known Length ps, Known Length qs) => ParamFuncP (T ps) b c -> ParamFuncP (T qs) a b -> ParamFuncP (T (ps ++ qs)) a c
 infixr 9 .-
 
 -- | The identity of <a>.-</a>
-nilPF :: ParamFunc ( 'Just (T '[])) a a
+nilPF :: ParamFuncP (T '[]) a a
 
--- | <a>ParamFunc</a> taking a singleton list; meant to be used with
+-- | <a>ParamFuncP</a> taking a singleton list; meant to be used with
 --   <a>.-</a>
-onlyPF :: forall p a b. (KnownMayb p, MaybeC Num p) => ParamFunc p a b -> ParamFunc ( 'Just (T (MaybeToList p))) a b
+onlyPF :: forall p a b. (KnownMayb p, MaybeC Num p) => ParamFunc p a b -> ParamFuncP (T (MaybeToList p)) a b
+
+-- | Binary step / heaviside step
+--   
+--   To use with vectors (<a>R</a>), use <a>vmap'</a>.
+--   
+--   &lt;math&gt;
+step :: (Ord a, Num a) => a -> a
+
+-- | Logistic function
+--   
+--   &lt;math&gt;
+logistic :: Floating a => a -> a
+
+-- | Softsign activation function
+--   
+--   &lt;math&gt;
+softsign :: Fractional a => a -> a
+
+-- | Inverse square root unit
+--   
+--   &lt;math&gt;
+isru :: Floating a => a -> a -> a
+
+-- | Rectified linear unit.
+--   
+--   To use with vectors (<a>R</a>), use <a>vmap'</a>.
+--   
+--   &lt;math&gt;
+--   
+--   <pre>
+--   <a>reLU</a> = <a>preLU</a> 0
+--   </pre>
+reLU :: (Num a, Ord a) => a -> a
+
+-- | Parametric rectified linear unit
+--   
+--   To use with vectors (<a>R</a>), use <a>vmap'</a>.
+--   
+--   If scaling parameter is a fixed (and not learned) parameter, this is
+--   typically called a leaky recitified linear unit (typically with α =
+--   0.01).
+--   
+--   &lt;math&gt;
+preLU :: (Num a, Ord a) => a -> a -> a
+
+-- | S-shaped rectified linear activiation unit
+--   
+--   To use with vectors (<a>R</a>), use <a>vmap'</a>.
+--   
+--   &lt;math&gt;
+sreLU :: (Num a, Ord a) => a -> a -> a -> a -> a -> a
+
+-- | Exponential linear unit
+--   
+--   To use with vectors (<a>R</a>), use <a>vmap'</a>.
+--   
+--   &lt;math&gt;
+eLU :: (Floating a, Ord a) => a -> a -> a
+
+-- | Inverse square root linear unit
+--   
+--   To use with vectors (<a>R</a>), use <a>vmap'</a>.
+--   
+--   &lt;math&gt;
+isrLU :: (Floating a, Ord a) => a -> a -> a
+
+-- | SoftPlus
+--   
+--   &lt;math&gt;
+softPlus :: Floating a => a -> a
+
+-- | Bent identity
+--   
+--   &lt;math&gt;
+bentIdentity :: Floating a => a -> a
+
+-- | Sigmoid-weighted linear unit. Multiply <a>logistic</a> by its input.
+--   
+--   &lt;math&gt;
+siLU :: Floating a => a -> a
+
+-- | SoftExponential
+--   
+--   To use with vectors (<a>R</a>), use <a>vmap'</a>.
+--   
+--   &lt;math&gt;
+softExponential :: (Floating a, Ord a) => a -> a -> a
+
+-- | Sinc
+--   
+--   &lt;math&gt;
+sinc :: (Floating a, Eq a) => a -> a
+
+-- | Gaussian
+--   
+--   &lt;math&gt;
+gaussian :: Floating a => a -> a
+
+-- | Scale every element by a constant factor
+scale :: (KnownNat n, Reifies s W) => BVar s Double -> BVar s (R n) -> BVar s (R n)
+
+-- | Adaptive piecewise linear activation unit
+--   
+--   &lt;math&gt;
+apl :: (KnownNat n, KnownNat m, Reifies s W) => BVar s (L n m) -> BVar s (L n m) -> BVar s (R m) -> BVar s (R m)
+
+-- | Softmax normalizer
+softMax :: (KnownNat i, Reifies s W) => BVar s (R i) -> BVar s (R i)
+
+-- | Maximum of vector.
+--   
+--   Compare to <a>norm_InfV</a>, which gives the maximum absolute value.
+maxout :: (KnownNat n, Reifies s W) => BVar s (R n) -> BVar s Double
 instance (GHC.Num.Num a, GHC.Num.Num b, Data.Type.Mayb.MaybeC GHC.Num.Num p, Data.Type.Mayb.KnownMayb p) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.Function.ParamFunc p a b)
 instance (Data.Type.Mayb.MaybeC GHC.Num.Num p, Data.Type.Mayb.KnownMayb p) => Control.Category.Category (Backprop.Learn.Component.Function.ParamFunc p)
 
@@ -290,6 +403,7 @@ FCP :: !(R o) -> !(L o i) -> FCP i o
 [_fcWeights] :: FCP i o -> !(L o i)
 fcBias :: Functor f => (R o -> f (R o)) -> FCP i o -> f (FCP i o)
 fcWeights :: Functor f => (L o i -> f (L o k)) -> FCP i o -> f (FCP k o)
+instance GHC.Generics.Generic (Backprop.Learn.Component.FullyConnected.FCRP h i o)
 instance GHC.Generics.Generic (Backprop.Learn.Component.FullyConnected.FCP i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Component.FullyConnected.FCP i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Class.Learn (Internal.Static.R i) (Internal.Static.R o) (Backprop.Learn.Component.FullyConnected.FC i o)
