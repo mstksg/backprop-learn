@@ -506,6 +506,8 @@ data StochFunc :: Maybe Type -> Type -> Type -> Type
 type FixedStochFunc = StochFunc  'Nothing
 
 -- | Construct a <a>FixedStochFunc</a>
+_fsfRunDeterm :: () => FixedStochFunc a b -> forall s. Reifies s W => BVar s a -> BVar s b
+_fsfRunStoch :: () => FixedStochFunc a b -> forall (m :: * -> *) s. (PrimMonad m, Reifies s W) => Gen PrimState m -> BVar s a -> m BVar s b
 
 -- | Random leaky rectified linear unit
 rreLU :: (ContGen d, Mean d, KnownNat n) => d -> FixedStochFunc (R n) (R n)
