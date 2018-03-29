@@ -86,7 +86,7 @@ data FCR (h :: Nat) (i :: Nat) (o :: Nat) =
         , _fcrStore    :: forall s. Reifies s W => BVar s (R o) -> BVar s (R h)
         }
 
--- | Fully connected feed-forward layer parameters.
+-- | Fully connected recurrent layer parameters.
 data FCRP h i o = FCRP { _fcrBias         :: !(R o)
                        , _fcrInputWeights :: !(L o i)
                        , _fcrStateWeights :: !(L o h)

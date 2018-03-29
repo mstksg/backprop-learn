@@ -15,7 +15,7 @@
 # resolver:
 #  name: custom-snapshot
 #  location: "./custom-snapshot.yaml"
-resolver: lts-11.0
+resolver: nightly-2018-03-29
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -45,6 +45,10 @@ packages:
     git: https://github.com/mstksg/hmatrix-backprop.git
     commit: ca78e5a215ca26e13b71474e49daa0d52d2b7b2b
   extra-dep: true
+- location:
+    git: https://github.com/mstksg/type-combinators.git
+    commit: 13e7d4bd99b1a80b5fdb436a85ee52cfa0ff799f
+  extra-dep: true
 # - location:
 #     git: https://github.com/mstksg/type-combinators-singletons.git
 #     commit: 8bd05539987692ee745f0d78b83e5d72c7af21c4
@@ -56,7 +60,7 @@ packages:
 
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
-extra-deps:
+extra-deps: []
 # - backprop-0.1.4.0
 # - type-combinators-0.2.4.3
 # - mnist-idx-0.1.2.6

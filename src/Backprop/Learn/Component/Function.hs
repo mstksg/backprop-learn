@@ -27,6 +27,7 @@ module Backprop.Learn.Component.Function (
   , (.-), nilPF, onlyPF
   -- * Activation functions
   -- | See <https://en.wikipedia.org/wiki/Activation_function>
+  --
   -- ** Maps
   -- *** Unparameterized
   , step
@@ -267,7 +268,7 @@ softMax x = expx / konst (norm_1V expx)
 -- | Logistic function
 --
 -- \[
--- \frac{1}{1 + e^{-x}}
+-- \sigma(x) = \frac{1}{1 + e^{-x}}
 -- \]
 logistic :: Floating a => a -> a
 logistic x = 1 / (1 + exp (-x))
@@ -277,10 +278,14 @@ logistic x = 1 / (1 + exp (-x))
 -- To use with vectors ('R'), use 'vmap''.
 --
 -- \[
--- \text{max}(0,x)
+-- \begin{cases}
+-- 0 & \text{for } x < 0 \\
+-- 1 & \text{for } x \ge 0
+-- \end{cases}
 -- \]
 step :: (Ord a, Num a) => a -> a
-step = max 0
+step x | x < 0     = 0
+       | otherwise = 1
 
 -- | Softsign activation function
 --
@@ -313,10 +318,7 @@ isru α x = x / sqrt (1 + α * x * x)
 --
 --
 -- \[
--- \begin{cases}
--- 0 & \text{for } x < 0 \\
--- x & \text{for } x \ge 0
--- \end{cases}
+-- \max(0,x)
 -- \]
 --
 -- @
@@ -346,7 +348,8 @@ reLU x | x < 0     = 0
 -- To fix the paramater ("leaky"), just partially apply a parameter:
 --
 -- @
--- 'preLU' 0.01 :: 'BVar' s ('R' n) -> BVar s (R n)
+-- 'preLU' 0.01           :: 'BVar' s ('R' n) -> BVar s (R n)
+-- preLU ('realToFrac' α) :: BVar s (R n) -> BVar s (R n)
 -- @
 --
 -- See also 'rreLU'.
@@ -456,7 +459,7 @@ isrLU α x
 -- See 'aplPFP' for an uncurried version usable with 'PFP'.
 --
 -- \[
--- \text{max}(0, x_i) + \sum_j^M a_i^j \text{max}(0, -x_i + b_i^j)
+-- \max(0, x_i) + \sum_j^M a_i^j \max(0, -x_i + b_i^j)
 -- \]
 apl :: (KnownNat n, KnownNat m, Reifies s W)
     => BVar s (L n m)     -- ^ a
