@@ -14,7 +14,7 @@ module Backprop.Learn.Model.Stochastic (
   , StochFunc(..)
   , FixedStochFunc, pattern FSF, _fsfRunDeterm, _fsfRunStoch
   , rreLU
-  , injectNoise
+  , injectNoise, applyNoise
   ) where
 
 import           Backprop.Learn.Model
@@ -111,6 +111,8 @@ rreLU d = FSF { _fsfRunDeterm = vmap' (preLU v)
 
 -- | Inject random noise.  Usually used between neural network layers, or
 -- at the very beginning to pre-process input.
+--
+-- In non-stochastic mode, this adds the mean of the distribution.
 injectNoise
     :: (Stat.ContGen d, Stat.Mean d, KnownNat n)
     => d
@@ -120,3 +122,17 @@ injectNoise d = FSF { _fsfRunDeterm = (realToFrac (Stat.mean d) +)
                         e <- vecR <$> SVS.replicateM (Stat.genContVar d g)
                         pure (constVar e + x)
                     }
+
+-- | Multply by random noise.  Can be used to implement dropout-like
+-- behavior.
+--
+-- In non-stochastic mode, this scales by the mean of the distribution.
+applyNoise
+    :: (Stat.ContGen d, Stat.Mean d, KnownNat n)
+    => d
+    -> FixedStochFunc (R n) (R n)
+applyNoise d = FSF { _fsfRunDeterm = (realToFrac (Stat.mean d) *)
+                   , _fsfRunStoch  = \g x -> do
+                       e <- vecR <$> SVS.replicateM (Stat.genContVar d g)
+                       pure (constVar e * x)
+                   }
