@@ -293,14 +293,10 @@ lmapPF :: (forall s. Reifies s W => BVar s a -> BVar s b) -> ParamFunc p b c -> 
 rmapPF :: (forall s. Reifies s W => BVar s b -> BVar s c) -> ParamFunc p a b -> ParamFunc p a c
 
 -- | Compose two <a>ParamFunc</a>s sequentially
---   
---   TODO: rewrite using <a>TupMaybe</a>
-compPF :: (Num p, Num q) => ParamFunc ( 'Just p) a b -> ParamFunc ( 'Just q) b c -> ParamFunc ( 'Just (T2 p q)) a c
+compPF :: forall p q a b c. (MaybeC Num p, MaybeC Num q, KnownMayb p, KnownMayb q) => ParamFunc p a b -> ParamFunc q b c -> ParamFunc (TupMaybe p q) a c
 
 -- | Compose two <a>ParamFunc</a>s in parallel
---   
---   TODO: rewrite using <a>TupMaybe</a>
-parPF :: (Num p, Num q, Num a, Num b, Num c, Num d) => ParamFunc ( 'Just p) a c -> ParamFunc ( 'Just q) b d -> ParamFunc ( 'Just (T2 p q)) (T2 a b) (T2 c d)
+parPF :: forall p q a b c d. (MaybeC Num p, MaybeC Num q, KnownMayb p, KnownMayb q, Num a, Num b, Num c, Num d) => ParamFunc p a c -> ParamFunc q b d -> ParamFunc (TupMaybe p q) (T2 a b) (T2 c d)
 
 -- | Compose two <a>ParamFuncP</a>s on lists.
 (.-) :: forall ps qs a b c. (ListC (Num <$> ps), ListC (Num <$> qs), Known Length ps, Known Length qs) => ParamFuncP (T ps) b c -> ParamFuncP (T qs) a b -> ParamFuncP (T (ps ++ qs)) a c
