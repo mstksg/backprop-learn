@@ -12,9 +12,9 @@
 
 module Backprop.Learn.Component.Parameter (
     DeParam(..)
-  , dpFixed
+  , dpDeterm
   , ReParam
-  , rpFixed
+  , rpDeterm
   ) where
 
 import           Backprop.Learn.Class
@@ -35,10 +35,9 @@ data DeParam :: Type -> Type -> Type where
           }
        -> DeParam p l
 
--- | Create a 'DeParam' from a fixed (deterministic, non-stochastic)
--- parameter.
-dpFixed :: p -> l -> DeParam p l
-dpFixed p = DP p (const (pure p))
+-- | Create a 'DeParam' from a deterministic, non-stochastic parameter.
+dpDeterm :: p -> l -> DeParam p l
+dpDeterm p = DP p (const (pure p))
 
 instance (Learn a b l, LParamMaybe l ~ 'Just p) => Learn a b (DeParam p l) where
     type LParamMaybe (DeParam p l) = 'Nothing
@@ -76,11 +75,11 @@ instance (Learn a b l, LParamMaybe l ~ 'Just p) => Learn a b (ReParam p q l) whe
       p <- f g q
       runLearnStoch l g (J_ p) x s
 
--- | Create a 'ReParam' from a fixed (deterministic, non-stochastic)
+-- | Create a 'ReParam' from a deterministic, non-stochastic
 -- transformation function.
-rpFixed
+rpDeterm
     :: (forall m. PrimMonad m => MWC.Gen (PrimState m) -> Mayb m q)
     -> (forall s. Reifies s W => Mayb (BVar s) q -> BVar s p)
     -> l
     -> ReParam p q l
-rpFixed i f = RP i f (const (pure . f))
+rpDeterm i f = RP i f (const (pure . f))

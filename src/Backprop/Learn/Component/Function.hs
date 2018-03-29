@@ -26,6 +26,7 @@ module Backprop.Learn.Component.Function (
   -- *** Chain
   , (.-), nilPF, onlyPF
   -- * Activation functions
+  -- | See <https://en.wikipedia.org/wiki/Activation_function>
   -- ** Maps
   -- *** Unparameterized
   , step
@@ -347,6 +348,8 @@ reLU x | x < 0     = 0
 -- @
 -- 'preLU' 0.01 :: 'BVar' s ('R' n) -> BVar s (R n)
 -- @
+--
+-- See also 'rreLU'.
 --
 -- \[
 -- \begin{cases}

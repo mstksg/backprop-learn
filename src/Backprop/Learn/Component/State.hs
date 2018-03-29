@@ -14,10 +14,10 @@
 module Backprop.Learn.Component.State (
   -- * Make models stateless
     TrainState(..)
-  , DeState(..), dsFixed
+  , DeState(..), dsDeterm
   -- * Manipulate model states
   , Unroll(..), UnrollTrainState, UnrollDeState
-  , ReState, rsFixed
+  , ReState, rsDeterm
   ) where
 
 import           Backprop.Learn.Class
@@ -44,9 +44,9 @@ newtype Unroll :: Nat -> Type -> Type where
 --
 -- @
 -- instance 'Learn' a b l
---     => 'Learn' ('SV.Vector' n a) ('SV.Vector' n b) ('UnrollTrainState' n l)'
+--     => 'Learn' ('SV.Vector' n a) ('SV.Vector' n b) ('UnrollTrainState' n l)
 --
---     type 'LParamMaybe' ('UnrollDeState' n l) = 'TupMaybe ('LParamMaybe' l) ('LStateMaybe' l)
+--     type 'LParamMaybe' ('UnrollDeState' n l) = 'TupMaybe' ('LParamMaybe' l) ('LStateMaybe' l)
 --     type 'LStateMaybe' ('UnrollDeState' n l) = ''Nothing'
 -- @
 type UnrollTrainState  n l = TrainState (Unroll n l)
@@ -56,7 +56,7 @@ type UnrollTrainState  n l = TrainState (Unroll n l)
 --
 -- @
 -- instance 'Learn' a b l
---     => 'Learn' ('SV.Vector' n a) ('SV.Vector' n b) ('UnrollDeState' n l)'
+--     => 'Learn' ('SV.Vector' n a) ('SV.Vector' n b) ('UnrollDeState' n l)
 --
 --     type 'LParamMaybe' ('UnrollDeState' n l) = 'LParamMaybe' l
 --     type 'LStateMaybe' ('UnrollDeState' n l) = ''Nothing'
@@ -136,8 +136,10 @@ data DeState :: Type -> Type -> Type where
           }
        -> DeState s l
 
-dsFixed :: s -> l -> DeState s l
-dsFixed s = DS s (const (pure s))
+-- | Create a 'DeState' from a deterministic, non-stochastic initialization
+-- function.
+dsDeterm :: s -> l -> DeState s l
+dsDeterm s = DS s (const (pure s))
 
 instance (Learn a b l, LStateMaybe l ~ 'Just s) => Learn a b (DeState s l) where
     type LParamMaybe (DeState s l) = LParamMaybe l
@@ -186,12 +188,12 @@ instance (Learn a b l, LStateMaybe l ~ 'Just s) => Learn a b (ReState s t l) whe
       s <- g gen t
       second (f . fromJ_) <$> runLearnStoch l gen p x (J_ s)
 
--- | Create a 'ReState' from a fixed (deterministic, non-stochastic)
+-- | Create a 'ReState' from a deterministic, non-stochastic
 -- transformation function.
-rsFixed
+rsDeterm
     :: (forall m. PrimMonad m => MWC.Gen (PrimState m) -> Mayb m t)
     -> (forall q. Reifies q W => BVar q s -> Mayb (BVar q) t)
     -> (forall q. Reifies q W => Mayb (BVar q) t -> BVar q s)
     -> l
     -> ReState s t l
-rsFixed i t f = RS i t f (const (pure . f))
+rsDeterm i t f = RS i t f (const (pure . f))
