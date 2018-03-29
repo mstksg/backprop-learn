@@ -220,35 +220,39 @@ rmapPF
 rmapPF = dimapPF id
 
 -- | Compose two 'ParamFunc's sequentially
---
--- TODO: rewrite using 'TupMaybe'
 compPF
-    :: (Num p, Num q)
-    => ParamFunc ('Just p) a b
-    -> ParamFunc ('Just q) b c
-    -> ParamFunc ('Just (T2 p q)) a c
-compPF f g = PF { _pfInit = \gen -> J_ $ T2 <$> fromJ_ (_pfInit f gen)
-                                            <*> fromJ_ (_pfInit g gen)
-                , _pfFunc = \(J_ pq) -> _pfFunc g (J_ (pq ^^. t2_2))
-                                      . _pfFunc f (J_ (pq ^^. t2_1))
+    :: forall p q a b c. (MaybeC Num p, MaybeC Num q, KnownMayb p, KnownMayb q)
+    => ParamFunc p a b
+    -> ParamFunc q b c
+    -> ParamFunc (TupMaybe p q) a c
+compPF f g = PF { _pfInit = \gen -> tupMaybe @_ @p @q
+                                        (liftA2 T2)
+                                        (_pfInit f gen)
+                                        (_pfInit g gen)
+                , _pfFunc = \pq ->
+                    let (p, q) = splitTupMaybe @_ @p @q
+                            (\pq' -> (pq' ^^. t2_1, pq' ^^. t2_2)) pq
+                    in  _pfFunc g q . _pfFunc f p
                 }
 
 -- | Compose two 'ParamFunc's in parallel
---
--- TODO: rewrite using 'TupMaybe'
 parPF
-    :: (Num p, Num q, Num a, Num b, Num c, Num d)
-    => ParamFunc ('Just p) a c
-    -> ParamFunc ('Just q) b d
-    -> ParamFunc ('Just (T2 p q)) (T2 a b) (T2 c d)
-parPF f g = PF { _pfInit = \gen -> J_ $ T2 <$> fromJ_ (_pfInit f gen)
-                                           <*> fromJ_ (_pfInit g gen)
-               , _pfFunc = \(J_ pq) xy ->
-                    isoVar2 T2 t2Tup (_pfFunc f (J_ (pq ^^. t2_1)) (xy ^^. t2_1))
-                                     (_pfFunc g (J_ (pq ^^. t2_2)) (xy ^^. t2_2))
+    :: forall p q a b c d. (MaybeC Num p, MaybeC Num q, KnownMayb p, KnownMayb q, Num a, Num b, Num c, Num d)
+    => ParamFunc p a c
+    -> ParamFunc q b d
+    -> ParamFunc (TupMaybe p q) (T2 a b) (T2 c d)
+parPF f g = PF { _pfInit = \gen -> tupMaybe @_ @p @q
+                                        (liftA2 T2)
+                                        (_pfInit f gen)
+                                        (_pfInit g gen)
+               , _pfFunc = \pq xy ->
+                    let (p, q) = splitTupMaybe @_ @p @q
+                            (\pq' -> (pq' ^^. t2_1, pq' ^^. t2_2)) pq
+                    in  isoVar2 T2 t2Tup (_pfFunc f p (xy ^^. t2_1))
+                                         (_pfFunc g q (xy ^^. t2_2))
                }
 
--- TODO: replace with manual ops?
+-- TODO: replace all of these with manual ops?
 
 -- | Softmax normalizer
 softMax
