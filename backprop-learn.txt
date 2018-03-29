@@ -286,11 +286,6 @@ logistic :: Floating a => a -> a
 --   &lt;math&gt;
 softsign :: Fractional a => a -> a
 
--- | Inverse square root unit
---   
---   &lt;math&gt;
-isru :: Floating a => a -> a -> a
-
 -- | Rectified linear unit.
 --   
 --   To use with vectors (<a>R</a>), use <a>vmap'</a>.
@@ -301,38 +296,6 @@ isru :: Floating a => a -> a -> a
 --   <a>reLU</a> = <a>preLU</a> 0
 --   </pre>
 reLU :: (Num a, Ord a) => a -> a
-
--- | Parametric rectified linear unit
---   
---   To use with vectors (<a>R</a>), use <a>vmap'</a>.
---   
---   If scaling parameter is a fixed (and not learned) parameter, this is
---   typically called a leaky recitified linear unit (typically with α =
---   0.01).
---   
---   &lt;math&gt;
-preLU :: (Num a, Ord a) => a -> a -> a
-
--- | S-shaped rectified linear activiation unit
---   
---   To use with vectors (<a>R</a>), use <a>vmap'</a>.
---   
---   &lt;math&gt;
-sreLU :: (Num a, Ord a) => a -> a -> a -> a -> a -> a
-
--- | Exponential linear unit
---   
---   To use with vectors (<a>R</a>), use <a>vmap'</a>.
---   
---   &lt;math&gt;
-eLU :: (Floating a, Ord a) => a -> a -> a
-
--- | Inverse square root linear unit
---   
---   To use with vectors (<a>R</a>), use <a>vmap'</a>.
---   
---   &lt;math&gt;
-isrLU :: (Floating a, Ord a) => a -> a -> a
 
 -- | SoftPlus
 --   
@@ -368,6 +331,43 @@ gaussian :: Floating a => a -> a
 
 -- | Scale every element by a constant factor
 scale :: (KnownNat n, Reifies s W) => BVar s Double -> BVar s (R n) -> BVar s (R n)
+
+-- | Inverse square root unit
+--   
+--   &lt;math&gt;
+isru :: Floating a => a -> a -> a
+
+-- | Parametric rectified linear unit
+--   
+--   To use with vectors (<a>R</a>), use <a>vmap'</a>.
+--   
+--   If scaling parameter is a fixed (and not learned) parameter, this is
+--   typically called a leaky recitified linear unit (typically with α =
+--   0.01).
+--   
+--   &lt;math&gt;
+preLU :: (Num a, Ord a) => a -> a -> a
+
+-- | S-shaped rectified linear activiation unit
+--   
+--   To use with vectors (<a>R</a>), use <a>vmap'</a>.
+--   
+--   &lt;math&gt;
+sreLU :: (Num a, Ord a) => a -> a -> a -> a -> a -> a
+
+-- | Exponential linear unit
+--   
+--   To use with vectors (<a>R</a>), use <a>vmap'</a>.
+--   
+--   &lt;math&gt;
+eLU :: (Floating a, Ord a) => a -> a -> a
+
+-- | Inverse square root linear unit
+--   
+--   To use with vectors (<a>R</a>), use <a>vmap'</a>.
+--   
+--   &lt;math&gt;
+isrLU :: (Floating a, Ord a) => a -> a -> a
 
 -- | Adaptive piecewise linear activation unit
 --   
