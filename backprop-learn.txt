@@ -217,8 +217,9 @@ _pfpFunc :: () => ParamFuncP p a b -> forall s. Reifies Type s W => BVar s p -> 
 --   
 --   A <tt><a>FixedFunc</a> a b</tt> essentially the same as a:
 --   
---   @<tt> forall s. <a>Reifies</a> s <a>W</a> =&gt; <a>BVar</a> s a -&gt;
---   <a>BVar</a> s b </tt>@
+--   <pre>
+--   forall s. <a>Reifies</a> s <a>W</a> =&gt; <a>BVar</a> s a -&gt; <a>BVar</a> s b
+--   </pre>
 --   
 --   And the <a>FF</a> pattern (and <a>runFixedFunc</a> extractor) witness
 --   this.
@@ -332,9 +333,10 @@ gaussian :: Floating a => a -> a
 -- | Usable with functions like <a>*</a>, <a>isru</a>, etc. to turn them
 --   into a form usable with <a>PFP</a>:
 --   
---   @<tt> <a>liftUniform</a> (<a>*</a>) :: <a>BVar</a> s <a>Double</a>
---   -&gt; BVar s (<a>R</a> n) -&gt; BVar s (R n) liftUniform <a>isru</a>
---   :: BVar s Double -&gt; BVar s (R n) -&gt; BVar s (R n) </tt>@
+--   <pre>
+--   <a>liftUniform</a> (<a>*</a>)  :: <a>BVar</a> s <a>Double</a> -&gt; BVar s (<a>R</a> n) -&gt; BVar s (R n)
+--   liftUniform <a>isru</a> :: BVar s Double -&gt; BVar s (R n) -&gt; BVar s (R n)
+--   </pre>
 --   
 --   Basically turns a parmaeterized function on individual elements of
 --   into one that shares the same parameter across all elements of the
@@ -361,15 +363,17 @@ isru :: Floating a => a -> a -> a
 --   
 --   To use as a learned parameter:
 --   
---   @<tt> <a>vmap</a> . <a>preLU</a> :: <a>BVar</a> s Double -&gt;
---   <a>BVar</a> s (<a>R</a> n) -&gt; BVar s (R n) </tt>@
+--   <pre>
+--   <a>vmap</a> . <a>preLU</a> :: <a>BVar</a> s Double -&gt; <a>BVar</a> s (<a>R</a> n) -&gt; BVar s (R n)
+--   </pre>
 --   
 --   This can be give directly to <a>PFP</a>.
 --   
 --   To fix the paramater ("leaky"), just partially apply a parameter:
 --   
---   @<tt> <a>preLU</a> 0.01 :: <a>BVar</a> s (<a>R</a> n) -&gt; BVar s (R
---   n) </tt>@
+--   <pre>
+--   <a>preLU</a> 0.01 :: <a>BVar</a> s (<a>R</a> n) -&gt; BVar s (R n)
+--   </pre>
 --   
 --   &lt;math&gt;
 preLU :: (Num a, Ord a) => a -> a -> a
@@ -390,15 +394,17 @@ sreLUPFP :: (KnownNat n, Reifies s W) => BVar s (T2 (T2 Double Double) (T2 Doubl
 --   
 --   To use as a learned parameter:
 --   
---   @<tt> <a>vmap</a> . <a>eLU</a> :: <a>BVar</a> s Double -&gt;
---   <a>BVar</a> s (<a>R</a> n) -&gt; BVar s (R n) </tt>@
+--   <pre>
+--   <a>vmap</a> . <a>eLU</a> :: <a>BVar</a> s Double -&gt; <a>BVar</a> s (<a>R</a> n) -&gt; BVar s (R n)
+--   </pre>
 --   
 --   This can be give directly to <a>PFP</a>.
 --   
 --   To fix the paramater, just partially apply a parameter:
 --   
---   @<tt> <a>eLU</a> 0.01 :: <a>BVar</a> s (<a>R</a> n) -&gt; BVar s (R n)
---   </tt>@
+--   <pre>
+--   <a>eLU</a> 0.01 :: <a>BVar</a> s (<a>R</a> n) -&gt; BVar s (R n)
+--   </pre>
 --   
 --   &lt;math&gt;
 eLU :: (Floating a, Ord a) => a -> a -> a

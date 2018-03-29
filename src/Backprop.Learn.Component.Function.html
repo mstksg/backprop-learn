@@ -80,9 +80,9 @@
 </span><a name="line-80"></a><span class="hs-comment">--</span><span>
 </span><a name="line-81"></a><span class="hs-comment">-- A @'FixedFunc' a b@ essentially the same as a:</span><span>
 </span><a name="line-82"></a><span class="hs-comment">--</span><span>
-</span><a name="line-83"></a><span class="hs-comment">-- @@</span><span>
+</span><a name="line-83"></a><span class="hs-comment">-- @</span><span>
 </span><a name="line-84"></a><span class="hs-comment">-- forall s. 'Reifies' s 'W' =&gt; 'BVar' s a -&gt; 'BVar' s b</span><span>
-</span><a name="line-85"></a><span class="hs-comment">-- @@</span><span>
+</span><a name="line-85"></a><span class="hs-comment">-- @</span><span>
 </span><a name="line-86"></a><span class="hs-comment">--</span><span>
 </span><a name="line-87"></a><span class="hs-comment">-- And the 'FF' pattern (and 'runFixedFunc' extractor) witness this.</span><span>
 </span><a name="line-88"></a><span class="hs-comment">--</span><span>
@@ -332,17 +332,17 @@
 </span><a name="line-332"></a><span class="hs-comment">--</span><span>
 </span><a name="line-333"></a><span class="hs-comment">-- To use as a learned parameter:</span><span>
 </span><a name="line-334"></a><span class="hs-comment">--</span><span>
-</span><a name="line-335"></a><span class="hs-comment">-- @@</span><span>
+</span><a name="line-335"></a><span class="hs-comment">-- @</span><span>
 </span><a name="line-336"></a><span class="hs-comment">-- 'vmap' . 'preLU' :: 'BVar' s Double -&gt; 'BVar' s ('R' n) -&gt; BVar s (R n)</span><span>
-</span><a name="line-337"></a><span class="hs-comment">-- @@</span><span>
+</span><a name="line-337"></a><span class="hs-comment">-- @</span><span>
 </span><a name="line-338"></a><span class="hs-comment">--</span><span>
 </span><a name="line-339"></a><span class="hs-comment">-- This can be give directly to 'PFP'.</span><span>
 </span><a name="line-340"></a><span class="hs-comment">--</span><span>
 </span><a name="line-341"></a><span class="hs-comment">-- To fix the paramater (&quot;leaky&quot;), just partially apply a parameter:</span><span>
 </span><a name="line-342"></a><span class="hs-comment">--</span><span>
-</span><a name="line-343"></a><span class="hs-comment">-- @@</span><span>
+</span><a name="line-343"></a><span class="hs-comment">-- @</span><span>
 </span><a name="line-344"></a><span class="hs-comment">-- 'preLU' 0.01 :: 'BVar' s ('R' n) -&gt; BVar s (R n)</span><span>
-</span><a name="line-345"></a><span class="hs-comment">-- @@</span><span>
+</span><a name="line-345"></a><span class="hs-comment">-- @</span><span>
 </span><a name="line-346"></a><span class="hs-comment">--</span><span>
 </span><a name="line-347"></a><span class="hs-comment">-- \[</span><span>
 </span><a name="line-348"></a><span class="hs-comment">-- \begin{cases}</span><span>
@@ -362,17 +362,17 @@
 </span><a name="line-362"></a><span class="hs-comment">--</span><span>
 </span><a name="line-363"></a><span class="hs-comment">-- To use as a learned parameter:</span><span>
 </span><a name="line-364"></a><span class="hs-comment">--</span><span>
-</span><a name="line-365"></a><span class="hs-comment">-- @@</span><span>
+</span><a name="line-365"></a><span class="hs-comment">-- @</span><span>
 </span><a name="line-366"></a><span class="hs-comment">-- 'vmap' . 'eLU' :: 'BVar' s Double -&gt; 'BVar' s ('R' n) -&gt; BVar s (R n)</span><span>
-</span><a name="line-367"></a><span class="hs-comment">-- @@</span><span>
+</span><a name="line-367"></a><span class="hs-comment">-- @</span><span>
 </span><a name="line-368"></a><span class="hs-comment">--</span><span>
 </span><a name="line-369"></a><span class="hs-comment">-- This can be give directly to 'PFP'.</span><span>
 </span><a name="line-370"></a><span class="hs-comment">--</span><span>
 </span><a name="line-371"></a><span class="hs-comment">-- To fix the paramater, just partially apply a parameter:</span><span>
 </span><a name="line-372"></a><span class="hs-comment">--</span><span>
-</span><a name="line-373"></a><span class="hs-comment">-- @@</span><span>
+</span><a name="line-373"></a><span class="hs-comment">-- @</span><span>
 </span><a name="line-374"></a><span class="hs-comment">-- 'eLU' 0.01 :: 'BVar' s ('R' n) -&gt; BVar s (R n)</span><span>
-</span><a name="line-375"></a><span class="hs-comment">-- @@</span><span>
+</span><a name="line-375"></a><span class="hs-comment">-- @</span><span>
 </span><a name="line-376"></a><span class="hs-comment">--</span><span>
 </span><a name="line-377"></a><span class="hs-comment">-- \[</span><span>
 </span><a name="line-378"></a><span class="hs-comment">-- \begin{cases}</span><span>
@@ -545,10 +545,10 @@
 </span><a name="line-545"></a><span class="hs-comment">-- | Usable with functions like '*', 'isru', etc. to turn them into a form</span><span>
 </span><a name="line-546"></a><span class="hs-comment">-- usable with 'PFP':</span><span>
 </span><a name="line-547"></a><span class="hs-comment">--</span><span>
-</span><a name="line-548"></a><span class="hs-comment">-- @@</span><span>
+</span><a name="line-548"></a><span class="hs-comment">-- @</span><span>
 </span><a name="line-549"></a><span class="hs-comment">-- 'liftUniform' ('*')  :: 'BVar' s 'Double' -&gt; BVar s ('R' n) -&gt; BVar s (R n)</span><span>
 </span><a name="line-550"></a><span class="hs-comment">-- liftUniform 'isru' :: BVar s Double -&gt; BVar s (R n) -&gt; BVar s (R n)</span><span>
-</span><a name="line-551"></a><span class="hs-comment">-- @@</span><span>
+</span><a name="line-551"></a><span class="hs-comment">-- @</span><span>
 </span><a name="line-552"></a><span class="hs-comment">--</span><span>
 </span><a name="line-553"></a><span class="hs-comment">-- Basically turns a parmaeterized function on individual elements of</span><span>
 </span><a name="line-554"></a><span class="hs-comment">-- into one that shares the same parameter across all elements of the</span><span>
