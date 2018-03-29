@@ -329,12 +329,26 @@ sinc :: (Floating a, Eq a) => a -> a
 --   &lt;math&gt;
 gaussian :: Floating a => a -> a
 
--- | Scale every element by a constant factor
-scale :: (KnownNat n, Reifies s W) => BVar s Double -> BVar s (R n) -> BVar s (R n)
+-- | Usable with functions like <a>*</a>, <a>isru</a>, etc. to turn them
+--   into a form usable with <a>PFP</a>:
+--   
+--   @<tt> <a>liftUniform</a> (<a>*</a>) :: <a>BVar</a> s <a>Double</a>
+--   -&gt; BVar s (<a>R</a> n) -&gt; BVar s (R n) liftUniform <a>isru</a>
+--   :: BVar s Double -&gt; BVar s (R n) -&gt; BVar s (R n) </tt>@
+--   
+--   Basically turns a parmaeterized function on individual elements of
+--   into one that shares the same parameter across all elements of the
+--   vector.
+liftUniform :: (Reifies s W, KnownNat n) => (BVar s (R n) -> r) -> BVar s Double -> r
 
 -- | Inverse square root unit
 --   
 --   &lt;math&gt;
+--   
+--   See <a>liftUniform</a> to make this compatible with <a>PFP</a>.
+--   
+--   You can also just use this after partially applying it, to fix the
+--   parameter (and not have it trained).
 isru :: Floating a => a -> a -> a
 
 -- | Parametric rectified linear unit
@@ -345,19 +359,46 @@ isru :: Floating a => a -> a -> a
 --   typically called a leaky recitified linear unit (typically with α =
 --   0.01).
 --   
+--   To use as a learned parameter:
+--   
+--   @<tt> <a>vmap</a> . <a>preLU</a> :: <a>BVar</a> s Double -&gt;
+--   <a>BVar</a> s (<a>R</a> n) -&gt; BVar s (R n) </tt>@
+--   
+--   This can be give directly to <a>PFP</a>.
+--   
+--   To fix the paramater ("leaky"), just partially apply a parameter:
+--   
+--   @<tt> <a>preLU</a> 0.01 :: <a>BVar</a> s (<a>R</a> n) -&gt; BVar s (R
+--   n) </tt>@
+--   
 --   &lt;math&gt;
 preLU :: (Num a, Ord a) => a -> a -> a
 
 -- | S-shaped rectified linear activiation unit
 --   
---   To use with vectors (<a>R</a>), use <a>vmap'</a>.
+--   See <a>sreLUPFP</a> for an uncurried and uniformly lifted version
+--   usable with <a>PFP</a>.
 --   
 --   &lt;math&gt;
 sreLU :: (Num a, Ord a) => a -> a -> a -> a -> a -> a
 
+-- | An uncurried and uniformly lifted version of <a>sreLU</a> directly
+--   usable with <a>PFP</a>.
+sreLUPFP :: (KnownNat n, Reifies s W) => BVar s (T2 (T2 Double Double) (T2 Double Double)) -> BVar s (R n) -> BVar s (R n)
+
 -- | Exponential linear unit
 --   
---   To use with vectors (<a>R</a>), use <a>vmap'</a>.
+--   To use as a learned parameter:
+--   
+--   @<tt> <a>vmap</a> . <a>eLU</a> :: <a>BVar</a> s Double -&gt;
+--   <a>BVar</a> s (<a>R</a> n) -&gt; BVar s (R n) </tt>@
+--   
+--   This can be give directly to <a>PFP</a>.
+--   
+--   To fix the paramater, just partially apply a parameter:
+--   
+--   @<tt> <a>eLU</a> 0.01 :: <a>BVar</a> s (<a>R</a> n) -&gt; BVar s (R n)
+--   </tt>@
 --   
 --   &lt;math&gt;
 eLU :: (Floating a, Ord a) => a -> a -> a
@@ -371,8 +412,13 @@ isrLU :: (Floating a, Ord a) => a -> a -> a
 
 -- | Adaptive piecewise linear activation unit
 --   
+--   See <a>aplPFP</a> for an uncurried version usable with <a>PFP</a>.
+--   
 --   &lt;math&gt;
 apl :: (KnownNat n, KnownNat m, Reifies s W) => BVar s (L n m) -> BVar s (L n m) -> BVar s (R m) -> BVar s (R m)
+
+-- | <a>apl</a> uncurried, to be directly usable with <a>PFP</a>.
+aplPFP :: (KnownNat n, KnownNat m, Reifies s W) => BVar s (T2 (L n m) (L n m)) -> BVar s (R m) -> BVar s (R m)
 
 -- | Softmax normalizer
 softMax :: (KnownNat i, Reifies s W) => BVar s (R i) -> BVar s (R i)
@@ -403,8 +449,34 @@ FCP :: !(R o) -> !(L o i) -> FCP i o
 [_fcWeights] :: FCP i o -> !(L o i)
 fcBias :: Functor f => (R o -> f (R o)) -> FCP i o -> f (FCP i o)
 fcWeights :: Functor f => (L o i -> f (L o k)) -> FCP i o -> f (FCP k o)
+
+-- | Fully connected recurrent layer with bias.
+--   
+--   Parameterized by its initialization distributions, and also the
+--   function to compute the new state from previous input.
+data FCR (h :: Nat) (i :: Nat) (o :: Nat)
+FCR :: (forall m. PrimMonad m => Gen (PrimState m) -> m Double) -> (forall m. PrimMonad m => Gen (PrimState m) -> m Double) -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R h)) -> FCR
+[_fcrGen] :: FCR -> forall m. PrimMonad m => Gen (PrimState m) -> m Double
+[_fcrGenState] :: FCR -> forall m. PrimMonad m => Gen (PrimState m) -> m Double
+[_fcrStore] :: FCR -> forall s. Reifies s W => BVar s (R o) -> BVar s (R h)
+
+-- | Construct an <tt><a>FCR</a> h i o</tt> using a given distribution from
+--   the <i>statistics</i> library.
+fcr :: ContGen d => d -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R h)) -> FCR h i o
+
+-- | Fully connected feed-forward layer parameters.
+data FCRP h i o
+FCRP :: !(R o) -> !(L o i) -> !(L o h) -> FCRP h i o
+[_fcrBias] :: FCRP h i o -> !(R o)
+[_fcrInputWeights] :: FCRP h i o -> !(L o i)
+[_fcrStateWeights] :: FCRP h i o -> !(L o h)
+fcrBias :: Functor f => (R o -> f (R o)) -> FCRP h i o -> f (FCRP h i o)
+fcrInputWeights :: Functor f => (L o i -> f (L o i')) -> FCRP h i o -> f (FCRP h i' o)
+fcrStateWeights :: Functor f => (L o h -> f (L o h')) -> FCRP h i o -> f (FCRP h' i o)
 instance GHC.Generics.Generic (Backprop.Learn.Component.FullyConnected.FCRP h i o)
 instance GHC.Generics.Generic (Backprop.Learn.Component.FullyConnected.FCP i o)
+instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Component.FullyConnected.FCRP h i o)
+instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Class.Learn (Internal.Static.R i) (Internal.Static.R o) (Backprop.Learn.Component.FullyConnected.FCR h i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Component.FullyConnected.FCP i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Class.Learn (Internal.Static.R i) (Internal.Static.R o) (Backprop.Learn.Component.FullyConnected.FC i o)
 
