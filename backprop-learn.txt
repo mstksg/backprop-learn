@@ -414,7 +414,8 @@ isru :: Floating a => a -> a -> a
 --   To fix the paramater ("leaky"), just partially apply a parameter:
 --   
 --   <pre>
---   <a>preLU</a> 0.01 :: <a>BVar</a> s (<a>R</a> n) -&gt; BVar s (R n)
+--   <a>preLU</a> 0.01           :: <a>BVar</a> s (<a>R</a> n) -&gt; BVar s (R n)
+--   preLU (<a>realToFrac</a> α) :: BVar s (R n) -&gt; BVar s (R n)
 --   </pre>
 --   
 --   See also <tt>rreLU</tt>.
