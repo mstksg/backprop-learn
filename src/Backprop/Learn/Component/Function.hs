@@ -80,9 +80,9 @@ import qualified System.Random.MWC                            as MWC
 --
 -- A @'FixedFunc' a b@ essentially the same as a:
 --
--- @@
+-- @
 -- forall s. 'Reifies' s 'W' => 'BVar' s a -> 'BVar' s b
--- @@
+-- @
 --
 -- And the 'FF' pattern (and 'runFixedFunc' extractor) witness this.
 --
@@ -332,17 +332,17 @@ reLU x | x < 0     = 0
 --
 -- To use as a learned parameter:
 --
--- @@
+-- @
 -- 'vmap' . 'preLU' :: 'BVar' s Double -> 'BVar' s ('R' n) -> BVar s (R n)
--- @@
+-- @
 --
 -- This can be give directly to 'PFP'.
 --
 -- To fix the paramater ("leaky"), just partially apply a parameter:
 --
--- @@
+-- @
 -- 'preLU' 0.01 :: 'BVar' s ('R' n) -> BVar s (R n)
--- @@
+-- @
 --
 -- \[
 -- \begin{cases}
@@ -362,17 +362,17 @@ preLU α x | x < 0     = α * x
 --
 -- To use as a learned parameter:
 --
--- @@
+-- @
 -- 'vmap' . 'eLU' :: 'BVar' s Double -> 'BVar' s ('R' n) -> BVar s (R n)
--- @@
+-- @
 --
 -- This can be give directly to 'PFP'.
 --
 -- To fix the paramater, just partially apply a parameter:
 --
--- @@
+-- @
 -- 'eLU' 0.01 :: 'BVar' s ('R' n) -> BVar s (R n)
--- @@
+-- @
 --
 -- \[
 -- \begin{cases}
@@ -545,10 +545,10 @@ maxout = liftOp1 . op1 $ \x ->
 -- | Usable with functions like '*', 'isru', etc. to turn them into a form
 -- usable with 'PFP':
 --
--- @@
+-- @
 -- 'liftUniform' ('*')  :: 'BVar' s 'Double' -> BVar s ('R' n) -> BVar s (R n)
 -- liftUniform 'isru' :: BVar s Double -> BVar s (R n) -> BVar s (R n)
--- @@
+-- @
 --
 -- Basically turns a parmaeterized function on individual elements of
 -- into one that shares the same parameter across all elements of the
