@@ -7,7 +7,7 @@
 {-# LANGUAGE TypeFamilies                             #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
-module Backprop.Learn.Model.FullyConnected (
+module Backprop.Learn.Model.Neural (
     FC(..), fc, FCP(..), fcBias, fcWeights
   , FCR(..), fcr, FCRP(..), fcrBias, fcrInputWeights, fcrStateWeights
   ) where
@@ -150,3 +150,4 @@ instance (KnownNat h, KnownNat i, KnownNat o) => Learn (R i) (R o) (FCR h i o) w
         y  = ((p ^^. fcrInputWeights) #> x)
            + ((p ^^. fcrStateWeights) #> h)
            + p ^^. fcrBias
+
