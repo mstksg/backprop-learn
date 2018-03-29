@@ -149,7 +149,10 @@ newtype TrainState :: Type -> Type
 --   Useful when used after <a>Unroll</a>. See <a>TrainState</a>, as well.
 data DeState :: Type -> Type -> Type
 [DS] :: {_fsInitState :: s, _fsInitStateStoch :: forall m. PrimMonad m => Gen (PrimState m) -> m s, _fsLearn :: l} -> DeState s l
-dsFixed :: s -> l -> DeState s l
+
+-- | Create a <a>DeState</a> from a deterministic, non-stochastic
+--   initialization function.
+dsDeterm :: s -> l -> DeState s l
 
 -- | Unroll a stateful model into one taking a vector of sequential inputs.
 --   
@@ -163,9 +166,9 @@ newtype Unroll :: Nat -> Type -> Type
 --   
 --   <pre>
 --   instance <a>Learn</a> a b l
---       =&gt; <a>Learn</a> (<a>Vector</a> n a) (<a>Vector</a> n b) (<a>UnrollTrainState</a> n l)'
+--       =&gt; <a>Learn</a> (<a>Vector</a> n a) (<a>Vector</a> n b) (<a>UnrollTrainState</a> n l)
 --   
---       type <a>LParamMaybe</a> (<a>UnrollDeState</a> n l) = 'TupMaybe (<a>LParamMaybe</a> l) (<a>LStateMaybe</a> l)
+--       type <a>LParamMaybe</a> (<a>UnrollDeState</a> n l) = <a>TupMaybe</a> (<a>LParamMaybe</a> l) (<a>LStateMaybe</a> l)
 --       type <a>LStateMaybe</a> (<a>UnrollDeState</a> n l) = '<a>Nothing</a>
 --   </pre>
 type UnrollTrainState n l = TrainState (Unroll n l)
@@ -175,7 +178,7 @@ type UnrollTrainState n l = TrainState (Unroll n l)
 --   
 --   <pre>
 --   instance <a>Learn</a> a b l
---       =&gt; <a>Learn</a> (<a>Vector</a> n a) (<a>Vector</a> n b) (<a>UnrollDeState</a> n l)'
+--       =&gt; <a>Learn</a> (<a>Vector</a> n a) (<a>Vector</a> n b) (<a>UnrollDeState</a> n l)
 --   
 --       type <a>LParamMaybe</a> (<a>UnrollDeState</a> n l) = <a>LParamMaybe</a> l
 --       type <a>LStateMaybe</a> (<a>UnrollDeState</a> n l) = '<a>Nothing</a>
@@ -194,9 +197,9 @@ type UnrollDeState n l = DeState (LState l) (Unroll n l)
 --   types.
 data ReState :: Type -> Maybe Type -> Type -> Type
 
--- | Create a <a>ReState</a> from a fixed (deterministic, non-stochastic)
+-- | Create a <a>ReState</a> from a deterministic, non-stochastic
 --   transformation function.
-rsFixed :: (forall m. PrimMonad m => Gen (PrimState m) -> Mayb m t) -> (forall q. Reifies q W => BVar q s -> Mayb (BVar q) t) -> (forall q. Reifies q W => Mayb (BVar q) t -> BVar q s) -> l -> ReState s t l
+rsDeterm :: (forall m. PrimMonad m => Gen (PrimState m) -> Mayb m t) -> (forall q. Reifies q W => BVar q s -> Mayb (BVar q) t) -> (forall q. Reifies q W => Mayb (BVar q) t -> BVar q s) -> l -> ReState s t l
 instance (Backprop.Learn.Class.Learn a b l, Backprop.Learn.Class.LStateMaybe l ~ 'GHC.Base.Just s) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.State.ReState s t l)
 instance (Backprop.Learn.Class.Learn a b l, Backprop.Learn.Class.LStateMaybe l ~ 'GHC.Base.Just s) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.State.DeState s l)
 instance (Backprop.Learn.Class.Learn a b l, Data.Type.Mayb.KnownMayb (Backprop.Learn.Class.LParamMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Class.LParamMaybe l), Backprop.Learn.Class.LStateMaybe l ~ 'GHC.Base.Just s, GHC.Num.Num s) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.State.TrainState l)
@@ -212,9 +215,9 @@ module Backprop.Learn.Component.Parameter
 data DeParam :: Type -> Type -> Type
 [DP] :: {_dpParam :: p, _dpParamStoch :: forall m. PrimMonad m => Gen (PrimState m) -> m p, _dpLearn :: l} -> DeParam p l
 
--- | Create a <a>DeParam</a> from a fixed (deterministic, non-stochastic)
+-- | Create a <a>DeParam</a> from a deterministic, non-stochastic
 --   parameter.
-dpFixed :: p -> l -> DeParam p l
+dpDeterm :: p -> l -> DeParam p l
 
 -- | Pre-apply a function to the parameter before the original model sees
 --   it. A <tt><a>ReParam</a> p q</tt> turns a model taking <tt>p</tt> into
@@ -226,9 +229,9 @@ dpFixed :: p -> l -> DeParam p l
 --   types.
 data ReParam :: Type -> Maybe Type -> Type -> Type
 
--- | Create a <a>ReParam</a> from a fixed (deterministic, non-stochastic)
+-- | Create a <a>ReParam</a> from a deterministic, non-stochastic
 --   transformation function.
-rpFixed :: (forall m. PrimMonad m => Gen (PrimState m) -> Mayb m q) -> (forall s. Reifies s W => Mayb (BVar s) q -> BVar s p) -> l -> ReParam p q l
+rpDeterm :: (forall m. PrimMonad m => Gen (PrimState m) -> Mayb m q) -> (forall s. Reifies s W => Mayb (BVar s) q -> BVar s p) -> l -> ReParam p q l
 instance (Backprop.Learn.Class.Learn a b l, Backprop.Learn.Class.LParamMaybe l ~ 'GHC.Base.Just p) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.Parameter.ReParam p q l)
 instance (Backprop.Learn.Class.Learn a b l, Backprop.Learn.Class.LParamMaybe l ~ 'GHC.Base.Just p) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.Parameter.DeParam p l)
 
@@ -414,6 +417,8 @@ isru :: Floating a => a -> a -> a
 --   <a>preLU</a> 0.01 :: <a>BVar</a> s (<a>R</a> n) -&gt; BVar s (R n)
 --   </pre>
 --   
+--   See also <tt>rreLU</tt>.
+--   
 --   &lt;math&gt;
 preLU :: (Num a, Ord a) => a -> a -> a
 
@@ -475,6 +480,43 @@ maxout :: (KnownNat n, Reifies s W) => BVar s (R n) -> BVar s Double
 instance (GHC.Num.Num a, GHC.Num.Num b, Data.Type.Mayb.MaybeC GHC.Num.Num p, Data.Type.Mayb.KnownMayb p) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.Function.ParamFunc p a b)
 instance (Data.Type.Mayb.MaybeC GHC.Num.Num p, Data.Type.Mayb.KnownMayb p) => Control.Category.Category (Backprop.Learn.Component.Function.ParamFunc p)
 
+module Backprop.Learn.Component.Stochastic
+
+-- | Dropout layer. Parameterized by dropout percentage (should be between
+--   0 and 1).
+--   
+--   0 corresponds to no dropout, 1 corresponds to complete dropout of all
+--   nodes every time.
+newtype DO (n :: Nat)
+DO :: Double -> DO
+[_doRate] :: DO -> Double
+
+-- | Represents a random-valued function, with a possible trainable
+--   parameter.
+--   
+--   Requires both a "deterministic" and a "stochastic" mode. The
+--   deterministic mode ideally should approximate some mean of the
+--   stochastic mode.
+data StochFunc :: Maybe Type -> Type -> Type -> Type
+[SF] :: {_sfInitParam :: forall m. PrimMonad m => Gen (PrimState m) -> Mayb m p, _sfRunDeterm :: forall s. Reifies s W => Mayb (BVar s) p -> BVar s a -> BVar s b, _sfRunStoch :: forall m s. (PrimMonad m, Reifies s W) => Gen (PrimState m) -> Mayb (BVar s) p -> BVar s a -> m (BVar s b)} -> StochFunc p a b
+
+-- | Convenient alias for a <a>StochFunc</a> (random-valued function with
+--   both deterministic and stochastic modes) with no trained parameters.
+type FixedStochFunc = StochFunc  'Nothing
+
+-- | Construct a <a>FixedStochFunc</a>
+_fsfRunDeterm :: () => FixedStochFunc a b -> forall s. Reifies Type s W => BVar s a -> BVar s b
+_fsfRunStoch :: () => FixedStochFunc a b -> forall (m :: * -> *) s. (PrimMonad m, Reifies Type s W) => Gen PrimState m -> BVar s a -> m BVar s b
+
+-- | Random leaky rectified linear unit
+rreLU :: (ContGen d, Mean d, KnownNat n) => d -> FixedStochFunc (R n) (R n)
+
+-- | Inject random noise. Usually used between neural network layers, or at
+--   the very beginning to pre-process input.
+injectNoise :: (ContGen d, Mean d, KnownNat n) => d -> FixedStochFunc (R n) (R n)
+instance Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.Stochastic.StochFunc p a b)
+instance GHC.TypeNats.KnownNat n => Backprop.Learn.Class.Learn (Internal.Static.R n) (Internal.Static.R n) (Backprop.Learn.Component.Stochastic.DO n)
+
 module Backprop.Learn.Component.FullyConnected
 
 -- | Fully connected feed-forward layer with bias. Parameterized by its
@@ -524,18 +566,6 @@ instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNa
 instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Class.Learn (Internal.Static.R i) (Internal.Static.R o) (Backprop.Learn.Component.FullyConnected.FCR h i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Component.FullyConnected.FCP i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Class.Learn (Internal.Static.R i) (Internal.Static.R o) (Backprop.Learn.Component.FullyConnected.FC i o)
-
-module Backprop.Learn.Component.Dropout
-
--- | Dropout layer. Parameterized by dropout percentage (should be between
---   0 and 1).
---   
---   0 corresponds to no dropout, 1 corresponds to complete dropout of all
---   nodes every time.
-newtype DO (n :: Nat)
-DO :: Double -> DO
-[_doRate] :: DO -> Double
-instance GHC.TypeNats.KnownNat n => Backprop.Learn.Class.Learn (Internal.Static.R n) (Internal.Static.R n) (Backprop.Learn.Component.Dropout.DO n)
 
 module Data.Type.NonEmpty
 data NETup :: NonEmpty Type -> Type
