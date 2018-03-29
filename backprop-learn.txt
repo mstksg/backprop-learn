@@ -229,6 +229,10 @@ _pfpFunc :: () => ParamFuncP p a b -> forall s. Reifies Type s W => BVar s p -> 
 --   <a>dimapPF</a>, <a>lmapPF</a>, <a>rmapPF</a>, etc. This is just
 --   provided to let you work nicely with <a>ParamFunc</a> combinators.
 type FixedFunc = ParamFunc  'Nothing
+
+-- | <a>FF</a> and <a>runFixedFunc</a> witness the fact that a
+--   <tt><a>FixedFunc</a> a b</tt> is just a function from <tt><a>BVar</a>
+--   s a</tt> to <tt><a>BVar</a> s b</tt>.
 runFixedFunc :: () => FixedFunc a b -> forall s. Reifies Type s W => BVar s a -> BVar s b
 
 -- | Utility function to make a <a>ParamFunc</a> that maps a parameterized
