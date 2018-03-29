@@ -8,8 +8,6 @@
 @package backprop-learn
 @version 0.1.0.0
 
-module Backprop.Learn
-
 module Data.Type.Mayb
 data Mayb :: (k -> Type) -> Maybe k -> Type
 [N_] :: Mayb f  'Nothing
@@ -36,7 +34,7 @@ instance forall k (f :: k -> *). Type.Class.Known.Known (Data.Type.Mayb.Mayb f) 
 instance forall a1 (f :: a1 -> *) (a2 :: a1). Type.Class.Known.Known f a2 => Type.Class.Known.Known (Data.Type.Mayb.Mayb f) ('GHC.Base.Just a2)
 instance Type.Class.Higher.Functor1 Data.Type.Mayb.Mayb
 
-module Backprop.Learn.Class
+module Backprop.Learn.Model
 
 -- | Class for models that can be trained using gradient descent
 --   
@@ -123,7 +121,7 @@ fromJ_ :: Mayb f ( 'Just a) -> f a
 type KnownMayb = Known (Mayb P)
 knownMayb :: KnownMayb p => Mayb P p
 
-module Backprop.Learn.Component.State
+module Backprop.Learn.Model.State
 
 -- | Make a model stateless by converting the state to a trained parameter,
 --   and dropping the modified state from the result.
@@ -200,12 +198,12 @@ data ReState :: Type -> Maybe Type -> Type -> Type
 -- | Create a <a>ReState</a> from a deterministic, non-stochastic
 --   transformation function.
 rsDeterm :: (forall m. PrimMonad m => Gen (PrimState m) -> Mayb m t) -> (forall q. Reifies q W => BVar q s -> Mayb (BVar q) t) -> (forall q. Reifies q W => Mayb (BVar q) t -> BVar q s) -> l -> ReState s t l
-instance (Backprop.Learn.Class.Learn a b l, Backprop.Learn.Class.LStateMaybe l ~ 'GHC.Base.Just s) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.State.ReState s t l)
-instance (Backprop.Learn.Class.Learn a b l, Backprop.Learn.Class.LStateMaybe l ~ 'GHC.Base.Just s) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.State.DeState s l)
-instance (Backprop.Learn.Class.Learn a b l, Data.Type.Mayb.KnownMayb (Backprop.Learn.Class.LParamMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Class.LParamMaybe l), Backprop.Learn.Class.LStateMaybe l ~ 'GHC.Base.Just s, GHC.Num.Num s) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.State.TrainState l)
-instance (Backprop.Learn.Class.Learn a b l, GHC.TypeNats.KnownNat n, GHC.Num.Num a, GHC.Num.Num b) => Backprop.Learn.Class.Learn (Data.Vector.Sized.Vector n a) (Data.Vector.Sized.Vector n b) (Backprop.Learn.Component.State.Unroll n l)
+instance (Backprop.Learn.Model.Learn a b l, Backprop.Learn.Model.LStateMaybe l ~ 'GHC.Base.Just s) => Backprop.Learn.Model.Learn a b (Backprop.Learn.Model.State.ReState s t l)
+instance (Backprop.Learn.Model.Learn a b l, Backprop.Learn.Model.LStateMaybe l ~ 'GHC.Base.Just s) => Backprop.Learn.Model.Learn a b (Backprop.Learn.Model.State.DeState s l)
+instance (Backprop.Learn.Model.Learn a b l, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.LParamMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.LParamMaybe l), Backprop.Learn.Model.LStateMaybe l ~ 'GHC.Base.Just s, GHC.Num.Num s) => Backprop.Learn.Model.Learn a b (Backprop.Learn.Model.State.TrainState l)
+instance (Backprop.Learn.Model.Learn a b l, GHC.TypeNats.KnownNat n, GHC.Num.Num a, GHC.Num.Num b) => Backprop.Learn.Model.Learn (Data.Vector.Sized.Vector n a) (Data.Vector.Sized.Vector n b) (Backprop.Learn.Model.State.Unroll n l)
 
-module Backprop.Learn.Component.Parameter
+module Backprop.Learn.Model.Parameter
 
 -- | Convert a model with trainabile parameters into a model without any
 --   trainable parameters.
@@ -232,10 +230,10 @@ data ReParam :: Type -> Maybe Type -> Type -> Type
 -- | Create a <a>ReParam</a> from a deterministic, non-stochastic
 --   transformation function.
 rpDeterm :: (forall m. PrimMonad m => Gen (PrimState m) -> Mayb m q) -> (forall s. Reifies s W => Mayb (BVar s) q -> BVar s p) -> l -> ReParam p q l
-instance (Backprop.Learn.Class.Learn a b l, Backprop.Learn.Class.LParamMaybe l ~ 'GHC.Base.Just p) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.Parameter.ReParam p q l)
-instance (Backprop.Learn.Class.Learn a b l, Backprop.Learn.Class.LParamMaybe l ~ 'GHC.Base.Just p) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.Parameter.DeParam p l)
+instance (Backprop.Learn.Model.Learn a b l, Backprop.Learn.Model.LParamMaybe l ~ 'GHC.Base.Just p) => Backprop.Learn.Model.Learn a b (Backprop.Learn.Model.Parameter.ReParam p q l)
+instance (Backprop.Learn.Model.Learn a b l, Backprop.Learn.Model.LParamMaybe l ~ 'GHC.Base.Just p) => Backprop.Learn.Model.Learn a b (Backprop.Learn.Model.Parameter.DeParam p l)
 
-module Backprop.Learn.Component.Function
+module Backprop.Learn.Model.Function
 
 -- | A <tt><a>ParamFunc</a> p a b</tt> is a parameterized function from
 --   <tt>a</tt> to <tt>b</tt>, potentially with trainable parameter
@@ -478,10 +476,10 @@ softMax :: (KnownNat i, Reifies s W) => BVar s (R i) -> BVar s (R i)
 --   
 --   Compare to <a>norm_InfV</a>, which gives the maximum absolute value.
 maxout :: (KnownNat n, Reifies s W) => BVar s (R n) -> BVar s Double
-instance (GHC.Num.Num a, GHC.Num.Num b, Data.Type.Mayb.MaybeC GHC.Num.Num p, Data.Type.Mayb.KnownMayb p) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.Function.ParamFunc p a b)
-instance (Data.Type.Mayb.MaybeC GHC.Num.Num p, Data.Type.Mayb.KnownMayb p) => Control.Category.Category (Backprop.Learn.Component.Function.ParamFunc p)
+instance (GHC.Num.Num a, GHC.Num.Num b, Data.Type.Mayb.MaybeC GHC.Num.Num p, Data.Type.Mayb.KnownMayb p) => Backprop.Learn.Model.Learn a b (Backprop.Learn.Model.Function.ParamFunc p a b)
+instance (Data.Type.Mayb.MaybeC GHC.Num.Num p, Data.Type.Mayb.KnownMayb p) => Control.Category.Category (Backprop.Learn.Model.Function.ParamFunc p)
 
-module Backprop.Learn.Component.Stochastic
+module Backprop.Learn.Model.Stochastic
 
 -- | Dropout layer. Parameterized by dropout percentage (should be between
 --   0 and 1).
@@ -515,10 +513,10 @@ rreLU :: (ContGen d, Mean d, KnownNat n) => d -> FixedStochFunc (R n) (R n)
 -- | Inject random noise. Usually used between neural network layers, or at
 --   the very beginning to pre-process input.
 injectNoise :: (ContGen d, Mean d, KnownNat n) => d -> FixedStochFunc (R n) (R n)
-instance Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.Stochastic.StochFunc p a b)
-instance GHC.TypeNats.KnownNat n => Backprop.Learn.Class.Learn (Internal.Static.R n) (Internal.Static.R n) (Backprop.Learn.Component.Stochastic.DO n)
+instance Backprop.Learn.Model.Learn a b (Backprop.Learn.Model.Stochastic.StochFunc p a b)
+instance GHC.TypeNats.KnownNat n => Backprop.Learn.Model.Learn (Internal.Static.R n) (Internal.Static.R n) (Backprop.Learn.Model.Stochastic.DO n)
 
-module Backprop.Learn.Component.FullyConnected
+module Backprop.Learn.Model.FullyConnected
 
 -- | Fully connected feed-forward layer with bias. Parameterized by its
 --   initialization distribution.
@@ -561,12 +559,12 @@ FCRP :: !(R o) -> !(L o i) -> !(L o h) -> FCRP h i o
 fcrBias :: Functor f => (R o -> f (R o)) -> FCRP h i o -> f (FCRP h i o)
 fcrInputWeights :: Functor f => (L o i -> f (L o i')) -> FCRP h i o -> f (FCRP h i' o)
 fcrStateWeights :: Functor f => (L o h -> f (L o h')) -> FCRP h i o -> f (FCRP h' i o)
-instance GHC.Generics.Generic (Backprop.Learn.Component.FullyConnected.FCRP h i o)
-instance GHC.Generics.Generic (Backprop.Learn.Component.FullyConnected.FCP i o)
-instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Component.FullyConnected.FCRP h i o)
-instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Class.Learn (Internal.Static.R i) (Internal.Static.R o) (Backprop.Learn.Component.FullyConnected.FCR h i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Component.FullyConnected.FCP i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Class.Learn (Internal.Static.R i) (Internal.Static.R o) (Backprop.Learn.Component.FullyConnected.FC i o)
+instance GHC.Generics.Generic (Backprop.Learn.Model.FullyConnected.FCRP h i o)
+instance GHC.Generics.Generic (Backprop.Learn.Model.FullyConnected.FCP i o)
+instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Model.FullyConnected.FCRP h i o)
+instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Model.Learn (Internal.Static.R i) (Internal.Static.R o) (Backprop.Learn.Model.FullyConnected.FCR h i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Model.FullyConnected.FCP i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Model.Learn (Internal.Static.R i) (Internal.Static.R o) (Backprop.Learn.Model.FullyConnected.FC i o)
 
 module Data.Type.NonEmpty
 data NETup :: NonEmpty Type -> Type
@@ -578,7 +576,7 @@ netT :: NETup (a :| as) -> T (a : as)
 tNet :: T (a : as) -> NETup (a :| as)
 instance (GHC.Num.Num a, Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => GHC.Num.Num (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
 
-module Backprop.Learn.Component.Combinator
+module Backprop.Learn.Model.Combinator
 
 -- | Chain components linearly, retaining the ability to deconstruct at a
 --   later time.
@@ -628,8 +626,8 @@ nilLF :: LearnFunc ( 'Just (T '[])) ( 'Just (T '[])) a a
 
 -- | <a>LearnFunc</a> with singleton lists; meant to be used with <a>.~</a>
 onlyLF :: forall p s a b. (KnownMayb p, MaybeC Num p, KnownMayb s, MaybeC Num s) => LearnFunc p s a b -> LearnFunc ( 'Just (T (MaybeToList p))) ( 'Just (T (MaybeToList s))) a b
-instance Backprop.Learn.Class.Learn b c l => Backprop.Learn.Class.Learn a d (Backprop.Learn.Component.Combinator.Dimap b c a d l)
-instance (Backprop.Learn.Class.Learn b c l, Backprop.Learn.Class.Learn a b m, Data.Type.Mayb.KnownMayb (Backprop.Learn.Class.LParamMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Class.LParamMaybe m), Data.Type.Mayb.KnownMayb (Backprop.Learn.Class.LStateMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Class.LStateMaybe m), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Class.LParamMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Class.LParamMaybe m), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Class.LStateMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Class.LStateMaybe m)) => Backprop.Learn.Class.Learn a c (l Backprop.Learn.Component.Combinator.:.~ m)
-instance Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.Combinator.LearnFunc p s a b)
-instance (Data.Type.Mayb.MaybeC GHC.Num.Num p, Data.Type.Mayb.MaybeC GHC.Num.Num s, Data.Type.Mayb.KnownMayb p, Data.Type.Mayb.KnownMayb s) => Control.Category.Category (Backprop.Learn.Component.Combinator.LearnFunc p s)
-instance (Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> ps), Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> ss)) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.Combinator.Chain ls ps ss a b)
+instance Backprop.Learn.Model.Learn b c l => Backprop.Learn.Model.Learn a d (Backprop.Learn.Model.Combinator.Dimap b c a d l)
+instance (Backprop.Learn.Model.Learn b c l, Backprop.Learn.Model.Learn a b m, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.LParamMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.LParamMaybe m), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.LStateMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.LStateMaybe m), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.LParamMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.LParamMaybe m), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.LStateMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.LStateMaybe m)) => Backprop.Learn.Model.Learn a c (l Backprop.Learn.Model.Combinator.:.~ m)
+instance Backprop.Learn.Model.Learn a b (Backprop.Learn.Model.Combinator.LearnFunc p s a b)
+instance (Data.Type.Mayb.MaybeC GHC.Num.Num p, Data.Type.Mayb.MaybeC GHC.Num.Num s, Data.Type.Mayb.KnownMayb p, Data.Type.Mayb.KnownMayb s) => Control.Category.Category (Backprop.Learn.Model.Combinator.LearnFunc p s)
+instance (Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> ps), Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> ss)) => Backprop.Learn.Model.Learn a b (Backprop.Learn.Model.Combinator.Chain ls ps ss a b)
