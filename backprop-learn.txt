@@ -243,7 +243,7 @@ module Backprop.Learn.Component.Function
 --   
 --   A utility wrapper for a deterministic and stateless model.
 data ParamFunc p a b
-PF :: (forall m. PrimMonad m => Gen (PrimState m) -> Mayb m p) -> (forall s. Reifies s W => Mayb (BVar s) p -> BVar s a -> BVar s b) -> ParamFunc p a b
+PF :: forall m. PrimMonad m => Gen (PrimState m) -> Mayb m p -> forall s. Reifies s W => Mayb (BVar s) p -> BVar s a -> BVar s b -> ParamFunc p a b
 [_pfInit] :: ParamFunc p a b -> forall m. PrimMonad m => Gen (PrimState m) -> Mayb m p
 [_pfFunc] :: ParamFunc p a b -> forall s. Reifies s W => Mayb (BVar s) p -> BVar s a -> BVar s b
 
@@ -253,7 +253,7 @@ PF :: (forall m. PrimMonad m => Gen (PrimState m) -> Mayb m p) -> (forall s. Rei
 --   <a>_pfpInit</a>, and <a>_pfpFunc</a>.
 type ParamFuncP p = ParamFunc ( 'Just p)
 _pfpInit :: () => ParamFuncP p a b -> forall (m :: * -> *). PrimMonad m => Gen PrimState m -> m p
-_pfpFunc :: () => ParamFuncP p a b -> forall s. Reifies Type s W => BVar s p -> BVar s a -> BVar s b
+_pfpFunc :: () => ParamFuncP p a b -> forall s. Reifies s W => BVar s p -> BVar s a -> BVar s b
 
 -- | An unparameterized function. Has a <a>Category</a> instance.
 --   
@@ -275,7 +275,7 @@ type FixedFunc = ParamFunc  'Nothing
 -- | <a>FF</a> and <a>runFixedFunc</a> witness the fact that a
 --   <tt><a>FixedFunc</a> a b</tt> is just a function from <tt><a>BVar</a>
 --   s a</tt> to <tt><a>BVar</a> s b</tt>.
-runFixedFunc :: () => FixedFunc a b -> forall s. Reifies Type s W => BVar s a -> BVar s b
+runFixedFunc :: () => FixedFunc a b -> forall s. Reifies s W => BVar s a -> BVar s b
 
 -- | Utility function to make a <a>ParamFunc</a> that maps a parameterized
 --   function over every item in the <a>R</a>. The parameter is shared
@@ -506,8 +506,8 @@ data StochFunc :: Maybe Type -> Type -> Type -> Type
 type FixedStochFunc = StochFunc  'Nothing
 
 -- | Construct a <a>FixedStochFunc</a>
-_fsfRunDeterm :: () => FixedStochFunc a b -> forall s. Reifies Type s W => BVar s a -> BVar s b
-_fsfRunStoch :: () => FixedStochFunc a b -> forall (m :: * -> *) s. (PrimMonad m, Reifies Type s W) => Gen PrimState m -> BVar s a -> m BVar s b
+_fsfRunDeterm :: () => FixedStochFunc a b -> forall s. Reifies s W => BVar s a -> BVar s b
+_fsfRunStoch :: () => FixedStochFunc a b -> forall (m :: * -> *) s. (PrimMonad m, Reifies s W) => Gen PrimState m -> BVar s a -> m BVar s b
 
 -- | Random leaky rectified linear unit
 rreLU :: (ContGen d, Mean d, KnownNat n) => d -> FixedStochFunc (R n) (R n)
@@ -523,7 +523,7 @@ module Backprop.Learn.Component.FullyConnected
 -- | Fully connected feed-forward layer with bias. Parameterized by its
 --   initialization distribution.
 newtype FC (i :: Nat) (o :: Nat)
-FC :: (forall m. PrimMonad m => Gen (PrimState m) -> m Double) -> FC
+FC :: forall m. PrimMonad m => Gen (PrimState m) -> m Double -> FC
 [_fcGen] :: FC -> forall m. PrimMonad m => Gen (PrimState m) -> m Double
 
 -- | Construct an <tt><a>FC</a> i o</tt> using a given distribution from
@@ -543,7 +543,7 @@ fcWeights :: Functor f => (L o i -> f (L o k)) -> FCP i o -> f (FCP k o)
 --   Parameterized by its initialization distributions, and also the
 --   function to compute the new state from previous input.
 data FCR (h :: Nat) (i :: Nat) (o :: Nat)
-FCR :: (forall m. PrimMonad m => Gen (PrimState m) -> m Double) -> (forall m. PrimMonad m => Gen (PrimState m) -> m Double) -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R h)) -> FCR
+FCR :: forall m. PrimMonad m => Gen (PrimState m) -> m Double -> forall m. PrimMonad m => Gen (PrimState m) -> m Double -> forall s. Reifies s W => BVar s (R o) -> BVar s (R h) -> FCR
 [_fcrGen] :: FCR -> forall m. PrimMonad m => Gen (PrimState m) -> m Double
 [_fcrGenState] :: FCR -> forall m. PrimMonad m => Gen (PrimState m) -> m Double
 [_fcrStore] :: FCR -> forall s. Reifies s W => BVar s (R o) -> BVar s (R h)
@@ -552,7 +552,7 @@ FCR :: (forall m. PrimMonad m => Gen (PrimState m) -> m Double) -> (forall m. Pr
 --   the <i>statistics</i> library.
 fcr :: ContGen d => d -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R h)) -> FCR h i o
 
--- | Fully connected feed-forward layer parameters.
+-- | Fully connected recurrent layer parameters.
 data FCRP h i o
 FCRP :: !(R o) -> !(L o i) -> !(L o h) -> FCRP h i o
 [_fcrBias] :: FCRP h i o -> !(R o)
@@ -576,7 +576,7 @@ netTail :: Functor f => (T as -> f (T bs)) -> NETup (a :| as) -> f (NETup (a :| 
 unNet :: NETup (a :| as) -> (a, T as)
 netT :: NETup (a :| as) -> T (a : as)
 tNet :: T (a : as) -> NETup (a :| as)
-instance (GHC.Num.Num a, Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => GHC.Num.Num (Data.Type.NonEmpty.NETup (a 'Data.List.NonEmpty.:| as))
+instance (GHC.Num.Num a, Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => GHC.Num.Num (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
 
 module Backprop.Learn.Component.Combinator
 
