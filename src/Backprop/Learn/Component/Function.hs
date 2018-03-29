@@ -17,9 +17,9 @@
 
 module Backprop.Learn.Component.Function (
   -- * Types
-    ParamFunc(.., FF, PFP)
-  , ParamFuncP, _pfpInit, _pfpFunc
-  , FixedFunc, runFixedFunc
+    ParamFunc(..)
+  , ParamFuncP, pattern PFP, _pfpInit, _pfpFunc
+  , FixedFunc, pattern FF, runFixedFunc
   , paramMap, learnParam
   -- ** Combinators
   , dimapPF, lmapPF, rmapPF, compPF, parPF
