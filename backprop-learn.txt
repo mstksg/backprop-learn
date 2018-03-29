@@ -10,6 +10,8 @@
 
 module Backprop.Learn
 
+module Backprop.Learn.Component.Parameter
+
 module Data.Type.Mayb
 data Mayb :: (k -> Type) -> Maybe k -> Type
 [N_] :: Mayb f  'Nothing
@@ -134,18 +136,10 @@ module Backprop.Learn.Component.State
 --   Its parameters are:
 --   
 --   <ul>
---   <li>If <tt>l</tt> has no parameter or state, nothing.</li>
---   <li>If <tt>l</tt> has parameters but no state, just the original
---   parameters.</li>
---   <li>If <tt>l</tt> has no parameters but state, just the initial
---   state.</li>
---   <li>If <tt>l</tt> has parameters and state, a <a>T2</a> of the
---   parameter and initial state.</li>
+--   <li>If <tt>l</tt> has no parameters, just the initial state.</li>
+--   <li>If <tt>l</tt> has parameters, a <a>T2</a> of the parameter and
+--   initial state.</li>
 --   </ul>
---   
---   However, this is really only meant to be used with types that have
---   state. If used with a type with no state, this is essentially a
---   no-op/identity.
 newtype DeState :: Type -> Type
 [DeState] :: {getDestate :: l} -> DeState l
 
@@ -154,10 +148,8 @@ newtype DeState :: Type -> Type
 --   
 --   One of the ways to make a model stateless for training purposes.
 --   Useful when used after <a>Unroll</a>. See <a>DeState</a>, as well.
---   
---   If used with a type with no state, is essentially a no-op/identity.
-data FixState :: Maybe Type -> Type -> Type
-[FS] :: {_fsLearn :: l, _fsInitState :: Mayb I s} -> FixState s l
+data FixState :: Type -> Type -> Type
+[FS] :: {_fsInitState :: s, _fsLearn :: l} -> FixState s l
 
 -- | Unroll a stateful model into one taking a vector of sequential inputs.
 --   
@@ -188,9 +180,9 @@ type UnrollDeState n l = DeState (Unroll n l)
 --       type <a>LParamMaybe</a> (<a>UnrollFixState</a> n l) = <a>LParamMaybe</a> l
 --       type <a>LStateMaybe</a> (<a>UnrollFixState</a> n l) = '<a>Nothing</a>
 --   </pre>
-type UnrollFixState n l = FixState (LParamMaybe l) (Unroll n l)
-instance (Backprop.Learn.Class.Learn a b l, Backprop.Learn.Class.LStateMaybe l ~ s) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.State.FixState s l)
-instance (Backprop.Learn.Class.Learn a b l, Data.Type.Mayb.KnownMayb (Backprop.Learn.Class.LParamMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Class.LStateMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Class.LParamMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Class.LStateMaybe l)) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.State.DeState l)
+type UnrollFixState n l = FixState (LState l) (Unroll n l)
+instance (Backprop.Learn.Class.Learn a b l, Backprop.Learn.Class.LStateMaybe l ~ 'GHC.Base.Just s) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.State.FixState s l)
+instance (Backprop.Learn.Class.Learn a b l, Data.Type.Mayb.KnownMayb (Backprop.Learn.Class.LParamMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Class.LParamMaybe l), Backprop.Learn.Class.LStateMaybe l ~ 'GHC.Base.Just s, GHC.Num.Num s) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.State.DeState l)
 instance (Backprop.Learn.Class.Learn a b l, GHC.TypeNats.KnownNat n, GHC.Num.Num a, GHC.Num.Num b) => Backprop.Learn.Class.Learn (Data.Vector.Sized.Vector n a) (Data.Vector.Sized.Vector n b) (Backprop.Learn.Component.State.Unroll n l)
 
 module Backprop.Learn.Component.Function
