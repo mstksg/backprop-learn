@@ -2,7 +2,6 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE KindSignatures        #-}
-{-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PatternSynonyms       #-}
 {-# LANGUAGE RankNTypes            #-}
@@ -10,7 +9,7 @@
 {-# LANGUAGE TypeInType            #-}
 {-# LANGUAGE ViewPatterns          #-}
 
-module Backprop.Learn.Component.Stochastic (
+module Backprop.Learn.Model.Stochastic (
     DO(..)
   , StochFunc(..)
   , FixedStochFunc, pattern FSF, _fsfRunDeterm, _fsfRunStoch
@@ -18,8 +17,8 @@ module Backprop.Learn.Component.Stochastic (
   , injectNoise
   ) where
 
-import           Backprop.Learn.Class
-import           Backprop.Learn.Component.Function
+import           Backprop.Learn.Model
+import           Backprop.Learn.Model.Function
 import           Control.Monad.Primitive
 import           Data.Bool
 import           Data.Kind
@@ -85,7 +84,7 @@ pattern FSF { _fsfRunDeterm, _fsfRunStoch } <- (getFSF->(getWD->_fsfRunDeterm,ge
   where
     FSF d s = SF { _sfInitParam = const N_
                  , _sfRunDeterm = const d
-                 , _sfRunStoch  = \g -> const (s g)
+                 , _sfRunStoch  = const . s
                  }
 
 newtype WrapDeterm a b = WD { getWD :: forall s. Reifies s W => BVar s a -> BVar s b }
@@ -93,7 +92,7 @@ newtype WrapStoch  a b = WS { getWS :: forall m s. (PrimMonad m, Reifies s W) =>
 
 getFSF :: FixedStochFunc a b -> (WrapDeterm a b, WrapStoch a b)
 getFSF (SF _ d s) = ( WD (d N_)
-                    , WS (\g -> s g N_)
+                    , WS (`s` N_)
                     )
 
 -- | Random leaky rectified linear unit

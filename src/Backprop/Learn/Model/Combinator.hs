@@ -19,7 +19,7 @@
 {-# LANGUAGE UndecidableInstances   #-}
 {-# LANGUAGE ViewPatterns           #-}
 
-module Backprop.Learn.Component.Combinator (
+module Backprop.Learn.Model.Combinator (
     Chain(..)
   , (~++)
   , chainParamLength
@@ -30,7 +30,7 @@ module Backprop.Learn.Component.Combinator (
   , nilLF, onlyLF
   ) where
 
-import           Backprop.Learn.Class
+import           Backprop.Learn.Model
 import           Control.Applicative
 import           Control.Category
 import           Control.Monad

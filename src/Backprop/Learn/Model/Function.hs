@@ -15,7 +15,7 @@
 {-# LANGUAGE ViewPatterns                             #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
-module Backprop.Learn.Component.Function (
+module Backprop.Learn.Model.Function (
   -- * Types
     ParamFunc(..)
   , ParamFuncP, pattern PFP, _pfpInit, _pfpFunc
@@ -55,7 +55,7 @@ module Backprop.Learn.Component.Function (
   , maxout
   ) where
 
-import           Backprop.Learn.Class
+import           Backprop.Learn.Model
 import           Control.Applicative
 import           Control.Category
 import           Control.Monad.Primitive

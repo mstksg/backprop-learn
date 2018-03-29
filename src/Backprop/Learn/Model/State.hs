@@ -11,7 +11,7 @@
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE UndecidableInstances  #-}
 
-module Backprop.Learn.Component.State (
+module Backprop.Learn.Model.State (
   -- * Make models stateless
     TrainState(..)
   , DeState(..), dsDeterm
@@ -20,7 +20,7 @@ module Backprop.Learn.Component.State (
   , ReState, rsDeterm
   ) where
 
-import           Backprop.Learn.Class
+import           Backprop.Learn.Model
 import           Control.Monad.Primitive
 import           Control.Monad.Trans.State
 import           Data.Bifunctor

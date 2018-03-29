@@ -10,14 +10,14 @@
 {-# LANGUAGE TypeInType            #-}
 {-# LANGUAGE UndecidableInstances  #-}
 
-module Backprop.Learn.Component.Parameter (
+module Backprop.Learn.Model.Parameter (
     DeParam(..)
   , dpDeterm
   , ReParam
   , rpDeterm
   ) where
 
-import           Backprop.Learn.Class
+import           Backprop.Learn.Model
 import           Control.Monad.Primitive
 import           Data.Kind
 import           Numeric.Backprop

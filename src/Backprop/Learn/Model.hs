@@ -17,7 +17,7 @@
 {-# LANGUAGE UndecidableInstances    #-}
 {-# LANGUAGE UndecidableSuperClasses #-}
 
-module Backprop.Learn.Class (
+module Backprop.Learn.Model (
     Learn(..)
   , LParam, LState, NoParam, NoState
   , LParam_, LState_

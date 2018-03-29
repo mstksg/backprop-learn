@@ -7,13 +7,13 @@
 {-# LANGUAGE TypeFamilies                             #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
-module Backprop.Learn.Component.FullyConnected (
+module Backprop.Learn.Model.FullyConnected (
     FC(..), fc, FCP(..), fcBias, fcWeights
   , FCR(..), fcr, FCRP(..), fcrBias, fcrInputWeights, fcrStateWeights
   ) where
 
 
-import           Backprop.Learn.Class
+import           Backprop.Learn.Model
 import           Control.Monad.Primitive
 import           GHC.Generics                          (Generic)
 import           GHC.TypeNats
