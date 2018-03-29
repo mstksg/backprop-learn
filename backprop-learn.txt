@@ -10,8 +10,6 @@
 
 module Backprop.Learn
 
-module Backprop.Learn.Component.Parameter
-
 module Data.Type.Mayb
 data Mayb :: (k -> Type) -> Maybe k -> Type
 [N_] :: Mayb f  'Nothing
@@ -131,7 +129,7 @@ module Backprop.Learn.Component.State
 --   and dropping the modified state from the result.
 --   
 --   One of the ways to make a model stateless for training purposes.
---   Useful when used after <a>Unroll</a>. See <a>FixState</a>, as well.
+--   Useful when used after <a>Unroll</a>. See <a>DeState</a>, as well.
 --   
 --   Its parameters are:
 --   
@@ -140,21 +138,23 @@ module Backprop.Learn.Component.State
 --   <li>If <tt>l</tt> has parameters, a <a>T2</a> of the parameter and
 --   initial state.</li>
 --   </ul>
-newtype DeState :: Type -> Type
-[DeState] :: {getDestate :: l} -> DeState l
+newtype TrainState :: Type -> Type
+[TrainState] :: {getTrainState :: l} -> TrainState l
 
--- | Make a model stateless by pre-applying a fixed state and dropping the
---   modified state from the result.
+-- | Make a model stateless by pre-applying a fixed state (or a stochastic
+--   one with fixed stribution) and dropping the modified state from the
+--   result.
 --   
 --   One of the ways to make a model stateless for training purposes.
---   Useful when used after <a>Unroll</a>. See <a>DeState</a>, as well.
-data FixState :: Type -> Type -> Type
-[FS] :: {_fsInitState :: s, _fsLearn :: l} -> FixState s l
+--   Useful when used after <a>Unroll</a>. See <a>TrainState</a>, as well.
+data DeState :: Type -> Type -> Type
+[DS] :: {_fsInitState :: s, _fsInitStateStoch :: forall m. PrimMonad m => Gen (PrimState m) -> m s, _fsLearn :: l} -> DeState s l
+dsFixed :: s -> l -> DeState s l
 
 -- | Unroll a stateful model into one taking a vector of sequential inputs.
 --   
---   Useful when used before <a>DeState</a> or <a>FixState</a>. See
---   <a>UnrollDeState</a> and <a>UnrollFixState</a>.
+--   Useful when used before <a>TrainState</a> or <a>DeState</a>. See
+--   <a>UnrollTrainState</a> and <a>UnrollDeState</a>.
 newtype Unroll :: Nat -> Type -> Type
 [Unroll] :: {getUnroll :: l} -> Unroll n l
 
@@ -163,27 +163,74 @@ newtype Unroll :: Nat -> Type -> Type
 --   
 --   <pre>
 --   instance <a>Learn</a> a b l
---       =&gt; <a>Learn</a> (<a>Vector</a> n a) (<a>Vector</a> n b) (<a>UnrollDeState</a> n l)'
+--       =&gt; <a>Learn</a> (<a>Vector</a> n a) (<a>Vector</a> n b) (<a>UnrollTrainState</a> n l)'
 --   
---       type <a>LParamMaybe</a> (<a>UnrollFixState</a> n l) = 'TupMaybe (<a>LParamMaybe</a> l) (<a>LStateMaybe</a> l)
---       type <a>LStateMaybe</a> (<a>UnrollFixState</a> n l) = '<a>Nothing</a>
+--       type <a>LParamMaybe</a> (<a>UnrollDeState</a> n l) = 'TupMaybe (<a>LParamMaybe</a> l) (<a>LStateMaybe</a> l)
+--       type <a>LStateMaybe</a> (<a>UnrollDeState</a> n l) = '<a>Nothing</a>
 --   </pre>
-type UnrollDeState n l = DeState (Unroll n l)
+type UnrollTrainState n l = TrainState (Unroll n l)
 
 -- | Unroll a stateful model into a stateless one taking a vector of
 --   sequential inputs and fix the initial state.
 --   
 --   <pre>
 --   instance <a>Learn</a> a b l
---       =&gt; <a>Learn</a> (<a>Vector</a> n a) (<a>Vector</a> n b) (<a>UnrollFixState</a> n l)'
+--       =&gt; <a>Learn</a> (<a>Vector</a> n a) (<a>Vector</a> n b) (<a>UnrollDeState</a> n l)'
 --   
---       type <a>LParamMaybe</a> (<a>UnrollFixState</a> n l) = <a>LParamMaybe</a> l
---       type <a>LStateMaybe</a> (<a>UnrollFixState</a> n l) = '<a>Nothing</a>
+--       type <a>LParamMaybe</a> (<a>UnrollDeState</a> n l) = <a>LParamMaybe</a> l
+--       type <a>LStateMaybe</a> (<a>UnrollDeState</a> n l) = '<a>Nothing</a>
 --   </pre>
-type UnrollFixState n l = FixState (LState l) (Unroll n l)
-instance (Backprop.Learn.Class.Learn a b l, Backprop.Learn.Class.LStateMaybe l ~ 'GHC.Base.Just s) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.State.FixState s l)
-instance (Backprop.Learn.Class.Learn a b l, Data.Type.Mayb.KnownMayb (Backprop.Learn.Class.LParamMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Class.LParamMaybe l), Backprop.Learn.Class.LStateMaybe l ~ 'GHC.Base.Just s, GHC.Num.Num s) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.State.DeState l)
+type UnrollDeState n l = DeState (LState l) (Unroll n l)
+
+-- | Transform the state of a model by providing functions to pre-apply and
+--   post-apply before and after the original model sees the state.
+--   
+--   I don't really know why you would ever want to do this, but it was fun
+--   to write.
+--   
+--   Note that a <tt><a>ReState</a> p '<a>Nothing</a></tt> is essentially
+--   the same as <tt><a>DeState</a> p</tt>; however, defining one in terms
+--   of the other is a bit inconvenient, so they are provided as separate
+--   types.
+data ReState :: Type -> Maybe Type -> Type -> Type
+
+-- | Create a <a>ReState</a> from a fixed (deterministic, non-stochastic)
+--   transformation function.
+rsFixed :: (forall m. PrimMonad m => Gen (PrimState m) -> Mayb m t) -> (forall q. Reifies q W => BVar q s -> Mayb (BVar q) t) -> (forall q. Reifies q W => Mayb (BVar q) t -> BVar q s) -> l -> ReState s t l
+instance (Backprop.Learn.Class.Learn a b l, Backprop.Learn.Class.LStateMaybe l ~ 'GHC.Base.Just s) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.State.ReState s t l)
+instance (Backprop.Learn.Class.Learn a b l, Backprop.Learn.Class.LStateMaybe l ~ 'GHC.Base.Just s) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.State.DeState s l)
+instance (Backprop.Learn.Class.Learn a b l, Data.Type.Mayb.KnownMayb (Backprop.Learn.Class.LParamMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Class.LParamMaybe l), Backprop.Learn.Class.LStateMaybe l ~ 'GHC.Base.Just s, GHC.Num.Num s) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.State.TrainState l)
 instance (Backprop.Learn.Class.Learn a b l, GHC.TypeNats.KnownNat n, GHC.Num.Num a, GHC.Num.Num b) => Backprop.Learn.Class.Learn (Data.Vector.Sized.Vector n a) (Data.Vector.Sized.Vector n b) (Backprop.Learn.Component.State.Unroll n l)
+
+module Backprop.Learn.Component.Parameter
+
+-- | Convert a model with trainabile parameters into a model without any
+--   trainable parameters.
+--   
+--   The parameters are instead fixed (or stochastic, with a fixed
+--   distribution), and the model is treated as an untrainable function.
+data DeParam :: Type -> Type -> Type
+[DP] :: {_dpParam :: p, _dpParamStoch :: forall m. PrimMonad m => Gen (PrimState m) -> m p, _dpLearn :: l} -> DeParam p l
+
+-- | Create a <a>DeParam</a> from a fixed (deterministic, non-stochastic)
+--   parameter.
+dpFixed :: p -> l -> DeParam p l
+
+-- | Pre-apply a function to the parameter before the original model sees
+--   it. A <tt><a>ReParam</a> p q</tt> turns a model taking <tt>p</tt> into
+--   a model taking <tt>q</tt>.
+--   
+--   Note that a <tt><a>ReParam</a> p '<a>Nothing</a></tt> is essentially
+--   the same as <tt><a>DeParam</a> p</tt>; however, defining one in terms
+--   of the other is a bit inconvenient, so they are provided as separate
+--   types.
+data ReParam :: Type -> Maybe Type -> Type -> Type
+
+-- | Create a <a>ReParam</a> from a fixed (deterministic, non-stochastic)
+--   transformation function.
+rpFixed :: (forall m. PrimMonad m => Gen (PrimState m) -> Mayb m q) -> (forall s. Reifies s W => Mayb (BVar s) q -> BVar s p) -> l -> ReParam p q l
+instance (Backprop.Learn.Class.Learn a b l, Backprop.Learn.Class.LParamMaybe l ~ 'GHC.Base.Just p) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.Parameter.ReParam p q l)
+instance (Backprop.Learn.Class.Learn a b l, Backprop.Learn.Class.LParamMaybe l ~ 'GHC.Base.Just p) => Backprop.Learn.Class.Learn a b (Backprop.Learn.Component.Parameter.DeParam p l)
 
 module Backprop.Learn.Component.Function
 
