@@ -21,6 +21,7 @@ module Backprop.Learn.Model.State (
   ) where
 
 import           Backprop.Learn.Model
+import           Control.Monad
 import           Control.Monad.Primitive
 import           Control.Monad.Trans.State
 import           Data.Bifunctor
@@ -67,8 +68,8 @@ instance (Learn a b l, KnownNat n, Num a, Num b) => Learn (SV.Vector n a) (SV.Ve
     type LParamMaybe (Unroll n l) = LParamMaybe l
     type LStateMaybe (Unroll n l) = LStateMaybe l
 
-    initParam (Unroll l) = initParam l
-    initState (Unroll l) = initState l
+    initParam = initParam . getUnroll
+    initState = initState . getUnroll
 
     runLearn (Unroll l) p x s = first collectVar
                               . flip runState s
@@ -130,9 +131,9 @@ instance (Learn a b l, KnownMayb (LParamMaybe l), MaybeC Num (LParamMaybe l), LS
 -- One of the ways to make a model stateless for training purposes.  Useful
 -- when used after 'Unroll'.  See 'TrainState', as well.
 data DeState :: Type -> Type -> Type where
-    DS :: { _fsInitState      :: s
-          , _fsInitStateStoch :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m s
-          , _fsLearn          :: l
+    DS :: { _dsInitState      :: s
+          , _dsInitStateStoch :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m s
+          , _dsLearn          :: l
           }
        -> DeState s l
 
@@ -145,7 +146,7 @@ instance (Learn a b l, LStateMaybe l ~ 'Just s) => Learn a b (DeState s l) where
     type LParamMaybe (DeState s l) = LParamMaybe l
     type LStateMaybe (DeState s l) = 'Nothing
 
-    initParam (DS _ _ l) = initParam l
+    initParam = initParam . _dsLearn
 
     runLearn (DS s _ l) p x _ = (second . const) N_
                               . runLearn l p x
@@ -177,8 +178,8 @@ instance (Learn a b l, LStateMaybe l ~ 'Just s) => Learn a b (ReState s t l) whe
     type LParamMaybe (ReState s t l) = LParamMaybe l
     type LStateMaybe (ReState s t l) = t
 
-    initParam (RS _ _ _ _ l) = initParam l
-    initState (RS i _ _ _ _) = i
+    initParam = initParam . _rsLearn
+    initState = _rsInitState
 
     runLearn (RS _ f g _ l) p x = second (f . fromJ_)
                                 . runLearn l p x
@@ -197,3 +198,4 @@ rsDeterm
     -> l
     -> ReState s t l
 rsDeterm i t f = RS i t f (const (pure . f))
+

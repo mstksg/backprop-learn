@@ -20,7 +20,8 @@
 {-# LANGUAGE ViewPatterns           #-}
 
 module Backprop.Learn.Model.Combinator (
-    Chain(..)
+    Feedback(..), feedbackId
+  , Chain(..)
   , (~++)
   , chainParamLength
   , chainStateLength
@@ -35,20 +36,21 @@ import           Control.Applicative
 import           Control.Category
 import           Control.Monad
 import           Control.Monad.Primitive
+import           Control.Monad.Trans.State
 import           Data.Bifunctor
 import           Data.Kind
 import           Data.Type.Equality
 import           Data.Type.Length
-import           Data.Type.Mayb                    as Mayb
+import           Data.Type.Mayb            as Mayb
 import           Data.Type.NonEmpty
 import           Numeric.Backprop
 import           Numeric.Backprop.Tuple
-import           Prelude hiding                    ((.), id)
+import           Prelude hiding            ((.), id)
 import           Type.Class.Higher
 import           Type.Class.Known
 import           Type.Class.Witness
-import           Type.Family.List                  as List
-import qualified System.Random.MWC                 as MWC
+import           Type.Family.List          as List
+import qualified System.Random.MWC         as MWC
 
 -- | Chain components linearly, retaining the ability to deconstruct at
 -- a later time.
@@ -546,8 +548,43 @@ instance Learn b c l => Learn a d (Dimap b c a d l) where
     type LParamMaybe (Dimap b c a d l) = LParamMaybe l
     type LStateMaybe (Dimap b c a d l) = LStateMaybe l
 
-    initParam (DM _ _ l) = initParam l
-    initState (DM _ _ l) = initState l
+    initParam = initParam . _dmLearn
+    initState = initState . _dmLearn
 
     runLearn (DM f g l) p x = first g . runLearn l p (f x)
     runLearnStoch (DM f g l) gen p x = (fmap . first) g . runLearnStoch l gen p (f x)
+
+-- | Take a model and turn it into a model that runs its output into itself
+-- several times.  Parameterized by the number of repeats, and the function
+-- to process the output to become the next input.
+data Feedback :: Type -> Type -> Type -> Type where
+    FB :: { _fbTimes :: Int
+          , _fbFeed  :: forall s. Reifies s W => BVar s b -> BVar s a
+          , _fbLearn :: l
+          }
+       -> Feedback a b l
+
+-- | Construct a 'Feedback' from an endofunction (a function that returns
+-- a value fo the same type as its input) by simply providing the output
+-- directly as the next intput.
+feedbackId :: Int -> l -> Feedback a a l
+feedbackId n = FB n id
+
+instance Learn a b l => Learn a b (Feedback a b l) where
+    type LParamMaybe (Feedback a b l) = LParamMaybe l
+    type LStateMaybe (Feedback a b l) = LStateMaybe l
+
+    initParam = initParam . _fbLearn
+    initState = initState . _fbLearn
+
+    runLearn (FB n f l) p = runState
+                          . (>>= go)
+                          . foldr (>=>) pure (replicate (n - 1) (fmap f . go))
+      where
+        go = state . runLearn l p
+
+    runLearnStoch (FB n f l) g p = runStateT
+                                 . (>>= go)
+                                 . foldr (>=>) pure (replicate (n - 1) (fmap f . go))
+      where
+        go = StateT . runLearnStoch l g p

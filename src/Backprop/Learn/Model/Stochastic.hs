@@ -67,9 +67,9 @@ instance Learn a b (StochFunc p a b) where
     type LParamMaybe (StochFunc p a b) = p
     type LStateMaybe (StochFunc p a b) = 'Nothing
 
-    initParam (SF i _ _) = i
+    initParam = _sfInitParam
 
-    runLearn (SF _ r _)        = stateless . r
+    runLearn (SF _ r _) = stateless . r
     runLearnStoch (SF _ _ r) g = statelessM . r g
 
 -- | Convenient alias for a 'StochFunc' (random-valued function with both

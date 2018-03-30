@@ -45,6 +45,8 @@ library:
   - ghc-typelits-knownnat
   - statistics
   - type-combinators
+  - ghc-typelits-extra
+  - finite-typelits
 
 # dependencies:
 # - backprop
