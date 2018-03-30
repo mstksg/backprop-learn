@@ -218,6 +218,9 @@ module Backprop.Learn.Model.Parameter
 --   
 --   The parameters are instead fixed (or stochastic, with a fixed
 --   distribution), and the model is treated as an untrainable function.
+--   
+--   <a>DeParam</a> is essentially <a>DeParamAt</a>, with <a>id</a> as the
+--   lens.
 data DeParam :: Type -> Type -> Type
 [DP] :: {_dpParam :: p, _dpParamStoch :: forall m. PrimMonad m => Gen (PrimState m) -> m p, _dpLearn :: l} -> DeParam p l
 
@@ -225,20 +228,39 @@ data DeParam :: Type -> Type -> Type
 --   parameter.
 dpDeterm :: p -> l -> DeParam p l
 
+-- | Wrapping a mode with <tt><a>DeParamAt</a> p q</tt> will fix a specific
+--   part of the parameter type <tt>p</tt> to a given fixed (or stochastic
+--   with a fixed distribution) value of type <tt>q</tt>. That field is not
+--   backpropagated, and so its gradient will always be zero.
+--   
+--   The part is specified using a <a>Lens'</a>. This really only makes
+--   sense if <tt>p</tt> is a record, and the lens points to a field (or
+--   multiple fields, to a tuple) of the record.
+--   
+--   <a>DeParam</a> is essentially <a>DeParamAt</a>, with <a>id</a> as the
+--   lens.
+data DeParamAt :: Type -> Type -> Type -> Type
+[DPA] :: {_dpaParam :: q, _dpaParamStoch :: forall m. PrimMonad m => Gen (PrimState m) -> m q, _dpaLens :: Lens' p q, _dpaLearn :: l} -> DeParamAt p q l
+
+-- | Create a <a>DeParamAt</a> from a deterministic, non-stochastic fixed
+--   value as a part of the parameter.
+dpaDeterm :: q -> Lens' p q -> l -> DeParamAt p q l
+
 -- | Pre-apply a function to the parameter before the original model sees
 --   it. A <tt><a>ReParam</a> p q</tt> turns a model taking <tt>p</tt> into
 --   a model taking <tt>q</tt>.
 --   
 --   Note that a <tt><a>ReParam</a> p '<a>Nothing</a></tt> is essentially
---   the same as <tt><a>DeParam</a> p</tt>; however, defining one in terms
---   of the other is a bit inconvenient, so they are provided as separate
---   types.
+--   the same as a <tt><a>DeParam</a> p</tt>, and one could implement
+--   <tt><a>DeParamAt</a> p q</tt> in terms of <tt><a>ReParam</a> p
+--   ('<a>Just</a> q)</tt>.
 data ReParam :: Type -> Maybe Type -> Type -> Type
 
 -- | Create a <a>ReParam</a> from a deterministic, non-stochastic
 --   transformation function.
 rpDeterm :: (forall m. PrimMonad m => Gen (PrimState m) -> Mayb m q) -> (forall s. Reifies s W => Mayb (BVar s) q -> BVar s p) -> l -> ReParam p q l
 instance (Backprop.Learn.Model.Learn a b l, Backprop.Learn.Model.LParamMaybe l ~ 'GHC.Base.Just p) => Backprop.Learn.Model.Learn a b (Backprop.Learn.Model.Parameter.ReParam p q l)
+instance (Backprop.Learn.Model.Learn a b l, Backprop.Learn.Model.LParamMaybe l ~ 'GHC.Base.Just p, GHC.Num.Num p, GHC.Num.Num q) => Backprop.Learn.Model.Learn a b (Backprop.Learn.Model.Parameter.DeParamAt p q l)
 instance (Backprop.Learn.Model.Learn a b l, Backprop.Learn.Model.LParamMaybe l ~ 'GHC.Base.Just p) => Backprop.Learn.Model.Learn a b (Backprop.Learn.Model.Parameter.DeParam p l)
 
 module Backprop.Learn.Model.Neural
@@ -264,12 +286,12 @@ FC :: forall m. PrimMonad m => Gen (PrimState m) -> m Double -> FC
 fc :: ContGen d => d -> FC i o
 
 -- | Fully connected feed-forward layer parameters.
-data FCP i o
-FCP :: !(R o) -> !(L o i) -> FCP i o
-[_fcBias] :: FCP i o -> !(R o)
-[_fcWeights] :: FCP i o -> !(L o i)
-fcBias :: Functor f => (R o -> f (R o)) -> FCP i o -> f (FCP i o)
-fcWeights :: Functor f => (L o i -> f (L o k)) -> FCP i o -> f (FCP k o)
+data FCp i o
+FCp :: !(R o) -> !(L o i) -> FCp i o
+[_fcBias] :: FCp i o -> !(R o)
+[_fcWeights] :: FCp i o -> !(L o i)
+fcBias :: Functor f => (R o -> f (R o)) -> FCp i o -> f (FCp i o)
+fcWeights :: Functor f => (L o i -> f (L o k)) -> FCp i o -> f (FCp k o)
 
 -- | Fully connected recurrent layer with bias.
 --   
@@ -286,19 +308,19 @@ FCR :: forall m. PrimMonad m => Gen (PrimState m) -> m Double -> forall m. PrimM
 fcr :: ContGen d => d -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R h)) -> FCR h i o
 
 -- | Fully connected recurrent layer parameters.
-data FCRP h i o
-FCRP :: !(R o) -> !(L o i) -> !(L o h) -> FCRP h i o
-[_fcrBias] :: FCRP h i o -> !(R o)
-[_fcrInputWeights] :: FCRP h i o -> !(L o i)
-[_fcrStateWeights] :: FCRP h i o -> !(L o h)
-fcrBias :: Functor f => (R o -> f (R o)) -> FCRP h i o -> f (FCRP h i o)
-fcrInputWeights :: Functor f => (L o i -> f (L o i')) -> FCRP h i o -> f (FCRP h i' o)
-fcrStateWeights :: Functor f => (L o h -> f (L o h')) -> FCRP h i o -> f (FCRP h' i o)
-instance GHC.Generics.Generic (Backprop.Learn.Model.Neural.FCRP h i o)
-instance GHC.Generics.Generic (Backprop.Learn.Model.Neural.FCP i o)
-instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Model.Neural.FCRP h i o)
+data FCRp h i o
+FCRp :: !(R o) -> !(L o i) -> !(L o h) -> FCRp h i o
+[_fcrBias] :: FCRp h i o -> !(R o)
+[_fcrInputWeights] :: FCRp h i o -> !(L o i)
+[_fcrStateWeights] :: FCRp h i o -> !(L o h)
+fcrBias :: Functor f => (R o -> f (R o)) -> FCRp h i o -> f (FCRp h i o)
+fcrInputWeights :: Functor f => (L o i -> f (L o i')) -> FCRp h i o -> f (FCRp h i' o)
+fcrStateWeights :: Functor f => (L o h -> f (L o h')) -> FCRp h i o -> f (FCRp h' i o)
+instance GHC.Generics.Generic (Backprop.Learn.Model.Neural.FCRp h i o)
+instance GHC.Generics.Generic (Backprop.Learn.Model.Neural.FCp i o)
+instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Model.Neural.FCRp h i o)
 instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Model.Learn (Internal.Static.R i) (Internal.Static.R o) (Backprop.Learn.Model.Neural.FCR h i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Model.Neural.FCP i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Model.Neural.FCp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Model.Learn (Internal.Static.R i) (Internal.Static.R o) (Backprop.Learn.Model.Neural.FC i o)
 
 module Backprop.Learn.Model.Function
@@ -710,3 +732,4 @@ type Logistic n = RMap (R n) (R 1) Double (Linear n 1)
 -- | Construct a logistic regression model from an initialization function
 --   for coefficients.
 logisticRegression :: (forall m. PrimMonad m => Gen (PrimState m) -> m Double) -> Logistic n
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Backprop.Learn.Model.Learn GHC.Types.Double GHC.Types.Double (Backprop.Learn.Model.Regression.ARMA p q)
