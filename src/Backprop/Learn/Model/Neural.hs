@@ -8,8 +8,8 @@
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
 module Backprop.Learn.Model.Neural (
-    FC(..), fc, FCP(..), fcBias, fcWeights
-  , FCR(..), fcr, FCRP(..), fcrBias, fcrInputWeights, fcrStateWeights
+    FC(..), fc, FCp(..), fcBias, fcWeights
+  , FCR(..), fcr, FCRp(..), fcrBias, fcrInputWeights, fcrStateWeights
   ) where
 
 
@@ -48,7 +48,7 @@ fc :: ContGen d => d -> FC i o
 fc d = FC (genContVar d)
 
 -- | Fully connected feed-forward layer parameters.
-data FCP i o = FCP { _fcBias    :: !(R o)
+data FCp i o = FCp { _fcBias    :: !(R o)
                    , _fcWeights :: !(L o i)
                    }
   deriving Generic
@@ -56,18 +56,18 @@ data FCP i o = FCP { _fcBias    :: !(R o)
 fcWeights
     :: Functor f
     => (L o i -> f (L o k))
-    -> FCP i o
-    -> f (FCP k o)
+    -> FCp i o
+    -> f (FCp k o)
 fcWeights f fcp = (\w -> fcp { _fcWeights = w }) <$> f (_fcWeights fcp)
 
 fcBias
     :: Functor f
     => (R o -> f (R o))
-    -> FCP i o
-    -> f (FCP i o)
+    -> FCp i o
+    -> f (FCp i o)
 fcBias f fcp = (\b -> fcp { _fcBias = b }) <$> f (_fcBias fcp)
 
-instance (KnownNat i, KnownNat o) => Num (FCP i o) where
+instance (KnownNat i, KnownNat o) => Num (FCp i o) where
     (+)         = gPlus
     (-)         = gMinus
     (*)         = gTimes
@@ -77,10 +77,10 @@ instance (KnownNat i, KnownNat o) => Num (FCP i o) where
     fromInteger = gFromInteger
 
 instance (KnownNat i, KnownNat o) => Learn (R i) (R o) (FC i o) where
-    type LParamMaybe (FC i o) = 'Just (FCP i o)
+    type LParamMaybe (FC i o) = 'Just (FCp i o)
 
     initParam (FC f) g = J_ $
-        FCP <$> (vecR <$> SVS.replicateM (f g))
+        FCp <$> (vecR <$> SVS.replicateM (f g))
             <*> (vecL <$> SVS.replicateM (f g))
 
     runLearn _ (J_ p) = stateless $ \x ->
@@ -97,7 +97,7 @@ data FCR (h :: Nat) (i :: Nat) (o :: Nat) =
         }
 
 -- | Fully connected recurrent layer parameters.
-data FCRP h i o = FCRP { _fcrBias         :: !(R o)
+data FCRp h i o = FCRp { _fcrBias         :: !(R o)
                        , _fcrInputWeights :: !(L o i)
                        , _fcrStateWeights :: !(L o h)
                        }
@@ -115,27 +115,27 @@ fcr d = FCR (genContVar d) (genContVar d)
 fcrInputWeights
     :: Functor f
     => (L o i -> f (L o i'))
-    -> FCRP h i o
-    -> f (FCRP h i' o)
+    -> FCRp h i o
+    -> f (FCRp h i' o)
 fcrInputWeights f fcrp = (\w -> fcrp { _fcrInputWeights = w })
     <$> f (_fcrInputWeights fcrp)
 
 fcrStateWeights
     :: Functor f
     => (L o h -> f (L o h'))
-    -> FCRP h i o
-    -> f (FCRP h' i o)
+    -> FCRp h i o
+    -> f (FCRp h' i o)
 fcrStateWeights f fcrp = (\w -> fcrp { _fcrStateWeights = w })
     <$> f (_fcrStateWeights fcrp)
 
 fcrBias
     :: Functor f
     => (R o -> f (R o))
-    -> FCRP h i o
-    -> f (FCRP h i o)
+    -> FCRp h i o
+    -> f (FCRp h i o)
 fcrBias f fcrp = (\b -> fcrp { _fcrBias = b }) <$> f (_fcrBias fcrp)
 
-instance (KnownNat h, KnownNat i, KnownNat o) => Num (FCRP h i o) where
+instance (KnownNat h, KnownNat i, KnownNat o) => Num (FCRp h i o) where
     (+)         = gPlus
     (-)         = gMinus
     (*)         = gTimes
@@ -145,11 +145,11 @@ instance (KnownNat h, KnownNat i, KnownNat o) => Num (FCRP h i o) where
     fromInteger = gFromInteger
 
 instance (KnownNat h, KnownNat i, KnownNat o) => Learn (R i) (R o) (FCR h i o) where
-    type LParamMaybe (FCR h i o) = 'Just (FCRP h i o)
+    type LParamMaybe (FCR h i o) = 'Just (FCRp h i o)
     type LStateMaybe (FCR h i o) = 'Just (R h)
 
     initParam (FCR f _ _) g = J_ $
-        FCRP <$> (vecR <$> SVS.replicateM (f g))
+        FCRp <$> (vecR <$> SVS.replicateM (f g))
              <*> (vecL <$> SVS.replicateM (f g))
              <*> (vecL <$> SVS.replicateM (f g))
 

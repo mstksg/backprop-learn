@@ -1,13 +1,12 @@
-{-# LANGUAGE DeriveGeneric                            #-}
-{-# LANGUAGE GADTs                                    #-}
-{-# LANGUAGE KindSignatures                           #-}
-{-# LANGUAGE MultiParamTypeClasses                    #-}
-{-# LANGUAGE RankNTypes                               #-}
-{-# LANGUAGE RecordWildCards                          #-}
-{-# LANGUAGE TypeApplications                         #-}
-{-# LANGUAGE TypeFamilies                             #-}
-{-# LANGUAGE TypeInType                               #-}
-{-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE TypeApplications      #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeInType            #-}
 
 module Backprop.Learn.Model.Regression (
     Linear(..), linearRegression
@@ -39,7 +38,7 @@ type Linear n m = FC n m
 -- | Construct a linear regression model from an initialization function
 -- for coefficients
 linearRegression
-    :: (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double)
+    :: (forall f. PrimMonad f => MWC.Gen (PrimState f) -> f Double)
     -> Linear n m
 linearRegression = FC
 
@@ -60,90 +59,34 @@ logisticRegression f = rM (fst . headTail) $ FC f
 data ARMA :: Nat -> Nat -> Type where
     ARMA :: { _armaGenPhi   :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> Finite p -> m Double
             , _armaGenTheta :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> Finite p -> m Double
+            , _armaGenConst :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double
             , _armaGenYHist :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double
             , _armaGenEHist :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double
             }
          -> ARMA p q
 
+data ARMAp :: Nat -> Nat -> Type where
+    ARMAp :: { _armaPhi      :: !(R p)
+             , _armaTheta    :: !(R p)
+             , _armaConstant :: Double
+             }
+          -> ARMAp p q
 
--- data AR :: Nat -> Type where
---     AR :: { _arGenPhi   :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> Finite p -> m Double
---           , _arGenHist  :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> Finite n -> m Double
---           , _arVariance :: Double
---           }
---        -> AR p
+data ARMAs :: Nat -> Nat -> Type where
+    ARMAs :: { _armaYHist :: !(R p)
+             , _armaEHist :: !(R q)
+             }
+          -> ARMAs p q
 
--- data ARP :: Nat -> Type where
---     ARP { _arPhi :: R p
---         , _arPhi
---         }
+instance (KnownNat p, KnownNat q) => Learn Double Double (ARMA p q) where
+    type LParamMaybe (ARMA p q) = 'Just (ARMAp p q)
+    type LStateMaybe (ARMA p q) = 'Just (ARMAs p q)
 
--- data AR :: Nat -> Nat -> Type where
---     AR :: { _arGenPhi   :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> Finite n -> Finite p -> m Double
---           , _arGenHist  :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> Finite p -> Finite n -> m Double
---           , _arVariance :: Double
---           }
---        -> AR n p
+    initParam ARMA{..} g = J_ $
+        ARMAp <$> (vecR <$> SVS.generateM (_armaGenPhi   g))
+              <*> (vecR <$> SVS.generateM (_armaGenTheta g))
+              <*> _armaGenConst g
+    initState ARMA{..} g = J_ $
+        ARMAs <$> (vecR <$> SVS.replicateM (_armaGenYHist g))
+              <*> (vecR <$> SVS.replicateM (_armaGenEHist g))
 
--- instance (KnownNat n, KnownNat p) => Learn (R n) (R n) (AR n p) where
---     type LParamMaybe (AR n p) = 'Just (L n p)
---     type LStateMaybe (AR n p) = 'Just (L p n)
---     initParam AR{..} g = J_ $
---        vecL <$> SVS.generateM (uncurry (_arGenPhi  g) . separateProduct)
---     initState AR{..} g = J_ $
---        vecL <$> SVS.generateM (uncurry (_arGenHist g) . separateProduct)
---     runLearn AR{..} (J_ p) x (J_ s) = (y, s')
---       where
---         y  = constVar _arConstant + _ (p <> s)
---         s' = undefined
-
--- data ARMA :: Nat -> Type -> Type -> Type where
---     ARMA :: ARMA n p q
-
--- instance Learn (R n) (R n) (ARMA n p q) where
-
----- | @ARMA p q n m@ is a multivariate ARMA(p,q) model over an n-valued time
----- series, predicting a new m-valued time series.
-----
----- In theory, the input time series should be "white noise".
---data ARMA :: Nat -> Nat -> Nat -> Nat -> Type where
---    ARMA :: { _armaGenPhi   :: forall f. PrimMonad f => MWC.Gen (PrimState f) -> Finite m -> Finite p -> f Double
---            , _armaGenTheta :: forall f. PrimMonad f => MWC.Gen (PrimState f) -> Finite n -> Finite q -> f Double
---            , _armaGenOut   :: forall f. PrimMonad f => MWC.Gen (PrimState f) -> Finite p -> Finite m -> f Double
---            , _armaGenInp   :: forall f. PrimMonad f => MWC.Gen (PrimState f) -> Finite q -> Finite n -> f Double
---            , _armaConstant :: R m
---            }
---         -> ARMA p q n m
-
---data ARMAP :: Nat -> Nat -> Nat -> Nat -> Type where
---    ARMAP :: { _armaPhi    :: L m p
---             , _armaTheta  :: L n q
---             -- , _armaTheta0 :: L m n
---             }
---          -> ARMAP p q n m
---  deriving Generic
-
---data ARMAS :: Nat -> Nat -> Nat -> Nat -> Type where
---    ARMAS :: { _armaOutHist :: L p m
---             , _armaInpHist :: L q n
---             }
---          -> ARMAS p q n m
---  deriving Generic
-
---instance (KnownNat n, KnownNat m, KnownNat p, KnownNat q) => Learn (R n) (R m) (ARMA p q n m) where
---    type LParamMaybe (ARMA p q n m) = 'Just (ARMAP p q n m)
---    type LStateMaybe (ARMA p q n m) = 'Just (ARMAS p q n m)
-
---    -- TODO: check if separateProduct works properly with vecL
---    initParam ARMA{..} g = J_ $
---        ARMAP <$> (vecL <$> SVS.generateM (uncurry (_armaGenPhi   g) . separateProduct))
---              <*> (vecL <$> SVS.generateM (uncurry (_armaGenTheta g) . separateProduct))
-
---    initState ARMA{..} g = J_ $
---        ARMAS <$> (vecL <$> SVS.generateM (uncurry (_armaGenOut   g) . separateProduct))
---              <*> (vecL <$> SVS.generateM (uncurry (_armaGenInp   g) . separateProduct))
-
---    runLearn ARMA{..} (J_ p) x (J_ s) = (y, s')
---      where
---        y  = _armaConstant + _
---        s' = s

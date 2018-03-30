@@ -61,7 +61,8 @@ instance (Learn a b l, LParamMaybe l ~ 'Just p) => Learn a b (DeParam p l) where
 -- so its gradient will always be zero.
 --
 -- The part is specified using a 'Lens''.  This really only makes sense if
--- @p@ is a record, and the lens points to a field of the record.
+-- @p@ is a record, and the lens points to a field (or multiple fields, to
+-- a tuple) of the record.
 --
 -- 'DeParam' is essentially 'DeParamAt', with 'id' as the lens.
 data DeParamAt :: Type -> Type -> Type -> Type where
