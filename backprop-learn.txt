@@ -152,10 +152,18 @@ data DeState :: Type -> Type -> Type
 --   initialization function.
 dsDeterm :: s -> l -> DeState s l
 
--- | Unroll a stateful model into one taking a vector of sequential inputs.
+-- | Unroll a (usually) stateful model into one taking a vector of
+--   sequential inputs.
+--   
+--   Basically applies the model to every item of input and returns all of
+--   the results, but propagating the state between every step.
 --   
 --   Useful when used before <a>TrainState</a> or <a>DeState</a>. See
 --   <a>UnrollTrainState</a> and <a>UnrollDeState</a>.
+--   
+--   Compare to <tt>FeedbackTrace</tt>, which, instead of receiving a
+--   vector of sequential inputs, receives a single input and uses its
+--   output as the next input.
 newtype Unroll :: Nat -> Type -> Type
 [Unroll] :: {getUnroll :: l} -> Unroll n l
 
@@ -239,6 +247,13 @@ module Backprop.Learn.Model.Neural
 
 -- | Fully connected feed-forward layer with bias. Parameterized by its
 --   initialization distribution.
+--   
+--   Note that this has no activation function; to use as a model with
+--   activation function, chain it with an activation function using
+--   <tt>Dimap</tt>, <tt>:.~</tt>, etc.
+--   
+--   Without any activation function, this is essentially a multivariate
+--   linear regression.
 newtype FC (i :: Nat) (o :: Nat)
 FC :: forall m. PrimMonad m => Gen (PrimState m) -> m Double -> FC
 [_fcGen] :: FC -> forall m. PrimMonad m => Gen (PrimState m) -> m Double
@@ -589,8 +604,12 @@ instance (GHC.Num.Num a, Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$
 module Backprop.Learn.Model.Combinator
 
 -- | Take a model and turn it into a model that runs its output into itself
---   several times. Parameterized by the number of repeats, and the
---   function to process the output to become the next input.
+--   several times, returning the final result. Parameterized by the number
+--   of repeats, and the function to process the output to become the next
+--   input.
+--   
+--   See <a>FeedbackTrace</a> if you want to observe all of the
+--   intermediate outputs.
 data Feedback :: Type -> Type -> Type -> Type
 [FB] :: {_fbTimes :: Int, _fbFeed :: forall s. Reifies s W => BVar s b -> BVar s a, _fbLearn :: l} -> Feedback a b l
 
@@ -598,6 +617,22 @@ data Feedback :: Type -> Type -> Type -> Type
 --   returns a value fo the same type as its input) by simply providing the
 --   output directly as the next intput.
 feedbackId :: Int -> l -> Feedback a a l
+
+-- | Take a model and turn it into a model that runs its output into itself
+--   several times, and returns all of the intermediate outputs.
+--   Parameterized by the function to process the output to become the next
+--   input.
+--   
+--   See <a>Feedback</a> if you only need the final result.
+--   
+--   Compare also to <tt>Unroll</tt>.
+data FeedbackTrace :: Nat -> Type -> Type -> Type -> Type
+[FBT] :: {_fbtFeed :: forall s. Reifies s W => BVar s b -> BVar s a, _fbtLearn :: l} -> FeedbackTrace n a b l
+
+-- | Construct a <a>FeedbackTrace</a> from an endofunction (a function that
+--   returns a value fo the same type as its input) by simply providing the
+--   output directly as the next intput.
+feedbackTraceId :: l -> FeedbackTrace n a a l
 
 -- | Chain components linearly, retaining the ability to deconstruct at a
 --   later time.
@@ -647,6 +682,7 @@ nilLF :: LearnFunc ( 'Just (T '[])) ( 'Just (T '[])) a a
 
 -- | <a>LearnFunc</a> with singleton lists; meant to be used with <a>.~</a>
 onlyLF :: forall p s a b. (KnownMayb p, MaybeC Num p, KnownMayb s, MaybeC Num s) => LearnFunc p s a b -> LearnFunc ( 'Just (T (MaybeToList p))) ( 'Just (T (MaybeToList s))) a b
+instance (Backprop.Learn.Model.Learn a b l, GHC.TypeNats.KnownNat n, GHC.Num.Num b) => Backprop.Learn.Model.Learn a (Data.Vector.Sized.Vector n b) (Backprop.Learn.Model.Combinator.FeedbackTrace n a b l)
 instance Backprop.Learn.Model.Learn a b l => Backprop.Learn.Model.Learn a b (Backprop.Learn.Model.Combinator.Feedback a b l)
 instance Backprop.Learn.Model.Learn b c l => Backprop.Learn.Model.Learn a d (Backprop.Learn.Model.Combinator.Dimap b c a d l)
 instance (Backprop.Learn.Model.Learn b c l, Backprop.Learn.Model.Learn a b m, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.LParamMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.LParamMaybe m), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.LStateMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.LStateMaybe m), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.LParamMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.LParamMaybe m), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.LStateMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.LStateMaybe m)) => Backprop.Learn.Model.Learn a c (l Backprop.Learn.Model.Combinator.:.~ m)
