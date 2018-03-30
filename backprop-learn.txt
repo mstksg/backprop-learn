@@ -146,7 +146,7 @@ newtype TrainState :: Type -> Type
 --   One of the ways to make a model stateless for training purposes.
 --   Useful when used after <a>Unroll</a>. See <a>TrainState</a>, as well.
 data DeState :: Type -> Type -> Type
-[DS] :: {_fsInitState :: s, _fsInitStateStoch :: forall m. PrimMonad m => Gen (PrimState m) -> m s, _fsLearn :: l} -> DeState s l
+[DS] :: {_dsInitState :: s, _dsInitStateStoch :: forall m. PrimMonad m => Gen (PrimState m) -> m s, _dsLearn :: l} -> DeState s l
 
 -- | Create a <a>DeState</a> from a deterministic, non-stochastic
 --   initialization function.
@@ -203,6 +203,8 @@ instance (Backprop.Learn.Model.Learn a b l, Backprop.Learn.Model.LStateMaybe l ~
 instance (Backprop.Learn.Model.Learn a b l, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.LParamMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.LParamMaybe l), Backprop.Learn.Model.LStateMaybe l ~ 'GHC.Base.Just s, GHC.Num.Num s) => Backprop.Learn.Model.Learn a b (Backprop.Learn.Model.State.TrainState l)
 instance (Backprop.Learn.Model.Learn a b l, GHC.TypeNats.KnownNat n, GHC.Num.Num a, GHC.Num.Num b) => Backprop.Learn.Model.Learn (Data.Vector.Sized.Vector n a) (Data.Vector.Sized.Vector n b) (Backprop.Learn.Model.State.Unroll n l)
 
+module Backprop.Learn.Model.Regression
+
 module Backprop.Learn.Model.Parameter
 
 -- | Convert a model with trainabile parameters into a model without any
@@ -232,6 +234,56 @@ data ReParam :: Type -> Maybe Type -> Type -> Type
 rpDeterm :: (forall m. PrimMonad m => Gen (PrimState m) -> Mayb m q) -> (forall s. Reifies s W => Mayb (BVar s) q -> BVar s p) -> l -> ReParam p q l
 instance (Backprop.Learn.Model.Learn a b l, Backprop.Learn.Model.LParamMaybe l ~ 'GHC.Base.Just p) => Backprop.Learn.Model.Learn a b (Backprop.Learn.Model.Parameter.ReParam p q l)
 instance (Backprop.Learn.Model.Learn a b l, Backprop.Learn.Model.LParamMaybe l ~ 'GHC.Base.Just p) => Backprop.Learn.Model.Learn a b (Backprop.Learn.Model.Parameter.DeParam p l)
+
+module Backprop.Learn.Model.Neural
+
+-- | Fully connected feed-forward layer with bias. Parameterized by its
+--   initialization distribution.
+newtype FC (i :: Nat) (o :: Nat)
+FC :: forall m. PrimMonad m => Gen (PrimState m) -> m Double -> FC
+[_fcGen] :: FC -> forall m. PrimMonad m => Gen (PrimState m) -> m Double
+
+-- | Construct an <tt><a>FC</a> i o</tt> using a given distribution from
+--   the <i>statistics</i> library.
+fc :: ContGen d => d -> FC i o
+
+-- | Fully connected feed-forward layer parameters.
+data FCP i o
+FCP :: !(R o) -> !(L o i) -> FCP i o
+[_fcBias] :: FCP i o -> !(R o)
+[_fcWeights] :: FCP i o -> !(L o i)
+fcBias :: Functor f => (R o -> f (R o)) -> FCP i o -> f (FCP i o)
+fcWeights :: Functor f => (L o i -> f (L o k)) -> FCP i o -> f (FCP k o)
+
+-- | Fully connected recurrent layer with bias.
+--   
+--   Parameterized by its initialization distributions, and also the
+--   function to compute the new state from previous input.
+data FCR (h :: Nat) (i :: Nat) (o :: Nat)
+FCR :: forall m. PrimMonad m => Gen (PrimState m) -> m Double -> forall m. PrimMonad m => Gen (PrimState m) -> m Double -> forall s. Reifies s W => BVar s (R o) -> BVar s (R h) -> FCR
+[_fcrGen] :: FCR -> forall m. PrimMonad m => Gen (PrimState m) -> m Double
+[_fcrGenState] :: FCR -> forall m. PrimMonad m => Gen (PrimState m) -> m Double
+[_fcrStore] :: FCR -> forall s. Reifies s W => BVar s (R o) -> BVar s (R h)
+
+-- | Construct an <tt><a>FCR</a> h i o</tt> using a given distribution from
+--   the <i>statistics</i> library.
+fcr :: ContGen d => d -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R h)) -> FCR h i o
+
+-- | Fully connected recurrent layer parameters.
+data FCRP h i o
+FCRP :: !(R o) -> !(L o i) -> !(L o h) -> FCRP h i o
+[_fcrBias] :: FCRP h i o -> !(R o)
+[_fcrInputWeights] :: FCRP h i o -> !(L o i)
+[_fcrStateWeights] :: FCRP h i o -> !(L o h)
+fcrBias :: Functor f => (R o -> f (R o)) -> FCRP h i o -> f (FCRP h i o)
+fcrInputWeights :: Functor f => (L o i -> f (L o i')) -> FCRP h i o -> f (FCRP h i' o)
+fcrStateWeights :: Functor f => (L o h -> f (L o h')) -> FCRP h i o -> f (FCRP h' i o)
+instance GHC.Generics.Generic (Backprop.Learn.Model.Neural.FCRP h i o)
+instance GHC.Generics.Generic (Backprop.Learn.Model.Neural.FCP i o)
+instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Model.Neural.FCRP h i o)
+instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Model.Learn (Internal.Static.R i) (Internal.Static.R o) (Backprop.Learn.Model.Neural.FCR h i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Model.Neural.FCP i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Model.Learn (Internal.Static.R i) (Internal.Static.R o) (Backprop.Learn.Model.Neural.FC i o)
 
 module Backprop.Learn.Model.Function
 
@@ -512,59 +564,17 @@ rreLU :: (ContGen d, Mean d, KnownNat n) => d -> FixedStochFunc (R n) (R n)
 
 -- | Inject random noise. Usually used between neural network layers, or at
 --   the very beginning to pre-process input.
+--   
+--   In non-stochastic mode, this adds the mean of the distribution.
 injectNoise :: (ContGen d, Mean d, KnownNat n) => d -> FixedStochFunc (R n) (R n)
+
+-- | Multply by random noise. Can be used to implement dropout-like
+--   behavior.
+--   
+--   In non-stochastic mode, this scales by the mean of the distribution.
+applyNoise :: (ContGen d, Mean d, KnownNat n) => d -> FixedStochFunc (R n) (R n)
 instance Backprop.Learn.Model.Learn a b (Backprop.Learn.Model.Stochastic.StochFunc p a b)
 instance GHC.TypeNats.KnownNat n => Backprop.Learn.Model.Learn (Internal.Static.R n) (Internal.Static.R n) (Backprop.Learn.Model.Stochastic.DO n)
-
-module Backprop.Learn.Model.FullyConnected
-
--- | Fully connected feed-forward layer with bias. Parameterized by its
---   initialization distribution.
-newtype FC (i :: Nat) (o :: Nat)
-FC :: forall m. PrimMonad m => Gen (PrimState m) -> m Double -> FC
-[_fcGen] :: FC -> forall m. PrimMonad m => Gen (PrimState m) -> m Double
-
--- | Construct an <tt><a>FC</a> i o</tt> using a given distribution from
---   the <i>statistics</i> library.
-fc :: ContGen d => d -> FC i o
-
--- | Fully connected feed-forward layer parameters.
-data FCP i o
-FCP :: !(R o) -> !(L o i) -> FCP i o
-[_fcBias] :: FCP i o -> !(R o)
-[_fcWeights] :: FCP i o -> !(L o i)
-fcBias :: Functor f => (R o -> f (R o)) -> FCP i o -> f (FCP i o)
-fcWeights :: Functor f => (L o i -> f (L o k)) -> FCP i o -> f (FCP k o)
-
--- | Fully connected recurrent layer with bias.
---   
---   Parameterized by its initialization distributions, and also the
---   function to compute the new state from previous input.
-data FCR (h :: Nat) (i :: Nat) (o :: Nat)
-FCR :: forall m. PrimMonad m => Gen (PrimState m) -> m Double -> forall m. PrimMonad m => Gen (PrimState m) -> m Double -> forall s. Reifies s W => BVar s (R o) -> BVar s (R h) -> FCR
-[_fcrGen] :: FCR -> forall m. PrimMonad m => Gen (PrimState m) -> m Double
-[_fcrGenState] :: FCR -> forall m. PrimMonad m => Gen (PrimState m) -> m Double
-[_fcrStore] :: FCR -> forall s. Reifies s W => BVar s (R o) -> BVar s (R h)
-
--- | Construct an <tt><a>FCR</a> h i o</tt> using a given distribution from
---   the <i>statistics</i> library.
-fcr :: ContGen d => d -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R h)) -> FCR h i o
-
--- | Fully connected recurrent layer parameters.
-data FCRP h i o
-FCRP :: !(R o) -> !(L o i) -> !(L o h) -> FCRP h i o
-[_fcrBias] :: FCRP h i o -> !(R o)
-[_fcrInputWeights] :: FCRP h i o -> !(L o i)
-[_fcrStateWeights] :: FCRP h i o -> !(L o h)
-fcrBias :: Functor f => (R o -> f (R o)) -> FCRP h i o -> f (FCRP h i o)
-fcrInputWeights :: Functor f => (L o i -> f (L o i')) -> FCRP h i o -> f (FCRP h i' o)
-fcrStateWeights :: Functor f => (L o h -> f (L o h')) -> FCRP h i o -> f (FCRP h' i o)
-instance GHC.Generics.Generic (Backprop.Learn.Model.FullyConnected.FCRP h i o)
-instance GHC.Generics.Generic (Backprop.Learn.Model.FullyConnected.FCP i o)
-instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Model.FullyConnected.FCRP h i o)
-instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Model.Learn (Internal.Static.R i) (Internal.Static.R o) (Backprop.Learn.Model.FullyConnected.FCR h i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Model.FullyConnected.FCP i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Model.Learn (Internal.Static.R i) (Internal.Static.R o) (Backprop.Learn.Model.FullyConnected.FC i o)
 
 module Data.Type.NonEmpty
 data NETup :: NonEmpty Type -> Type
@@ -577,6 +587,17 @@ tNet :: T (a : as) -> NETup (a :| as)
 instance (GHC.Num.Num a, Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => GHC.Num.Num (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
 
 module Backprop.Learn.Model.Combinator
+
+-- | Take a model and turn it into a model that runs its output into itself
+--   several times. Parameterized by the number of repeats, and the
+--   function to process the output to become the next input.
+data Feedback :: Type -> Type -> Type -> Type
+[FB] :: {_fbTimes :: Int, _fbFeed :: forall s. Reifies s W => BVar s b -> BVar s a, _fbLearn :: l} -> Feedback a b l
+
+-- | Construct a <a>Feedback</a> from an endofunction (a function that
+--   returns a value fo the same type as its input) by simply providing the
+--   output directly as the next intput.
+feedbackId :: Int -> l -> Feedback a a l
 
 -- | Chain components linearly, retaining the ability to deconstruct at a
 --   later time.
@@ -626,6 +647,7 @@ nilLF :: LearnFunc ( 'Just (T '[])) ( 'Just (T '[])) a a
 
 -- | <a>LearnFunc</a> with singleton lists; meant to be used with <a>.~</a>
 onlyLF :: forall p s a b. (KnownMayb p, MaybeC Num p, KnownMayb s, MaybeC Num s) => LearnFunc p s a b -> LearnFunc ( 'Just (T (MaybeToList p))) ( 'Just (T (MaybeToList s))) a b
+instance Backprop.Learn.Model.Learn a b l => Backprop.Learn.Model.Learn a b (Backprop.Learn.Model.Combinator.Feedback a b l)
 instance Backprop.Learn.Model.Learn b c l => Backprop.Learn.Model.Learn a d (Backprop.Learn.Model.Combinator.Dimap b c a d l)
 instance (Backprop.Learn.Model.Learn b c l, Backprop.Learn.Model.Learn a b m, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.LParamMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.LParamMaybe m), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.LStateMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.LStateMaybe m), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.LParamMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.LParamMaybe m), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.LStateMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.LStateMaybe m)) => Backprop.Learn.Model.Learn a c (l Backprop.Learn.Model.Combinator.:.~ m)
 instance Backprop.Learn.Model.Learn a b (Backprop.Learn.Model.Combinator.LearnFunc p s a b)
