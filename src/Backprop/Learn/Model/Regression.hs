@@ -1,19 +1,34 @@
-{-# LANGUAGE GADTs                 #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE RankNTypes            #-}
-{-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE TypeInType            #-}
+{-# LANGUAGE DeriveGeneric                            #-}
+{-# LANGUAGE GADTs                                    #-}
+{-# LANGUAGE KindSignatures                           #-}
+{-# LANGUAGE MultiParamTypeClasses                    #-}
+{-# LANGUAGE RankNTypes                               #-}
+{-# LANGUAGE RecordWildCards                          #-}
+{-# LANGUAGE TypeApplications                         #-}
+{-# LANGUAGE TypeFamilies                             #-}
+{-# LANGUAGE TypeInType                               #-}
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
 module Backprop.Learn.Model.Regression (
-    Linear, linearRegression
-  , Logistic, logisticRegression
+    Linear(..), linearRegression
+  , Logistic(..), logisticRegression
   ) where
 
+import           Backprop.Learn.Model
 import           Backprop.Learn.Model.Combinator
 import           Backprop.Learn.Model.Neural
 import           Control.Monad.Primitive
+import           Data.Finite
+import           Data.Kind
+import           GHC.Generics                          (Generic)
+import           GHC.TypeLits.Extra
+import           GHC.TypeNats
+import           Numeric.Backprop
 import           Numeric.LinearAlgebra.Static.Backprop
-import qualified System.Random.MWC                      as MWC
+import           Numeric.LinearAlgebra.Static.Vector
+import           Prelude hiding                        ((<>))
+import qualified Data.Vector.Storable.Sized            as SVS
+import qualified System.Random.MWC                     as MWC
 
 -- | Multivariate linear regression, from an n-vector to an m-vector.
 --
@@ -24,7 +39,7 @@ type Linear n m = FC n m
 -- | Construct a linear regression model from an initialization function
 -- for coefficients
 linearRegression
-    :: (forall f. PrimMonad f => MWC.Gen (PrimState f) -> f Double)
+    :: (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double)
     -> Linear n m
 linearRegression = FC
 
@@ -41,6 +56,46 @@ logisticRegression
     :: (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double)
     -> Logistic n
 logisticRegression f = rM (fst . headTail) $ FC f
+
+data ARMA :: Nat -> Nat -> Type where
+    ARMA :: { _armaGenPhi   :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> Finite p -> m Double
+            , _armaGenTheta :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> Finite p -> m Double
+            , _armaGenYHist :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double
+            , _armaGenEHist :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double
+            }
+         -> ARMA p q
+
+
+-- data AR :: Nat -> Type where
+--     AR :: { _arGenPhi   :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> Finite p -> m Double
+--           , _arGenHist  :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> Finite n -> m Double
+--           , _arVariance :: Double
+--           }
+--        -> AR p
+
+-- data ARP :: Nat -> Type where
+--     ARP { _arPhi :: R p
+--         , _arPhi
+--         }
+
+-- data AR :: Nat -> Nat -> Type where
+--     AR :: { _arGenPhi   :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> Finite n -> Finite p -> m Double
+--           , _arGenHist  :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> Finite p -> Finite n -> m Double
+--           , _arVariance :: Double
+--           }
+--        -> AR n p
+
+-- instance (KnownNat n, KnownNat p) => Learn (R n) (R n) (AR n p) where
+--     type LParamMaybe (AR n p) = 'Just (L n p)
+--     type LStateMaybe (AR n p) = 'Just (L p n)
+--     initParam AR{..} g = J_ $
+--        vecL <$> SVS.generateM (uncurry (_arGenPhi  g) . separateProduct)
+--     initState AR{..} g = J_ $
+--        vecL <$> SVS.generateM (uncurry (_arGenHist g) . separateProduct)
+--     runLearn AR{..} (J_ p) x (J_ s) = (y, s')
+--       where
+--         y  = constVar _arConstant + _ (p <> s)
+--         s' = undefined
 
 -- data ARMA :: Nat -> Type -> Type -> Type where
 --     ARMA :: ARMA n p q

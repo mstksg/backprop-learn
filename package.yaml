@@ -47,6 +47,7 @@ library:
   - type-combinators
   - ghc-typelits-extra
   - finite-typelits
+  - microlens
 
 # dependencies:
 # - backprop
