@@ -40,6 +40,9 @@ module Backprop.Learn.Model.Function (
   , softExponential
   , sinc
   , gaussian
+  , tanh
+  , atan
+  , sin
   -- *** Parameterized
   , liftUniform
   , isru

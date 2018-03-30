@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleContexts       #-}
 {-# LANGUAGE FlexibleInstances      #-}
 {-# LANGUAGE GADTs                  #-}
+{-# LANGUAGE InstanceSigs           #-}
 {-# LANGUAGE KindSignatures         #-}
 {-# LANGUAGE LambdaCase             #-}
 {-# LANGUAGE MultiParamTypeClasses  #-}
@@ -21,12 +22,13 @@
 
 module Backprop.Learn.Model.Combinator (
     Feedback(..), feedbackId
+  , FeedbackTrace(..), feedbackTraceId
   , Chain(..)
   , (~++)
   , chainParamLength
   , chainStateLength
   , LearnFunc(..), learnFunc
-  , Dimap(..), LMap, lm, RMap, rm
+  , Dimap(..), LMap, lM, RMap, rM
   , (.~)
   , nilLF, onlyLF
   ) where
@@ -43,6 +45,7 @@ import           Data.Type.Equality
 import           Data.Type.Length
 import           Data.Type.Mayb            as Mayb
 import           Data.Type.NonEmpty
+import           GHC.TypeNats
 import           Numeric.Backprop
 import           Numeric.Backprop.Tuple
 import           Prelude hiding            ((.), id)
@@ -50,6 +53,7 @@ import           Type.Class.Higher
 import           Type.Class.Known
 import           Type.Class.Witness
 import           Type.Family.List          as List
+import qualified Data.Vector.Sized         as SV
 import qualified System.Random.MWC         as MWC
 
 -- | Chain components linearly, retaining the ability to deconstruct at
@@ -534,15 +538,15 @@ type LMap b c a = Dimap b c a c
 -- a model from @a@ to @c@.
 type RMap a b = Dimap a b a
 
-lm  :: (forall s. Reifies s W => BVar s a -> BVar s b)
+lM  :: (forall s. Reifies s W => BVar s a -> BVar s b)
     -> l
     -> LMap b c a l
-lm f = DM f id
+lM f = DM f id
 
-rm  :: (forall s. Reifies s W => BVar s b -> BVar s c)
+rM  :: (forall s. Reifies s W => BVar s b -> BVar s c)
     -> l
     -> RMap a b c l
-rm = DM id
+rM = DM id
 
 instance Learn b c l => Learn a d (Dimap b c a d l) where
     type LParamMaybe (Dimap b c a d l) = LParamMaybe l
@@ -555,8 +559,12 @@ instance Learn b c l => Learn a d (Dimap b c a d l) where
     runLearnStoch (DM f g l) gen p x = (fmap . first) g . runLearnStoch l gen p (f x)
 
 -- | Take a model and turn it into a model that runs its output into itself
--- several times.  Parameterized by the number of repeats, and the function
--- to process the output to become the next input.
+-- several times, returning the final result.  Parameterized by the number
+-- of repeats, and the function to process the output to become the next
+-- input.
+--
+-- See 'FeedbackTrace' if you want to observe all of the intermediate
+-- outputs.
 data Feedback :: Type -> Type -> Type -> Type where
     FB :: { _fbTimes :: Int
           , _fbFeed  :: forall s. Reifies s W => BVar s b -> BVar s a
@@ -578,13 +586,56 @@ instance Learn a b l => Learn a b (Feedback a b l) where
     initState = initState . _fbLearn
 
     runLearn (FB n f l) p = runState
-                          . (>>= go)
-                          . foldr (>=>) pure (replicate (n - 1) (fmap f . go))
+                          . foldr (>=>) go (replicate (n - 1) (fmap f . go))
       where
         go = state . runLearn l p
 
     runLearnStoch (FB n f l) g p = runStateT
-                                 . (>>= go)
-                                 . foldr (>=>) pure (replicate (n - 1) (fmap f . go))
+                                 . foldr (>=>) go (replicate (n - 1) (fmap f . go))
       where
         go = StateT . runLearnStoch l g p
+
+-- | Take a model and turn it into a model that runs its output into itself
+-- several times, and returns all of the intermediate outputs.
+-- Parameterized by the function to process the output to become the next
+-- input.
+--
+-- See 'Feedback' if you only need the final result.
+--
+-- Compare also to 'Unroll'.
+data FeedbackTrace :: Nat -> Type -> Type -> Type -> Type where
+    FBT :: { _fbtFeed  :: forall s. Reifies s W => BVar s b -> BVar s a
+           , _fbtLearn :: l
+           }
+        -> FeedbackTrace n a b l
+
+-- | Construct a 'FeedbackTrace' from an endofunction (a function that
+-- returns a value fo the same type as its input) by simply providing the
+-- output directly as the next intput.
+feedbackTraceId :: l -> FeedbackTrace n a a l
+feedbackTraceId = FBT id
+
+instance (Learn a b l, KnownNat n, Num b) => Learn a (SV.Vector n b) (FeedbackTrace n a b l) where
+    type LParamMaybe (FeedbackTrace n a b l) = LParamMaybe l
+    type LStateMaybe (FeedbackTrace n a b l) = LStateMaybe l
+
+    initParam = initParam . _fbtLearn
+    initState = initState . _fbtLearn
+
+    runLearn (FBT f l) p x0 =
+          second snd
+        . runState (collectVar <$> SV.replicateM (state go))
+        . (x0,)
+      where
+        go (x, s) = (y, (f y, s'))
+          where
+            (y, s') = runLearn l p x s
+
+    runLearnStoch (FBT f l) g p x0 =
+          (fmap . second) snd
+        . runStateT (collectVar <$> SV.replicateM (StateT go))
+        . (x0,)
+      where
+        go (x, s) = do
+          (y, s') <- runLearnStoch l g p x s
+          pure (y, (f y, s'))

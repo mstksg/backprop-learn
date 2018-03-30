@@ -21,7 +21,6 @@ module Backprop.Learn.Model.State (
   ) where
 
 import           Backprop.Learn.Model
-import           Control.Monad
 import           Control.Monad.Primitive
 import           Control.Monad.Trans.State
 import           Data.Bifunctor
@@ -33,10 +32,18 @@ import           Numeric.Backprop.Tuple
 import qualified Data.Vector.Sized         as SV
 import qualified System.Random.MWC         as MWC
 
--- | Unroll a stateful model into one taking a vector of sequential inputs.
+-- | Unroll a (usually) stateful model into one taking a vector of
+-- sequential inputs.
 --
--- Useful when used before 'TrainState' or 'DeState'.  See 'UnrollTrainState'
--- and 'UnrollDeState'.
+-- Basically applies the model to every item of input and returns all of
+-- the results, but propagating the state between every step.
+--
+-- Useful when used before 'TrainState' or 'DeState'.  See
+-- 'UnrollTrainState' and 'UnrollDeState'.
+--
+-- Compare to 'FeedbackTrace', which, instead of receiving a vector of
+-- sequential inputs, receives a single input and uses its output as the
+-- next input.
 newtype Unroll :: Nat -> Type -> Type where
     Unroll :: { getUnroll :: l } -> Unroll n l
 

@@ -28,6 +28,16 @@ import qualified System.Random.MWC                     as MWC
 
 -- | Fully connected feed-forward layer with bias.  Parameterized by its
 -- initialization distribution.
+--
+-- Note that this has no activation function; to use as a model with
+-- activation function, chain it with an activation function using 'Dimap',
+-- ':.~', etc.
+--
+-- Without any activation function, this is essentially a multivariate
+-- linear regression.
+--
+-- With the logistic function as an activation function, this is
+-- essentially multivariate logistic regression. (See 'Logistic')
 newtype FC (i :: Nat) (o :: Nat) =
     FC { _fcGen :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double
        }
