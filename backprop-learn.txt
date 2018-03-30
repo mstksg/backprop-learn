@@ -211,8 +211,6 @@ instance (Backprop.Learn.Model.Learn a b l, Backprop.Learn.Model.LStateMaybe l ~
 instance (Backprop.Learn.Model.Learn a b l, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.LParamMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.LParamMaybe l), Backprop.Learn.Model.LStateMaybe l ~ 'GHC.Base.Just s, GHC.Num.Num s) => Backprop.Learn.Model.Learn a b (Backprop.Learn.Model.State.TrainState l)
 instance (Backprop.Learn.Model.Learn a b l, GHC.TypeNats.KnownNat n, GHC.Num.Num a, GHC.Num.Num b) => Backprop.Learn.Model.Learn (Data.Vector.Sized.Vector n a) (Data.Vector.Sized.Vector n b) (Backprop.Learn.Model.State.Unroll n l)
 
-module Backprop.Learn.Model.Regression
-
 module Backprop.Learn.Model.Parameter
 
 -- | Convert a model with trainabile parameters into a model without any
@@ -254,6 +252,9 @@ module Backprop.Learn.Model.Neural
 --   
 --   Without any activation function, this is essentially a multivariate
 --   linear regression.
+--   
+--   With the logistic function as an activation function, this is
+--   essentially multivariate logistic regression. (See <tt>Logistic</tt>)
 newtype FC (i :: Nat) (o :: Nat)
 FC :: forall m. PrimMonad m => Gen (PrimState m) -> m Double -> FC
 [_fcGen] :: FC -> forall m. PrimMonad m => Gen (PrimState m) -> m Double
@@ -436,6 +437,9 @@ sinc :: (Floating a, Eq a) => a -> a
 --   
 --   &lt;math&gt;
 gaussian :: Floating a => a -> a
+tanh :: Floating a => a -> a
+atan :: Floating a => a -> a
+sin :: Floating a => a -> a
 
 -- | Usable with functions like <a>*</a>, <a>isru</a>, etc. to turn them
 --   into a form usable with <a>PFP</a>:
@@ -665,14 +669,14 @@ data Dimap :: Type -> Type -> Type -> Type -> Type -> Type
 --   An <tt><a>LMap</a> b c a</tt> takes a model from <tt>b</tt> to
 --   <tt>c</tt> and turns it into a model from <tt>a</tt> to <tt>c</tt>.
 type LMap b c a = Dimap b c a c
-lm :: (forall s. Reifies s W => BVar s a -> BVar s b) -> l -> LMap b c a l
+lM :: (forall s. Reifies s W => BVar s a -> BVar s b) -> l -> LMap b c a l
 
 -- | Post-compose a pure parameterless function to a model.
 --   
 --   An <tt><tt>Rmap</tt> a b c</tt> takes a model from <tt>a</tt> to
 --   <tt>b</tt> and turns it into a model from <tt>a</tt> to <tt>c</tt>.
 type RMap a b = Dimap a b a
-rm :: (forall s. Reifies s W => BVar s b -> BVar s c) -> l -> RMap a b c l
+rM :: (forall s. Reifies s W => BVar s b -> BVar s c) -> l -> RMap a b c l
 
 -- | Compose two <a>LearnFunc</a> on lists.
 (.~) :: forall ps qs ss ts a b c. (ListC (Num <$> ps), ListC (Num <$> qs), ListC (Num <$> ss), ListC (Num <$> ts), ListC (Num <$> (ss ++ ts)), Known Length ps, Known Length qs, Known Length ss, Known Length ts) => LearnFunc ( 'Just (T ps)) ( 'Just (T ss)) b c -> LearnFunc ( 'Just (T qs)) ( 'Just (T ts)) a b -> LearnFunc ( 'Just (T (ps ++ qs))) ( 'Just (T (ss ++ ts))) a c
@@ -689,3 +693,20 @@ instance (Backprop.Learn.Model.Learn b c l, Backprop.Learn.Model.Learn a b m, Da
 instance Backprop.Learn.Model.Learn a b (Backprop.Learn.Model.Combinator.LearnFunc p s a b)
 instance (Data.Type.Mayb.MaybeC GHC.Num.Num p, Data.Type.Mayb.MaybeC GHC.Num.Num s, Data.Type.Mayb.KnownMayb p, Data.Type.Mayb.KnownMayb s) => Control.Category.Category (Backprop.Learn.Model.Combinator.LearnFunc p s)
 instance (Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> ps), Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> ss)) => Backprop.Learn.Model.Learn a b (Backprop.Learn.Model.Combinator.Chain ls ps ss a b)
+
+module Backprop.Learn.Model.Regression
+
+-- | Multivariate linear regression, from an n-vector to an m-vector.
+--   
+--   Is essentially just a fully connected neural network layer with bias,
+--   with no activation function.
+type Linear n m = FC n m
+
+-- | Construct a linear regression model from an initialization function
+--   for coefficients
+linearRegression :: (forall f. PrimMonad f => Gen (PrimState f) -> f Double) -> Linear n m
+type Logistic n = RMap (R n) (R 1) Double (Linear n 1)
+
+-- | Construct a logistic regression model from an initialization function
+--   for coefficients.
+logisticRegression :: (forall m. PrimMonad m => Gen (PrimState m) -> m Double) -> Logistic n
