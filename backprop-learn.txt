@@ -179,6 +179,9 @@ newtype Unroll :: Nat -> Type -> Type
 --   </pre>
 type UnrollTrainState n l = TrainState (Unroll n l)
 
+-- | Constructor and pattern for <a>UnrollTrainState</a>
+getUnrollTrainState :: () => UnrollTrainState n l -> l
+
 -- | Unroll a stateful model into a stateless one taking a vector of
 --   sequential inputs and fix the initial state.
 --   
@@ -190,6 +193,11 @@ type UnrollTrainState n l = TrainState (Unroll n l)
 --       type <a>LStateMaybe</a> (<a>UnrollDeState</a> n l) = '<a>Nothing</a>
 --   </pre>
 type UnrollDeState n l = DeState (LState l) (Unroll n l)
+
+-- | Constructor and pattern for <a>UnrollDeState</a>
+_udsInitState :: () => UnrollDeState n l -> LState l
+_udsInitStateStoch :: () => UnrollDeState n l -> forall (m :: * -> *). PrimMonad m => Gen PrimState m -> m LState l
+_udsLearn :: () => UnrollDeState n l -> l
 
 -- | Transform the state of a model by providing functions to pre-apply and
 --   post-apply before and after the original model sees the state.
@@ -732,4 +740,43 @@ type Logistic n = RMap (R n) (R 1) Double (Linear n 1)
 -- | Construct a logistic regression model from an initialization function
 --   for coefficients.
 logisticRegression :: (forall m. PrimMonad m => Gen (PrimState m) -> m Double) -> Logistic n
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Backprop.Learn.Model.Learn GHC.Types.Double GHC.Types.Double (Backprop.Learn.Model.Regression.ARMA p q)
+
+-- | Auto-regressive moving average model.
+--   
+--   ARMA(p,q) is an ARMA model with p autoregressive history terms and q
+--   error (innovation) history terms.
+--   
+--   It is a <tt><a>Learn</a> Double Double</tt> instance, and is meant to
+--   predict the "next step" of a time sequence.
+--   
+--   In this state, it is a runnable stateful model. To train, use with
+--   <a>ARMAUnroll</a> to unroll and fix the initial state.
+data ARMA :: Nat -> Nat -> Type
+[ARMA] :: {_armaGenPhi :: forall m. PrimMonad m => Gen (PrimState m) -> Finite p -> m Double, _armaGenTheta :: forall m. PrimMonad m => Gen (PrimState m) -> Finite q -> m Double, _armaGenConst :: forall m. PrimMonad m => Gen (PrimState m) -> m Double, _armaGenYHist :: forall m. PrimMonad m => Gen (PrimState m) -> m Double, _armaGenEHist :: forall m. PrimMonad m => Gen (PrimState m) -> m Double} -> ARMA p q
+
+-- | <a>ARMA</a> parmaeters
+data ARMAp :: Nat -> Nat -> Type
+[ARMAp] :: {_armaPhi :: !(R p), _armaTheta :: !(R q), _armaConstant :: !Double} -> ARMAp p q
+
+-- | <a>ARMA</a> state
+data ARMAs :: Nat -> Nat -> Type
+[ARMAs] :: {_armaYPred :: !Double, _armaYHist :: !(R p), _armaEHist :: !(R q)} -> ARMAs p q
+
+-- | The "unrolled" and "destated" <a>ARMA</a> model, which takes a vector
+--   of sequential inputs and outputs a vector of the model's expected next
+--   steps.
+--   
+--   Useful for actually training <a>ARMA</a> using gradient descent.
+--   
+--   This <i>fixes</i> the initial error history to be zero (or a fixed
+--   stochastic sample), and treats the initial output history to be a
+--   /learned parameter/.
+type ARMAUnroll p q = DeParamAt (ARMAs p q) (R q) (UnrollTrainState (Max p q) (ARMA p q))
+
+-- | Constructor for <a>ARMAUnroll</a>
+armaUnroll :: KnownNat q => ARMA p q -> ARMAUnroll p q
+instance GHC.Generics.Generic (Backprop.Learn.Model.Regression.ARMAs a b)
+instance GHC.Generics.Generic (Backprop.Learn.Model.Regression.ARMAp a b)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q, 1 GHC.TypeNats.<= p, 1 GHC.TypeNats.<= q) => Backprop.Learn.Model.Learn GHC.Types.Double GHC.Types.Double (Backprop.Learn.Model.Regression.ARMA p q)
+instance GHC.Num.Num (Backprop.Learn.Model.Regression.ARMAs p q)
+instance GHC.Num.Num (Backprop.Learn.Model.Regression.ARMAp p q)
