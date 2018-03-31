@@ -17,6 +17,7 @@ import           Backprop.Learn.Model
 import           Control.Monad.Primitive
 import           GHC.Generics                          (Generic)
 import           GHC.TypeNats
+import           Lens.Micro
 import           Numeric.Backprop
 import           Numeric.LinearAlgebra.Static.Backprop
 import           Numeric.LinearAlgebra.Static.Vector
@@ -53,18 +54,10 @@ data FCp i o = FCp { _fcBias    :: !(R o)
                    }
   deriving Generic
 
-fcWeights
-    :: Functor f
-    => (L o i -> f (L o k))
-    -> FCp i o
-    -> f (FCp k o)
+fcWeights :: Lens (FCp i o) (FCp i' o) (L o i) (L o i')
 fcWeights f fcp = (\w -> fcp { _fcWeights = w }) <$> f (_fcWeights fcp)
 
-fcBias
-    :: Functor f
-    => (R o -> f (R o))
-    -> FCp i o
-    -> f (FCp i o)
+fcBias :: Lens' (FCp i o) (R o)
 fcBias f fcp = (\b -> fcp { _fcBias = b }) <$> f (_fcBias fcp)
 
 instance (KnownNat i, KnownNat o) => Num (FCp i o) where
@@ -112,27 +105,15 @@ fcr :: ContGen d
 fcr d = FCR (genContVar d) (genContVar d)
 
 
-fcrInputWeights
-    :: Functor f
-    => (L o i -> f (L o i'))
-    -> FCRp h i o
-    -> f (FCRp h i' o)
+fcrInputWeights :: Lens (FCRp h i o) (FCRp h i' o) (L o i) (L o i')
 fcrInputWeights f fcrp = (\w -> fcrp { _fcrInputWeights = w })
     <$> f (_fcrInputWeights fcrp)
 
-fcrStateWeights
-    :: Functor f
-    => (L o h -> f (L o h'))
-    -> FCRp h i o
-    -> f (FCRp h' i o)
+fcrStateWeights :: Lens (FCRp h i o) (FCRp h' i o) (L o h) (L o h')
 fcrStateWeights f fcrp = (\w -> fcrp { _fcrStateWeights = w })
     <$> f (_fcrStateWeights fcrp)
 
-fcrBias
-    :: Functor f
-    => (R o -> f (R o))
-    -> FCRp h i o
-    -> f (FCRp h i o)
+fcrBias :: Lens' (FCRp h i o) (R o)
 fcrBias f fcrp = (\b -> fcrp { _fcrBias = b }) <$> f (_fcrBias fcrp)
 
 instance (KnownNat h, KnownNat i, KnownNat o) => Num (FCRp h i o) where

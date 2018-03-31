@@ -37,7 +37,7 @@ library:
   - mwc-random
   - primitive
   - transformers
-  - hmatrix-backprop >= 0.1.1
+  - hmatrix-backprop >= 0.1.2
   - one-liner-instances
   - hmatrix
   - hmatrix-vector-sized
@@ -50,6 +50,7 @@ library:
   - microlens
   - ghc-typelits-natnormalise
   - typelits-witnesses
+  - opto
 
 # dependencies:
 # - backprop

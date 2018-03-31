@@ -99,6 +99,13 @@ data ARMA :: Nat -> Nat -> Type where
 -- This /fixes/ the initial error history to be zero (or a fixed stochastic
 -- sample), and treats the initial output history to be a /learned
 -- parameter/.
+--
+-- @
+-- instance 'Learn' 'Double' Double ('ARMAUnroll' p q) where
+--     -- | Initial state is a parameter, but initial error history is fixed
+--     type 'LParamMaybe' (ARMAUnroll p q) = 'Just (T2 (ARMAp p q) (ARMAs p q))
+--     type 'LStateMaybe' (ARMAUnroll p q) = 'Nothing
+-- @
 type ARMAUnroll p q = DeParamAt (ARMAs p q)
                                 (R q)
                                 (UnrollTrainState (Max p q) (ARMA p q))
