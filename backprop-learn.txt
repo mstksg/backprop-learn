@@ -8,6 +8,18 @@
 @package backprop-learn
 @version 0.1.0.0
 
+module Backprop.Learn.Loss
+type LossFunction a = forall s. Reifies s W => a -> BVar s a -> BVar s Double
+crossEntropy :: KnownNat n => LossFunction (R n)
+squaredError :: KnownNat n => LossFunction (R n)
+squaredError1 :: LossFunction Double
+sumLoss :: (Traversable t, Applicative t, Num a) => LossFunction a -> LossFunction (t a)
+sumLossDecay :: forall n a. (KnownNat n, Num a) => Double -> LossFunction a -> LossFunction (Vector n a)
+lastLoss :: (KnownNat (n + 1), Num a) => LossFunction a -> LossFunction (Vector (n + 1) a)
+zipLoss :: (Traversable t, Applicative t, Num a) => t Double -> LossFunction a -> LossFunction (t a)
+
+module Backprop.Learn.Train
+
 module Data.Type.Mayb
 data Mayb :: (k -> Type) -> Maybe k -> Type
 [N_] :: Mayb f  'Nothing
@@ -298,8 +310,8 @@ data FCp i o
 FCp :: !(R o) -> !(L o i) -> FCp i o
 [_fcBias] :: FCp i o -> !(R o)
 [_fcWeights] :: FCp i o -> !(L o i)
-fcBias :: Functor f => (R o -> f (R o)) -> FCp i o -> f (FCp i o)
-fcWeights :: Functor f => (L o i -> f (L o k)) -> FCp i o -> f (FCp k o)
+fcBias :: Lens' (FCp i o) (R o)
+fcWeights :: Lens (FCp i o) (FCp i' o) (L o i) (L o i')
 
 -- | Fully connected recurrent layer with bias.
 --   
@@ -321,9 +333,9 @@ FCRp :: !(R o) -> !(L o i) -> !(L o h) -> FCRp h i o
 [_fcrBias] :: FCRp h i o -> !(R o)
 [_fcrInputWeights] :: FCRp h i o -> !(L o i)
 [_fcrStateWeights] :: FCRp h i o -> !(L o h)
-fcrBias :: Functor f => (R o -> f (R o)) -> FCRp h i o -> f (FCRp h i o)
-fcrInputWeights :: Functor f => (L o i -> f (L o i')) -> FCRp h i o -> f (FCRp h i' o)
-fcrStateWeights :: Functor f => (L o h -> f (L o h')) -> FCRp h i o -> f (FCRp h' i o)
+fcrBias :: Lens' (FCRp h i o) (R o)
+fcrInputWeights :: Lens (FCRp h i o) (FCRp h i' o) (L o i) (L o i')
+fcrStateWeights :: Lens (FCRp h i o) (FCRp h' i o) (L o h) (L o h')
 instance GHC.Generics.Generic (Backprop.Learn.Model.Neural.FCRp h i o)
 instance GHC.Generics.Generic (Backprop.Learn.Model.Neural.FCp i o)
 instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Model.Neural.FCRp h i o)
@@ -771,6 +783,13 @@ data ARMAs :: Nat -> Nat -> Type
 --   This <i>fixes</i> the initial error history to be zero (or a fixed
 --   stochastic sample), and treats the initial output history to be a
 --   /learned parameter/.
+--   
+--   <pre>
+--   instance <a>Learn</a> <a>Double</a> Double (<a>ARMAUnroll</a> p q) where
+--       -- | Initial state is a parameter, but initial error history is fixed
+--       type <a>LParamMaybe</a> (ARMAUnroll p q) = 'Just (T2 (ARMAp p q) (ARMAs p q))
+--       type <a>LStateMaybe</a> (ARMAUnroll p q) = 'Nothing
+--   </pre>
 type ARMAUnroll p q = DeParamAt (ARMAs p q) (R q) (UnrollTrainState (Max p q) (ARMA p q))
 
 -- | Constructor for <a>ARMAUnroll</a>
