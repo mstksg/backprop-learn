@@ -3,6 +3,7 @@
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PatternSynonyms       #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeApplications      #-}
@@ -16,7 +17,11 @@ module Backprop.Learn.Model.State (
     TrainState(..)
   , DeState(..), dsDeterm
   -- * Manipulate model states
-  , Unroll(..), UnrollTrainState, UnrollDeState
+  -- ** Unroll
+  , Unroll(..)
+  , UnrollTrainState, pattern UnrollTrainState, getUnrollTrainState
+  , UnrollDeState, pattern UDS, _udsInitState, _udsInitStateStoch, _udsLearn
+  -- ** ReState
   , ReState, rsDeterm
   ) where
 
@@ -59,6 +64,10 @@ newtype Unroll :: Nat -> Type -> Type where
 -- @
 type UnrollTrainState  n l = TrainState (Unroll n l)
 
+-- | Constructor and pattern for 'UnrollTrainState'
+pattern UnrollTrainState :: l -> UnrollTrainState n l
+pattern UnrollTrainState { getUnrollTrainState } = TrainState (Unroll getUnrollTrainState)
+
 -- | Unroll a stateful model into a stateless one taking a vector of
 -- sequential inputs and fix the initial state.
 --
@@ -70,6 +79,15 @@ type UnrollTrainState  n l = TrainState (Unroll n l)
 --     type 'LStateMaybe' ('UnrollDeState' n l) = ''Nothing'
 -- @
 type UnrollDeState n l = DeState (LState l) (Unroll n l)
+
+-- | Constructor and pattern for 'UnrollDeState'
+pattern UDS
+    :: LState l
+    -> (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m (LState l))
+    -> l
+    -> UnrollDeState n l
+pattern UDS { _udsInitState, _udsInitStateStoch, _udsLearn } =
+      DS _udsInitState _udsInitStateStoch (Unroll _udsLearn)
 
 instance (Learn a b l, KnownNat n, Num a, Num b) => Learn (SV.Vector n a) (SV.Vector n b) (Unroll n l) where
     type LParamMaybe (Unroll n l) = LParamMaybe l

@@ -48,6 +48,8 @@ library:
   - ghc-typelits-extra
   - finite-typelits
   - microlens
+  - ghc-typelits-natnormalise
+  - typelits-witnesses
 
 # dependencies:
 # - backprop
