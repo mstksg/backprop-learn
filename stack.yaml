@@ -38,21 +38,21 @@ resolver: nightly-2018-03-29
 packages:
 - '.'
 - location:
-    git: https://github.com/mstksg/backprop.git
-    commit: 070e4cbcec2a706bd70a0841cdb2079c44f2d452
-  extra-dep: true
-- location:
     git: https://github.com/mstksg/type-combinators.git
     commit: 13e7d4bd99b1a80b5fdb436a85ee52cfa0ff799f
   extra-dep: true
 - location:
     git: https://github.com/mstksg/opto.git
-    commit: d60675b03749f11b439850a789f527e3331f7470
+    commit: 2782ff2f1d5379e7afce9cbe7f42f1f51cbed2e0
   extra-dep: true
 - location:
     git: git@github.com:haskell/vector.git
     commit: cc5460dfb7a2fb099760155ca46f96c05a1b81b7
   extra-dep: true
+# - location:
+#     git: https://github.com/mstksg/backprop.git
+#     commit: 070e4cbcec2a706bd70a0841cdb2079c44f2d452
+#   extra-dep: true
 # - location:
 #     git: https://github.com/mstksg/hmatrix-backprop.git
 #     commit: ca78e5a215ca26e13b71474e49daa0d52d2b7b2b
@@ -68,12 +68,12 @@ packages:
 
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
-extra-deps: []
-# - backprop-0.1.4.0
+extra-deps:
+- backprop-0.1.5.0
 # - type-combinators-0.2.4.3
 # - mnist-idx-0.1.2.6
 # - finite-typelits-0.1.2.0
-# - hmatrix-backprop-0.1.1.0
+- hmatrix-backprop-0.1.2.0
 
 # Override default flag values for local packages and extra-deps
 flags: {}

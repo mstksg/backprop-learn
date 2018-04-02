@@ -27,30 +27,46 @@ ghc-options:
 # - -fprint-explicit-kinds
 dependencies:
 - base >=4.7 && <5
+- hmatrix
+- hmatrix-backprop >= 0.1.2
+- transformers
 
 library:
   source-dirs: src
-  # exposed-modules:
-  # other-modules:
   dependencies:
   - backprop >= 0.1.5
-  - mwc-random
-  - primitive
-  - transformers
-  - hmatrix-backprop >= 0.1.2
-  - one-liner-instances
-  - hmatrix
-  - hmatrix-vector-sized
-  - vector-sized
+  - finite-typelits
+  - ghc-typelits-extra
   - ghc-typelits-knownnat
+  - ghc-typelits-natnormalise
+  - hmatrix-vector-sized
+  - microlens
+  - mwc-random
+  - one-liner-instances
+  - opto
+  - primitive
   - statistics
   - type-combinators
-  - ghc-typelits-extra
-  - finite-typelits
-  - microlens
-  - ghc-typelits-natnormalise
   - typelits-witnesses
-  - opto
+  - vector-sized
+
+executables:
+  backprop-learn-mnist:
+    main: backprop-learn-mnist.hs
+    source-dirs: app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    - -O2
+    - -Wall
+    dependencies:
+    - backprop-learn
+    - mnist-idx
+    - vector
+    # - bifunctors
+    # - hmatrix
+    # - time
 
 # dependencies:
 # - backprop
