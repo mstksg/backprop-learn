@@ -9,16 +9,14 @@
 @version 0.1.0.0
 
 module Backprop.Learn.Loss
-type LossFunction a = forall s. Reifies s W => a -> BVar s a -> BVar s Double
-crossEntropy :: KnownNat n => LossFunction (R n)
-squaredError :: KnownNat n => LossFunction (R n)
-squaredError1 :: LossFunction Double
-sumLoss :: (Traversable t, Applicative t, Num a) => LossFunction a -> LossFunction (t a)
-sumLossDecay :: forall n a. (KnownNat n, Num a) => Double -> LossFunction a -> LossFunction (Vector n a)
-lastLoss :: (KnownNat (n + 1), Num a) => LossFunction a -> LossFunction (Vector (n + 1) a)
-zipLoss :: (Traversable t, Applicative t, Num a) => t Double -> LossFunction a -> LossFunction (t a)
-
-module Backprop.Learn.Train
+type Loss a = forall s. Reifies s W => a -> BVar s a -> BVar s Double
+crossEntropy :: KnownNat n => Loss (R n)
+squaredError :: KnownNat n => Loss (R n)
+squaredError1 :: Loss Double
+sumLoss :: (Traversable t, Applicative t, Num a) => Loss a -> Loss (t a)
+sumLossDecay :: forall n a. (KnownNat n, Num a) => Double -> Loss a -> Loss (Vector n a)
+lastLoss :: (KnownNat (n + 1), Num a) => Loss a -> Loss (Vector (n + 1) a)
+zipLoss :: (Traversable t, Applicative t, Num a) => t Double -> Loss a -> Loss (t a)
 
 module Data.Type.Mayb
 data Mayb :: (k -> Type) -> Maybe k -> Type
@@ -132,6 +130,19 @@ data Mayb :: (k -> Type) -> Maybe k -> Type
 fromJ_ :: Mayb f ( 'Just a) -> f a
 type KnownMayb = Known (Mayb P)
 knownMayb :: KnownMayb p => Mayb P p
+
+module Backprop.Learn.Train
+type Grad (m :: * -> *) a = a -> m Diff a
+
+-- | Using a model's deterministic prediction function (with a given loss
+--   function), generate a <a>Grad</a> compatible with <a>Numeric.Opto</a>
+--   and <a>Numeric.Opto.Run</a>.
+learnGrad :: (MonadSample (a, b) m, Learn a b l, NoState l, LParamMaybe l ~  'Just (LParam l), Num (LParam l)) => Loss b -> l -> Grad m (LParam l)
+
+-- | Using a model's stochastic prediction function (with a given loss
+--   function), generate a <a>Grad</a> compatible with <a>Numeric.Opto</a>
+--   and <a>Numeric.Opto.Run</a>.
+learnGradStoch :: (MonadSample (a, b) m, PrimMonad m, Learn a b l, NoState l, LParamMaybe l ~  'Just (LParam l), Num (LParam l)) => Loss b -> l -> Gen (PrimState m) -> Grad m (LParam l)
 
 module Backprop.Learn.Model.State
 
