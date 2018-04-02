@@ -121,7 +121,12 @@ instance (Learn a b l, KnownNat n, Num a, Num b) => Learn (SV.Vector n a) (SV.Ve
 newtype TrainState :: Type -> Type where
     TrainState :: { getTrainState :: l } -> TrainState l
 
-instance (Learn a b l, KnownMayb (LParamMaybe l), MaybeC Num (LParamMaybe l), LStateMaybe l ~ 'Just s, Num s)
+instance ( Learn a b l
+         , KnownMayb (LParamMaybe l)
+         , MaybeC Num (LParamMaybe l)
+         , LStateMaybe l ~ 'Just s
+         , Num s
+         )
       => Learn a b (TrainState l) where
     type LParamMaybe (TrainState l) = TupMaybe (LParamMaybe l) (LStateMaybe l)
     type LStateMaybe (TrainState l) = 'Nothing

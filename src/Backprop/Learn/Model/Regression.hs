@@ -24,6 +24,7 @@ import           Backprop.Learn.Model
 import           Backprop.Learn.Model.Combinator
 import           Backprop.Learn.Model.Neural
 import           Backprop.Learn.Model.Parameter
+import           Backprop.Learn.Model.Function
 import           Backprop.Learn.Model.State
 import           Control.Monad.Primitive
 import           Data.Finite
@@ -62,14 +63,14 @@ linearRegression = FC
 --
 --  Essentially a linear regression postcomposed with the logistic
 --  function.
-type Logistic n = RMap (R n) (R 1) Double (Linear n 1)
+type Logistic n = RMap (R 1) Double (Linear n 1)
 
 -- | Construct a logistic regression model from an initialization function
 -- for coefficients.
 logisticRegression
     :: (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double)
     -> Logistic n
-logisticRegression f = rM (fst . headTail) $ FC f
+logisticRegression f = RM (logistic . fst . headTail) (FC f)
 
 -- | Auto-regressive moving average model.
 --

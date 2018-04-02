@@ -16,6 +16,7 @@ import           Backprop.Learn.Loss
 import           Backprop.Learn.Model
 import           Control.Monad.Primitive
 import           Control.Monad.ST
+import           Control.Monad.Sample
 import           Numeric.Backprop
 import           Numeric.Opto.Core
 import qualified System.Random.MWC       as MWC

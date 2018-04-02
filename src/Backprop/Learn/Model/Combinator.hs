@@ -28,7 +28,8 @@ module Backprop.Learn.Model.Combinator (
   , chainParamLength
   , chainStateLength
   , LearnFunc(..), learnFunc
-  , Dimap(..), LMap, lM, RMap, rM
+  , LMap(..), RMap(..)
+  , Dimap, pattern DM, _dmPre, _dmPost, _dmLearn
   , (.~)
   , nilLF, onlyLF
   ) where
@@ -61,8 +62,8 @@ import qualified System.Random.MWC         as MWC
 data Chain :: [Type] -> [Type] -> [Type] -> Type -> Type -> Type where
     CNil  :: Chain '[] '[] '[] a a
     (:~>) :: (Learn a b l, KnownMayb (LParamMaybe l), KnownMayb (LStateMaybe l))
-          => l
-          -> Chain ls        ps ss b c
+          => !l
+          -> !(Chain ls        ps ss b c)
           -> Chain (l ': ls) (MaybeToList (LParamMaybe l) ++ ps)
                              (MaybeToList (LStateMaybe l) ++ ss)
                              a c
@@ -465,7 +466,7 @@ onlyLF f = LF
 
 -- | Compose two layers sequentially
 data (:.~) :: Type -> Type -> Type where
-    (:.~) :: l -> m -> l :.~ m
+    (:.~) :: !l -> !m -> l :.~ m
 
 instance ( Learn b c l
          , Learn a b m
@@ -515,48 +516,65 @@ instance ( Learn b c l
                   (\v -> (v ^^. t2_1, v ^^. t2_2))
                   st
 
+-- | Pre-compose a pure parameterless function to a model.
+--
+-- An @'LMap' b a@ takes a model from @b@ and turns it into a model from
+-- @a@.
+data LMap :: Type -> Type -> Type -> Type where
+    LM :: { _lmPre   :: forall s. Reifies s W => BVar s a -> BVar s b
+          , _lmLearn :: !l
+          }
+       -> LMap b a l
+
+-- | Post-compose a pure parameterless function to a model.
+--
+-- An @'Rmap' b c@ takes a model returning @b@ and turns it into
+-- a model returning @c@.
+data RMap :: Type -> Type -> Type -> Type where
+    RM :: { _rmPost  :: forall s. Reifies s W => BVar s b -> BVar s c
+          , _rmLearn :: !l
+          }
+       -> RMap b c l
+
 -- | Pre- and post-compose pure parameterless functions to a model.
 --
 -- A @'Dimap' b c a d@ takes a model from @b@ to @c@ and turns it into
 -- a model from @a@ to @d@.
-data Dimap :: Type -> Type -> Type -> Type -> Type -> Type where
-    DM :: { _dmPre   :: forall s. Reifies s W => BVar s a -> BVar s b
-          , _dmPost  :: forall s. Reifies s W => BVar s c -> BVar s d
-          , _dmLearn :: l
-          }
-       -> Dimap b c a d l
-
--- | Pre-compose a pure parameterless function to a model.
 --
--- An @'LMap' b c a@ takes a model from @b@ to @c@ and turns it into
--- a model from @a@ to @c@.
-type LMap b c a = Dimap b c a c
+-- @
+-- instance 'Learn' b c => Learn a d ('Dimap' b c a d l) where
+--     type 'LParamMaybe' (Dimap b c a d l) = LParamMaybe l
+--     type 'LStateMaybe' (Dimap b c a d l) = LStateMaybe l
+-- @
+type Dimap b c a d l = RMap c d (LMap b a l)
 
--- | Post-compose a pure parameterless function to a model.
---
--- An @'Rmap' a b c@ takes a model from @a@ to @b@ and turns it into
--- a model from @a@ to @c@.
-type RMap a b = Dimap a b a
-
-lM  :: (forall s. Reifies s W => BVar s a -> BVar s b)
+-- | Constructor for 'Dimap'
+pattern DM
+    :: (forall s. Reifies s W => BVar s a -> BVar s b)
+    -> (forall s. Reifies s W => BVar s c -> BVar s d)
     -> l
-    -> LMap b c a l
-lM f = DM f id
+    -> Dimap b c a d l
+pattern DM { _dmPre, _dmPost, _dmLearn } = RM _dmPost (LM _dmPre _dmLearn)
 
-rM  :: (forall s. Reifies s W => BVar s b -> BVar s c)
-    -> l
-    -> RMap a b c l
-rM = DM id
+instance Learn b c l => Learn a c (LMap b a l) where
+    type LParamMaybe (LMap b a l) = LParamMaybe l
+    type LStateMaybe (LMap b a l) = LStateMaybe l
 
-instance Learn b c l => Learn a d (Dimap b c a d l) where
-    type LParamMaybe (Dimap b c a d l) = LParamMaybe l
-    type LStateMaybe (Dimap b c a d l) = LStateMaybe l
+    initParam = initParam . _lmLearn
+    initState = initState . _lmLearn
 
-    initParam = initParam . _dmLearn
-    initState = initState . _dmLearn
+    runLearn (LM f l) p x = runLearn l p (f x)
+    runLearnStoch (LM f l) g p x = runLearnStoch l g p (f x)
 
-    runLearn (DM f g l) p x = first g . runLearn l p (f x)
-    runLearnStoch (DM f g l) gen p x = (fmap . first) g . runLearnStoch l gen p (f x)
+instance Learn a b l => Learn a c (RMap b c l) where
+    type LParamMaybe (RMap b c l) = LParamMaybe l
+    type LStateMaybe (RMap b c l) = LStateMaybe l
+
+    initParam = initParam . _rmLearn
+    initState = initState . _rmLearn
+
+    runLearn (RM f l) p x = first f . runLearn l p x
+    runLearnStoch (RM f l) g p x = (fmap . first) f . runLearnStoch l g p x
 
 -- | Take a model and turn it into a model that runs its output into itself
 -- several times, returning the final result.  Parameterized by the number

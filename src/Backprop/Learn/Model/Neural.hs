@@ -3,17 +3,27 @@
 {-# LANGUAGE FlexibleContexts                         #-}
 {-# LANGUAGE KindSignatures                           #-}
 {-# LANGUAGE MultiParamTypeClasses                    #-}
+{-# LANGUAGE PatternSynonyms                          #-}
 {-# LANGUAGE RankNTypes                               #-}
 {-# LANGUAGE TypeFamilies                             #-}
+{-# LANGUAGE ViewPatterns                             #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
 module Backprop.Learn.Model.Neural (
+  -- * Fully connected
+  -- ** Feed-forward
     FC(..), fc, FCp(..), fcBias, fcWeights
+  -- *** With activation function
+  , FCA, pattern FCA, fca, _fcaGen, _fcaActivation
+  -- ** Recurrent
   , FCR(..), fcr, FCRp(..), fcrBias, fcrInputWeights, fcrStateWeights
+  -- *** With activation function
+  , FCRA, pattern FCRA, fcra, _fcraGen, _fcraGenState, _fcraStore, _fcraActivation
   ) where
 
 
 import           Backprop.Learn.Model
+import           Backprop.Learn.Model.Combinator
 import           Control.Monad.Primitive
 import           GHC.Generics                          (Generic)
 import           GHC.TypeNats
@@ -31,8 +41,8 @@ import qualified System.Random.MWC                     as MWC
 -- initialization distribution.
 --
 -- Note that this has no activation function; to use as a model with
--- activation function, chain it with an activation function using 'Dimap',
--- ':.~', etc.
+-- activation function, chain it with an activation function using 'RMap',
+-- ':.~', etc.; see 'FCA' for a convenient type synonym and constructor.
 --
 -- Without any activation function, this is essentially a multivariate
 -- linear regression.
@@ -47,6 +57,28 @@ newtype FC (i :: Nat) (o :: Nat) =
 -- /statistics/ library.
 fc :: ContGen d => d -> FC i o
 fc d = FC (genContVar d)
+
+-- | Convenient synonym for an 'FC' post-composed with a simple
+-- parameterless activation function.
+type FCA i o = RMap (R o) (R o) (FC i o)
+
+-- | Construct an 'FCA' using a generating function and activation
+-- function.
+--
+-- Some common ones include 'logistic' and @'vmap' 'reLU'@.
+pattern FCA
+    :: (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double)
+    -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R o))
+    -> FCA i o
+pattern FCA { _fcaGen, _fcaActivation } = RM _fcaActivation (FC _fcaGen)
+
+-- | Construct an @'FCA' i o@ using a given distribution from the
+-- /statistics/ library.
+fca :: ContGen d
+    => d
+    -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R o))
+    -> FCA i o
+fca d = FCA (genContVar d)
 
 -- | Fully connected feed-forward layer parameters.
 data FCp i o = FCp { _fcBias    :: !(R o)
@@ -89,6 +121,23 @@ data FCR (h :: Nat) (i :: Nat) (o :: Nat) =
         , _fcrStore    :: forall s. Reifies s W => BVar s (R o) -> BVar s (R h)
         }
 
+-- | Convenient synonym for an 'FCR' post-composed with a simple
+-- parameterless activation function.
+type FCRA h i o = RMap (R o) (R o) (FCR h i o)
+
+-- | Construct an 'FCRA' using a generating function and activation
+-- function.
+--
+-- Some common ones include 'logistic' and @'vmap' 'reLU'@.
+pattern FCRA
+    :: (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double)
+    -> (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double)
+    -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R h))
+    -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R o))
+    -> FCRA h i o
+pattern FCRA { _fcraGen, _fcraGenState, _fcraStore, _fcraActivation }
+          = RM _fcraActivation (FCR _fcraGen _fcraGenState _fcraStore)
+
 -- | Fully connected recurrent layer parameters.
 data FCRp h i o = FCRp { _fcrBias         :: !(R o)
                        , _fcrInputWeights :: !(L o i)
@@ -96,14 +145,24 @@ data FCRp h i o = FCRp { _fcrBias         :: !(R o)
                        }
   deriving Generic
 
--- | Construct an @'FCR' h i o@ using a given distribution from the
+-- | Construct an @'FCR' h i o@ using given distributions from the
 -- /statistics/ library.
-fcr :: ContGen d
+fcr :: (ContGen d, ContGen e)
     => d
+    -> e
     -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R h))
     -> FCR h i o
-fcr d = FCR (genContVar d) (genContVar d)
+fcr d e = FCR (genContVar d) (genContVar e)
 
+-- | Construct an @'FCRA' h i o@ using given distributions from the
+-- /statistics/ library.
+fcra :: (ContGen d, ContGen e)
+    => d
+    -> e
+    -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R h))
+    -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R o))
+    -> FCRA h i o
+fcra d e = FCRA (genContVar d) (genContVar e)
 
 fcrInputWeights :: Lens (FCRp h i o) (FCRp h i' o) (L o i) (L o i')
 fcrInputWeights f fcrp = (\w -> fcrp { _fcrInputWeights = w })

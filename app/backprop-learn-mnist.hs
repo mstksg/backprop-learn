@@ -6,6 +6,10 @@ import           Data.Bitraversable
 import           Data.IDX
 import           Data.Traversable
 import           Data.Tuple
+import           Backprop.Learn.Model.Combinator
+import           Backprop.Learn.Model
+import           Backprop.Learn.Model.Neural
+import           Backprop.Learn.Model.Function
 import           Numeric.LinearAlgebra.Static.Backprop
 import qualified Data.Vector.Generic                   as VG
 import qualified Numeric.LinearAlgebra                 as HM
