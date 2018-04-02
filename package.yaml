@@ -30,6 +30,11 @@ dependencies:
 - hmatrix
 - hmatrix-backprop >= 0.1.2
 - transformers
+- statistics
+- mwc-random
+- opto
+- deepseq
+- primitive
 
 library:
   source-dirs: src
@@ -41,11 +46,7 @@ library:
   - ghc-typelits-natnormalise
   - hmatrix-vector-sized
   - microlens
-  - mwc-random
   - one-liner-instances
-  - opto
-  - primitive
-  - statistics
   - type-combinators
   - typelits-witnesses
   - vector-sized
@@ -64,9 +65,14 @@ executables:
     - backprop-learn
     - mnist-idx
     - vector
+    - conduit
     # - bifunctors
     # - hmatrix
-    # - time
+    - time
+    - text
+    - data-default
+    - filepath
+
 
 # dependencies:
 # - backprop

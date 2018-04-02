@@ -32,6 +32,7 @@ module Backprop.Learn.Model.Combinator (
   , Dimap, pattern DM, _dmPre, _dmPost, _dmLearn
   , (.~)
   , nilLF, onlyLF
+  , (:.~)(..)
   ) where
 
 import           Backprop.Learn.Model
@@ -62,8 +63,8 @@ import qualified System.Random.MWC         as MWC
 data Chain :: [Type] -> [Type] -> [Type] -> Type -> Type -> Type where
     CNil  :: Chain '[] '[] '[] a a
     (:~>) :: (Learn a b l, KnownMayb (LParamMaybe l), KnownMayb (LStateMaybe l))
-          => !l
-          -> !(Chain ls        ps ss b c)
+          => l
+          -> Chain ls        ps ss b c
           -> Chain (l ': ls) (MaybeToList (LParamMaybe l) ++ ps)
                              (MaybeToList (LStateMaybe l) ++ ss)
                              a c
@@ -465,11 +466,16 @@ onlyLF f = LF
     }
 
 -- | Compose two layers sequentially
+--
+-- Note that this composes in the opposite order of '.' and ':.:', for
+-- consistency with the rest of the library.
 data (:.~) :: Type -> Type -> Type where
-    (:.~) :: !l -> !m -> l :.~ m
+    (:.~) :: l -> m -> l :.~ m
 
-instance ( Learn b c l
-         , Learn a b m
+infixr 5 :.~
+
+instance ( Learn a b l
+         , Learn b c m
          , KnownMayb (LParamMaybe l)
          , KnownMayb (LParamMaybe m)
          , KnownMayb (LStateMaybe l)
@@ -501,12 +507,12 @@ instance ( Learn b c l
         (s, t) = splitTupMaybe @_ @(LStateMaybe l) @(LStateMaybe m)
                   (\v -> (v ^^. t2_1, v ^^. t2_2))
                   st
-        (y, t') = runLearn m q x t
-        (z, s') = runLearn l p y s
+        (y, s') = runLearn l p x s
+        (z, t') = runLearn m q y t
 
     runLearnStoch (l :.~ m) g pq x st = do
-        (y, t') <- runLearnStoch m g q x t
-        (z, s') <- runLearnStoch l g p y s
+        (y, s') <- runLearnStoch l g p x s
+        (z, t') <- runLearnStoch m g q y t
         pure (z, tupMaybe (isoVar2 T2 t2Tup) s' t')
       where
         (p, q) = splitTupMaybe @_ @(LParamMaybe l) @(LParamMaybe m)
@@ -522,7 +528,7 @@ instance ( Learn b c l
 -- @a@.
 data LMap :: Type -> Type -> Type -> Type where
     LM :: { _lmPre   :: forall s. Reifies s W => BVar s a -> BVar s b
-          , _lmLearn :: !l
+          , _lmLearn :: l
           }
        -> LMap b a l
 
@@ -532,7 +538,7 @@ data LMap :: Type -> Type -> Type -> Type where
 -- a model returning @c@.
 data RMap :: Type -> Type -> Type -> Type where
     RM :: { _rmPost  :: forall s. Reifies s W => BVar s b -> BVar s c
-          , _rmLearn :: !l
+          , _rmLearn :: l
           }
        -> RMap b c l
 
