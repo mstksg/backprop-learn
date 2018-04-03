@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PatternSynonyms       #-}
 {-# LANGUAGE RankNTypes            #-}
@@ -140,16 +141,16 @@ instance ( Learn a b l
                         <*> fromJ_ (initState l g)
 
     runLearn (TrainState l) t x _ = (second . const) N_
-                               . runLearn l p x
-                               $ s
+                                  . runLearn l p x
+                                  $ s
       where
         (p, s) = splitTupMaybe @_ @(LParamMaybe l) @(LStateMaybe l)
                    (\v -> (v ^^. t2_1, v ^^. t2_2))
                    t
 
     runLearnStoch (TrainState l) g t x _ = (fmap . second . const) N_
-                                      . runLearnStoch l g p x
-                                      $ s
+                                         . runLearnStoch l g p x
+                                         $ s
       where
         (p, s) = splitTupMaybe @_ @(LParamMaybe l) @(LStateMaybe l)
                    (\v -> (v ^^. t2_1, v ^^. t2_2))
@@ -228,4 +229,60 @@ rsDeterm
     -> l                                                           -- ^ model
     -> ReState s t l
 rsDeterm i t f = RS i t f (const (pure . f))
+
+-- | Transform a model taking in input into a recurrent model:
+-- the input is no longer free, but is always the "previous output" of the
+-- model.
+--
+-- That is, transforms \( X \times Y \rightarrow Y \) into a stateful \(
+-- X \rightarrow Y \) with state Y, where the original Y input is
+-- essentially "fixed" as the previous output of the mode.
+--
+-- A @'Recurrent' ab a b@ takes a model taking @ab@ and returning @b@ into
+-- model taking @a@ and returning @b@.  Note that @ab@ is supposed to
+-- essentially be some tupling of @a@ and @b@; the actual split/join
+-- functions are a part of the model description.
+data Recurrent :: Type -> Type -> Type -> Type -> Type where
+    R1 :: { _r1Init  :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m b
+          , _r1Split :: ab -> (a, b)
+          , _r1Join  :: a -> b -> ab
+          , _r1Learn :: l
+          }
+       -> Recurrent ab a b l
+
+-- TODO: RecurrentN, taking a (T2 a (Vector n b)).
+
+instance (Learn ab b l, KnownMayb (LStateMaybe l), Num a, Num b, Num ab, MaybeC Num (LStateMaybe l))
+        => Learn a b (Recurrent ab a b l) where
+    type LParamMaybe (Recurrent ab a b l) = LParamMaybe l
+    type LStateMaybe (Recurrent ab a b l) = TupMaybe (LStateMaybe l) ('Just b)
+
+    initParam = initParam . _r1Learn
+    initState R1{..} g = case knownMayb @(LStateMaybe l) of
+        N_   -> J_ $ _r1Init g
+        J_ _ -> J_ $ T2 <$> fromJ_ (initState _r1Learn g)
+                        <*> _r1Init g
+
+    runLearn R1{..} p x msy = case knownMayb @(LStateMaybe l) of
+        N_   -> let y       = fromJ_ msy
+                    (y', _) = runLearn _r1Learn p (isoVar2 _r1Join _r1Split x y) N_
+                in  (y', J_ y')
+        J_ _ -> let sy      = fromJ_ msy
+                    (y', J_ s') = runLearn _r1Learn p
+                                    (isoVar2 _r1Join _r1Split x (sy ^^. t2_2))
+                                    (J_ (sy ^^. t2_1))
+                in  (y', J_ $ isoVar2 T2 t2Tup s' y')
+
+    runLearnStoch R1{..} g p x msy = case knownMayb @(LStateMaybe l) of
+        N_   -> do
+          let y       = fromJ_ msy
+          (y', _) <- runLearnStoch _r1Learn g p (isoVar2 _r1Join _r1Split x y) N_
+          pure (y', J_ y')
+        J_ _ -> do
+          let sy    = fromJ_ msy
+          (y', s') <- second fromJ_
+                  <$> runLearnStoch _r1Learn g p
+                        (isoVar2 _r1Join _r1Split x (sy ^^. t2_2))
+                        (J_ (sy ^^. t2_1))
+          pure (y', J_ $ isoVar2 T2 t2Tup s' y')
 
