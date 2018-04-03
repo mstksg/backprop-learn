@@ -5,6 +5,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PatternSynonyms       #-}
 {-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
@@ -22,10 +23,10 @@ module Backprop.Learn.Model.State (
   , UnrollTrainState, pattern UnrollTrainState, getUnrollTrainState
   , UnrollDeState, pattern UDS, _udsInitState, _udsInitStateStoch, _udsLearn
   -- ** ReState
-  , ReState, rsDeterm
+  , ReState(..), rsDeterm
   ) where
 
-import           Backprop.Learn.Model
+import           Backprop.Learn.Model.Class
 import           Control.Monad.Primitive
 import           Control.Monad.Trans.State
 import           Data.Bifunctor
@@ -192,40 +193,39 @@ instance (Learn a b l, LStateMaybe l ~ 'Just s) => Learn a b (DeState s l) where
 -- I don't really know why you would ever want to do this, but it was fun
 -- to write.
 --
--- Note that a @'ReState' p ''Nothing'@ is essentially the same as
--- @'DeState' p@; however, defining one in terms of the other is a bit
--- inconvenient, so they are provided as separate types.
-data ReState :: Type -> Maybe Type -> Type -> Type where
-    RS :: { _rsInitState :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> Mayb m t
-          , _rsTo        :: forall q. Reifies q W => BVar q s -> Mayb (BVar q) t
-          , _rsFrom      :: forall q. Reifies q W => Mayb (BVar q) t -> BVar q s
-          , _rsFromStoch :: forall m q. (PrimMonad m, Reifies q W) => MWC.Gen (PrimState m) -> Mayb (BVar q) t -> m (BVar q s)
+-- @'ReState' p '()'@ is essentially 'DeState'.
+data ReState :: Type -> Type -> Type -> Type where
+    RS :: { _rsInitState :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m t
+          , _rsTo        :: forall q. Reifies q W => BVar q s -> BVar q t
+          , _rsFrom      :: forall q. Reifies q W => BVar q t -> BVar q s
+          , _rsFromStoch :: forall m q. (PrimMonad m, Reifies q W) => MWC.Gen (PrimState m) -> BVar q t -> m (BVar q s)
           , _rsLearn     :: l
           }
        -> ReState s t l
 
 instance (Learn a b l, LStateMaybe l ~ 'Just s) => Learn a b (ReState s t l) where
     type LParamMaybe (ReState s t l) = LParamMaybe l
-    type LStateMaybe (ReState s t l) = t
+    type LStateMaybe (ReState s t l) = 'Just t
 
     initParam = initParam . _rsLearn
-    initState = _rsInitState
+    initState = (J_ .) . _rsInitState
 
-    runLearn (RS _ f g _ l) p x = second (f . fromJ_)
-                                . runLearn l p x
-                                . J_
-                                . g
-    runLearnStoch (RS _ f _ g l) gen p x t = do
-      s <- g gen t
-      second (f . fromJ_) <$> runLearnStoch l gen p x (J_ s)
+    runLearn RS{..} p x = second (J_ . _rsTo . fromJ_)
+                        . runLearn _rsLearn p x
+                        . J_
+                        . _rsFrom
+                        . fromJ_
+    runLearnStoch RS{..} gen p x (J_ t) = do
+      s <- _rsFromStoch gen t
+      second (J_ . _rsTo . fromJ_) <$> runLearnStoch _rsLearn gen p x (J_ s)
 
--- | Create a 'ReState' from a deterministic, non-stochastic
--- transformation function.
+-- | Create a 'ReState' from a deterministic, non-stochastic transformation
+-- function.
 rsDeterm
-    :: (forall m. PrimMonad m => MWC.Gen (PrimState m) -> Mayb m t)
-    -> (forall q. Reifies q W => BVar q s -> Mayb (BVar q) t)
-    -> (forall q. Reifies q W => Mayb (BVar q) t -> BVar q s)
-    -> l
+    :: (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m t)     -- ^ initialize state
+    -> (forall q. Reifies q W => BVar q s -> BVar q t)             -- ^ to
+    -> (forall q. Reifies q W => BVar q t -> BVar q s)             -- ^ from
+    -> l                                                           -- ^ model
     -> ReState s t l
 rsDeterm i t f = RS i t f (const (pure . f))
 

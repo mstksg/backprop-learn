@@ -22,7 +22,7 @@ module Backprop.Learn.Model.Regression (
   , ARMAUnroll, armaUnroll
   ) where
 
-import           Backprop.Learn.Model
+import           Backprop.Learn.Model.Class
 import           Backprop.Learn.Model.Combinator
 import           Backprop.Learn.Model.Function
 import           Backprop.Learn.Model.Neural

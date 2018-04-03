@@ -24,7 +24,7 @@ module Backprop.Learn.Model.Neural (
   ) where
 
 
-import           Backprop.Learn.Model
+import           Backprop.Learn.Model.Class
 import           Backprop.Learn.Model.Combinator
 import           Control.DeepSeq
 import           Control.Monad.Primitive
@@ -36,7 +36,7 @@ import           Numeric.LinearAlgebra.Static.Backprop
 import           Numeric.LinearAlgebra.Static.Vector
 import           Numeric.OneLiner
 import           Numeric.Opto.Ref
-import           Numeric.Opto.Update hiding            ((<.>))
+import           Numeric.Opto.Update
 import           Statistics.Distribution
 import qualified Data.Vector.Storable.Sized            as SVS
 import qualified System.Random.MWC                     as MWC

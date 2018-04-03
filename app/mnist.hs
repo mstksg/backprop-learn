@@ -11,9 +11,6 @@
 
 import           Backprop.Learn.Loss
 import           Backprop.Learn.Model
-import           Backprop.Learn.Model.Combinator
-import           Backprop.Learn.Model.Function
-import           Backprop.Learn.Model.Neural
 import           Backprop.Learn.Test
 import           Backprop.Learn.Train
 import           Control.DeepSeq
@@ -43,10 +40,11 @@ import qualified Numeric.LinearAlgebra                 as HM
 import qualified Numeric.LinearAlgebra.Static          as H
 import qualified System.Random.MWC                     as MWC
 
-type MNISTNet = FCA 784 250 :.~ FCA 250 10
+type MNISTNet = FCA 784 300 :.~ DO 300 :.~ FCA 300 10
 
 mnistNet :: MNISTNet
 mnistNet = fca (normalDistr 0 0.2) logistic
+       :.~ DO 0.25
        :.~ fca (normalDistr 0 0.2) softMax
 
 main :: IO ()

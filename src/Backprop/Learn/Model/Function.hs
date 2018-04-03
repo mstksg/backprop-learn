@@ -1,19 +1,18 @@
-{-# LANGUAGE DataKinds                                #-}
-{-# LANGUAGE FlexibleContexts                         #-}
-{-# LANGUAGE FlexibleInstances                        #-}
-{-# LANGUAGE GADTs                                    #-}
-{-# LANGUAGE LambdaCase                               #-}
-{-# LANGUAGE MultiParamTypeClasses                    #-}
-{-# LANGUAGE PatternSynonyms                          #-}
-{-# LANGUAGE RankNTypes                               #-}
-{-# LANGUAGE ScopedTypeVariables                      #-}
-{-# LANGUAGE TypeApplications                         #-}
-{-# LANGUAGE TypeFamilies                             #-}
-{-# LANGUAGE TypeInType                               #-}
-{-# LANGUAGE TypeOperators                            #-}
-{-# LANGUAGE UndecidableInstances                     #-}
-{-# LANGUAGE ViewPatterns                             #-}
-{-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PatternSynonyms       #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeApplications      #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeInType            #-}
+{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE UndecidableInstances  #-}
+{-# LANGUAGE ViewPatterns          #-}
 
 module Backprop.Learn.Model.Function (
   -- * Types
@@ -58,7 +57,7 @@ module Backprop.Learn.Model.Function (
   , maxout
   ) where
 
-import           Backprop.Learn.Model
+import           Backprop.Learn.Model.Class
 import           Control.Applicative
 import           Control.Category
 import           Control.Monad.Primitive

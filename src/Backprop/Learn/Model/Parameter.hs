@@ -20,12 +20,12 @@ module Backprop.Learn.Model.Parameter (
   , rpDeterm
   ) where
 
-import           Backprop.Learn.Model
+import           Backprop.Learn.Model.Class
 import           Control.Monad.Primitive
 import           Data.Kind
 import           Lens.Micro
 import           Numeric.Backprop
-import qualified System.Random.MWC       as MWC
+import qualified System.Random.MWC          as MWC
 
 -- | Convert a model with trainabile parameters into a model without any
 -- trainable parameters.

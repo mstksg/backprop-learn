@@ -35,7 +35,7 @@ module Backprop.Learn.Model.Combinator (
   , (:.~)(..)
   ) where
 
-import           Backprop.Learn.Model
+import           Backprop.Learn.Model.Class
 import           Control.Applicative
 import           Control.Category
 import           Control.Monad
@@ -45,18 +45,18 @@ import           Data.Bifunctor
 import           Data.Kind
 import           Data.Type.Equality
 import           Data.Type.Length
-import           Data.Type.Mayb            as Mayb
+import           Data.Type.Mayb             as Mayb
 import           Data.Type.NonEmpty
 import           GHC.TypeNats
 import           Numeric.Backprop
 import           Numeric.Backprop.Tuple
-import           Prelude hiding            ((.), id)
+import           Prelude hiding             ((.), id)
 import           Type.Class.Higher
 import           Type.Class.Known
 import           Type.Class.Witness
-import           Type.Family.List          as List
-import qualified Data.Vector.Sized         as SV
-import qualified System.Random.MWC         as MWC
+import           Type.Family.List           as List
+import qualified Data.Vector.Sized          as SV
+import qualified System.Random.MWC          as MWC
 
 -- | Chain components linearly, retaining the ability to deconstruct at
 -- a later time.

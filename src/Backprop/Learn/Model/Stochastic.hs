@@ -18,7 +18,7 @@ module Backprop.Learn.Model.Stochastic (
   , injectNoise, applyNoise
   ) where
 
-import           Backprop.Learn.Model
+import           Backprop.Learn.Model.Class
 import           Backprop.Learn.Model.Function
 import           Control.Monad.Primitive
 import           Data.Bool

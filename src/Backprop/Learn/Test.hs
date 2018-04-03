@@ -12,7 +12,7 @@ module Backprop.Learn.Test (
   , testLearn, testLearnStoch, testLearnAll, testLearnStochAll
   ) where
 
-import           Backprop.Learn.Model
+import           Backprop.Learn.Model.Class
 import           Control.Applicative
 import           Control.Monad.Primitive
 import           Data.Function

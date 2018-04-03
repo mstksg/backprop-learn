@@ -55,7 +55,24 @@ library:
 
 executables:
   backprop-learn-mnist:
-    main: backprop-learn-mnist.hs
+    main: mnist.hs
+    source-dirs: app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    - -O2
+    - -Wall
+    dependencies:
+    - backprop-learn
+    - mnist-idx
+    - conduit
+    - backprop
+    - time
+    - data-default
+    - filepath
+  backprop-learn-arima:
+    main: arima.hs
     source-dirs: app
     ghc-options:
     - -threaded
