@@ -69,7 +69,6 @@ executables:
     - conduit
     - backprop
     - time
-    - text
     - data-default
     - filepath
 

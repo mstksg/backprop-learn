@@ -1,9 +1,7 @@
 {-# LANGUAGE FlexibleContexts                     #-}
 {-# LANGUAGE PartialTypeSignatures                #-}
 {-# LANGUAGE RankNTypes                           #-}
-{-# LANGUAGE TypeApplications                     #-}
 {-# LANGUAGE TypeFamilies                         #-}
-{-# LANGUAGE ViewPatterns                         #-}
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 
 module Backprop.Learn.Test (

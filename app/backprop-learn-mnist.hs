@@ -7,7 +7,6 @@
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE TypeSynonymInstances  #-}
 {-# LANGUAGE UndecidableInstances  #-}
-{-# LANGUAGE ViewPatterns          #-}
 {-# OPTIONS_GHC -fno-warn-orphans  #-}
 
 import           Backprop.Learn.Loss
@@ -39,7 +38,6 @@ import           System.Environment
 import           System.FilePath
 import           Text.Printf
 import qualified Data.Conduit.Combinators              as C
-import qualified Data.Text                             as T
 import qualified Data.Vector.Generic                   as VG
 import qualified Numeric.LinearAlgebra                 as HM
 import qualified Numeric.LinearAlgebra.Static          as H
@@ -62,22 +60,23 @@ main = MWC.withSystemRandom $ \g -> do
     net0 <- fromJ_ $ initParam mnistNet g
 
     let report n b = do
-          yield $ printf "(Batch %d)\n" (b :: Int)
+          liftIO $ printf "(Batch %d)\n" (b :: Int)
           t0 <- liftIO getCurrentTime
           C.drop (n - 1)
           net' <- mapM (liftIO . evaluate . force) =<< await
           t1 <- liftIO getCurrentTime
           case net' of
-            Nothing  -> yield "Done!\n"
+            Nothing  -> liftIO $ putStrLn "Done!"
             Just net -> do
               chnk <- lift . state $ (,[])
-              yield $ printf "Trained on %d points in %s.\n"
-                             (length chnk)
-                             (show (t1 `diffUTCTime` t0))
-              let trainScore = testLearnAll maxIxTest mnistNet (J_I net) chnk
-                  testScore  = testLearnAll maxIxTest mnistNet (J_I net) test
-              yield $ printf "Training error:   %.2f%%\n" ((1 - trainScore) * 100)
-              yield $ printf "Validation error: %.2f%%\n" ((1 - testScore ) * 100)
+              liftIO $ do
+                printf "Trained on %d points in %s.\n"
+                  (length chnk)
+                  (show (t1 `diffUTCTime` t0))
+                let trainScore = testLearnAll maxIxTest mnistNet (J_I net) chnk
+                    testScore  = testLearnAll maxIxTest mnistNet (J_I net) test
+                printf "Training error:   %.2f%%\n" ((1 - trainScore) * 100)
+                printf "Validation error: %.2f%%\n" ((1 - testScore ) * 100)
 
     flip evalStateT []
         . runConduit
@@ -93,9 +92,7 @@ main = MWC.withSystemRandom $ \g -> do
                    )
                )
        .| mapM_ (report 2500) [0..]
-       .| C.map T.pack
-       .| C.encodeUtf8
-       .| C.stdout
+       .| C.sinkNull
 
 loadMNIST
     :: FilePath
