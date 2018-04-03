@@ -9,3 +9,5 @@
 /.shake
 /demo-exe
 /demo-js
+
+/backprop-learn.cabal
