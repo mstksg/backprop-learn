@@ -241,6 +241,7 @@ data ReState :: Type -> Type -> Type -> Type
 -- | Create a <a>ReState</a> from a deterministic, non-stochastic
 --   transformation function.
 rsDeterm :: (forall m. PrimMonad m => Gen (PrimState m) -> m t) -> (forall q. Reifies q W => BVar q s -> BVar q t) -> (forall q. Reifies q W => BVar q t -> BVar q s) -> l -> ReState s t l
+instance (Backprop.Learn.Model.Class.Learn ab b l, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LStateMaybe l), GHC.Num.Num a, GHC.Num.Num b, GHC.Num.Num ab, Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.Class.LStateMaybe l)) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.State.Recurrent ab a b l)
 instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.LStateMaybe l ~ 'GHC.Base.Just s) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.State.ReState s t l)
 instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.LStateMaybe l ~ 'GHC.Base.Just s) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.State.DeState s l)
 instance (Backprop.Learn.Model.Class.Learn a b l, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LParamMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.Class.LParamMaybe l), Backprop.Learn.Model.Class.LStateMaybe l ~ 'GHC.Base.Just s, GHC.Num.Num s) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.State.TrainState l)
