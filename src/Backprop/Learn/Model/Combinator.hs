@@ -70,7 +70,9 @@ data Chain :: [Type] -> [Type] -> [Type] -> Type -> Type -> Type where
                              a c
 infixr 5 :~>
 
-instance ( ListC (Num List.<$> ps), ListC (Num List.<$> ss) )
+instance ( ListC (Num List.<$> ps)
+         , ListC (Num List.<$> ss)
+         )
       => Learn a b (Chain ls ps ss a b) where
     type LParamMaybe (Chain ls ps ss a b) = NETup Mayb.<$> ToNonEmpty ps
     type LStateMaybe (Chain ls ps ss a b) = NETup Mayb.<$> ToNonEmpty ss

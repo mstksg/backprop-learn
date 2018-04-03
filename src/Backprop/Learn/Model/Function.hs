@@ -117,7 +117,8 @@ data ParamFunc p a b =
        , _pfFunc :: forall s. Reifies s W => Mayb (BVar s) p -> BVar s a -> BVar s b
        }
 
-instance (Num a, Num b, MaybeC Num p, KnownMayb p) => Learn a b (ParamFunc p a b) where
+instance ( Num a, Num b, MaybeC Num p, KnownMayb p)
+      => Learn a b (ParamFunc p a b) where
     type LParamMaybe (ParamFunc p a b) = p
 
     initParam = _pfInit

@@ -15,6 +15,7 @@ module Data.Type.NonEmpty (
   , tNet
   ) where
 
+import           Control.DeepSeq
 import           Data.Kind
 import           Data.List.NonEmpty     (NonEmpty(..))
 import           Data.Type.Length
@@ -23,7 +24,10 @@ import           Type.Class.Known
 import           Type.Family.List
 
 data NETup :: NonEmpty Type -> Type where
-    NET :: a -> T as -> NETup (a ':| as)
+    NET :: !a -> !(T as) -> NETup (a ':| as)
+
+instance (NFData a, ListC (NFData <$> as)) => NFData (NETup (a ':| as)) where
+    rnf (NET x xs) = rnf x `seq` rnf xs
 
 instance (Num a, ListC (Num <$> as), Known Length as) => Num (NETup (a ':| as)) where
     NET x xs + NET y ys = NET (x + y) (xs + ys)
@@ -33,6 +37,8 @@ instance (Num a, ListC (Num <$> as), Known Length as) => Num (NETup (a ':| as)) 
     abs    (NET x xs)   = NET (abs x   ) (abs xs   )
     signum (NET x xs)   = NET (signum x) (signum xs)
     fromInteger x       = NET (fromInteger x) (fromInteger x)
+
+-- instance Additive (NETup (a ':| as))
 
 netHead :: Functor f => (a -> f b) -> NETup (a ':| as) -> f (NETup (b ':| as))
 netHead f (NET x xs) = (`NET` xs) <$> f x

@@ -27,12 +27,10 @@ module Backprop.Learn.Model (
   , Mayb(..), fromJ_, MaybeC, KnownMayb, knownMayb
   ) where
 
-import           Control.DeepSeq
 import           Control.Monad.Primitive
 import           Data.Kind
 import           Data.Type.Mayb
 import           Numeric.Backprop
-import           Numeric.Opto.Update
 import qualified GHC.TypeLits            as TL
 import qualified System.Random.MWC       as MWC
 
@@ -69,11 +67,7 @@ type LState_ f l = Mayb f (LStateMaybe l)
 -- An instance @l@ of @'Learn' a b@ is parameterized by @p@, takes @a@ as
 -- input, and returns @b@ as outputs.  @l@ can be thought of as a value
 -- containing the /hyperparmaeters/ of the model.
-class ( MaybeC NFData           (LParamMaybe l)
-      , MaybeC Additive         (LParamMaybe l)
-      , MaybeC (Scaling Double) (LParamMaybe l)
-      )
-    => Learn a b l | l -> a b where
+class Learn a b l | l -> a b where
 
     -- | The trainable parameters of model @l@.
     --

@@ -1,13 +1,14 @@
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TupleSections         #-}
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE TypeSynonymInstances  #-}
+{-# LANGUAGE UndecidableInstances  #-}
 {-# LANGUAGE ViewPatterns          #-}
+{-# OPTIONS_GHC -fno-warn-orphans  #-}
 
 import           Backprop.Learn.Loss
 import           Backprop.Learn.Model
@@ -31,8 +32,10 @@ import           Data.Primitive.MutVar
 import           Data.Time
 import           Data.Traversable
 import           Data.Tuple
+import           Numeric.Backprop.Tuple
 import           Numeric.LinearAlgebra.Static.Backprop
 import           Numeric.Opto
+import           Numeric.Opto.Ref
 import           Statistics.Distribution.Normal
 import           System.Environment
 import           System.FilePath
@@ -44,16 +47,15 @@ import qualified Numeric.LinearAlgebra                 as HM
 import qualified Numeric.LinearAlgebra.Static          as H
 import qualified System.Random.MWC                     as MWC
 
+instance (Additive a , Additive b ) => Additive (T2 a b) where
+    (.+.)   = gAdd
+    addZero = gAddZero
+instance (Scaling c a, Scaling c b) => Scaling c (T2 a b)
+instance (Metric c a , Metric c b, Ord c, Floating c) => Metric c (T2 a b)
+instance (Additive a, Additive b, Ref m (T2 a b) v) => AdditiveInPlace m v (T2 a b)
+instance (Scaling c a, Scaling c b, Ref m (T2 a b) v) => ScalingInPlace m v c (T2 a b)
+
 type MNISTNet = FCA 784 250 :.~ FCA 250 10
-
--- instance Additive (LParam MNISTNet)
--- instance Scaling Double (LParam MNISTNet)
--- instance Ref m (LParam MNISTNet) v => AdditiveInPlace m v (LParam MNISTNet)
--- instance Ref m (LParam MNISTNet) v => ScalingInPlace m v Double (LParam MNISTNet)
--- instance Ref m Net v => AdditiveInPlace m v Net
--- instance Ref m Net v => ScalingInPlace m v Double Net
-
--- type MNistState = LState MNISTNet
 
 mnistNet :: MNISTNet
 mnistNet = fca (normalDistr 0 0.2) logistic
@@ -73,8 +75,7 @@ main = MWC.withSystemRandom $ \g -> do
           yield $ printf "(Batch %d)\n" (b :: Int)
           t0 <- liftIO getCurrentTime
           C.drop (n - 1)
-          -- net' <- mapM (liftIO . evaluate . force) =<< await
-          net' <- await
+          net' <- mapM (liftIO . evaluate . force) =<< await
           t1 <- liftIO getCurrentTime
           case net' of
             Nothing  -> yield "Done!\n"

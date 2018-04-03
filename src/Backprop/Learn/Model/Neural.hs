@@ -1,11 +1,13 @@
 {-# LANGUAGE DataKinds                                #-}
 {-# LANGUAGE DeriveGeneric                            #-}
 {-# LANGUAGE FlexibleContexts                         #-}
+{-# LANGUAGE FlexibleInstances                        #-}
 {-# LANGUAGE KindSignatures                           #-}
 {-# LANGUAGE MultiParamTypeClasses                    #-}
 {-# LANGUAGE PatternSynonyms                          #-}
 {-# LANGUAGE RankNTypes                               #-}
 {-# LANGUAGE TypeFamilies                             #-}
+{-# LANGUAGE UndecidableInstances                     #-}
 {-# LANGUAGE ViewPatterns                             #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
@@ -24,6 +26,7 @@ module Backprop.Learn.Model.Neural (
 
 import           Backprop.Learn.Model
 import           Backprop.Learn.Model.Combinator
+import           Control.DeepSeq
 import           Control.Monad.Primitive
 import           GHC.Generics                          (Generic)
 import           GHC.TypeNats
@@ -32,6 +35,8 @@ import           Numeric.Backprop
 import           Numeric.LinearAlgebra.Static.Backprop
 import           Numeric.LinearAlgebra.Static.Vector
 import           Numeric.OneLiner
+import           Numeric.Opto.Ref
+import           Numeric.Opto.Update hiding            ((<.>))
 import           Statistics.Distribution
 import qualified Data.Vector.Storable.Sized            as SVS
 import qualified System.Random.MWC                     as MWC
@@ -86,6 +91,13 @@ data FCp i o = FCp { _fcBias    :: !(R o)
                    }
   deriving Generic
 
+instance NFData (FCp i o)
+instance (KnownNat i, KnownNat o) => Additive (FCp i o)
+instance (KnownNat i, KnownNat o) => Scaling Double (FCp i o)
+instance (KnownNat i, KnownNat o) => Metric Double (FCp i o)
+instance (KnownNat i, KnownNat o, Ref m (FCp i o) v) => AdditiveInPlace m v (FCp i o)
+instance (KnownNat i, KnownNat o, Ref m (FCp i o) v) => ScalingInPlace m v Double (FCp i o)
+
 fcWeights :: Lens (FCp i o) (FCp i' o) (L o i) (L o i')
 fcWeights f fcp = (\w -> fcp { _fcWeights = w }) <$> f (_fcWeights fcp)
 
@@ -100,6 +112,27 @@ instance (KnownNat i, KnownNat o) => Num (FCp i o) where
     abs         = gAbs
     signum      = gSignum
     fromInteger = gFromInteger
+
+instance (KnownNat i, KnownNat o) => Fractional (FCp i o) where
+    (/)          = gDivide
+    recip        = gRecip
+    fromRational = gFromRational
+
+instance (KnownNat i, KnownNat o) => Floating (FCp i o) where
+    pi    = gPi
+    sqrt  = gSqrt
+    exp   = gExp
+    log   = gLog
+    sin   = gSin
+    cos   = gCos
+    asin  = gAsin
+    acos  = gAcos
+    atan  = gAtan
+    sinh  = gSinh
+    cosh  = gCosh
+    asinh = gAsinh
+    acosh = gAcosh
+    atanh = gAtanh
 
 instance (KnownNat i, KnownNat o) => Learn (R i) (R o) (FC i o) where
     type LParamMaybe (FC i o) = 'Just (FCp i o)
@@ -145,6 +178,13 @@ data FCRp h i o = FCRp { _fcrBias         :: !(R o)
                        }
   deriving Generic
 
+instance NFData (FCRp h i o)
+instance (KnownNat h, KnownNat i, KnownNat o) => Additive (FCRp h i o)
+instance (KnownNat h, KnownNat i, KnownNat o) => Scaling Double (FCRp h i o)
+instance (KnownNat h, KnownNat i, KnownNat o) => Metric Double (FCRp h i o)
+instance (KnownNat h, KnownNat i, KnownNat o, Ref m (FCRp h i o) v) => AdditiveInPlace m v (FCRp h i o)
+instance (KnownNat h, KnownNat i, KnownNat o, Ref m (FCRp h i o) v) => ScalingInPlace m v Double (FCRp h i o)
+
 -- | Construct an @'FCR' h i o@ using given distributions from the
 -- /statistics/ library.
 fcr :: (ContGen d, ContGen e)
@@ -183,6 +223,27 @@ instance (KnownNat h, KnownNat i, KnownNat o) => Num (FCRp h i o) where
     abs         = gAbs
     signum      = gSignum
     fromInteger = gFromInteger
+
+instance (KnownNat h, KnownNat i, KnownNat o) => Fractional (FCRp h i o) where
+    (/)          = gDivide
+    recip        = gRecip
+    fromRational = gFromRational
+
+instance (KnownNat h, KnownNat i, KnownNat o) => Floating (FCRp h i o) where
+    pi    = gPi
+    sqrt  = gSqrt
+    exp   = gExp
+    log   = gLog
+    sin   = gSin
+    cos   = gCos
+    asin  = gAsin
+    acos  = gAcos
+    atan  = gAtan
+    sinh  = gSinh
+    cosh  = gCosh
+    asinh = gAsinh
+    acosh = gAcosh
+    atanh = gAtanh
 
 instance (KnownNat h, KnownNat i, KnownNat o) => Learn (R i) (R o) (FCR h i o) where
     type LParamMaybe (FCR h i o) = 'Just (FCRp h i o)

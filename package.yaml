@@ -66,8 +66,7 @@ executables:
     - mnist-idx
     - vector
     - conduit
-    # - bifunctors
-    # - hmatrix
+    - backprop
     - time
     - text
     - data-default
