@@ -124,6 +124,12 @@ stateless :: (a -> b) -> (a -> s -> (b, s))
 statelessM :: Functor m => (a -> m b) -> (a -> s -> m (b, s))
 runLearnStateless :: (Learn a b l, Reifies s W, NoState l) => l -> LParam_ (BVar s) l -> BVar s a -> BVar s b
 runLearnStochStateless :: (Learn a b l, Reifies s W, NoState l, PrimMonad m) => l -> Gen (PrimState m) -> LParam_ (BVar s) l -> BVar s a -> m (BVar s b)
+runLearn_ :: (Learn a b l, MaybeC Num (LStateMaybe l), Num b) => l -> LParam_ I l -> a -> LState_ I l -> (b, LState_ I l)
+runLearnStoch_ :: (Learn a b l, MaybeC Num (LStateMaybe l), Num b, PrimMonad m) => l -> Gen (PrimState m) -> LParam_ I l -> a -> LState_ I l -> m (b, LState_ I l)
+runLearnStateless_ :: (Learn a b l, NoState l) => l -> LParam_ I l -> a -> b
+runLearnStochStateless_ :: (Learn a b l, NoState l, PrimMonad m) => l -> Gen (PrimState m) -> LParam_ I l -> a -> m b
+gradLearn :: (Learn a b l, NoState l, Num a, Num b, MaybeC Num (LParamMaybe l)) => l -> LParam_ I l -> a -> (LParam_ I l, a)
+gradLearnStoch :: (Learn a b l, NoState l, Num a, Num b, MaybeC Num (LParamMaybe l), PrimMonad m) => l -> Gen (PrimState m) -> LParam_ I l -> a -> m (LParam_ I l, a)
 data Mayb :: (k -> Type) -> Maybe k -> Type
 [N_] :: Mayb f  'Nothing
 [J_] :: !(f a) -> Mayb f ( 'Just a)
@@ -132,6 +138,12 @@ type KnownMayb = Known (Mayb P)
 knownMayb :: KnownMayb p => Mayb P p
 
 module Backprop.Learn.Train
+
+-- | Gradient of model with respect to loss function and target
+gradLearnLoss :: (Learn a b l, NoState l, LParamMaybe l ~  'Just (LParam l), Num (LParam l)) => Loss b -> l -> LParam l -> a -> b -> LParam l
+
+-- | Stochastic gradient of model with respect to loss function and target
+gradLearnStochLoss :: (Learn a b l, NoState l, LParamMaybe l ~  'Just (LParam l), Num (LParam l), PrimMonad m) => Loss b -> l -> Gen (PrimState m) -> LParam l -> a -> b -> m (LParam l)
 type Grad (m :: * -> *) a = a -> m Diff a
 
 -- | Using a model's deterministic prediction function (with a given loss
@@ -143,6 +155,19 @@ learnGrad :: (MonadSample (a, b) m, Learn a b l, NoState l, LParamMaybe l ~  'Ju
 --   function), generate a <a>Grad</a> compatible with <a>Numeric.Opto</a>
 --   and <a>Numeric.Opto.Run</a>.
 learnGradStoch :: (MonadSample (a, b) m, PrimMonad m, Learn a b l, NoState l, LParamMaybe l ~  'Just (LParam l), Num (LParam l)) => Loss b -> l -> Gen (PrimState m) -> Grad m (LParam l)
+
+module Backprop.Learn.Test
+type Test o = o -> o -> Double
+maxIxTest :: KnownNat n => Test (R n)
+rmseTest :: KnownNat n => Test (R n)
+squaredErrorTest :: KnownNat n => Test (R n)
+crossEntropyTest :: KnownNat n => Test (R n)
+testLearn :: (Learn a b l, NoState l) => Test b -> l -> LParam_ I l -> a -> b -> Double
+testLearnStoch :: (Learn a b l, NoState l, PrimMonad m) => Test b -> l -> Gen (PrimState m) -> LParam_ I l -> a -> b -> m Double
+testLearnAll :: (Learn a b l, NoState l, Foldable t) => Test b -> l -> LParam_ I l -> t (a, b) -> Double
+testLearnStochAll :: (Learn a b l, NoState l, PrimMonad m, Foldable t) => Test b -> l -> Gen (PrimState m) -> LParam_ I l -> t (a, b) -> m Double
+instance (GHC.Base.Semigroup a, GHC.Base.Applicative m) => GHC.Base.Semigroup (Backprop.Learn.Test.M m a)
+instance (GHC.Base.Monoid a, GHC.Base.Applicative m) => GHC.Base.Monoid (Backprop.Learn.Test.M m a)
 
 module Backprop.Learn.Model.State
 
@@ -590,12 +615,13 @@ instance GHC.TypeNats.KnownNat n => Backprop.Learn.Model.Learn (Internal.Static.
 
 module Data.Type.NonEmpty
 data NETup :: NonEmpty Type -> Type
-[NET] :: a -> T as -> NETup (a :| as)
+[NET] :: !a -> !(T as) -> NETup (a :| as)
 netHead :: Functor f => (a -> f b) -> NETup (a :| as) -> f (NETup (b :| as))
 netTail :: Functor f => (T as -> f (T bs)) -> NETup (a :| as) -> f (NETup (a :| bs))
 unNet :: NETup (a :| as) -> (a, T as)
 netT :: NETup (a :| as) -> T (a : as)
 tNet :: T (a : as) -> NETup (a :| as)
+instance (Control.DeepSeq.NFData a, Type.Family.List.ListC (Control.DeepSeq.NFData Type.Family.List.<$> as)) => Control.DeepSeq.NFData (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
 instance (GHC.Num.Num a, Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => GHC.Num.Num (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
 
 module Backprop.Learn.Model.Combinator
@@ -635,7 +661,7 @@ feedbackTraceId :: l -> FeedbackTrace n a a l
 --   later time.
 data Chain :: [Type] -> [Type] -> [Type] -> Type -> Type -> Type
 [CNil] :: Chain '[] '[] '[] a a
-[:~>] :: (Learn a b l, KnownMayb (LParamMaybe l), KnownMayb (LStateMaybe l)) => !l -> !(Chain ls ps ss b c) -> Chain (l : ls) (MaybeToList (LParamMaybe l) ++ ps) (MaybeToList (LStateMaybe l) ++ ss) a c
+[:~>] :: (Learn a b l, KnownMayb (LParamMaybe l), KnownMayb (LStateMaybe l)) => l -> Chain ls ps ss b c -> Chain (l : ls) (MaybeToList (LParamMaybe l) ++ ps) (MaybeToList (LStateMaybe l) ++ ss) a c
 
 -- | Appending <a>Chain</a>
 (~++) :: forall ls ms ps qs ss ts a b c. () => Chain ls ps ss a b -> Chain ms qs ts b c -> Chain (ls ++ ms) (ps ++ qs) (ss ++ ts) a c
@@ -655,14 +681,14 @@ learnFunc :: Learn a b l => l -> LearnFunc (LParamMaybe l) (LStateMaybe l) a b
 --   An <tt><a>LMap</a> b a</tt> takes a model from <tt>b</tt> and turns it
 --   into a model from <tt>a</tt>.
 data LMap :: Type -> Type -> Type -> Type
-[LM] :: {_lmPre :: forall s. Reifies s W => BVar s a -> BVar s b, _lmLearn :: !l} -> LMap b a l
+[LM] :: {_lmPre :: forall s. Reifies s W => BVar s a -> BVar s b, _lmLearn :: l} -> LMap b a l
 
 -- | Post-compose a pure parameterless function to a model.
 --   
 --   An <tt><tt>Rmap</tt> b c</tt> takes a model returning <tt>b</tt> and
 --   turns it into a model returning <tt>c</tt>.
 data RMap :: Type -> Type -> Type -> Type
-[RM] :: {_rmPost :: forall s. Reifies s W => BVar s b -> BVar s c, _rmLearn :: !l} -> RMap b c l
+[RM] :: {_rmPost :: forall s. Reifies s W => BVar s b -> BVar s c, _rmLearn :: l} -> RMap b c l
 
 -- | Pre- and post-compose pure parameterless functions to a model.
 --   
@@ -689,11 +715,18 @@ nilLF :: LearnFunc ( 'Just (T '[])) ( 'Just (T '[])) a a
 
 -- | <a>LearnFunc</a> with singleton lists; meant to be used with <a>.~</a>
 onlyLF :: forall p s a b. (KnownMayb p, MaybeC Num p, KnownMayb s, MaybeC Num s) => LearnFunc p s a b -> LearnFunc ( 'Just (T (MaybeToList p))) ( 'Just (T (MaybeToList s))) a b
+
+-- | Compose two layers sequentially
+--   
+--   Note that this composes in the opposite order of <a>.</a> and
+--   <tt>:.:</tt>, for consistency with the rest of the library.
+data (:.~) :: Type -> Type -> Type
+[:.~] :: l -> m -> l :.~ m
 instance (Backprop.Learn.Model.Learn a b l, GHC.TypeNats.KnownNat n, GHC.Num.Num b) => Backprop.Learn.Model.Learn a (Data.Vector.Sized.Vector n b) (Backprop.Learn.Model.Combinator.FeedbackTrace n a b l)
 instance Backprop.Learn.Model.Learn a b l => Backprop.Learn.Model.Learn a b (Backprop.Learn.Model.Combinator.Feedback a b l)
 instance Backprop.Learn.Model.Learn a b l => Backprop.Learn.Model.Learn a c (Backprop.Learn.Model.Combinator.RMap b c l)
 instance Backprop.Learn.Model.Learn b c l => Backprop.Learn.Model.Learn a c (Backprop.Learn.Model.Combinator.LMap b a l)
-instance (Backprop.Learn.Model.Learn b c l, Backprop.Learn.Model.Learn a b m, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.LParamMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.LParamMaybe m), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.LStateMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.LStateMaybe m), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.LParamMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.LParamMaybe m), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.LStateMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.LStateMaybe m)) => Backprop.Learn.Model.Learn a c (l Backprop.Learn.Model.Combinator.:.~ m)
+instance (Backprop.Learn.Model.Learn a b l, Backprop.Learn.Model.Learn b c m, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.LParamMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.LParamMaybe m), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.LStateMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.LStateMaybe m), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.LParamMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.LParamMaybe m), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.LStateMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.LStateMaybe m)) => Backprop.Learn.Model.Learn a c (l Backprop.Learn.Model.Combinator.:.~ m)
 instance Backprop.Learn.Model.Learn a b (Backprop.Learn.Model.Combinator.LearnFunc p s a b)
 instance (Data.Type.Mayb.MaybeC GHC.Num.Num p, Data.Type.Mayb.MaybeC GHC.Num.Num s, Data.Type.Mayb.KnownMayb p, Data.Type.Mayb.KnownMayb s) => Control.Category.Category (Backprop.Learn.Model.Combinator.LearnFunc p s)
 instance (Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> ps), Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> ss)) => Backprop.Learn.Model.Learn a b (Backprop.Learn.Model.Combinator.Chain ls ps ss a b)
@@ -705,7 +738,7 @@ module Backprop.Learn.Model.Neural
 --   
 --   Note that this has no activation function; to use as a model with
 --   activation function, chain it with an activation function using
---   <a>RMap</a>, <tt>:.~</tt>, etc.; see <a>FCA</a> for a convenient type
+--   <a>RMap</a>, <a>:.~</a>, etc.; see <a>FCA</a> for a convenient type
 --   synonym and constructor.
 --   
 --   Without any activation function, this is essentially a multivariate
@@ -788,9 +821,25 @@ _fcraStore :: () => FCRA h i o -> forall s. Reifies s W => BVar s R o -> BVar s 
 _fcraActivation :: () => FCRA h i o -> forall s. Reifies s W => BVar s R o -> BVar s R o
 instance GHC.Generics.Generic (Backprop.Learn.Model.Neural.FCRp h i o)
 instance GHC.Generics.Generic (Backprop.Learn.Model.Neural.FCp i o)
+instance Control.DeepSeq.NFData (Backprop.Learn.Model.Neural.FCRp h i o)
+instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Additive (Backprop.Learn.Model.Neural.FCRp h i o)
+instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Scaling GHC.Types.Double (Backprop.Learn.Model.Neural.FCRp h i o)
+instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Neural.FCRp h i o)
+instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Neural.FCRp h i o) v) => Numeric.Opto.Update.AdditiveInPlace m v (Backprop.Learn.Model.Neural.FCRp h i o)
+instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Neural.FCRp h i o) v) => Numeric.Opto.Update.ScalingInPlace m v GHC.Types.Double (Backprop.Learn.Model.Neural.FCRp h i o)
 instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Model.Neural.FCRp h i o)
+instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Real.Fractional (Backprop.Learn.Model.Neural.FCRp h i o)
+instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Float.Floating (Backprop.Learn.Model.Neural.FCRp h i o)
 instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Model.Learn (Internal.Static.R i) (Internal.Static.R o) (Backprop.Learn.Model.Neural.FCR h i o)
+instance Control.DeepSeq.NFData (Backprop.Learn.Model.Neural.FCp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Additive (Backprop.Learn.Model.Neural.FCp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Scaling GHC.Types.Double (Backprop.Learn.Model.Neural.FCp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Neural.FCp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Neural.FCp i o) v) => Numeric.Opto.Update.AdditiveInPlace m v (Backprop.Learn.Model.Neural.FCp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Neural.FCp i o) v) => Numeric.Opto.Update.ScalingInPlace m v GHC.Types.Double (Backprop.Learn.Model.Neural.FCp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Model.Neural.FCp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Real.Fractional (Backprop.Learn.Model.Neural.FCp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Float.Floating (Backprop.Learn.Model.Neural.FCp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Model.Learn (Internal.Static.R i) (Internal.Static.R o) (Backprop.Learn.Model.Neural.FC i o)
 
 module Backprop.Learn.Model.Regression
