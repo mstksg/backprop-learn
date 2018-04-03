@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric                            #-}
 {-# LANGUAGE FlexibleContexts                         #-}
+{-# LANGUAGE FlexibleInstances                        #-}
 {-# LANGUAGE GADTs                                    #-}
 {-# LANGUAGE KindSignatures                           #-}
 {-# LANGUAGE MultiParamTypeClasses                    #-}
@@ -10,6 +11,7 @@
 {-# LANGUAGE TypeFamilies                             #-}
 {-# LANGUAGE TypeInType                               #-}
 {-# LANGUAGE TypeOperators                            #-}
+{-# LANGUAGE UndecidableInstances                     #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise       #-}
 
@@ -22,9 +24,9 @@ module Backprop.Learn.Model.Regression (
 
 import           Backprop.Learn.Model
 import           Backprop.Learn.Model.Combinator
+import           Backprop.Learn.Model.Function
 import           Backprop.Learn.Model.Neural
 import           Backprop.Learn.Model.Parameter
-import           Backprop.Learn.Model.Function
 import           Backprop.Learn.Model.State
 import           Control.Monad.Primitive
 import           Data.Finite
@@ -40,6 +42,8 @@ import           Numeric.Backprop
 import           Numeric.LinearAlgebra.Static.Backprop
 import           Numeric.LinearAlgebra.Static.Vector
 import           Numeric.OneLiner
+import           Numeric.Opto.Ref
+import           Numeric.Opto.Update hiding            ((<.>))
 import qualified Data.Vector.Sized                     as SV
 import qualified Data.Vector.Storable.Sized            as SVS
 import qualified Numeric.LinearAlgebra.Static          as HS
@@ -194,6 +198,67 @@ instance Num (ARMAs p q) where
     abs         = gAbs
     signum      = gSignum
     fromInteger = gFromInteger
+
+instance Fractional (ARMAp p q) where
+    (/)          = gDivide
+    recip        = gRecip
+    fromRational = gFromRational
+
+instance Fractional (ARMAs p q) where
+    (/)          = gDivide
+    recip        = gRecip
+    fromRational = gFromRational
+
+instance Floating (ARMAp p q) where
+    pi    = gPi
+    sqrt  = gSqrt
+    exp   = gExp
+    log   = gLog
+    sin   = gSin
+    cos   = gCos
+    asin  = gAsin
+    acos  = gAcos
+    atan  = gAtan
+    sinh  = gSinh
+    cosh  = gCosh
+    asinh = gAsinh
+    acosh = gAcosh
+    atanh = gAtanh
+
+instance Floating (ARMAs p q) where
+    pi    = gPi
+    sqrt  = gSqrt
+    exp   = gExp
+    log   = gLog
+    sin   = gSin
+    cos   = gCos
+    asin  = gAsin
+    acos  = gAcos
+    atan  = gAtan
+    sinh  = gSinh
+    cosh  = gCosh
+    asinh = gAsinh
+    acosh = gAcosh
+    atanh = gAtanh
+
+instance Additive (ARMAp p q) where
+    (.+.)   = gAdd
+    addZero = gAddZero
+instance Additive (ARMAs p q) where
+    (.+.)   = gAdd
+    addZero = gAddZero
+
+instance (KnownNat p, KnownNat q) => Scaling Double (ARMAp p q)
+instance (KnownNat p, KnownNat q) => Scaling Double (ARMAs p q)
+
+instance (KnownNat p, KnownNat q) => Metric  Double (ARMAp p q)
+instance (KnownNat p, KnownNat q) => Metric  Double (ARMAs p q)
+
+instance (KnownNat p, KnownNat q, Ref m (ARMAp p q) v) => AdditiveInPlace m v (ARMAp p q)
+instance (KnownNat p, KnownNat q, Ref m (ARMAs p q) v) => AdditiveInPlace m v (ARMAs p q)
+
+instance (KnownNat p, KnownNat q, Ref m (ARMAp p q) v) => ScalingInPlace m v Double (ARMAp p q)
+instance (KnownNat p, KnownNat q, Ref m (ARMAs p q) v) => ScalingInPlace m v Double (ARMAs p q)
 
 armaPhi :: Lens (ARMAp p q) (ARMAp p' q) (R p) (R p')
 armaPhi f a = (\x' -> a { _armaPhi = x' } ) <$> f (_armaPhi a)

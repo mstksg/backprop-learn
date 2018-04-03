@@ -24,7 +24,7 @@ ghc-options:
 - -Wcompat
 - -Wincomplete-record-updates
 - -Wredundant-constraints
-- -O0
+# - -O0
 # - -fprint-explicit-kinds
 dependencies:
 - base >=4.7 && <5
