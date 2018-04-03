@@ -24,6 +24,7 @@ ghc-options:
 - -Wcompat
 - -Wincomplete-record-updates
 - -Wredundant-constraints
+- -O0
 # - -fprint-explicit-kinds
 dependencies:
 - base >=4.7 && <5
@@ -35,6 +36,7 @@ dependencies:
 - opto
 - deepseq
 - primitive
+- vector
 
 library:
   source-dirs: src
@@ -64,7 +66,6 @@ executables:
     dependencies:
     - backprop-learn
     - mnist-idx
-    - vector
     - conduit
     - backprop
     - time

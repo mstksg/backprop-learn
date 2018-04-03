@@ -15,6 +15,7 @@ import           Backprop.Learn.Model
 import           Backprop.Learn.Model.Combinator
 import           Backprop.Learn.Model.Function
 import           Backprop.Learn.Model.Neural
+import           Backprop.Learn.Test
 import           Backprop.Learn.Train
 import           Control.DeepSeq
 import           Control.Exception
@@ -26,16 +27,13 @@ import           Control.Monad.Trans.State
 import           Data.Bitraversable
 import           Data.Conduit
 import           Data.Default
-import           Data.Foldable
 import           Data.IDX
 import           Data.Primitive.MutVar
 import           Data.Time
 import           Data.Traversable
 import           Data.Tuple
-import           Numeric.Backprop.Tuple
 import           Numeric.LinearAlgebra.Static.Backprop
 import           Numeric.Opto
-import           Numeric.Opto.Ref
 import           Statistics.Distribution.Normal
 import           System.Environment
 import           System.FilePath
@@ -46,14 +44,6 @@ import qualified Data.Vector.Generic                   as VG
 import qualified Numeric.LinearAlgebra                 as HM
 import qualified Numeric.LinearAlgebra.Static          as H
 import qualified System.Random.MWC                     as MWC
-
-instance (Additive a , Additive b ) => Additive (T2 a b) where
-    (.+.)   = gAdd
-    addZero = gAddZero
-instance (Scaling c a, Scaling c b) => Scaling c (T2 a b)
-instance (Metric c a , Metric c b, Ord c, Floating c) => Metric c (T2 a b)
-instance (Additive a, Additive b, Ref m (T2 a b) v) => AdditiveInPlace m v (T2 a b)
-instance (Scaling c a, Scaling c b, Ref m (T2 a b) v) => ScalingInPlace m v c (T2 a b)
 
 type MNISTNet = FCA 784 250 :.~ FCA 250 10
 
@@ -84,8 +74,8 @@ main = MWC.withSystemRandom $ \g -> do
               yield $ printf "Trained on %d points in %s.\n"
                              (length chnk)
                              (show (t1 `diffUTCTime` t0))
-              let trainScore = testNet chnk net
-                  testScore  = testNet test net
+              let trainScore = testLearnAll maxIxTest mnistNet (J_I net) chnk
+                  testScore  = testLearnAll maxIxTest mnistNet (J_I net) test
               yield $ printf "Training error:   %.2f%%\n" ((1 - trainScore) * 100)
               yield $ printf "Validation error: %.2f%%\n" ((1 - testScore ) * 100)
 
@@ -119,14 +109,4 @@ loadMNIST fpI fpL = runMaybeT $ do
   where
     mkImage = H.create . VG.convert . VG.map (\i -> fromIntegral i / 255)
     mkLabel n = H.create $ HM.build 10 (\i -> if round i == n then 1 else 0)
-
-testNet :: [(R 784, R 10)] -> LParam MNISTNet -> Double
-testNet = undefined
--- testNet xs n = sum (map (uncurry test) xs) / fromIntegral (length xs)
---   where
---     test x (H.extract->t)
---         | HM.maxIndex t == HM.maxIndex (H.extract r) = 1
---         | otherwise                                  = 0
---       where
---         r = evalBP (`runNet` constVar x) n
 
