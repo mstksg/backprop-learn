@@ -27,33 +27,32 @@ ghc-options:
 # - -O0
 # - -fprint-explicit-kinds
 dependencies:
+- backprop >= 0.1.5
 - base >=4.7 && <5
+- conduit
+- containers
+- deepseq
+- finite-typelits
+- ghc-typelits-extra
+- ghc-typelits-knownnat
+- ghc-typelits-natnormalise
 - hmatrix
 - hmatrix-backprop >= 0.1.2
-- transformers
-- statistics
+- hmatrix-vector-sized
+- microlens
 - mwc-random
+- one-liner-instances
 - opto
-- deepseq
 - primitive
+- statistics
+- transformers
+- type-combinators
+- typelits-witnesses
 - vector
-- conduit
+- vector-sized
 
 library:
   source-dirs: src
-  dependencies:
-  - backprop >= 0.1.5
-  - finite-typelits
-  - ghc-typelits-extra
-  - ghc-typelits-knownnat
-  - ghc-typelits-natnormalise
-  - hmatrix-vector-sized
-  - microlens
-  - one-liner-instances
-  - type-combinators
-  - typelits-witnesses
-  - vector-sized
-  - containers
 
 executables:
   backprop-learn-mnist:
@@ -68,7 +67,6 @@ executables:
     dependencies:
     - backprop-learn
     - mnist-idx
-    - backprop
     - time
     - data-default
     - filepath
@@ -83,14 +81,10 @@ executables:
     - -Wall
     dependencies:
     - backprop-learn
-    - backprop
     - time
-    - containers
     - data-default
     - filepath
-    - type-combinators
-    - vector
-    - vector-sized
+    - optparse-applicative
 
 
 # dependencies:

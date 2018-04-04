@@ -154,7 +154,7 @@ data ARMAs :: Nat -> Nat -> Type where
           -> ARMAs p q
   deriving (Generic, Show)
 
-instance (KnownNat p, KnownNat q, 1 <= p, 1 <= q) => Learn Double Double (ARMA p q) where
+instance (KnownNat p, KnownNat q) => Learn Double Double (ARMA p q) where
     type LParamMaybe (ARMA p q) = 'Just (ARMAp p q)
     type LStateMaybe (ARMA p q) = 'Just (ARMAs p q)
 
