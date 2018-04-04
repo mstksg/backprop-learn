@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds                                #-}
+{-# LANGUAGE GADTs                                    #-}
 {-# LANGUAGE RecordWildCards                          #-}
 {-# LANGUAGE ScopedTypeVariables                      #-}
 {-# LANGUAGE TupleSections                            #-}
@@ -21,6 +22,8 @@ import           Data.Default
 import           Data.Primitive.MutVar
 import           Data.Proxy
 import           Data.Time
+import           Data.Type.Equality
+import           GHC.TypeLits.Extra
 import           GHC.TypeNats
 import           Numeric.Natural
 import           Numeric.Opto
@@ -85,6 +88,7 @@ main = MWC.withSystemRandom @IO $ \g -> do
 
     SomeNat (Proxy :: Proxy p) <- pure $ someNatVal oP
     SomeNat (Proxy :: Proxy q) <- pure $ someNatVal oQ
+    Just Refl <- pure $ sameNat (Proxy @(Max p q)) (Proxy @((Max p q - 1) + 1 ))
     let armaSim'  = armaSim @p @q
 
     case oMode of
@@ -126,7 +130,7 @@ main = MWC.withSystemRandom @IO $ \g -> do
                 (RO' Nothing Nothing)
                 p0
                 (adam @_ @(MutVar _ _) def
-                   (learnGrad (sumLossDecay 0.1 squaredError) model)
+                   (learnGrad (lastLoss @(Max p q - 1) squaredError) model)
                 )
            .| report 5000 0
            .| C.sinkNull

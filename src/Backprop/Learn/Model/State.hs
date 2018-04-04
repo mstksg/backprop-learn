@@ -25,6 +25,8 @@ module Backprop.Learn.Model.State (
   , UnrollDeState, pattern UDS, _udsInitState, _udsInitStateStoch, _udsLearn
   -- ** ReState
   , ReState(..), rsDeterm
+  -- * Make models recurrent
+  , Recurrent(..)
   ) where
 
 import           Backprop.Learn.Model.Class
@@ -236,7 +238,7 @@ rsDeterm i t f = RS i t f (const (pure . f))
 --
 -- That is, transforms \( X \times Y \rightarrow Y \) into a stateful \(
 -- X \rightarrow Y \) with state Y, where the original Y input is
--- essentially "fixed" as the previous output of the mode.
+-- essentially "fixed" as the previous output of the model.
 --
 -- A @'Recurrent' ab a b@ takes a model taking @ab@ and returning @b@ into
 -- model taking @a@ and returning @b@.  Note that @ab@ is supposed to
