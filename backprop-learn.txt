@@ -226,6 +226,21 @@ data ReState :: Type -> Type -> Type -> Type
 -- | Create a <a>ReState</a> from a deterministic, non-stochastic
 --   transformation function.
 rsDeterm :: (forall m. PrimMonad m => Gen (PrimState m) -> m t) -> (forall q. Reifies q W => BVar q s -> BVar q t) -> (forall q. Reifies q W => BVar q t -> BVar q s) -> l -> ReState s t l
+
+-- | Transform a model taking in input into a recurrent model: the input is
+--   no longer free, but is always the "previous output" of the model.
+--   
+--   That is, transforms &lt;math&gt; into a stateful ( X rightarrow Y )
+--   with state Y, where the original Y input is essentially "fixed" as the
+--   previous output of the model.
+--   
+--   A <tt><a>Recurrent</a> ab a b</tt> takes a model taking <tt>ab</tt>
+--   and returning <tt>b</tt> into model taking <tt>a</tt> and returning
+--   <tt>b</tt>. Note that <tt>ab</tt> is supposed to essentially be some
+--   tupling of <tt>a</tt> and <tt>b</tt>; the actual split/join functions
+--   are a part of the model description.
+data Recurrent :: Type -> Type -> Type -> Type -> Type
+[R1] :: {_r1Init :: forall m. PrimMonad m => Gen (PrimState m) -> m b, _r1Split :: ab -> (a, b), _r1Join :: a -> b -> ab, _r1Learn :: l} -> Recurrent ab a b l
 instance (Backprop.Learn.Model.Class.Learn ab b l, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LStateMaybe l), GHC.Num.Num a, GHC.Num.Num b, GHC.Num.Num ab, Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.Class.LStateMaybe l)) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.State.Recurrent ab a b l)
 instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.LStateMaybe l ~ 'GHC.Base.Just s) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.State.ReState s t l)
 instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.LStateMaybe l ~ 'GHC.Base.Just s) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.State.DeState s l)
