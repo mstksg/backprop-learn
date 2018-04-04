@@ -889,7 +889,7 @@ instance (GHC.TypeNats.KnownNat a, GHC.TypeNats.KnownNat b) => GHC.Show.Show (Ba
 instance GHC.Generics.Generic (Backprop.Learn.Model.Regression.ARMAs a b)
 instance (GHC.TypeNats.KnownNat a, GHC.TypeNats.KnownNat b) => GHC.Show.Show (Backprop.Learn.Model.Regression.ARMAp a b)
 instance GHC.Generics.Generic (Backprop.Learn.Model.Regression.ARMAp a b)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q, 1 GHC.TypeNats.<= p, 1 GHC.TypeNats.<= q) => Backprop.Learn.Model.Class.Learn GHC.Types.Double GHC.Types.Double (Backprop.Learn.Model.Regression.ARMA p q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Backprop.Learn.Model.Class.Learn GHC.Types.Double GHC.Types.Double (Backprop.Learn.Model.Regression.ARMA p q)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARMAs p q)
 instance GHC.Num.Num (Backprop.Learn.Model.Regression.ARMAs p q)
 instance GHC.Real.Fractional (Backprop.Learn.Model.Regression.ARMAs p q)
