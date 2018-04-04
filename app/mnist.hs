@@ -9,10 +9,7 @@
 {-# LANGUAGE UndecidableInstances  #-}
 {-# OPTIONS_GHC -fno-warn-orphans  #-}
 
-import           Backprop.Learn.Loss
-import           Backprop.Learn.Model
-import           Backprop.Learn.Test
-import           Backprop.Learn.Train
+import           Backprop.Learn
 import           Control.DeepSeq
 import           Control.Exception
 import           Control.Monad
@@ -82,13 +79,12 @@ main = MWC.withSystemRandom $ \g -> do
                           >> C.yieldMany train .| shuffling g
                       )
        .| C.iterM (modify . (:))      -- add to state stack for train eval
-       .| void ( runOptoConduit
-                   (RO' Nothing Nothing)
-                   net0
-                   (adam @_ @(MutVar _ (LParam MNISTNet)) def
-                     (learnGradStoch crossEntropy mnistNet g)
-                   )
-               )
+       .| runOptoConduit_
+            (RO' Nothing Nothing)
+            net0
+            (adam @_ @(MutVar _ (LParam MNISTNet)) def
+              (learnGradStoch crossEntropy mnistNet g)
+            )
        .| mapM_ (report 2500) [0..]
        .| C.sinkNull
 

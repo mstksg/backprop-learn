@@ -89,7 +89,7 @@ fca d = FCA (genContVar d)
 data FCp i o = FCp { _fcBias    :: !(R o)
                    , _fcWeights :: !(L o i)
                    }
-  deriving Generic
+  deriving (Generic, Show)
 
 instance NFData (FCp i o)
 instance (KnownNat i, KnownNat o) => Additive (FCp i o)
@@ -176,7 +176,7 @@ data FCRp h i o = FCRp { _fcrBias         :: !(R o)
                        , _fcrInputWeights :: !(L o i)
                        , _fcrStateWeights :: !(L o h)
                        }
-  deriving Generic
+  deriving (Generic, Show)
 
 instance NFData (FCRp h i o)
 instance (KnownNat h, KnownNat i, KnownNat o) => Additive (FCRp h i o)

@@ -8,7 +8,7 @@
 module Backprop.Learn.Loss (
     Loss
   , crossEntropy
-  , squaredError, squaredError1
+  , squaredError, totalSquaredError, squaredErrorV
   , sumLoss
   , sumLossDecay
   , lastLoss
@@ -21,17 +21,23 @@ import           GHC.TypeNats
 import           Numeric.Backprop
 import           Numeric.LinearAlgebra.Static.Backprop
 import qualified Data.Vector.Sized                     as SV
+import qualified Prelude.Backprop                      as B
 
 type Loss a = forall s. Reifies s W => a -> BVar s a -> BVar s Double
 
 crossEntropy :: KnownNat n => Loss (R n)
 crossEntropy targ res = -(log res <.> constVar targ)
 
-squaredError :: KnownNat n => Loss (R n)
-squaredError targ res = norm_2V (res - constVar targ)
+squaredErrorV :: KnownNat n => Loss (R n)
+squaredErrorV targ res = norm_2V (res - constVar targ)
 
-squaredError1 :: Loss Double
-squaredError1 targ res = (res - constVar targ) ** 2
+totalSquaredError :: (Num (t Double), Foldable t, Functor t) => Loss (t Double)
+totalSquaredError targ res = B.sum (e * e)
+  where
+    e = constVar targ - res
+
+squaredError :: Loss Double
+squaredError targ res = (res - constVar targ) ** 2
 
 sumLoss
     :: (Traversable t, Applicative t, Num a)

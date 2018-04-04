@@ -1,3 +1,4 @@
+{-# LANGUAGE ApplicativeDo                        #-}
 {-# LANGUAGE FlexibleContexts                     #-}
 {-# LANGUAGE PartialTypeSignatures                #-}
 {-# LANGUAGE RankNTypes                           #-}
@@ -7,17 +8,18 @@
 module Backprop.Learn.Test (
   -- * Tests
     Test
-  , maxIxTest, rmseTest, squaredErrorTest, crossEntropyTest
+  , maxIxTest, rmseTest
+  , squaredErrorTest, totalSquaredErrorTest, squaredErrorTestV
+  , crossEntropyTest
   -- * Run tests
   , testLearn, testLearnStoch, testLearnAll, testLearnStochAll
   ) where
 
-import           Backprop.Learn.Model.Class
+import           Backprop.Learn.Model
 import           Control.Applicative
 import           Control.Monad.Primitive
 import           Data.Function
 import           Data.Semigroup
-import           Data.Type.Combinator
 import           GHC.TypeNats
 import           Numeric.Backprop.Tuple
 import qualified Numeric.LinearAlgebra        as HU
@@ -36,8 +38,21 @@ maxIxTest x y
 rmseTest :: KnownNat n => Test (H.R n)
 rmseTest x y = H.norm_2 (x - y)
 
-squaredErrorTest :: KnownNat n => Test (H.R n)
-squaredErrorTest x y = e `H.dot` e
+squaredErrorTest :: Real a => Test a
+squaredErrorTest x y = e * e
+  where
+    e = realToFrac (x - y)
+
+totalSquaredErrorTest :: (Applicative t, Foldable t, Real a) => Test (t a)
+totalSquaredErrorTest x y = realToFrac (sum e)
+  where
+    e = do
+      x' <- x
+      y' <- y
+      pure ((x' - y') ^ (2 :: Int))
+
+squaredErrorTestV :: KnownNat n => Test (H.R n)
+squaredErrorTestV x y = e `H.dot` e
   where
     e = x - y
 

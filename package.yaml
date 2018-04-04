@@ -24,7 +24,7 @@ ghc-options:
 - -Wcompat
 - -Wincomplete-record-updates
 - -Wredundant-constraints
-- -O0
+# - -O0
 # - -fprint-explicit-kinds
 dependencies:
 - base >=4.7 && <5
@@ -37,6 +37,7 @@ dependencies:
 - deepseq
 - primitive
 - vector
+- conduit
 
 library:
   source-dirs: src
@@ -52,6 +53,7 @@ library:
   - type-combinators
   - typelits-witnesses
   - vector-sized
+  - containers
 
 executables:
   backprop-learn-mnist:
@@ -66,13 +68,12 @@ executables:
     dependencies:
     - backprop-learn
     - mnist-idx
-    - conduit
     - backprop
     - time
     - data-default
     - filepath
-  backprop-learn-arima:
-    main: arima.hs
+  backprop-learn-arma:
+    main: arma.hs
     source-dirs: app
     ghc-options:
     - -threaded
@@ -82,12 +83,14 @@ executables:
     - -Wall
     dependencies:
     - backprop-learn
-    - mnist-idx
-    - conduit
     - backprop
     - time
+    - containers
     - data-default
     - filepath
+    - type-combinators
+    - vector
+    - vector-sized
 
 
 # dependencies:

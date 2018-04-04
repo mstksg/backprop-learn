@@ -43,7 +43,7 @@ packages:
   extra-dep: true
 - location:
     git: https://github.com/mstksg/opto.git
-    commit: 78ffd909a4b86899e0afc5cd277056fcbd3b53ff
+    commit: 815f998136f131aae01c9a918b0c5024de18bca4
   extra-dep: true
 - location:
     git: git@github.com:haskell/vector.git

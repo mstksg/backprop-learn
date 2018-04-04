@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes                      #-}
 {-# LANGUAGE DeriveGeneric                            #-}
 {-# LANGUAGE FlexibleContexts                         #-}
 {-# LANGUAGE FlexibleInstances                        #-}
@@ -20,6 +21,7 @@ module Backprop.Learn.Model.Regression (
   , Logistic, logisticRegression
   , ARMA(..), ARMAp(..), ARMAs(..)
   , ARMAUnroll, armaUnroll
+  , AR, MA
   ) where
 
 import           Backprop.Learn.Model.Class
@@ -28,6 +30,7 @@ import           Backprop.Learn.Model.Function
 import           Backprop.Learn.Model.Neural
 import           Backprop.Learn.Model.Parameter
 import           Backprop.Learn.Model.State
+import           Control.DeepSeq
 import           Control.Monad.Primitive
 import           Data.Finite
 import           Data.Kind
@@ -39,14 +42,15 @@ import           GHC.TypeLits.Extra
 import           GHC.TypeNats
 import           Lens.Micro
 import           Numeric.Backprop
+import           Numeric.Backprop.Tuple
 import           Numeric.LinearAlgebra.Static.Backprop
 import           Numeric.LinearAlgebra.Static.Vector
 import           Numeric.OneLiner
 import           Numeric.Opto.Ref
 import           Numeric.Opto.Update hiding            ((<.>))
+import           Unsafe.Coerce
 import qualified Data.Vector.Sized                     as SV
 import qualified Data.Vector.Storable.Sized            as SVS
-import qualified Numeric.LinearAlgebra.Static          as HS
 import qualified System.Random.MWC                     as MWC
 
 -- | Multivariate linear regression, from an n-vector to an m-vector.
@@ -86,6 +90,11 @@ logisticRegression f = RM (logistic . fst . headTail) (FC f)
 --
 -- In this state, it is a runnable stateful model.  To train, use with
 -- 'ARMAUnroll' to unroll and fix the initial state.
+--
+-- An ARIMA (auto-regressive moving average model on differenced history)
+-- model is a small modification from this; it is theoretically possible,
+-- I just haven't gotten around to implementing it yet!  Once done, we
+-- could just define the type synonym @type 'ARMA' p q = 'ARIMA' p 0 q@.
 data ARMA :: Nat -> Nat -> Type where
     ARMA :: { _armaGenPhi   :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> Finite p -> m Double
             , _armaGenTheta :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> Finite q -> m Double
@@ -111,7 +120,7 @@ data ARMA :: Nat -> Nat -> Type where
 --     type 'LParamMaybe' (ARMAUnroll p q) = 'Just (T2 (ARMAp p q) (ARMAs p q))
 --     type 'LStateMaybe' (ARMAUnroll p q) = 'Nothing
 -- @
-type ARMAUnroll p q = DeParamAt (ARMAs p q)
+type ARMAUnroll p q = DeParamAt (T2 (ARMAp p q) (ARMAs p q))
                                 (R q)
                                 (UnrollTrainState (Max p q) (ARMA p q))
 
@@ -123,7 +132,7 @@ armaUnroll
 armaUnroll a@ARMA{..} = DPA
     { _dpaParam      = 0
     , _dpaParamStoch = fmap vecR . SVS.replicateM . _armaGenEHist
-    , _dpaLens       = armaEHist
+    , _dpaLens       = t2_2 . armaEHist
     , _dpaLearn      = UnrollTrainState a
     }
 
@@ -134,7 +143,7 @@ data ARMAp :: Nat -> Nat -> Type where
              , _armaConstant :: !Double
              }
           -> ARMAp p q
-  deriving Generic
+  deriving (Generic, Show)
 
 -- | 'ARMA' state
 data ARMAs :: Nat -> Nat -> Type where
@@ -143,7 +152,7 @@ data ARMAs :: Nat -> Nat -> Type where
              , _armaEHist :: !(R q)
              }
           -> ARMAs p q
-  deriving Generic
+  deriving (Generic, Show)
 
 instance (KnownNat p, KnownNat q, 1 <= p, 1 <= q) => Learn Double Double (ARMA p q) where
     type LParamMaybe (ARMA p q) = 'Just (ARMAp p q)
@@ -175,11 +184,24 @@ instance (KnownNat p, KnownNat q, 1 <= p, 1 <= q) => Learn Double Double (ARMA p
                 yHist'
                 eHist'
 
+monosquare :: forall n. (n <=? (n ^ 2)) :~: 'True
+monosquare = unsafeCoerce Refl
+
 dropLast :: forall n. (KnownNat n, 1 <= n) => L (n - 1) n
-dropLast = HS.diagR 0 (1 :: R (n - 1))
+dropLast = case monosquare @n of
+    Refl -> vecL . SVS.generate $ \ij ->
+      let i :: Finite n
+          j :: Finite (n - 1)
+          (i, j) = separateProduct ij
+      in  if fromIntegral @_ @Int i == fromIntegral j
+            then 1
+            else 0
 
 single :: Reifies s W => BVar s Double -> BVar s (R 1)
 single = vector . SV.singleton
+
+instance NFData (ARMAp p q)
+instance NFData (ARMAs p q)
 
 instance Num (ARMAp p q) where
     (+)         = gPlus
@@ -277,4 +299,10 @@ armaYHist f a = (\x' -> a { _armaYHist = x' } ) <$> f (_armaYHist a)
 
 armaEHist :: Lens (ARMAs p q) (ARMAs p q') (R q) (R q')
 armaEHist f a = (\x' -> a { _armaEHist = x' } ) <$> f (_armaEHist a)
+
+-- | Autoregressive model
+type AR p = ARMA p 0
+
+-- | Moving average model
+type MA q = ARMA 0 q
 

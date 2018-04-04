@@ -16,6 +16,7 @@ module Backprop.Learn.Model.Stochastic (
   , FixedStochFunc, pattern FSF, _fsfRunDeterm, _fsfRunStoch
   , rreLU
   , injectNoise, applyNoise
+  , injectNoiseR, applyNoiseR
   ) where
 
 import           Backprop.Learn.Model.Class
@@ -115,24 +116,47 @@ rreLU d = FSF { _fsfRunDeterm = vmap' (preLU v)
 --
 -- In non-stochastic mode, this adds the mean of the distribution.
 injectNoise
+    :: (Stat.ContGen d, Stat.Mean d, Fractional a)
+    => d
+    -> FixedStochFunc a a
+injectNoise d = FSF { _fsfRunDeterm = (realToFrac (Stat.mean d) +)
+                    , _fsfRunStoch  = \g x -> do
+                        e <- Stat.genContVar d g
+                        pure (realToFrac e + x)
+                    }
+
+
+-- | 'injectNoise' lifted to 'R'
+injectNoiseR
     :: (Stat.ContGen d, Stat.Mean d, KnownNat n)
     => d
     -> FixedStochFunc (R n) (R n)
-injectNoise d = FSF { _fsfRunDeterm = (realToFrac (Stat.mean d) +)
-                    , _fsfRunStoch  = \g x -> do
-                        e <- vecR <$> SVS.replicateM (Stat.genContVar d g)
-                        pure (constVar e + x)
-                    }
+injectNoiseR d = FSF { _fsfRunDeterm = (realToFrac (Stat.mean d) +)
+                     , _fsfRunStoch  = \g x -> do
+                         e <- vecR <$> SVS.replicateM (Stat.genContVar d g)
+                         pure (constVar e + x)
+                     }
 
 -- | Multply by random noise.  Can be used to implement dropout-like
 -- behavior.
 --
 -- In non-stochastic mode, this scales by the mean of the distribution.
 applyNoise
+    :: (Stat.ContGen d, Stat.Mean d, Fractional a)
+    => d
+    -> FixedStochFunc a a
+applyNoise d = FSF { _fsfRunDeterm = (realToFrac (Stat.mean d) *)
+                   , _fsfRunStoch  = \g x -> do
+                       e <- Stat.genContVar d g
+                       pure (realToFrac e * x)
+                   }
+
+-- | 'applyNoise' lifted to 'R'
+applyNoiseR
     :: (Stat.ContGen d, Stat.Mean d, KnownNat n)
     => d
     -> FixedStochFunc (R n) (R n)
-applyNoise d = FSF { _fsfRunDeterm = (realToFrac (Stat.mean d) *)
+applyNoiseR d = FSF { _fsfRunDeterm = (realToFrac (Stat.mean d) *)
                    , _fsfRunStoch  = \g x -> do
                        e <- vecR <$> SVS.replicateM (Stat.genContVar d g)
                        pure (constVar e * x)
