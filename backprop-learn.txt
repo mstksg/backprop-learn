@@ -11,8 +11,9 @@
 module Backprop.Learn.Loss
 type Loss a = forall s. Reifies s W => a -> BVar s a -> BVar s Double
 crossEntropy :: KnownNat n => Loss (R n)
-squaredError :: KnownNat n => Loss (R n)
-squaredError1 :: Loss Double
+squaredError :: Loss Double
+totalSquaredError :: (Num (t Double), Foldable t, Functor t) => Loss (t Double)
+squaredErrorV :: KnownNat n => Loss (R n)
 sumLoss :: (Traversable t, Applicative t, Num a) => Loss a -> Loss (t a)
 sumLossDecay :: forall n a. (KnownNat n, Num a) => Double -> Loss a -> Loss (Vector n a)
 lastLoss :: (KnownNat (n + 1), Num a) => Loss a -> Loss (Vector (n + 1) a)
@@ -124,31 +125,15 @@ stateless :: (a -> b) -> (a -> s -> (b, s))
 statelessM :: Functor m => (a -> m b) -> (a -> s -> m (b, s))
 runLearnStateless :: (Learn a b l, Reifies s W, NoState l) => l -> LParam_ (BVar s) l -> BVar s a -> BVar s b
 runLearnStochStateless :: (Learn a b l, Reifies s W, NoState l, PrimMonad m) => l -> Gen (PrimState m) -> LParam_ (BVar s) l -> BVar s a -> m (BVar s b)
-runLearn_ :: (Learn a b l, MaybeC Num (LStateMaybe l), Num b) => l -> LParam_ I l -> a -> LState_ I l -> (b, LState_ I l)
-runLearnStoch_ :: (Learn a b l, MaybeC Num (LStateMaybe l), Num b, PrimMonad m) => l -> Gen (PrimState m) -> LParam_ I l -> a -> LState_ I l -> m (b, LState_ I l)
-runLearnStateless_ :: (Learn a b l, NoState l) => l -> LParam_ I l -> a -> b
-runLearnStochStateless_ :: (Learn a b l, NoState l, PrimMonad m) => l -> Gen (PrimState m) -> LParam_ I l -> a -> m b
-gradLearn :: (Learn a b l, NoState l, Num a, Num b, MaybeC Num (LParamMaybe l)) => l -> LParam_ I l -> a -> (LParam_ I l, a)
-gradLearnStoch :: (Learn a b l, NoState l, Num a, Num b, MaybeC Num (LParamMaybe l), PrimMonad m) => l -> Gen (PrimState m) -> LParam_ I l -> a -> m (LParam_ I l, a)
 data Mayb :: (k -> Type) -> Maybe k -> Type
 [N_] :: Mayb f  'Nothing
 [J_] :: !(f a) -> Mayb f ( 'Just a)
 fromJ_ :: Mayb f ( 'Just a) -> f a
 type KnownMayb = Known (Mayb P)
 knownMayb :: KnownMayb p => Mayb P p
-
-module Backprop.Learn.Test
-type Test o = o -> o -> Double
-maxIxTest :: KnownNat n => Test (R n)
-rmseTest :: KnownNat n => Test (R n)
-squaredErrorTest :: KnownNat n => Test (R n)
-crossEntropyTest :: KnownNat n => Test (R n)
-testLearn :: (Learn a b l, NoState l) => Test b -> l -> LParam_ I l -> a -> b -> Double
-testLearnStoch :: (Learn a b l, NoState l, PrimMonad m) => Test b -> l -> Gen (PrimState m) -> LParam_ I l -> a -> b -> m Double
-testLearnAll :: (Learn a b l, NoState l, Foldable t) => Test b -> l -> LParam_ I l -> t (a, b) -> Double
-testLearnStochAll :: (Learn a b l, NoState l, PrimMonad m, Foldable t) => Test b -> l -> Gen (PrimState m) -> LParam_ I l -> t (a, b) -> m Double
-instance (GHC.Base.Semigroup a, GHC.Base.Applicative m) => GHC.Base.Semigroup (Backprop.Learn.Test.M m a)
-instance (GHC.Base.Monoid a, GHC.Base.Applicative m) => GHC.Base.Monoid (Backprop.Learn.Test.M m a)
+newtype I a
+I :: a -> I a
+[getI] :: I a -> a
 
 module Backprop.Learn.Model.State
 
@@ -583,13 +568,19 @@ rreLU :: (ContGen d, Mean d, KnownNat n) => d -> FixedStochFunc (R n) (R n)
 --   the very beginning to pre-process input.
 --   
 --   In non-stochastic mode, this adds the mean of the distribution.
-injectNoise :: (ContGen d, Mean d, KnownNat n) => d -> FixedStochFunc (R n) (R n)
+injectNoise :: (ContGen d, Mean d, Fractional a) => d -> FixedStochFunc a a
 
 -- | Multply by random noise. Can be used to implement dropout-like
 --   behavior.
 --   
 --   In non-stochastic mode, this scales by the mean of the distribution.
-applyNoise :: (ContGen d, Mean d, KnownNat n) => d -> FixedStochFunc (R n) (R n)
+applyNoise :: (ContGen d, Mean d, Fractional a) => d -> FixedStochFunc a a
+
+-- | <a>injectNoise</a> lifted to <a>R</a>
+injectNoiseR :: (ContGen d, Mean d, KnownNat n) => d -> FixedStochFunc (R n) (R n)
+
+-- | <a>applyNoise</a> lifted to <a>R</a>
+applyNoiseR :: (ContGen d, Mean d, KnownNat n) => d -> FixedStochFunc (R n) (R n)
 instance Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Stochastic.StochFunc p a b)
 instance GHC.TypeNats.KnownNat n => Backprop.Learn.Model.Class.Learn (Internal.Static.R n) (Internal.Static.R n) (Backprop.Learn.Model.Stochastic.DO n)
 
@@ -799,7 +790,9 @@ _fcraGen :: () => FCRA h i o -> forall (m :: * -> *). PrimMonad m => Gen PrimSta
 _fcraGenState :: () => FCRA h i o -> forall (m :: * -> *). PrimMonad m => Gen PrimState m -> m Double
 _fcraStore :: () => FCRA h i o -> forall s. Reifies s W => BVar s R o -> BVar s R h
 _fcraActivation :: () => FCRA h i o -> forall s. Reifies s W => BVar s R o -> BVar s R o
+instance (GHC.TypeNats.KnownNat o, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat h) => GHC.Show.Show (Backprop.Learn.Model.Neural.FCRp h i o)
 instance GHC.Generics.Generic (Backprop.Learn.Model.Neural.FCRp h i o)
+instance (GHC.TypeNats.KnownNat o, GHC.TypeNats.KnownNat i) => GHC.Show.Show (Backprop.Learn.Model.Neural.FCp i o)
 instance GHC.Generics.Generic (Backprop.Learn.Model.Neural.FCp i o)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Neural.FCRp h i o)
 instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Additive (Backprop.Learn.Model.Neural.FCRp h i o)
@@ -849,6 +842,12 @@ logisticRegression :: (forall m. PrimMonad m => Gen (PrimState m) -> m Double) -
 --   
 --   In this state, it is a runnable stateful model. To train, use with
 --   <a>ARMAUnroll</a> to unroll and fix the initial state.
+--   
+--   An ARIMA (auto-regressive moving average model on differenced history)
+--   model is a small modification from this; it is theoretically possible,
+--   I just haven't gotten around to implementing it yet! Once done, we
+--   could just define the type synonym <tt>type <a>ARMA</a> p q =
+--   <tt>ARIMA</tt> p 0 q</tt>.
 data ARMA :: Nat -> Nat -> Type
 [ARMA] :: {_armaGenPhi :: forall m. PrimMonad m => Gen (PrimState m) -> Finite p -> m Double, _armaGenTheta :: forall m. PrimMonad m => Gen (PrimState m) -> Finite q -> m Double, _armaGenConst :: forall m. PrimMonad m => Gen (PrimState m) -> m Double, _armaGenYHist :: forall m. PrimMonad m => Gen (PrimState m) -> m Double, _armaGenEHist :: forall m. PrimMonad m => Gen (PrimState m) -> m Double} -> ARMA p q
 
@@ -876,13 +875,22 @@ data ARMAs :: Nat -> Nat -> Type
 --       type <a>LParamMaybe</a> (ARMAUnroll p q) = 'Just (T2 (ARMAp p q) (ARMAs p q))
 --       type <a>LStateMaybe</a> (ARMAUnroll p q) = 'Nothing
 --   </pre>
-type ARMAUnroll p q = DeParamAt (ARMAs p q) (R q) (UnrollTrainState (Max p q) (ARMA p q))
+type ARMAUnroll p q = DeParamAt (T2 (ARMAp p q) (ARMAs p q)) (R q) (UnrollTrainState (Max p q) (ARMA p q))
 
 -- | Constructor for <a>ARMAUnroll</a>
 armaUnroll :: KnownNat q => ARMA p q -> ARMAUnroll p q
+
+-- | Autoregressive model
+type AR p = ARMA p 0
+
+-- | Moving average model
+type MA q = ARMA 0 q
+instance (GHC.TypeNats.KnownNat a, GHC.TypeNats.KnownNat b) => GHC.Show.Show (Backprop.Learn.Model.Regression.ARMAs a b)
 instance GHC.Generics.Generic (Backprop.Learn.Model.Regression.ARMAs a b)
+instance (GHC.TypeNats.KnownNat a, GHC.TypeNats.KnownNat b) => GHC.Show.Show (Backprop.Learn.Model.Regression.ARMAp a b)
 instance GHC.Generics.Generic (Backprop.Learn.Model.Regression.ARMAp a b)
 instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q, 1 GHC.TypeNats.<= p, 1 GHC.TypeNats.<= q) => Backprop.Learn.Model.Class.Learn GHC.Types.Double GHC.Types.Double (Backprop.Learn.Model.Regression.ARMA p q)
+instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARMAs p q)
 instance GHC.Num.Num (Backprop.Learn.Model.Regression.ARMAs p q)
 instance GHC.Real.Fractional (Backprop.Learn.Model.Regression.ARMAs p q)
 instance GHC.Float.Floating (Backprop.Learn.Model.Regression.ARMAs p q)
@@ -891,6 +899,7 @@ instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Numeric.Opto.Upda
 instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Regression.ARMAs p q)
 instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARMAs p q) v) => Numeric.Opto.Update.AdditiveInPlace m v (Backprop.Learn.Model.Regression.ARMAs p q)
 instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARMAs p q) v) => Numeric.Opto.Update.ScalingInPlace m v GHC.Types.Double (Backprop.Learn.Model.Regression.ARMAs p q)
+instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARMAp p q)
 instance GHC.Num.Num (Backprop.Learn.Model.Regression.ARMAp p q)
 instance GHC.Real.Fractional (Backprop.Learn.Model.Regression.ARMAp p q)
 instance GHC.Float.Floating (Backprop.Learn.Model.Regression.ARMAp p q)
@@ -901,6 +910,12 @@ instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref
 instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARMAp p q) v) => Numeric.Opto.Update.ScalingInPlace m v GHC.Types.Double (Backprop.Learn.Model.Regression.ARMAp p q)
 
 module Backprop.Learn.Model
+runLearn_ :: (Learn a b l, MaybeC Num (LStateMaybe l), Num b) => l -> LParam_ I l -> a -> LState_ I l -> (b, LState_ I l)
+runLearnStoch_ :: (Learn a b l, MaybeC Num (LStateMaybe l), Num b, PrimMonad m) => l -> Gen (PrimState m) -> LParam_ I l -> a -> LState_ I l -> m (b, LState_ I l)
+runLearnStateless_ :: (Learn a b l, NoState l) => l -> LParam_ I l -> a -> b
+runLearnStochStateless_ :: (Learn a b l, NoState l, PrimMonad m) => l -> Gen (PrimState m) -> LParam_ I l -> a -> m b
+gradLearn :: (Learn a b l, NoState l, Num a, Num b, MaybeC Num (LParamMaybe l)) => l -> LParam_ I l -> a -> (LParam_ I l, a)
+gradLearnStoch :: (Learn a b l, NoState l, Num a, Num b, MaybeC Num (LParamMaybe l), PrimMonad m) => l -> Gen (PrimState m) -> LParam_ I l -> a -> m (LParam_ I l, a)
 
 module Backprop.Learn.Train
 
@@ -920,3 +935,22 @@ learnGrad :: (MonadSample (a, b) m, Learn a b l, NoState l, LParamMaybe l ~  'Ju
 --   function), generate a <a>Grad</a> compatible with <a>Numeric.Opto</a>
 --   and <a>Numeric.Opto.Run</a>.
 learnGradStoch :: (MonadSample (a, b) m, PrimMonad m, Learn a b l, NoState l, LParamMaybe l ~  'Just (LParam l), Num (LParam l)) => Loss b -> l -> Gen (PrimState m) -> Grad m (LParam l)
+consecutives :: Monad m => ConduitT i (i, i) m ()
+consecutivesN :: forall v n i m. (KnownNat n, Vector v i, Monad m) => ConduitT i (Vector v n i, Vector v n i) m ()
+
+module Backprop.Learn.Test
+type Test o = o -> o -> Double
+maxIxTest :: KnownNat n => Test (R n)
+rmseTest :: KnownNat n => Test (R n)
+squaredErrorTest :: Real a => Test a
+totalSquaredErrorTest :: (Applicative t, Foldable t, Real a) => Test (t a)
+squaredErrorTestV :: KnownNat n => Test (R n)
+crossEntropyTest :: KnownNat n => Test (R n)
+testLearn :: (Learn a b l, NoState l) => Test b -> l -> LParam_ I l -> a -> b -> Double
+testLearnStoch :: (Learn a b l, NoState l, PrimMonad m) => Test b -> l -> Gen (PrimState m) -> LParam_ I l -> a -> b -> m Double
+testLearnAll :: (Learn a b l, NoState l, Foldable t) => Test b -> l -> LParam_ I l -> t (a, b) -> Double
+testLearnStochAll :: (Learn a b l, NoState l, PrimMonad m, Foldable t) => Test b -> l -> Gen (PrimState m) -> LParam_ I l -> t (a, b) -> m Double
+instance (GHC.Base.Semigroup a, GHC.Base.Applicative m) => GHC.Base.Semigroup (Backprop.Learn.Test.M m a)
+instance (GHC.Base.Monoid a, GHC.Base.Applicative m) => GHC.Base.Monoid (Backprop.Learn.Test.M m a)
+
+module Backprop.Learn
