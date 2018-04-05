@@ -19,6 +19,11 @@ sumLossDecay :: forall n a. (KnownNat n, Num a) => Double -> Loss a -> Loss (Vec
 lastLoss :: (KnownNat (n + 1), Num a) => Loss a -> Loss (Vector (n + 1) a)
 zipLoss :: (Traversable t, Applicative t, Num a) => t Double -> Loss a -> Loss (t a)
 
+module Backprop.Learn.Run
+consecutives :: Monad m => ConduitT i (i, i) m ()
+consecutivesN :: forall v n i m. (KnownNat n, Vector v i, Monad m) => ConduitT i (Vector v n i, Vector v n i) m ()
+leadings :: forall v n i m. (KnownNat n, Vector v i, Monad m) => ConduitT i (Vector v n i, i) m ()
+
 module Data.Type.Mayb
 data Mayb :: (k -> Type) -> Maybe k -> Type
 [N_] :: Mayb f  'Nothing
@@ -213,6 +218,49 @@ _udsInitState :: () => UnrollDeState n l -> LState l
 _udsInitStateStoch :: () => UnrollDeState n l -> forall (m :: * -> *). PrimMonad m => Gen PrimState m -> m LState l
 _udsLearn :: () => UnrollDeState n l -> l
 
+-- | Version of <a>Unroll</a> that only keeps the "final" result, dropping
+--   all of the intermediate results.
+--   
+--   Turns a stateful model into one that runs the model repeatedly on
+--   multiple inputs sequentially and outputs the final result after seeing
+--   all items.
+newtype UnrollFinal :: Nat -> Type -> Type
+[UnrollFinal] :: {getUnrollFinal :: l} -> UnrollFinal n l
+
+-- | Unroll a stateful model into a stateless one taking a vector of
+--   sequential inputs and outputting the result after seeing all of them,
+--   and treat the initial state as a trained parameter.
+--   
+--   <pre>
+--   instance <a>Learn</a> a b l
+--       =&gt; <a>Learn</a> (<a>Vector</a> n a) (<a>Vector</a> n b) (<a>UnrollFinalTrainState</a> n l)
+--   
+--       type <a>LParamMaybe</a> (<a>UnrollFinalDeState</a> n l) = <a>TupMaybe</a> (<a>LParamMaybe</a> l) (<a>LStateMaybe</a> l)
+--       type <a>LStateMaybe</a> (<a>UnrollFinalDeState</a> n l) = '<a>Nothing</a>
+--   </pre>
+type UnrollFinalTrainState n l = TrainState (UnrollFinal n l)
+
+-- | Constructor and pattern for <a>UnrollFinalTrainState</a>
+getUnrollFinalTrainState :: () => UnrollFinalTrainState n l -> l
+
+-- | UnrollFinal a stateful model into a stateless one taking a vector of
+--   sequential inputs and outputting the final result after seeing all of
+--   them, and fix the initial state.
+--   
+--   <pre>
+--   instance <a>Learn</a> a b l
+--       =&gt; <a>Learn</a> (<a>Vector</a> n a) (<a>Vector</a> n b) (<a>UnrollFinalDeState</a> n l)
+--   
+--       type <a>LParamMaybe</a> (<a>UnrollFinalDeState</a> n l) = <a>LParamMaybe</a> l
+--       type <a>LStateMaybe</a> (<a>UnrollFinalDeState</a> n l) = '<a>Nothing</a>
+--   </pre>
+type UnrollFinalDeState n l = DeState (LState l) (UnrollFinal n l)
+
+-- | Constructor and pattern for <a>UnrollFinalDeState</a>
+_ufdsInitState :: () => UnrollFinalDeState n l -> LState l
+_ufdsInitStateStoch :: () => UnrollFinalDeState n l -> forall (m :: * -> *). PrimMonad m => Gen PrimState m -> m LState l
+_ufdsLearn :: () => UnrollFinalDeState n l -> l
+
 -- | Transform the state of a model by providing functions to pre-apply and
 --   post-apply before and after the original model sees the state.
 --   
@@ -230,8 +278,8 @@ rsDeterm :: (forall m. PrimMonad m => Gen (PrimState m) -> m t) -> (forall q. Re
 -- | Transform a model taking in input into a recurrent model: the input is
 --   no longer free, but is always the "previous output" of the model.
 --   
---   That is, transforms &lt;math&gt; into a stateful ( X rightarrow Y )
---   with state Y, where the original Y input is essentially "fixed" as the
+--   That is, transforms &lt;math&gt; into a stateful &lt;math&gt; with
+--   state Y, where the original Y input is essentially "fixed" as the
 --   previous output of the model.
 --   
 --   A <tt><a>Recurrent</a> ab a b</tt> takes a model taking <tt>ab</tt>
@@ -245,6 +293,7 @@ instance (Backprop.Learn.Model.Class.Learn ab b l, Data.Type.Mayb.KnownMayb (Bac
 instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.LStateMaybe l ~ 'GHC.Base.Just s) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.State.ReState s t l)
 instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.LStateMaybe l ~ 'GHC.Base.Just s) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.State.DeState s l)
 instance (Backprop.Learn.Model.Class.Learn a b l, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LParamMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.Class.LParamMaybe l), Backprop.Learn.Model.Class.LStateMaybe l ~ 'GHC.Base.Just s, GHC.Num.Num s) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.State.TrainState l)
+instance (Backprop.Learn.Model.Class.Learn a b l, GHC.Num.Num a) => Backprop.Learn.Model.Class.Learn (Data.Vector.Sized.Vector n a) b (Backprop.Learn.Model.State.UnrollFinal n l)
 instance (Backprop.Learn.Model.Class.Learn a b l, GHC.TypeNats.KnownNat n, GHC.Num.Num a, GHC.Num.Num b) => Backprop.Learn.Model.Class.Learn (Data.Vector.Sized.Vector n a) (Data.Vector.Sized.Vector n b) (Backprop.Learn.Model.State.Unroll n l)
 
 module Backprop.Learn.Model.Parameter
@@ -885,7 +934,7 @@ data ARMAs :: Nat -> Nat -> Type
 --   /learned parameter/.
 --   
 --   <pre>
---   instance <a>Learn</a> <a>Double</a> Double (<a>ARMAUnroll</a> p q) where
+--   instance <a>Learn</a> (<a>Vector</a> n <a>Double</a>) (SV.Vector n Double) (<a>ARMAUnroll</a> p q) where
 --       -- | Initial state is a parameter, but initial error history is fixed
 --       type <a>LParamMaybe</a> (ARMAUnroll p q) = 'Just (T2 (ARMAp p q) (ARMAs p q))
 --       type <a>LStateMaybe</a> (ARMAUnroll p q) = 'Nothing
@@ -894,6 +943,20 @@ type ARMAUnroll p q = DeParamAt (T2 (ARMAp p q) (ARMAs p q)) (R q) (UnrollTrainS
 
 -- | Constructor for <a>ARMAUnroll</a>
 armaUnroll :: KnownNat q => ARMA p q -> ARMAUnroll p q
+
+-- | <a>ARMAUnroll</a>, but only looking at the final output after running
+--   the model on all inputs.
+--   
+--   <pre>
+--   instance <a>Learn</a> (<a>Vector</a> n <a>Double</a>) Double (<a>ARMAUnrollFinal</a> p q) where
+--       -- | Initial state is a parameter, but initial error history is fixed
+--       type <a>LParamMaybe</a> (ARMAUnrollFinal p q) = 'Just (T2 (ARMAp p q) (ARMAs p q))
+--       type <a>LStateMaybe</a> (ARMAUnrollFinal p q) = 'Nothing
+--   </pre>
+type ARMAUnrollFinal p q = DeParamAt (T2 (ARMAp p q) (ARMAs p q)) (R q) (UnrollFinalTrainState (Max p q) (ARMA p q))
+
+-- | Constructor for <a>ARMAUnrollFinal</a>
+armaUnrollFinal :: KnownNat q => ARMA p q -> ARMAUnrollFinal p q
 
 -- | Autoregressive model
 type AR p = ARMA p 0
@@ -950,8 +1013,6 @@ learnGrad :: (MonadSample (a, b) m, Learn a b l, NoState l, LParamMaybe l ~  'Ju
 --   function), generate a <a>Grad</a> compatible with <a>Numeric.Opto</a>
 --   and <a>Numeric.Opto.Run</a>.
 learnGradStoch :: (MonadSample (a, b) m, PrimMonad m, Learn a b l, NoState l, LParamMaybe l ~  'Just (LParam l), Num (LParam l)) => Loss b -> l -> Gen (PrimState m) -> Grad m (LParam l)
-consecutives :: Monad m => ConduitT i (i, i) m ()
-consecutivesN :: forall v n i m. (KnownNat n, Vector v i, Monad m) => ConduitT i (Vector v n i, Vector v n i) m ()
 
 module Backprop.Learn.Test
 type Test o = o -> o -> Double
