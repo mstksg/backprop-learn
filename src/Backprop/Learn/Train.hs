@@ -16,31 +16,18 @@ module Backprop.Learn.Train (
   , Grad
   , learnGrad
   , learnGradStoch
-  -- * Utility conduits
-  , consecutives
-  , consecutivesN
   ) where
 
 import           Backprop.Learn.Loss
 import           Backprop.Learn.Model
-import           Control.Monad
 import           Control.Monad.Primitive
 import           Control.Monad.ST
 import           Control.Monad.Sample
-import           Control.Monad.Trans.Class
-import           Control.Monad.Trans.Maybe
-import           Data.Conduit
-import           Data.Foldable
-import           Data.Proxy
 import           Data.Word
-import           GHC.TypeNats
 import           Numeric.Backprop
 import           Numeric.Opto.Core
-import qualified Data.Sequence             as Seq
-import qualified Data.Vector.Generic       as VG
-import qualified Data.Vector.Generic.Sized as SVG
-import qualified Data.Vector.Unboxed       as VU
-import qualified System.Random.MWC         as MWC
+import qualified Data.Vector.Unboxed          as VU
+import qualified System.Random.MWC            as MWC
 
 -- | Gradient of model with respect to loss function and target
 gradLearnLoss
@@ -113,30 +100,3 @@ learnGradStoch
     -> Grad m (LParam l)
 learnGradStoch loss l g = sampling $ \(x,y) p ->
       gradLearnStochLoss loss l g p x y
-
-consecutives :: Monad m => ConduitT i (i, i) m ()
-consecutives = void . runMaybeT $ do
-    x <- MaybeT await
-    go x
-  where
-    go x = do
-      y <- MaybeT await
-      lift $ yield (x, y)
-      go y
-
-consecutivesN
-    :: forall v n i m. (KnownNat n, VG.Vector v i, Monad m)
-    => ConduitT i (SVG.Vector v n i, SVG.Vector v n i) m ()
-consecutivesN = void . runMaybeT $ do
-    xs <- Seq.replicateM (fromIntegral n) $ MaybeT await
-    go xs
-  where
-    go xs = do
-      _ Seq.:<| xs' <- pure xs
-      y <- MaybeT await
-      let ys = xs' Seq.:|> y
-      xsV <- MaybeT . pure . SVG.fromList . toList $ xs     -- should not fail
-      ysV <- MaybeT . pure . SVG.fromList . toList $ ys     -- should not fail
-      lift $ yield (xsV, ysV)
-      go ys
-    n = natVal (Proxy @n)

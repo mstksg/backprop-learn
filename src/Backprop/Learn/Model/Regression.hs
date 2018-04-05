@@ -21,6 +21,7 @@ module Backprop.Learn.Model.Regression (
   , Logistic, logisticRegression
   , ARMA(..), ARMAp(..), ARMAs(..)
   , ARMAUnroll, armaUnroll
+  , ARMAUnrollFinal, armaUnrollFinal
   , AR, MA
   ) where
 
@@ -115,7 +116,7 @@ data ARMA :: Nat -> Nat -> Type where
 -- parameter/.
 --
 -- @
--- instance 'Learn' 'Double' Double ('ARMAUnroll' p q) where
+-- instance 'Learn' ('SV.Vector' n 'Double') (SV.Vector n Double) ('ARMAUnroll' p q) where
 --     -- | Initial state is a parameter, but initial error history is fixed
 --     type 'LParamMaybe' (ARMAUnroll p q) = 'Just (T2 (ARMAp p q) (ARMAs p q))
 --     type 'LStateMaybe' (ARMAUnroll p q) = 'Nothing
@@ -123,6 +124,20 @@ data ARMA :: Nat -> Nat -> Type where
 type ARMAUnroll p q = DeParamAt (T2 (ARMAp p q) (ARMAs p q))
                                 (R q)
                                 (UnrollTrainState (Max p q) (ARMA p q))
+
+-- | 'ARMAUnroll', but only looking at the final output after running the
+-- model on all inputs.
+--
+-- @
+-- instance 'Learn' ('SV.Vector' n 'Double') Double ('ARMAUnrollFinal' p q) where
+--     -- | Initial state is a parameter, but initial error history is fixed
+--     type 'LParamMaybe' (ARMAUnrollFinal p q) = 'Just (T2 (ARMAp p q) (ARMAs p q))
+--     type 'LStateMaybe' (ARMAUnrollFinal p q) = 'Nothing
+-- @
+type ARMAUnrollFinal p q = DeParamAt (T2 (ARMAp p q) (ARMAs p q))
+                                     (R q)
+                                     (UnrollFinalTrainState (Max p q) (ARMA p q))
+
 
 -- | Constructor for 'ARMAUnroll'
 armaUnroll
@@ -135,6 +150,19 @@ armaUnroll a@ARMA{..} = DPA
     , _dpaLens       = t2_2 . armaEHist
     , _dpaLearn      = UnrollTrainState a
     }
+
+-- | Constructor for 'ARMAUnrollFinal'
+armaUnrollFinal
+    :: KnownNat q
+    => ARMA p q
+    -> ARMAUnrollFinal p q
+armaUnrollFinal a@ARMA{..} = DPA
+    { _dpaParam      = 0
+    , _dpaParamStoch = fmap vecR . SVS.replicateM . _armaGenEHist
+    , _dpaLens       = t2_2 . armaEHist
+    , _dpaLearn      = UnrollFinalTrainState a
+    }
+
 
 -- | 'ARMA' parmaeters
 data ARMAp :: Nat -> Nat -> Type where

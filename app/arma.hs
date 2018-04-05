@@ -25,6 +25,7 @@ import           Data.Time
 import           Data.Type.Equality
 import           GHC.TypeLits.Extra
 import           GHC.TypeNats
+import           Numeric.Backprop.Tuple
 import           Numeric.Natural
 import           Numeric.Opto
 import           Options.Applicative
@@ -99,8 +100,8 @@ main = MWC.withSystemRandom @IO $ \g -> do
                   .| C.sinkNull
 
       CLearn MARMA -> do
-        let model = armaUnroll armaSim'
-        p0 <- fromJ_ $ initParam model g
+        let model = armaUnrollFinal armaSim'
+        p0@(T2 p0' _) <- fromJ_ $ initParam model g
 
         let report n b = do
               liftIO $ printf "(Batch %d)\n" (b :: Int)
@@ -110,27 +111,29 @@ main = MWC.withSystemRandom @IO $ \g -> do
               t1 <- liftIO getCurrentTime
               case mp of
                 Nothing -> liftIO $ putStrLn "Done!"
-                Just p  -> do
+                Just (T2 p' _) -> do
                   chnk <- lift . state $ (,[])
                   liftIO $ do
                     printf "Trained on %d points in %s.\n"
                       (length chnk)
                       (show (t1 `diffUTCTime` t0))
-                    let e = norm_2 (p0 - p)
-                    printf "Error: %0.4f\n" e
+                    print p0'
+                    print p'
+                    let e = norm_2 (p0' - p')
+                    printf "Error: %0.6f\n" e
                   report n (b + 1)
 
         flip evalStateT []
             . runConduit
             $ genSim armaSim' oNoise g
-           .| consecutivesN
+           .| leadings
            .| skipSampling 0.02 g
            .| C.iterM (modify . (:))
            .| runOptoConduit_
                 (RO' Nothing Nothing)
                 p0
                 (adam @_ @(MutVar _ _) def
-                   (learnGrad (lastLoss @(Max p q - 1) squaredError) model)
+                   (learnGrad squaredError model)
                 )
            .| report 5000 0
            .| C.sinkNull

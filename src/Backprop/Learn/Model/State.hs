@@ -23,6 +23,10 @@ module Backprop.Learn.Model.State (
   , Unroll(..)
   , UnrollTrainState, pattern UnrollTrainState, getUnrollTrainState
   , UnrollDeState, pattern UDS, _udsInitState, _udsInitStateStoch, _udsLearn
+  -- ** Unroll Final
+  , UnrollFinal(..)
+  , UnrollFinalTrainState, pattern UnrollFinalTrainState, getUnrollFinalTrainState
+  , UnrollFinalDeState, pattern UFDS, _ufdsInitState, _ufdsInitStateStoch, _ufdsLearn
   -- ** ReState
   , ReState(..), rsDeterm
   -- * Make models recurrent
@@ -31,15 +35,20 @@ module Backprop.Learn.Model.State (
 
 import           Backprop.Learn.Model.Class
 import           Control.Monad.Primitive
+import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.State
+import           Control.Monad.Trans.Writer
 import           Data.Bifunctor
+import           Data.Foldable
 import           Data.Kind
+import           Data.Semigroup
+import           Data.Tuple
 import           Data.Type.Mayb
 import           GHC.TypeNats
 import           Numeric.Backprop
 import           Numeric.Backprop.Tuple
-import qualified Data.Vector.Sized         as SV
-import qualified System.Random.MWC         as MWC
+import qualified Data.Vector.Sized          as SV
+import qualified System.Random.MWC          as MWC
 
 -- | Unroll a (usually) stateful model into one taking a vector of
 -- sequential inputs.
@@ -111,6 +120,82 @@ instance (Learn a b l, KnownNat n, Num a, Num b) => Learn (SV.Vector n a) (SV.Ve
                                      . traverse (StateT . runLearnStoch l g p)
                                      . sequenceVar
                                      $ x
+
+-- | Version of 'Unroll' that only keeps the "final" result, dropping all
+-- of the intermediate results.
+--
+-- Turns a stateful model into one that runs the model repeatedly on
+-- multiple inputs sequentially and outputs the final result after seeing
+-- all items.
+newtype UnrollFinal :: Nat -> Type -> Type where
+    UnrollFinal :: { getUnrollFinal :: l } -> UnrollFinal n l
+
+-- | Unroll a stateful model into a stateless one taking a vector of
+-- sequential inputs and outputting the result after seeing all of them,
+-- and treat the initial state as a trained parameter.
+--
+-- @
+-- instance 'Learn' a b l
+--     => 'Learn' ('SV.Vector' n a) ('SV.Vector' n b) ('UnrollFinalTrainState' n l)
+--
+--     type 'LParamMaybe' ('UnrollFinalDeState' n l) = 'TupMaybe' ('LParamMaybe' l) ('LStateMaybe' l)
+--     type 'LStateMaybe' ('UnrollFinalDeState' n l) = ''Nothing'
+-- @
+type UnrollFinalTrainState  n l = TrainState (UnrollFinal n l)
+
+-- | Constructor and pattern for 'UnrollFinalTrainState'
+pattern UnrollFinalTrainState :: l -> UnrollFinalTrainState n l
+pattern UnrollFinalTrainState { getUnrollFinalTrainState } = TrainState (UnrollFinal getUnrollFinalTrainState)
+
+-- | UnrollFinal a stateful model into a stateless one taking a vector of
+-- sequential inputs and outputting the final result after seeing all of them,
+-- and fix the initial state.
+--
+-- @
+-- instance 'Learn' a b l
+--     => 'Learn' ('SV.Vector' n a) ('SV.Vector' n b) ('UnrollFinalDeState' n l)
+--
+--     type 'LParamMaybe' ('UnrollFinalDeState' n l) = 'LParamMaybe' l
+--     type 'LStateMaybe' ('UnrollFinalDeState' n l) = ''Nothing'
+-- @
+type UnrollFinalDeState n l = DeState (LState l) (UnrollFinal n l)
+
+-- | Constructor and pattern for 'UnrollFinalDeState'
+pattern UFDS
+    :: LState l
+    -> (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m (LState l))
+    -> l
+    -> UnrollFinalDeState n l
+pattern UFDS { _ufdsInitState, _ufdsInitStateStoch, _ufdsLearn } =
+      DS _ufdsInitState _ufdsInitStateStoch (UnrollFinal _ufdsLearn)
+
+instance (Learn a b l, Num a) => Learn (SV.Vector n a) b (UnrollFinal n l) where
+    type LParamMaybe (UnrollFinal n l) = LParamMaybe l
+    type LStateMaybe (UnrollFinal n l) = LStateMaybe l
+
+    initParam = initParam . getUnrollFinal
+    initState = initState . getUnrollFinal
+
+    runLearn (UnrollFinal l) p xs s0 =
+        first (option (error "runLearn (UnrollFinal): n cannot be 0") getLast)
+      . flip execStateT s0
+      . traverse_ (\x -> StateT $ \s -> let (y, s') = runLearn l p x s
+                                        in  (Option (Just (Last y)), ((), s'))
+                  )
+      . sequenceVar
+      $ xs
+    runLearnStoch (UnrollFinal l) g p xs s0 =
+        fmap ( first (option (error "runLearn (UnrollFinal): n cannot be 0") getLast)
+             . swap
+             )
+      . runWriterT
+      . flip execStateT s0
+      . traverse_ (\x -> StateT $ \s -> do
+            (y, s') <- lift $ runLearnStoch l g p x s
+            WriterT $ pure (((), s'), Option (Just (Last y)))
+          )
+      . sequenceVar
+      $ xs
 
 -- | Make a model stateless by converting the state to a trained parameter,
 -- and dropping the modified state from the result.
@@ -236,8 +321,8 @@ rsDeterm i t f = RS i t f (const (pure . f))
 -- the input is no longer free, but is always the "previous output" of the
 -- model.
 --
--- That is, transforms \( X \times Y \rightarrow Y \) into a stateful \(
--- X \rightarrow Y \) with state Y, where the original Y input is
+-- That is, transforms \( X \times Y \rightarrow Y \) into a stateful
+-- \( X \rightarrow Y \) with state Y, where the original Y input is
 -- essentially "fixed" as the previous output of the model.
 --
 -- A @'Recurrent' ab a b@ takes a model taking @ab@ and returning @b@ into
