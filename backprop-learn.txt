@@ -903,96 +903,94 @@ type Logistic n = RMap (R 1) Double (Linear n 1)
 --   for coefficients.
 logisticRegression :: (forall m. PrimMonad m => Gen (PrimState m) -> m Double) -> Logistic n
 
--- | Auto-regressive moving average model.
+-- | Auto-regressive integrated moving average model.
 --   
---   ARMA(p,q) is an ARMA model with p autoregressive history terms and q
---   error (innovation) history terms.
+--   ARIMA(p,d,q) is an ARIMA model with p autoregressive history terms on
+--   the d-th order differenced history and q error (innovation) history
+--   terms.
 --   
 --   It is a <tt><a>Learn</a> Double Double</tt> instance, and is meant to
 --   predict the "next step" of a time sequence.
 --   
 --   In this state, it is a runnable stateful model. To train, use with
---   <a>ARMAUnroll</a> to unroll and fix the initial state.
---   
---   An ARIMA (auto-regressive moving average model on differenced history)
---   model is a small modification from this; it is theoretically possible,
---   I just haven't gotten around to implementing it yet! Once done, we
---   could just define the type synonym <tt>type <a>ARMA</a> p q =
---   <tt>ARIMA</tt> p 0 q</tt>.
-data ARMA :: Nat -> Nat -> Type
-[ARMA] :: {_armaGenPhi :: forall m. PrimMonad m => Gen (PrimState m) -> Finite p -> m Double, _armaGenTheta :: forall m. PrimMonad m => Gen (PrimState m) -> Finite q -> m Double, _armaGenConst :: forall m. PrimMonad m => Gen (PrimState m) -> m Double, _armaGenYHist :: forall m. PrimMonad m => Gen (PrimState m) -> m Double, _armaGenEHist :: forall m. PrimMonad m => Gen (PrimState m) -> m Double} -> ARMA p q
+--   <a>ARIMAUnroll</a> to unroll and fix the initial state.
+data ARIMA :: Nat -> Nat -> Nat -> Type
+[ARIMA] :: {_arimaGenPhi :: forall m. PrimMonad m => Gen (PrimState m) -> Finite p -> m Double, _arimaGenTheta :: forall m. PrimMonad m => Gen (PrimState m) -> Finite q -> m Double, _arimaGenConst :: forall m. PrimMonad m => Gen (PrimState m) -> m Double, _arimaGenYHist :: forall m. PrimMonad m => Gen (PrimState m) -> m Double, _arimaGenEHist :: forall m. PrimMonad m => Gen (PrimState m) -> m Double} -> ARIMA p d q
 
--- | <a>ARMA</a> parmaeters
-data ARMAp :: Nat -> Nat -> Type
-[ARMAp] :: {_armaPhi :: !(R p), _armaTheta :: !(R q), _armaConstant :: !Double} -> ARMAp p q
+-- | <a>ARIMA</a> parmaeters
+data ARIMAp :: Nat -> Nat -> Type
+[ARIMAp] :: {_arimaPhi :: !(R p), _arimaTheta :: !(R q), _arimaConstant :: !Double} -> ARIMAp p q
 
--- | <a>ARMA</a> state
-data ARMAs :: Nat -> Nat -> Type
-[ARMAs] :: {_armaYPred :: !Double, _armaYHist :: !(R p), _armaEHist :: !(R q)} -> ARMAs p q
+-- | <a>ARIMA</a> state
+data ARIMAs :: Nat -> Nat -> Nat -> Type
+[ARIMAs] :: {_arimaYPred :: !Double, _arimaYHist :: !(R (p + d)), _arimaEHist :: !(R q)} -> ARIMAs p d q
 
--- | The "unrolled" and "destated" <a>ARMA</a> model, which takes a vector
+-- | The "unrolled" and "destated" <a>ARIMA</a> model, which takes a vector
 --   of sequential inputs and outputs a vector of the model's expected next
 --   steps.
 --   
---   Useful for actually training <a>ARMA</a> using gradient descent.
+--   Useful for actually training <a>ARIMA</a> using gradient descent.
 --   
 --   This <i>fixes</i> the initial error history to be zero (or a fixed
 --   stochastic sample), and treats the initial output history to be a
 --   /learned parameter/.
 --   
 --   <pre>
---   instance <a>Learn</a> (<a>Vector</a> n <a>Double</a>) (SV.Vector n Double) (<a>ARMAUnroll</a> p q) where
+--   instance <a>Learn</a> (<a>Vector</a> n <a>Double</a>) (SV.Vector n Double) (<a>ARIMAUnroll</a> p q) where
 --       -- | Initial state is a parameter, but initial error history is fixed
---       type <a>LParamMaybe</a> (ARMAUnroll p q) = 'Just (T2 (ARMAp p q) (ARMAs p q))
---       type <a>LStateMaybe</a> (ARMAUnroll p q) = 'Nothing
+--       type <a>LParamMaybe</a> (ARIMAUnroll p q) = 'Just (T2 (ARIMAp p q) (ARIMAs p q))
+--       type <a>LStateMaybe</a> (ARIMAUnroll p q) = 'Nothing
 --   </pre>
-type ARMAUnroll p q = DeParamAt (T2 (ARMAp p q) (ARMAs p q)) (R q) (UnrollTrainState (Max p q) (ARMA p q))
+type ARIMAUnroll p d q = DeParamAt (T2 (ARIMAp p q) (ARIMAs p d q)) (R q) (UnrollTrainState (Max (p + d) q) (ARIMA p d q))
 
--- | Constructor for <a>ARMAUnroll</a>
-armaUnroll :: KnownNat q => ARMA p q -> ARMAUnroll p q
+-- | Constructor for <a>ARIMAUnroll</a>
+arimaUnroll :: KnownNat q => ARIMA p d q -> ARIMAUnroll p d q
 
--- | <a>ARMAUnroll</a>, but only looking at the final output after running
+-- | <a>ARIMAUnroll</a>, but only looking at the final output after running
 --   the model on all inputs.
 --   
 --   <pre>
---   instance <a>Learn</a> (<a>Vector</a> n <a>Double</a>) Double (<a>ARMAUnrollFinal</a> p q) where
+--   instance <a>Learn</a> (<a>Vector</a> n <a>Double</a>) Double (<a>ARIMAUnrollFinal</a> p q) where
 --       -- | Initial state is a parameter, but initial error history is fixed
---       type <a>LParamMaybe</a> (ARMAUnrollFinal p q) = 'Just (T2 (ARMAp p q) (ARMAs p q))
---       type <a>LStateMaybe</a> (ARMAUnrollFinal p q) = 'Nothing
+--       type <a>LParamMaybe</a> (ARIMAUnrollFinal p q) = 'Just (T2 (ARIMAp p q) (ARIMAs p q))
+--       type <a>LStateMaybe</a> (ARIMAUnrollFinal p q) = 'Nothing
 --   </pre>
-type ARMAUnrollFinal p q = DeParamAt (T2 (ARMAp p q) (ARMAs p q)) (R q) (UnrollFinalTrainState (Max p q) (ARMA p q))
+type ARIMAUnrollFinal p d q = DeParamAt (T2 (ARIMAp p q) (ARIMAs p d q)) (R q) (UnrollFinalTrainState (Max (p + d) q) (ARIMA p d q))
 
--- | Constructor for <a>ARMAUnrollFinal</a>
-armaUnrollFinal :: KnownNat q => ARMA p q -> ARMAUnrollFinal p q
+-- | Constructor for <a>ARIMAUnrollFinal</a>
+arimaUnrollFinal :: KnownNat q => ARIMA p d q -> ARIMAUnrollFinal p d q
 
 -- | Autoregressive model
-type AR p = ARMA p 0
+type AR p = ARIMA p 0 0
 
 -- | Moving average model
-type MA q = ARMA 0 q
-instance (GHC.TypeNats.KnownNat a, GHC.TypeNats.KnownNat b) => GHC.Show.Show (Backprop.Learn.Model.Regression.ARMAs a b)
-instance GHC.Generics.Generic (Backprop.Learn.Model.Regression.ARMAs a b)
-instance (GHC.TypeNats.KnownNat a, GHC.TypeNats.KnownNat b) => GHC.Show.Show (Backprop.Learn.Model.Regression.ARMAp a b)
-instance GHC.Generics.Generic (Backprop.Learn.Model.Regression.ARMAp a b)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Backprop.Learn.Model.Class.Learn GHC.Types.Double GHC.Types.Double (Backprop.Learn.Model.Regression.ARMA p q)
-instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARMAs p q)
-instance GHC.Num.Num (Backprop.Learn.Model.Regression.ARMAs p q)
-instance GHC.Real.Fractional (Backprop.Learn.Model.Regression.ARMAs p q)
-instance GHC.Float.Floating (Backprop.Learn.Model.Regression.ARMAs p q)
-instance Numeric.Opto.Update.Additive (Backprop.Learn.Model.Regression.ARMAs p q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Numeric.Opto.Update.Scaling GHC.Types.Double (Backprop.Learn.Model.Regression.ARMAs p q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Regression.ARMAs p q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARMAs p q) v) => Numeric.Opto.Update.AdditiveInPlace m v (Backprop.Learn.Model.Regression.ARMAs p q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARMAs p q) v) => Numeric.Opto.Update.ScalingInPlace m v GHC.Types.Double (Backprop.Learn.Model.Regression.ARMAs p q)
-instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARMAp p q)
-instance GHC.Num.Num (Backprop.Learn.Model.Regression.ARMAp p q)
-instance GHC.Real.Fractional (Backprop.Learn.Model.Regression.ARMAp p q)
-instance GHC.Float.Floating (Backprop.Learn.Model.Regression.ARMAp p q)
-instance Numeric.Opto.Update.Additive (Backprop.Learn.Model.Regression.ARMAp p q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Numeric.Opto.Update.Scaling GHC.Types.Double (Backprop.Learn.Model.Regression.ARMAp p q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Regression.ARMAp p q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARMAp p q) v) => Numeric.Opto.Update.AdditiveInPlace m v (Backprop.Learn.Model.Regression.ARMAp p q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARMAp p q) v) => Numeric.Opto.Update.ScalingInPlace m v GHC.Types.Double (Backprop.Learn.Model.Regression.ARMAp p q)
+type MA = ARIMA 0 0
+
+-- | Autoregressive Moving average model
+type ARMA p = ARIMA p 0
+instance (GHC.TypeNats.KnownNat a, GHC.TypeNats.KnownNat b, GHC.TypeNats.KnownNat c) => GHC.Show.Show (Backprop.Learn.Model.Regression.ARIMAs a b c)
+instance GHC.Generics.Generic (Backprop.Learn.Model.Regression.ARIMAs a b c)
+instance (GHC.TypeNats.KnownNat a, GHC.TypeNats.KnownNat b) => GHC.Show.Show (Backprop.Learn.Model.Regression.ARIMAp a b)
+instance GHC.Generics.Generic (Backprop.Learn.Model.Regression.ARIMAp a b)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q) => Backprop.Learn.Model.Class.Learn GHC.Types.Double GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMA p d q)
+instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARIMAs p d q)
+instance GHC.Num.Num (Backprop.Learn.Model.Regression.ARIMAs p d q)
+instance GHC.Real.Fractional (Backprop.Learn.Model.Regression.ARIMAs p d q)
+instance GHC.Float.Floating (Backprop.Learn.Model.Regression.ARIMAs p d q)
+instance Numeric.Opto.Update.Additive (Backprop.Learn.Model.Regression.ARIMAs p d q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q) => Numeric.Opto.Update.Scaling GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAs p d q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q) => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAs p d q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARIMAs p d q) v) => Numeric.Opto.Update.AdditiveInPlace m v (Backprop.Learn.Model.Regression.ARIMAs p d q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARIMAs p d q) v) => Numeric.Opto.Update.ScalingInPlace m v GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAs p d q)
+instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARIMAp p q)
+instance GHC.Num.Num (Backprop.Learn.Model.Regression.ARIMAp p q)
+instance GHC.Real.Fractional (Backprop.Learn.Model.Regression.ARIMAp p q)
+instance GHC.Float.Floating (Backprop.Learn.Model.Regression.ARIMAp p q)
+instance Numeric.Opto.Update.Additive (Backprop.Learn.Model.Regression.ARIMAp p q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Numeric.Opto.Update.Scaling GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAp p q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAp p q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARIMAp p q) v) => Numeric.Opto.Update.AdditiveInPlace m v (Backprop.Learn.Model.Regression.ARIMAp p q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARIMAp p q) v) => Numeric.Opto.Update.ScalingInPlace m v GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAp p q)
 
 module Backprop.Learn.Model
 runLearn_ :: (Learn a b l, MaybeC Num (LStateMaybe l), Num b) => l -> LParam_ I l -> a -> LState_ I l -> (b, LState_ I l)
