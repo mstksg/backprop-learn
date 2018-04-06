@@ -70,8 +70,8 @@ executables:
     - time
     - data-default
     - filepath
-  backprop-learn-arma:
-    main: arma.hs
+  backprop-learn-arima:
+    main: arima.hs
     source-dirs: app
     ghc-options:
     - -threaded
