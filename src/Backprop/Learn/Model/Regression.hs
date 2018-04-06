@@ -19,10 +19,10 @@
 module Backprop.Learn.Model.Regression (
     Linear, linearRegression
   , Logistic, logisticRegression
-  , ARMA(..), ARMAp(..), ARMAs(..)
-  , ARMAUnroll, armaUnroll
-  , ARMAUnrollFinal, armaUnrollFinal
-  , AR, MA
+  , ARIMA(..), ARIMAp(..), ARIMAs(..)
+  , ARIMAUnroll, arimaUnroll
+  , ARIMAUnrollFinal, arimaUnrollFinal
+  , AR, MA, ARMA
   ) where
 
 import           Backprop.Learn.Model.Class
@@ -35,6 +35,8 @@ import           Control.DeepSeq
 import           Control.Monad.Primitive
 import           Data.Finite
 import           Data.Kind
+import           Data.List
+import           Data.Maybe
 import           Data.Proxy
 import           Data.Type.Equality
 import           GHC.Generics                          (Generic)
@@ -50,8 +52,9 @@ import           Numeric.OneLiner
 import           Numeric.Opto.Ref
 import           Numeric.Opto.Update hiding            ((<.>))
 import           Unsafe.Coerce
-import qualified Data.Vector.Sized                     as SV
 import qualified Data.Vector.Storable.Sized            as SVS
+import qualified Numeric.LinearAlgebra                 as HU
+import qualified Numeric.LinearAlgebra.Static          as H
 import qualified System.Random.MWC                     as MWC
 
 -- | Multivariate linear regression, from an n-vector to an m-vector.
@@ -81,133 +84,131 @@ logisticRegression
     -> Logistic n
 logisticRegression f = RM (logistic . fst . headTail) (FC f)
 
--- | Auto-regressive moving average model.
+-- | Auto-regressive integrated moving average model.
 --
--- ARMA(p,q) is an ARMA model with p autoregressive history terms and
--- q error (innovation) history terms.
+-- ARIMA(p,d,q) is an ARIMA model with p autoregressive history terms on
+-- the d-th order differenced history and q error (innovation) history
+-- terms.
 --
 -- It is a @'Learn' Double Double@ instance, and is meant to predict the
 -- "next step" of a time sequence.
 --
 -- In this state, it is a runnable stateful model.  To train, use with
--- 'ARMAUnroll' to unroll and fix the initial state.
---
--- An ARIMA (auto-regressive moving average model on differenced history)
--- model is a small modification from this; it is theoretically possible,
--- I just haven't gotten around to implementing it yet!  Once done, we
--- could just define the type synonym @type 'ARMA' p q = 'ARIMA' p 0 q@.
-data ARMA :: Nat -> Nat -> Type where
-    ARMA :: { _armaGenPhi   :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> Finite p -> m Double
-            , _armaGenTheta :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> Finite q -> m Double
-            , _armaGenConst :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double
-            , _armaGenYHist :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double
-            , _armaGenEHist :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double
-            }
-         -> ARMA p q
+-- 'ARIMAUnroll' to unroll and fix the initial state.
+data ARIMA :: Nat -> Nat -> Nat -> Type where
+    ARIMA :: { _arimaGenPhi   :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> Finite p -> m Double
+             , _arimaGenTheta :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> Finite q -> m Double
+             , _arimaGenConst :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double
+             , _arimaGenYHist :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double
+             , _arimaGenEHist :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double
+             }
+          -> ARIMA p d q
 
--- | The "unrolled" and "destated" 'ARMA' model, which takes a vector of
+-- | The "unrolled" and "destated" 'ARIMA' model, which takes a vector of
 -- sequential inputs and outputs a vector of the model's expected next
 -- steps.
 --
--- Useful for actually training 'ARMA' using gradient descent.
+-- Useful for actually training 'ARIMA' using gradient descent.
 --
 -- This /fixes/ the initial error history to be zero (or a fixed stochastic
 -- sample), and treats the initial output history to be a /learned
 -- parameter/.
 --
 -- @
--- instance 'Learn' ('SV.Vector' n 'Double') (SV.Vector n Double) ('ARMAUnroll' p q) where
+-- instance 'Learn' ('SV.Vector' n 'Double') (SV.Vector n Double) ('ARIMAUnroll' p q) where
 --     -- | Initial state is a parameter, but initial error history is fixed
---     type 'LParamMaybe' (ARMAUnroll p q) = 'Just (T2 (ARMAp p q) (ARMAs p q))
---     type 'LStateMaybe' (ARMAUnroll p q) = 'Nothing
+--     type 'LParamMaybe' (ARIMAUnroll p q) = 'Just (T2 (ARIMAp p q) (ARIMAs p q))
+--     type 'LStateMaybe' (ARIMAUnroll p q) = 'Nothing
 -- @
-type ARMAUnroll p q = DeParamAt (T2 (ARMAp p q) (ARMAs p q))
-                                (R q)
-                                (UnrollTrainState (Max p q) (ARMA p q))
+type ARIMAUnroll p d q = DeParamAt (T2 (ARIMAp p q) (ARIMAs p d q))
+                                   (R q)
+                                   (UnrollTrainState (Max (p + d) q) (ARIMA p d q))
 
--- | 'ARMAUnroll', but only looking at the final output after running the
+-- | 'ARIMAUnroll', but only looking at the final output after running the
 -- model on all inputs.
 --
 -- @
--- instance 'Learn' ('SV.Vector' n 'Double') Double ('ARMAUnrollFinal' p q) where
+-- instance 'Learn' ('SV.Vector' n 'Double') Double ('ARIMAUnrollFinal' p q) where
 --     -- | Initial state is a parameter, but initial error history is fixed
---     type 'LParamMaybe' (ARMAUnrollFinal p q) = 'Just (T2 (ARMAp p q) (ARMAs p q))
---     type 'LStateMaybe' (ARMAUnrollFinal p q) = 'Nothing
+--     type 'LParamMaybe' (ARIMAUnrollFinal p q) = 'Just (T2 (ARIMAp p q) (ARIMAs p q))
+--     type 'LStateMaybe' (ARIMAUnrollFinal p q) = 'Nothing
 -- @
-type ARMAUnrollFinal p q = DeParamAt (T2 (ARMAp p q) (ARMAs p q))
-                                     (R q)
-                                     (UnrollFinalTrainState (Max p q) (ARMA p q))
+type ARIMAUnrollFinal p d q = DeParamAt (T2 (ARIMAp p q) (ARIMAs p d q))
+                                        (R q)
+                                        (UnrollFinalTrainState (Max (p + d) q) (ARIMA p d q))
 
 
--- | Constructor for 'ARMAUnroll'
-armaUnroll
+-- | Constructor for 'ARIMAUnroll'
+arimaUnroll
     :: KnownNat q
-    => ARMA p q
-    -> ARMAUnroll p q
-armaUnroll a@ARMA{..} = DPA
+    => ARIMA p d q
+    -> ARIMAUnroll p d q
+arimaUnroll a@ARIMA{..} = DPA
     { _dpaParam      = 0
-    , _dpaParamStoch = fmap vecR . SVS.replicateM . _armaGenEHist
-    , _dpaLens       = t2_2 . armaEHist
+    , _dpaParamStoch = fmap vecR . SVS.replicateM . _arimaGenEHist
+    , _dpaLens       = t2_2 . arimaEHist
     , _dpaLearn      = UnrollTrainState a
     }
 
--- | Constructor for 'ARMAUnrollFinal'
-armaUnrollFinal
+-- | Constructor for 'ARIMAUnrollFinal'
+arimaUnrollFinal
     :: KnownNat q
-    => ARMA p q
-    -> ARMAUnrollFinal p q
-armaUnrollFinal a@ARMA{..} = DPA
+    => ARIMA p d q
+    -> ARIMAUnrollFinal p d q
+arimaUnrollFinal a@ARIMA{..} = DPA
     { _dpaParam      = 0
-    , _dpaParamStoch = fmap vecR . SVS.replicateM . _armaGenEHist
-    , _dpaLens       = t2_2 . armaEHist
+    , _dpaParamStoch = fmap vecR . SVS.replicateM . _arimaGenEHist
+    , _dpaLens       = t2_2 . arimaEHist
     , _dpaLearn      = UnrollFinalTrainState a
     }
 
 
--- | 'ARMA' parmaeters
-data ARMAp :: Nat -> Nat -> Type where
-    ARMAp :: { _armaPhi      :: !(R p)
-             , _armaTheta    :: !(R q)
-             , _armaConstant :: !Double
-             }
-          -> ARMAp p q
+-- | 'ARIMA' parmaeters
+data ARIMAp :: Nat -> Nat -> Type where
+    ARIMAp :: { _arimaPhi      :: !(R p)
+              , _arimaTheta    :: !(R q)
+              , _arimaConstant :: !Double
+              }
+           -> ARIMAp p q
   deriving (Generic, Show)
 
--- | 'ARMA' state
-data ARMAs :: Nat -> Nat -> Type where
-    ARMAs :: { _armaYPred :: !Double
-             , _armaYHist :: !(R p)
-             , _armaEHist :: !(R q)
+-- | 'ARIMA' state
+data ARIMAs :: Nat -> Nat -> Nat -> Type where
+    ARIMAs :: { _arimaYPred :: !Double
+             , _arimaYHist :: !(R (p + d))
+             , _arimaEHist :: !(R q)
              }
-          -> ARMAs p q
+          -> ARIMAs p d q
   deriving (Generic, Show)
 
-instance (KnownNat p, KnownNat q) => Learn Double Double (ARMA p q) where
-    type LParamMaybe (ARMA p q) = 'Just (ARMAp p q)
-    type LStateMaybe (ARMA p q) = 'Just (ARMAs p q)
+instance (KnownNat p, KnownNat d, KnownNat q) => Learn Double Double (ARIMA p d q) where
+    type LParamMaybe (ARIMA p d q) = 'Just (ARIMAp p q)
+    type LStateMaybe (ARIMA p d q) = 'Just (ARIMAs p d q)
 
-    initParam ARMA{..} g = J_ $
-        ARMAp <$> (vecR <$> SVS.generateM (_armaGenPhi   g))
-              <*> (vecR <$> SVS.generateM (_armaGenTheta g))
-              <*> _armaGenConst g
-    initState ARMA{..} g = J_ $
-        ARMAs <$> _armaGenYHist g
-              <*> (vecR <$> SVS.replicateM (_armaGenYHist g))
-              <*> (vecR <$> SVS.replicateM (_armaGenEHist g))
+    initParam ARIMA{..} g = J_ $
+        ARIMAp <$> (vecR <$> SVS.generateM (_arimaGenPhi   g))
+               <*> (vecR <$> SVS.generateM (_arimaGenTheta g))
+               <*> _arimaGenConst g
+    initState ARIMA{..} g = J_ $
+        ARIMAs <$> _arimaGenYHist g
+               <*> (vecR <$> SVS.replicateM (_arimaGenYHist g))
+               <*> (vecR <$> SVS.replicateM (_arimaGenEHist g))
 
-    runLearn ARMA{..} (J_ p) x (J_ s) = (y, J_ s')
+    runLearn ARIMA{..} (J_ p) x (J_ s) = (y, J_ s')
       where
-        e  = x - (s ^^. armaYPred)
-        y  = (p ^^. armaConstant)
-           + (p ^^. armaPhi  ) <.> (s ^^. armaYHist)
-           + (p ^^. armaTheta) <.> (s ^^. armaEHist)
-        yHist' = case Proxy @1 %<=? Proxy @p of
-          LE Refl -> single y # constVar dropLast #> (s ^^. armaYHist)
+        d :: L p (p + d)
+        d  = difference
+        e  = x - (s ^^. arimaYPred)
+        y  = (p ^^. arimaConstant)
+           + (p ^^. arimaPhi  ) <.> (constVar d #> (s ^^. arimaYHist))
+           + (p ^^. arimaTheta) <.> (s ^^. arimaEHist)
+        yHist' = case Proxy @1 %<=? Proxy @(p + d) of
+          LE Refl -> single y # constVar dropLast #> (s ^^. arimaYHist)
           NLE _ _ -> 0
         eHist' = case Proxy @1 %<=? Proxy @q of
-          LE Refl -> single e # constVar dropLast #> (s ^^. armaEHist)
+          LE Refl -> single e # constVar dropLast #> (s ^^. arimaEHist)
           NLE _ _ -> 0
-        s' = isoVar3 ARMAs (\(ARMAs pr yh eh) -> (pr,yh,eh))
+        s' = isoVar3 ARIMAs (\(ARIMAs pr yh eh) -> (pr,yh,eh))
                 y
                 yHist'
                 eHist'
@@ -226,12 +227,31 @@ dropLast = case monosquare @n of
             else 0
 
 single :: Reifies s W => BVar s Double -> BVar s (R 1)
-single = vector . SV.singleton
+single = konst
 
-instance NFData (ARMAp p q)
-instance NFData (ARMAs p q)
+difference'
+    :: Int                  -- ^ initial
+    -> Int                  -- ^ target
+    -> HU.Matrix Double     -- ^ target x initial
+difference' n m = foldl' go (HU.ident m) [m + 1 .. n]
+  where
+    go x k = x HU.<> d k
+    d k = HU.build (k-1, k) $ \i j ->
+        case round @_ @Int (j - i) of
+          0 -> 1
+          1 -> -1
+          _ -> 0
 
-instance Num (ARMAp p q) where
+difference :: forall n m. (KnownNat n, KnownNat m) => L n (n + m)
+difference = fromJust . H.create $ difference' (n + m) n
+  where
+    n = fromIntegral $ natVal (Proxy @n)
+    m = fromIntegral $ natVal (Proxy @m)
+
+instance NFData (ARIMAp p q)
+instance NFData (ARIMAs p d q)
+
+instance Num (ARIMAp p q) where
     (+)         = gPlus
     (-)         = gMinus
     (*)         = gTimes
@@ -240,7 +260,7 @@ instance Num (ARMAp p q) where
     signum      = gSignum
     fromInteger = gFromInteger
 
-instance Num (ARMAs p q) where
+instance Num (ARIMAs p d q) where
     (+)         = gPlus
     (-)         = gMinus
     (*)         = gTimes
@@ -249,17 +269,17 @@ instance Num (ARMAs p q) where
     signum      = gSignum
     fromInteger = gFromInteger
 
-instance Fractional (ARMAp p q) where
+instance Fractional (ARIMAp p q) where
     (/)          = gDivide
     recip        = gRecip
     fromRational = gFromRational
 
-instance Fractional (ARMAs p q) where
+instance Fractional (ARIMAs p d q) where
     (/)          = gDivide
     recip        = gRecip
     fromRational = gFromRational
 
-instance Floating (ARMAp p q) where
+instance Floating (ARIMAp p q) where
     pi    = gPi
     sqrt  = gSqrt
     exp   = gExp
@@ -275,7 +295,7 @@ instance Floating (ARMAp p q) where
     acosh = gAcosh
     atanh = gAtanh
 
-instance Floating (ARMAs p q) where
+instance Floating (ARIMAs p d q) where
     pi    = gPi
     sqrt  = gSqrt
     exp   = gExp
@@ -291,46 +311,49 @@ instance Floating (ARMAs p q) where
     acosh = gAcosh
     atanh = gAtanh
 
-instance Additive (ARMAp p q) where
+instance Additive (ARIMAp p q) where
     (.+.)   = gAdd
     addZero = gAddZero
-instance Additive (ARMAs p q) where
+instance Additive (ARIMAs p d q) where
     (.+.)   = gAdd
     addZero = gAddZero
 
-instance (KnownNat p, KnownNat q) => Scaling Double (ARMAp p q)
-instance (KnownNat p, KnownNat q) => Scaling Double (ARMAs p q)
+instance (KnownNat p, KnownNat q) => Scaling Double (ARIMAp p q)
+instance (KnownNat p, KnownNat d, KnownNat q) => Scaling Double (ARIMAs p d q)
 
-instance (KnownNat p, KnownNat q) => Metric  Double (ARMAp p q)
-instance (KnownNat p, KnownNat q) => Metric  Double (ARMAs p q)
+instance (KnownNat p, KnownNat q) => Metric  Double (ARIMAp p q)
+instance (KnownNat p, KnownNat d, KnownNat q) => Metric  Double (ARIMAs p d q)
 
-instance (KnownNat p, KnownNat q, Ref m (ARMAp p q) v) => AdditiveInPlace m v (ARMAp p q)
-instance (KnownNat p, KnownNat q, Ref m (ARMAs p q) v) => AdditiveInPlace m v (ARMAs p q)
+instance (KnownNat p, KnownNat q, Ref m (ARIMAp p q) v) => AdditiveInPlace m v (ARIMAp p q)
+instance (KnownNat p, KnownNat d, KnownNat q, Ref m (ARIMAs p d q) v) => AdditiveInPlace m v (ARIMAs p d q)
 
-instance (KnownNat p, KnownNat q, Ref m (ARMAp p q) v) => ScalingInPlace m v Double (ARMAp p q)
-instance (KnownNat p, KnownNat q, Ref m (ARMAs p q) v) => ScalingInPlace m v Double (ARMAs p q)
+instance (KnownNat p, KnownNat q, Ref m (ARIMAp p q) v) => ScalingInPlace m v Double (ARIMAp p q)
+instance (KnownNat p, KnownNat d, KnownNat q, Ref m (ARIMAs p d q) v) => ScalingInPlace m v Double (ARIMAs p d q)
 
-armaPhi :: Lens (ARMAp p q) (ARMAp p' q) (R p) (R p')
-armaPhi f a = (\x' -> a { _armaPhi = x' } ) <$> f (_armaPhi a)
+arimaPhi :: Lens (ARIMAp p q) (ARIMAp p' q) (R p) (R p')
+arimaPhi f a = (\x' -> a { _arimaPhi = x' } ) <$> f (_arimaPhi a)
 
-armaTheta :: Lens (ARMAp p q) (ARMAp p q') (R q) (R q')
-armaTheta f a = (\x' -> a { _armaTheta = x' } ) <$> f (_armaTheta a)
+arimaTheta :: Lens (ARIMAp p q) (ARIMAp p q') (R q) (R q')
+arimaTheta f a = (\x' -> a { _arimaTheta = x' } ) <$> f (_arimaTheta a)
 
-armaConstant :: Lens' (ARMAp p q) Double
-armaConstant f a = (\x' -> a { _armaConstant = x' } ) <$> f (_armaConstant a)
+arimaConstant :: Lens' (ARIMAp p q) Double
+arimaConstant f a = (\x' -> a { _arimaConstant = x' } ) <$> f (_arimaConstant a)
 
-armaYPred :: Lens' (ARMAs p q) Double
-armaYPred f a = (\x' -> a { _armaYPred = x' } ) <$> f (_armaYPred a)
+arimaYPred :: Lens' (ARIMAs p d q) Double
+arimaYPred f a = (\x' -> a { _arimaYPred = x' } ) <$> f (_arimaYPred a)
 
-armaYHist :: Lens (ARMAs p q) (ARMAs p' q) (R p) (R p')
-armaYHist f a = (\x' -> a { _armaYHist = x' } ) <$> f (_armaYHist a)
+arimaYHist :: Lens' (ARIMAs p d q) (R (p + d))
+arimaYHist f a = (\x' -> a { _arimaYHist = x' } ) <$> f (_arimaYHist a)
 
-armaEHist :: Lens (ARMAs p q) (ARMAs p q') (R q) (R q')
-armaEHist f a = (\x' -> a { _armaEHist = x' } ) <$> f (_armaEHist a)
+arimaEHist :: Lens (ARIMAs p d q) (ARIMAs p d q') (R q) (R q')
+arimaEHist f a = (\x' -> a { _arimaEHist = x' } ) <$> f (_arimaEHist a)
 
 -- | Autoregressive model
-type AR p = ARMA p 0
+type AR p = ARIMA p 0 0
 
 -- | Moving average model
-type MA q = ARMA 0 q
+type MA = ARIMA 0 0
+
+-- | Autoregressive Moving average model
+type ARMA p = ARIMA p 0
 

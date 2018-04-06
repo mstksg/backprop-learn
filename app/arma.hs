@@ -58,12 +58,12 @@ data Mode = CSimulate (Maybe Int)
               -- (forall n. KnownNat n => LearnFunc ('Just p) 'Nothing (SV.Vector n Double) Double)
 
 data Model :: Type -> Type where
-    MARMA  :: (KnownNat p, KnownNat q) => Model (ARMA p q)
+    MARIMA  :: (KnownNat p, KnownNat d, KnownNat q) => Model (ARIMA p d q)
     MFCRNN :: Model (Dimap (R 1) (R 1) Double Double (FCRA 3 1 3 :.~ FCA 3 1))
 
 modelLearn :: Model t -> t
 modelLearn = \case
-    MARMA  -> armaSim
+    MARIMA  -> arimaSim
     MFCRNN -> DM { _dmPre   = konst
                  , _dmPost  = sumElements
                  , _dmLearn = fcra (normalDistr 0 0.2) (normalDistr 0 0.2) logistic logistic
@@ -78,19 +78,19 @@ data Options = O { oMode     :: Mode
                  , oLookback :: Natural
                  }
 
-armaSim :: (KnownNat p, KnownNat q) => ARMA p q
-armaSim = ARMA { _armaGenPhi   = \g i ->
-                    (/ (fromIntegral i + 5)) <$> genContVar (normalDistr 0 1) g
-               , _armaGenTheta = \g i ->
-                    (/ (fromIntegral i + 5)) <$> genContVar (normalDistr 0 1) g
-               , _armaGenConst = genContVar $ normalDistr 0 10
-               , _armaGenYHist = genContVar $ normalDistr 0 0.2
-               , _armaGenEHist = genContVar $ normalDistr 0 0.2
-               }
+arimaSim :: (KnownNat p, KnownNat q) => ARIMA p d q
+arimaSim = ARIMA { _arimaGenPhi   = \g i ->
+                     (/ (fromIntegral i + 5)) <$> genContVar (normalDistr 0 0.5) g
+                , _arimaGenTheta = \g i ->
+                     (/ (fromIntegral i + 5)) <$> genContVar (normalDistr 0 0.5) g
+                , _arimaGenConst = genContVar $ normalDistr 0 0.5
+                , _arimaGenYHist = genContVar $ normalDistr 0 0.5
+                , _arimaGenEHist = genContVar $ normalDistr 0 0.5
+                }
 
 genSim
-    :: forall p q m i. (KnownNat p, KnownNat q, PrimMonad m)
-    => ARMA p q
+    :: forall p d q m i. (KnownNat p, KnownNat d, KnownNat q, PrimMonad m)
+    => ARIMA p d q
     -> Double
     -> MWC.Gen (PrimState m)
     -> ConduitT i Double m ()
@@ -100,9 +100,9 @@ genSim sim σ g = do
     void . foldr (>=>) pure (repeat (go p)) $ (0, J_I s0)
   where
     noisySim = sim :.~ injectNoise (normalDistr 0 σ)
-    go  :: ARMAp p q
-        -> (Double, Mayb I ('Just (ARMAs p q)))
-        -> ConduitT i Double m (Double, Mayb I ('Just (ARMAs p q)))
+    go  :: ARIMAp p q
+        -> (Double, Mayb I ('Just (ARIMAs p d q)))
+        -> ConduitT i Double m (Double, Mayb I ('Just (ARIMAs p d q)))
     go p (y, s) = do
       ys@(y', _) <- lift $ runLearnStoch_ noisySim g (J_I p) y s
       ys <$ yield y'
@@ -111,19 +111,19 @@ main :: IO ()
 main = MWC.withSystemRandom @IO $ \g -> do
     O{..} <- execParser $ info (parseOpt <**> helper)
                             ( fullDesc
-                           <> progDesc "Learning ARMA"
-                           <> header "backprop-learn-arma - backprop-learn demo"
+                           <> progDesc "Learning ARIMA"
+                           <> header "backprop-learn-arima - backprop-learn demo"
                             )
 
     SomeNat (Proxy :: Proxy p) <- pure $ someNatVal oP
     SomeNat (Proxy :: Proxy q) <- pure $ someNatVal oQ
     SomeNat (Proxy :: Proxy n) <- pure $ someNatVal oLookback
     Just Refl <- pure $ Proxy @1 `isLE` Proxy @n
-    let armaSim'  = armaSim @p @q
+    let arimaSim'  = arimaSim @p @1 @q
 
     case oMode of
       CSimulate lim -> do
-        runConduit $ genSim armaSim' oNoise g
+        runConduit $ genSim arimaSim' oNoise g
                   .| maybe (C.map id) C.take lim
                   .| C.mapM_ print
                   .| C.sinkNull
@@ -155,7 +155,7 @@ main = MWC.withSystemRandom @IO $ \g -> do
 
         flip evalStateT []
             . runConduit
-            $ genSim armaSim' oNoise g
+            $ genSim arimaSim' oNoise g
            .| leadings
            .| skipSampling 0.02 g
            .| C.iterM (modify . (:))
@@ -169,7 +169,7 @@ main = MWC.withSystemRandom @IO $ \g -> do
            .| C.sinkNull
 
 parseOpt :: Parser Options
-parseOpt = O <$> subparser ( command "simulate" (info (parseSim   <**> helper) (progDesc "Simulate ARMA only"))
+parseOpt = O <$> subparser ( command "simulate" (info (parseSim   <**> helper) (progDesc "Simulate ARIMA only"))
                           <> command "learn"    (info (parseLearn <**> helper) (progDesc "Simulate and learn model"))
                            )
              <*> option auto
@@ -219,6 +219,6 @@ parseOpt = O <$> subparser ( command "simulate" (info (parseSim   <**> helper) (
                                       )
     parseLearn :: Parser Mode
     parseLearn = subparser
-        ( command "arma"  (info (pure (CLearn (MARMA @3 @3))) (progDesc "Learn ARMA model"))
+        ( command "arima"  (info (pure (CLearn (MARIMA @3 @1 @3))) (progDesc "Learn ARIMA model"))
        <> command "fcrnn" (info (pure (CLearn MFCRNN)) (progDesc "Learn Fully Connected RNN model"))
         )
