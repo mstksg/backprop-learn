@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable    #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
@@ -38,6 +39,7 @@ import           Control.Monad.Primitive
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.State
 import           Control.Monad.Trans.Writer
+import           Data.Typeable
 import           Data.Bifunctor
 import           Data.Foldable
 import           Data.Kind
@@ -64,6 +66,7 @@ import qualified System.Random.MWC          as MWC
 -- next input.
 newtype Unroll :: Nat -> Type -> Type where
     Unroll :: { getUnroll :: l } -> Unroll n l
+  deriving (Typeable)
 
 -- | Unroll a stateful model into a stateless one taking a vector of
 -- sequential inputs and treat the initial state as a trained parameter.
@@ -129,6 +132,7 @@ instance (Learn a b l, KnownNat n, Num a, Num b) => Learn (SV.Vector n a) (SV.Ve
 -- all items.
 newtype UnrollFinal :: Nat -> Type -> Type where
     UnrollFinal :: { getUnrollFinal :: l } -> UnrollFinal n l
+  deriving (Typeable)
 
 -- | Unroll a stateful model into a stateless one taking a vector of
 -- sequential inputs and outputting the result after seeing all of them,
@@ -169,7 +173,7 @@ pattern UFDS
 pattern UFDS { _ufdsInitState, _ufdsInitStateStoch, _ufdsLearn } =
       DS _ufdsInitState _ufdsInitStateStoch (UnrollFinal _ufdsLearn)
 
-instance (Learn a b l, Num a) => Learn (SV.Vector n a) b (UnrollFinal n l) where
+instance (Learn a b l, Num a, 1 <= n) => Learn (SV.Vector n a) b (UnrollFinal n l) where
     type LParamMaybe (UnrollFinal n l) = LParamMaybe l
     type LStateMaybe (UnrollFinal n l) = LStateMaybe l
 
@@ -177,13 +181,9 @@ instance (Learn a b l, Num a) => Learn (SV.Vector n a) b (UnrollFinal n l) where
     initState = initState . getUnrollFinal
 
     runLearn (UnrollFinal l) p xs s0 =
-        first (option (error "runLearn (UnrollFinal): n cannot be 0") getLast)
-      . flip execStateT s0
-      . traverse_ (\x -> StateT $ \s -> let (y, s') = runLearn l p x s
-                                        in  (Option (Just (Last y)), ((), s'))
-                  )
-      . sequenceVar
-      $ xs
+        foldl' (\(_, s) x -> runLearn l p x s)
+               (error "runLearn (unrollFinal): n cannot be 0", s0)
+               (sequenceVar xs)
     runLearnStoch (UnrollFinal l) g p xs s0 =
         fmap ( first (option (error "runLearn (UnrollFinal): n cannot be 0") getLast)
              . swap
@@ -209,6 +209,7 @@ instance (Learn a b l, Num a) => Learn (SV.Vector n a) b (UnrollFinal n l) where
 -- *   If @l@ has parameters, a 'T2' of the parameter and initial state.
 newtype TrainState :: Type -> Type where
     TrainState :: { getTrainState :: l } -> TrainState l
+  deriving (Typeable)
 
 instance ( Learn a b l
          , KnownMayb (LParamMaybe l)
@@ -255,6 +256,7 @@ data DeState :: Type -> Type -> Type where
           , _dsLearn          :: l
           }
        -> DeState s l
+  deriving (Typeable)
 
 -- | Create a 'DeState' from a deterministic, non-stochastic initialization
 -- function.
@@ -290,6 +292,7 @@ data ReState :: Type -> Type -> Type -> Type where
           , _rsLearn     :: l
           }
        -> ReState s t l
+  deriving (Typeable)
 
 instance (Learn a b l, LStateMaybe l ~ 'Just s) => Learn a b (ReState s t l) where
     type LParamMaybe (ReState s t l) = LParamMaybe l
@@ -336,6 +339,7 @@ data Recurrent :: Type -> Type -> Type -> Type -> Type where
           , _r1Learn :: l
           }
        -> Recurrent ab a b l
+  deriving (Typeable)
 
 -- TODO: RecurrentN, taking a (T2 a (Vector n b)).
 

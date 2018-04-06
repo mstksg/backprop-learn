@@ -27,14 +27,18 @@ module Backprop.Learn.Model.Class (
   , runLearnStateless
   , runLearnStochStateless
   , Mayb(..), fromJ_, MaybeC, KnownMayb, knownMayb, I(..)
+  , SomeLearn(..)
   ) where
 
+import           Control.DeepSeq
 import           Control.Monad.Primitive
 import           Data.Kind
 import           Data.Type.Mayb
+import           Data.Typeable
 import           Numeric.Backprop
-import qualified GHC.TypeLits              as TL
-import qualified System.Random.MWC         as MWC
+import           Numeric.Opto.Update
+import qualified GHC.TypeLits            as TL
+import qualified System.Random.MWC       as MWC
 
 -- | The trainable parameter type of a model.  Will be a compile-time error
 -- if the model has no trainable parameters.
@@ -180,3 +184,21 @@ runLearnStochStateless
     -> BVar s a
     -> m (BVar s b)
 runLearnStochStateless l g p = fmap fst . flip (runLearnStoch l g p) N_
+
+-- | Existential wrapper for learnable model, representing a trainable
+-- function from @a@ to @b@.
+data SomeLearn :: Type -> Type -> Type where
+    SL :: ( Learn a b l
+          , Typeable l
+          , KnownMayb (LParamMaybe l)
+          , KnownMayb (LStateMaybe l)
+          , MaybeC Num (LParamMaybe l)
+          , MaybeC Num (LStateMaybe l)
+          , MaybeC (Metric Double) (LParamMaybe l)
+          , MaybeC (Metric Double) (LStateMaybe l)
+          , MaybeC NFData (LParamMaybe l)
+          , MaybeC NFData (LStateMaybe l)
+          )
+       => l
+       -> SomeLearn a b
+

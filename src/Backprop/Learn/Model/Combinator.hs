@@ -1,6 +1,7 @@
 {-# LANGUAGE AllowAmbiguousTypes    #-}
 {-# LANGUAGE ConstraintKinds        #-}
 {-# LANGUAGE DataKinds              #-}
+{-# LANGUAGE DeriveDataTypeable     #-}
 {-# LANGUAGE FlexibleContexts       #-}
 {-# LANGUAGE FlexibleInstances      #-}
 {-# LANGUAGE GADTs                  #-}
@@ -47,6 +48,7 @@ import           Data.Type.Equality
 import           Data.Type.Length
 import           Data.Type.Mayb             as Mayb
 import           Data.Type.NonEmpty
+import           Data.Typeable
 import           GHC.TypeNats
 import           Numeric.Backprop
 import           Numeric.Backprop.Tuple
@@ -68,6 +70,7 @@ data Chain :: [Type] -> [Type] -> [Type] -> Type -> Type -> Type where
           -> Chain (l ': ls) (MaybeToList (LParamMaybe l) ++ ps)
                              (MaybeToList (LStateMaybe l) ++ ss)
                              a c
+  deriving (Typeable)
 infixr 5 :~>
 
 instance ( ListC (Num List.<$> ps)
@@ -332,6 +335,7 @@ data LearnFunc :: Maybe Type -> Maybe Type -> Type -> Type -> Type where
                -> m (BVar q b, Mayb (BVar q) s)
           }
        -> LearnFunc p s a b
+  deriving (Typeable)
 
 learnFunc
     :: Learn a b l
@@ -589,6 +593,8 @@ instance Learn a b l => Learn a c (RMap b c l) where
 -- of repeats, and the function to process the output to become the next
 -- input.
 --
+-- I don't know why anyone would ever want this.
+--
 -- See 'FeedbackTrace' if you want to observe all of the intermediate
 -- outputs.
 data Feedback :: Type -> Type -> Type -> Type where
@@ -597,6 +603,7 @@ data Feedback :: Type -> Type -> Type -> Type where
           , _fbLearn :: l
           }
        -> Feedback a b l
+  deriving (Typeable)
 
 -- | Construct a 'Feedback' from an endofunction (a function that returns
 -- a value fo the same type as its input) by simply providing the output
@@ -634,6 +641,7 @@ data FeedbackTrace :: Nat -> Type -> Type -> Type -> Type where
            , _fbtLearn :: l
            }
         -> FeedbackTrace n a b l
+  deriving (Typeable)
 
 -- | Construct a 'FeedbackTrace' from an endofunction (a function that
 -- returns a value fo the same type as its input) by simply providing the

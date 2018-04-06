@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable    #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
@@ -24,6 +25,7 @@ import           Backprop.Learn.Model.Function
 import           Control.Monad.Primitive
 import           Data.Bool
 import           Data.Kind
+import           Data.Typeable
 import           GHC.TypeNats
 import           Numeric.Backprop
 import           Numeric.LinearAlgebra.Static.Backprop
@@ -39,6 +41,7 @@ import qualified System.Random.MWC.Distributions       as MWC
 -- 0 corresponds to no dropout, 1 corresponds to complete dropout of all
 -- nodes every time.
 newtype DO (n :: Nat) = DO { _doRate :: Double }
+  deriving (Typeable)
 
 instance KnownNat n => Learn (R n) (R n) (DO n) where
     runLearn (DO r) _ = stateless (constVar (realToFrac (1-r)) *)
@@ -64,6 +67,7 @@ data StochFunc :: Maybe Type -> Type -> Type -> Type where
               -> m (BVar s b)
           }
        -> StochFunc p a b
+  deriving (Typeable)
 
 instance Learn a b (StochFunc p a b) where
     type LParamMaybe (StochFunc p a b) = p

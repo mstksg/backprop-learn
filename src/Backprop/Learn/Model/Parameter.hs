@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable    #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
@@ -23,6 +24,7 @@ module Backprop.Learn.Model.Parameter (
 import           Backprop.Learn.Model.Class
 import           Control.Monad.Primitive
 import           Data.Kind
+import           Data.Typeable
 import           Lens.Micro
 import           Numeric.Backprop
 import qualified System.Random.MWC          as MWC
@@ -40,6 +42,7 @@ data DeParam :: Type -> Type -> Type where
           , _dpLearn      :: l
           }
        -> DeParam p l
+  deriving (Typeable)
 
 -- | Create a 'DeParam' from a deterministic, non-stochastic parameter.
 dpDeterm :: p -> l -> DeParam p l
@@ -72,6 +75,7 @@ data DeParamAt :: Type -> Type -> Type -> Type where
            , _dpaLearn      :: l
            }
         -> DeParamAt p q l
+  deriving (Typeable)
 
 -- | Create a 'DeParamAt' from a deterministic, non-stochastic fixed value
 -- as a part of the parameter.
@@ -111,6 +115,7 @@ data ReParam :: Type -> Maybe Type -> Type -> Type where
           , _rpLearn     :: l
           }
        -> ReParam p q l
+  deriving (Typeable)
 
 instance (Learn a b l, LParamMaybe l ~ 'Just p) => Learn a b (ReParam p q l) where
     type LParamMaybe (ReParam p q l) = q

@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds                                #-}
+{-# LANGUAGE DeriveDataTypeable                       #-}
 {-# LANGUAGE DeriveGeneric                            #-}
 {-# LANGUAGE FlexibleContexts                         #-}
 {-# LANGUAGE FlexibleInstances                        #-}
@@ -28,6 +29,7 @@ import           Backprop.Learn.Model.Class
 import           Backprop.Learn.Model.Combinator
 import           Control.DeepSeq
 import           Control.Monad.Primitive
+import           Data.Typeable
 import           GHC.Generics                          (Generic)
 import           GHC.TypeNats
 import           Lens.Micro
@@ -57,6 +59,7 @@ import qualified System.Random.MWC                     as MWC
 newtype FC (i :: Nat) (o :: Nat) =
     FC { _fcGen :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double
        }
+  deriving Typeable
 
 -- | Construct an @'FC' i o@ using a given distribution from the
 -- /statistics/ library.
@@ -89,7 +92,7 @@ fca d = FCA (genContVar d)
 data FCp i o = FCp { _fcBias    :: !(R o)
                    , _fcWeights :: !(L o i)
                    }
-  deriving (Generic, Show)
+  deriving (Generic, Typeable, Show)
 
 instance NFData (FCp i o)
 instance (KnownNat i, KnownNat o) => Additive (FCp i o)
@@ -153,6 +156,7 @@ data FCR (h :: Nat) (i :: Nat) (o :: Nat) =
         , _fcrGenState :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double
         , _fcrStore    :: forall s. Reifies s W => BVar s (R o) -> BVar s (R h)
         }
+  deriving Typeable
 
 -- | Convenient synonym for an 'FCR' post-composed with a simple
 -- parameterless activation function.
@@ -176,7 +180,7 @@ data FCRp h i o = FCRp { _fcrBias         :: !(R o)
                        , _fcrInputWeights :: !(L o i)
                        , _fcrStateWeights :: !(L o h)
                        }
-  deriving (Generic, Show)
+  deriving (Generic, Typeable, Show)
 
 instance NFData (FCRp h i o)
 instance (KnownNat h, KnownNat i, KnownNat o) => Additive (FCRp h i o)

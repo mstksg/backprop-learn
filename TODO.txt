@@ -1,4 +1,3 @@
 
 *   Reset if diverge
 *   Feedback loops
-

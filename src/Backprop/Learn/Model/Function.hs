@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE DeriveDataTypeable    #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
@@ -64,6 +65,7 @@ import           Control.Monad.Primitive
 import           Data.Foldable
 import           Data.Type.Length
 import           Data.Type.Mayb hiding                        (type (<$>))
+import           Data.Typeable
 import           GHC.TypeNats
 import           Numeric.Backprop
 import           Numeric.Backprop.Tuple
@@ -115,6 +117,7 @@ data ParamFunc p a b =
     PF { _pfInit :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> Mayb m p
        , _pfFunc :: forall s. Reifies s W => Mayb (BVar s) p -> BVar s a -> BVar s b
        }
+  deriving (Typeable)
 
 instance ( Num a, Num b, MaybeC Num p, KnownMayb p)
       => Learn a b (ParamFunc p a b) where
