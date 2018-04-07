@@ -7,9 +7,12 @@ module Backprop.Learn.Run (
     consecutives
   , consecutivesN
   , leadings
+  , conduitLearn, conduitLearnStoch
   ) where
 
+import           Backprop.Learn.Model
 import           Control.Monad
+import           Control.Monad.Primitive
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.Maybe
 import           Data.Conduit
@@ -20,6 +23,7 @@ import qualified Data.Conduit.Combinators  as C
 import qualified Data.Sequence             as Seq
 import qualified Data.Vector.Generic       as VG
 import qualified Data.Vector.Generic.Sized as SVG
+import qualified System.Random.MWC         as MWC
 
 consecutives :: Monad m => ConduitT i (i, i) m ()
 consecutives = void . runMaybeT $ do
@@ -63,3 +67,37 @@ conseq n = void . runMaybeT $ do
       lift $ yield (xs, ys, y)
       go ys
 
+conduitLearn
+    :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), Monad m)
+    => l
+    -> LParam_ I l
+    -> LState_ I l
+    -> ConduitT a b m (LState_ I l)
+conduitLearn l p = go
+  where
+    go s = do
+      mx <- await
+      case mx of
+        Nothing -> return s
+        Just x  -> do
+          let (y, s') = runLearn_ l p x s
+          yield y
+          go s'
+
+conduitLearnStoch
+    :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m)
+    => l
+    -> MWC.Gen (PrimState m)
+    -> LParam_ I l
+    -> LState_ I l
+    -> ConduitT a b m (LState_ I l)
+conduitLearnStoch l g p = go
+  where
+    go s = do
+      mx <- await
+      case mx of
+        Nothing -> return s
+        Just x  -> do
+          (y, s') <- lift $ runLearnStoch_ l g p x s
+          yield y
+          go s'

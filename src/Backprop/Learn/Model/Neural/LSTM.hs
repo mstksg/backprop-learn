@@ -56,6 +56,7 @@ data LSTM' (i :: Nat) (o :: Nat) =
   deriving (Typeable)
 
 -- TODO: allow parameterize internal activation function?
+-- TODO: Peepholes
 
 -- | 'LSTM' layer parmateters
 data LSTMp (i :: Nat) (o :: Nat) =

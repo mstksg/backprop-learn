@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns           #-}
 {-# LANGUAGE GADTs                  #-}
 {-# LANGUAGE LambdaCase             #-}
 {-# LANGUAGE TupleSections          #-}
@@ -8,6 +9,12 @@ module Backprop.Learn.Model (
     module M
   , runLearn_, runLearnStoch_, runLearnStateless_, runLearnStochStateless_
   , gradLearn, gradLearnStoch
+  -- * Iterated runners
+  , iterateLearn, iterateLearnM, iterateLearnStoch
+  , scanLearn, scanLearnStoch
+  -- * No final state
+  , iterateLearn_, iterateLearnM_, iterateLearnStoch_
+  , scanLearn_, scanLearnStoch_
   ) where
 
 import           Backprop.Learn.Model.Class       as M
@@ -21,7 +28,9 @@ import           Backprop.Learn.Model.State       as M
 import           Backprop.Learn.Model.Stochastic  as M
 import           Control.Monad.Primitive
 import           Control.Monad.ST
+import           Control.Monad.Trans.State
 import           Data.Bifunctor
+import           Data.Functor.Identity
 import           Data.Word
 import           Numeric.Backprop
 import           Numeric.Backprop.Tuple
@@ -145,3 +154,123 @@ gradLearnStoch l g mp x = do
           g' <- MWC.initialize seed
           runLearnStochStateless l g' (J_ p') x'
         ) p x
+
+iterateLearn
+    :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l))
+    => (b -> a)         -- ^ loop
+    -> Int              -- ^ num times
+    -> l
+    -> LParam_ I l
+    -> a
+    -> LState_ I l
+    -> ([b], LState_ I l)
+iterateLearn f n l p x = runIdentity . iterateLearnM (Identity . f) n l p x
+
+iterateLearn_
+    :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l))
+    => (b -> a)         -- ^ loop
+    -> Int              -- ^ num times
+    -> l
+    -> LParam_ I l
+    -> a
+    -> LState_ I l
+    -> [b]
+iterateLearn_ f n l p x = fst . iterateLearn f n l p x
+
+iterateLearnM
+    :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), Monad m)
+    => (b -> m a)           -- ^ loop
+    -> Int                  -- ^ num times
+    -> l
+    -> LParam_ I l
+    -> a
+    -> LState_ I l
+    -> m ([b], LState_ I l)
+iterateLearnM f n l p = go 0
+  where
+    go !i !x !s
+      | i <= n    = do
+          let (y, s') = runLearn_ l p x s
+          (ys, s'') <- flip (go (i + 1)) s' =<< f y
+          pure (y : ys, s'')
+      | otherwise = pure ([], s)
+
+iterateLearnM_
+    :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), Monad m)
+    => (b -> m a)           -- ^ loop
+    -> Int                  -- ^ num times
+    -> l
+    -> LParam_ I l
+    -> a
+    -> LState_ I l
+    -> m [b]
+iterateLearnM_ f n l p x = fmap fst . iterateLearnM f n l p x
+
+iterateLearnStoch
+    :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m)
+    => (b -> m a)           -- ^ loop
+    -> Int                  -- ^ num times
+    -> l
+    -> MWC.Gen (PrimState m)
+    -> LParam_ I l
+    -> a
+    -> LState_ I l
+    -> m ([b], LState_ I l)
+iterateLearnStoch f n l g p = go 0
+  where
+    go !i !x !s
+      | i <= n    = do
+          (y , s' ) <- runLearnStoch_ l g p x s
+          (ys, s'') <- flip (go (i + 1)) s' =<< f y
+          pure (y : ys, s'')
+      | otherwise = pure ([], s)
+
+iterateLearnStoch_
+    :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m)
+    => (b -> m a)           -- ^ loop
+    -> Int                  -- ^ num times
+    -> l
+    -> MWC.Gen (PrimState m)
+    -> LParam_ I l
+    -> a
+    -> LState_ I l
+    -> m [b]
+iterateLearnStoch_ f n l g p x = fmap fst . iterateLearnStoch f n l g p x
+
+scanLearn
+    :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l))
+    => l
+    -> LParam_ I l
+    -> [a]
+    -> LState_ I l
+    -> ([b], LState_ I l)
+scanLearn l p = runState . traverse (state . runLearn_ l p)
+
+scanLearn_
+    :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l))
+    => l
+    -> LParam_ I l
+    -> [a]
+    -> LState_ I l
+    -> [b]
+scanLearn_ l p xs = fst . scanLearn l p xs
+
+scanLearnStoch
+    :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m)
+    => l
+    -> MWC.Gen (PrimState m)
+    -> LParam_ I l
+    -> [a]
+    -> LState_ I l
+    -> m ([b], LState_ I l)
+scanLearnStoch l g p = runStateT . traverse (StateT . runLearnStoch_ l g p)
+
+scanLearnStoch_
+    :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m)
+    => l
+    -> MWC.Gen (PrimState m)
+    -> LParam_ I l
+    -> [a]
+    -> LState_ I l
+    -> m [b]
+scanLearnStoch_ l g p xs = fmap fst . scanLearnStoch l g p xs

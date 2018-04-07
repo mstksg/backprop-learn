@@ -26,25 +26,24 @@ module Data.Type.Mayb (
   , FromJust
   , MaybeWit(..), type (<$>)
   , TupMaybe, splitTupMaybe, tupMaybe
+  , BoolMayb, boolMayb
   ) where
 
 import           Data.Bifunctor
 import           Data.Kind
+import           Data.Type.Boolean
 import           Data.Type.Combinator
 import           Data.Type.Product
 import           Numeric.Backprop.Tuple
 import           Type.Class.Higher
 import           Type.Class.Known
 import           Type.Class.Witness
-import qualified GHC.TypeLits         as TL
+import           Type.Family.Maybe      (type (<$>))
+import qualified GHC.TypeLits           as TL
 
 type family MaybeC (c :: k -> Constraint) (m :: Maybe k) :: Constraint where
     MaybeC c ('Just a) = c a
     MaybeC c 'Nothing  = ()
-
-type family (<$>) (f :: k -> j) (m :: Maybe k) :: Maybe j where
-    f <$> 'Just a  = 'Just (f a)
-    f <$> 'Nothing = 'Nothing
 
 type family MaybeToList (m :: Maybe k) = (l :: [k]) | l -> m where
     MaybeToList 'Nothing  = '[]
@@ -206,3 +205,11 @@ splitTupMaybe f = case knownMayb @a of
         J_ x -> (J_ x, N_)
       J_ _ -> \case
         J_ xy -> bimap J_ J_ . f $ xy
+
+type family BoolMayb (b :: Bool) = (m :: Maybe ()) | m -> b where
+    BoolMayb 'False = 'Nothing
+    BoolMayb 'True  = 'Just '()
+
+boolMayb :: Boolean b -> Mayb P (BoolMayb b)
+boolMayb False_ = N_
+boolMayb True_  = J_ P
