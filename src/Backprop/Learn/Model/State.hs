@@ -3,12 +3,12 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE KindSignatures        #-}
-{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PatternSynonyms       #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TupleSections         #-}
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeInType            #-}
@@ -32,6 +32,8 @@ module Backprop.Learn.Model.State (
   , ReState(..), rsDeterm
   -- * Make models recurrent
   , Recurrent(..)
+  -- * Provide dummy state
+  , DummyState, pattern DummyState, getDummyState
   ) where
 
 import           Backprop.Learn.Model.Class
@@ -393,3 +395,25 @@ instance ( Learn ab c l
                         (J_ (sy ^^. t2_1))
           pure (y', J_ . isoVar2 T2 t2Tup s' . _recLoop $ y')
 
+-- | Give a stateless model a "dummy" state, the unit 'T0'.  For now,
+-- useful for using with combinators like 'DeState' that require state.
+-- However, 'DeState' could also be made more lenient (to accept non
+-- stateful models) in the future.
+--
+-- @
+-- instance ('Learn' a b l, 'NoState' l) => Learn a b ('DummyState' a b l) where
+--     type 'LParamMaybe' ('DummyState' a b l) = 'LParamMaybe' l
+--     type 'LStateMaybe' ('DummyState' a b l) = ''Just' 'T0'
+-- @
+type DummyState a b l = Recurrent a a T0 b l
+
+-- | Construct a 'DummyState'
+pattern DummyState :: (Learn a b l, NoState l) => l -> DummyState a b l
+pattern DummyState { getDummyState } <- Rec { _recLearn = getDummyState }
+  where
+    DummyState l = Rec { _recInit  = const (pure T0)
+                       , _recSplit = (,T0)
+                       , _recJoin  = const
+                       , _recLoop  = const (constVar T0)
+                       , _recLearn = l
+                       }

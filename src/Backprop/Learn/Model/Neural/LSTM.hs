@@ -169,7 +169,7 @@ pattern LSTM { _lstmGen, _lstmGenCell, _lstmGenState } <-
                        }
 
 -- | Convenient wrapper over 'LSTM' constructor taking distributions from
--- 'Statistics.Distribution'.
+-- the /statistics/ library.
 lstm
     :: (KnownNat i, KnownNat o, ContGen d, ContGen e, ContGen f)
     => d                    -- ^ generate parameters
