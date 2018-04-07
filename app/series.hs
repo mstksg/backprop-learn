@@ -63,6 +63,8 @@ data Model :: Type -> Type where
            => Model (ARIMA p d q)
     MFCRNN :: KnownNat h
            => Model (Dimap (R 1) (R 1) Double Double (FCRA h 1 h :.~ FCA h 1))
+    MLSTM  :: KnownNat h
+           => Model (Dimap (R 1) (R 1) Double Double (LSTM 1 h :.~ FCA h 1))
 
 data Process = PSin
 
@@ -81,6 +83,12 @@ modelLearn = \case
       { _dmPre   = konst
       , _dmPost  = sumElements
       , _dmLearn = fcra (normalDistr 0 0.2) (normalDistr 0 0.2) logistic logistic
+               :.~ fca (normalDistr 0 0.2) id
+      }
+    MLSTM -> DM
+      { _dmPre   = konst
+      , _dmPost  = sumElements
+      , _dmLearn = lstm (normalDistr 0 0.2) (normalDistr 0 0.2) (normalDistr 0 0.2)
                :.~ fca (normalDistr 0 0.2) id
       }
 
@@ -215,6 +223,7 @@ parseOpt = O <$> subparser ( command "simulate" (info (parseSim   <**> helper) (
     parseLearn = subparser
         ( command "arima" (info parseARIMA (progDesc "Learn ARIMA(p,d,q) model"))
        <> command "fcrnn" (info parseFCRNN (progDesc "Learn Fully Connected RNN model"))
+       <> command "lstm"  (info parseLSTM  (progDesc "Learn LSTM model"))
         )
     parseARIMA :: Parser Mode
     parseARIMA = do
@@ -241,6 +250,15 @@ parseOpt = O <$> subparser ( command "simulate" (info (parseSim   <**> helper) (
                            )
         pure $ case someNatVal h of
           SomeNat (Proxy :: Proxy h) -> CLearn (MFCRNN @h)
+    parseLSTM :: Parser Mode
+    parseLSTM = do
+        h <- argument auto ( help "Hidden layer size"
+                          <> metavar "INT"
+                          <> showDefault
+                          <> value 10
+                           )
+        pure $ case someNatVal h of
+          SomeNat (Proxy :: Proxy h) -> CLearn (MLSTM @h)
 
 showProcess :: Process -> String
 showProcess PSin = "sin"

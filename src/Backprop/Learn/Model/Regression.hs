@@ -158,8 +158,7 @@ instance (KnownNat i, KnownNat o) => Learn (R i) (R o) (LinReg i o) where
         LRp <$> (vecR <$> SVS.replicateM (f g))
             <*> (vecL <$> SVS.replicateM (f g))
 
-    runLearn _ (J_ p) = stateless $ \x ->
-        ((p ^^. lrBeta) #> x) + p ^^. lrAlpha
+    runLearn _ (J_ p) = stateless (runLRp p)
 
 -- | Auto-regressive integrated moving average model.
 --
