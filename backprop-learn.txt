@@ -12,6 +12,7 @@ module Backprop.Learn.Loss
 type Loss a = forall s. Reifies s W => a -> BVar s a -> BVar s Double
 crossEntropy :: KnownNat n => Loss (R n)
 squaredError :: Loss Double
+absError :: Loss Double
 totalSquaredError :: (Num (t Double), Foldable t, Functor t) => Loss (t Double)
 squaredErrorV :: KnownNat n => Loss (R n)
 sumLoss :: (Traversable t, Applicative t, Num a) => Loss a -> Loss (t a)
@@ -810,6 +811,7 @@ LRp :: !(R o) -> !(L o i) -> LRp i o
 [_lrBeta] :: LRp i o -> !(L o i)
 lrBeta :: Lens (LRp i o) (LRp i' o) (L o i) (L o i')
 lrAlpha :: Lens' (LRp i o) (R o)
+runLRp :: (KnownNat i, KnownNat o, Reifies s W) => BVar s (LRp i o) -> BVar s (R i) -> BVar s (R o)
 
 -- | Auto-regressive integrated moving average model.
 --   
@@ -932,6 +934,7 @@ type FC i o = LinReg i o
 -- | Construct an <tt><a>FC</a> i o</tt> using a given distribution from
 --   the <i>statistics</i> library.
 fc :: ContGen d => d -> FC i o
+_fcGen :: () => FC i o -> forall (m :: * -> *). PrimMonad m => Gen PrimState m -> m Double
 type FCp = LRp
 fcBias :: Lens' (FCp i o) (R o)
 fcWeights :: Lens (FCp i o) (FCp i' o) (L o i) (L o i')
@@ -956,7 +959,15 @@ _fcaActivation :: () => FCA i o -> forall s. Reifies s W => BVar s R o -> BVar s
 --   
 --   Parameterized by its initialization distributions, and also the
 --   function to compute the new state from previous input.
+--   
+--   <pre>
+--   instance <tt>Learn</tt> (<a>R</a> i) (R o) (<a>FCR</a> h i o) where
+--       type <tt>LParamMaybe</tt> (FCR h i o) = '<a>Just</a> (<a>FCRp</a> h i o)
+--       type <tt>LStateMaybe</tt> (FCR h i o) = 'Just (R h)
+--   </pre>
 type FCR h i o = Recurrent (R (i + h)) (R i) (R h) (R o) (FC (i + h) o)
+
+-- | Construct an <a>FCR</a>
 
 -- | Construct an <tt><a>FCR</a> h i o</tt> using given distributions from
 --   the <i>statistics</i> library.
@@ -985,6 +996,60 @@ _fcraStore :: () => FCRA h i o -> forall s. (Reifies s W, KnownNat h, KnownNat i
 _fcraActivation :: () => FCRA h i o -> forall s. (Reifies s W, KnownNat h, KnownNat i) => BVar s R o -> BVar s R o
 
 module Backprop.Learn.Model.Neural.LSTM
+
+-- | Long-term short-term memory layer
+--   
+--   <a>http://colah.github.io/posts/2015-08-Understanding-LSTMs/</a>
+--   
+--   <pre>
+--   instance <a>Learn</a> (<a>R</a> i) (R o) (<a>LSTM</a> i o) where
+--       type <a>LParamMaybe</a> (LSTM i o) = '<a>Just</a> (<a>LSTMp</a> i o)
+--       type <a>LStateMaybe</a> (LSTM i o) = 'Just (<tt>T2</tt> (R o) (R o))
+--   </pre>
+type LSTM i o = Recurrent (R (i + o)) (R i) (R o) (R o) (LSTM' i o)
+
+-- | Construct an <a>LSTM</a>
+
+-- | Convenient wrapper over <a>LSTM</a> constructor taking distributions
+--   from <a>Distribution</a>.
+lstm :: (KnownNat i, KnownNat o, ContGen d, ContGen e, ContGen f) => d -> e -> f -> LSTM i o
+_lstmGen :: () => LSTM i o -> forall (m :: * -> *). (PrimMonad m, KnownNat i, KnownNat o) => Gen PrimState m -> m Double
+_lstmGenCell :: () => LSTM i o -> forall (m :: * -> *). (PrimMonad m, KnownNat i, KnownNat o) => Gen PrimState m -> m Double
+_lstmGenState :: () => LSTM i o -> forall (m :: * -> *). (PrimMonad m, KnownNat i, KnownNat o) => Gen PrimState m -> m R o
+
+-- | <a>LSTM</a> layer parmateters
+data LSTMp (i :: Nat) (o :: Nat)
+LSTMp :: !(FCp (i + o) o) -> !(FCp (i + o) o) -> !(FCp (i + o) o) -> !(FCp (i + o) o) -> LSTMp
+[_lstmForget] :: LSTMp -> !(FCp (i + o) o)
+[_lstmInput] :: LSTMp -> !(FCp (i + o) o)
+[_lstmUpdate] :: LSTMp -> !(FCp (i + o) o)
+[_lstmOutput] :: LSTMp -> !(FCp (i + o) o)
+lstmForget :: Lens' (LSTMp i o) (FCp (i + o) o)
+lstmInput :: Lens' (LSTMp i o) (FCp (i + o) o)
+lstmUpdate :: Lens' (LSTMp i o) (FCp (i + o) o)
+lstmOutput :: Lens' (LSTMp i o) (FCp (i + o) o)
+
+-- | <a>Base</a> for <a>LSTM</a>. An <a>LSTM</a> is just an <a>LSTM'</a>
+--   where the second half of the input vector is the previous output.
+--   
+--   This is mostly an implementation detail. It is recommended that you
+--   use <a>LSTM</a> and its constructor, instead of directly using this.
+data LSTM' (i :: Nat) (o :: Nat)
+LSTM' :: forall m. PrimMonad m => Gen (PrimState m) -> m Double -> forall m. PrimMonad m => Gen (PrimState m) -> m Double -> LSTM'
+[_lstmGen'] :: LSTM' -> forall m. PrimMonad m => Gen (PrimState m) -> m Double
+[_lstmGenCell'] :: LSTM' -> forall m. PrimMonad m => Gen (PrimState m) -> m Double
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Show.Show (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
+instance GHC.Generics.Generic (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
+instance Control.DeepSeq.NFData (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Additive (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Scaling GHC.Types.Double (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Neural.LSTM.LSTMp i o) v) => Numeric.Opto.Update.AdditiveInPlace m v (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Neural.LSTM.LSTMp i o) v) => Numeric.Opto.Update.ScalingInPlace m v GHC.Types.Double (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Real.Fractional (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Float.Floating (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, GHC.TypeNats.KnownNat io, io ~ (i GHC.TypeNats.+ o)) => Backprop.Learn.Model.Class.Learn (Internal.Static.R io) (Internal.Static.R o) (Backprop.Learn.Model.Neural.LSTM.LSTM' i o)
 
 module Backprop.Learn.Model
 runLearn_ :: (Learn a b l, MaybeC Num (LStateMaybe l), Num b) => l -> LParam_ I l -> a -> LState_ I l -> (b, LState_ I l)
@@ -1018,6 +1083,7 @@ type Test o = o -> o -> Double
 maxIxTest :: KnownNat n => Test (R n)
 rmseTest :: KnownNat n => Test (R n)
 squaredErrorTest :: Real a => Test a
+absErrorTest :: Real a => Test a
 totalSquaredErrorTest :: (Applicative t, Foldable t, Real a) => Test (t a)
 squaredErrorTestV :: KnownNat n => Test (R n)
 crossEntropyTest :: KnownNat n => Test (R n)
