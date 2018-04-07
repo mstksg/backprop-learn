@@ -10,22 +10,23 @@ module Backprop.Learn.Model (
   , gradLearn, gradLearnStoch
   ) where
 
-import           Backprop.Learn.Model.Class      as M
-import           Backprop.Learn.Model.Combinator as M
-import           Backprop.Learn.Model.Function   as M
-import           Backprop.Learn.Model.Neural     as M
-import           Backprop.Learn.Model.Parameter  as M
-import           Backprop.Learn.Model.Regression as M
-import           Backprop.Learn.Model.State      as M
-import           Backprop.Learn.Model.Stochastic as M
+import           Backprop.Learn.Model.Class       as M
+import           Backprop.Learn.Model.Combinator  as M
+import           Backprop.Learn.Model.Function    as M
+import           Backprop.Learn.Model.Neural      as M
+import           Backprop.Learn.Model.Neural.LSTM as M
+import           Backprop.Learn.Model.Parameter   as M
+import           Backprop.Learn.Model.Regression  as M
+import           Backprop.Learn.Model.State       as M
+import           Backprop.Learn.Model.Stochastic  as M
 import           Control.Monad.Primitive
 import           Control.Monad.ST
 import           Data.Bifunctor
 import           Data.Word
 import           Numeric.Backprop
 import           Numeric.Backprop.Tuple
-import qualified Data.Vector.Unboxed             as VU
-import qualified System.Random.MWC               as MWC
+import qualified Data.Vector.Unboxed              as VU
+import qualified System.Random.MWC                as MWC
 
 -- TODO: this can be more efficient by breaking out into separate functions
 runLearn_

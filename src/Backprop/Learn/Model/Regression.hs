@@ -1,10 +1,12 @@
 {-# LANGUAGE AllowAmbiguousTypes                      #-}
+{-# LANGUAGE DeriveDataTypeable                       #-}
 {-# LANGUAGE DeriveGeneric                            #-}
 {-# LANGUAGE FlexibleContexts                         #-}
 {-# LANGUAGE FlexibleInstances                        #-}
 {-# LANGUAGE GADTs                                    #-}
 {-# LANGUAGE KindSignatures                           #-}
 {-# LANGUAGE MultiParamTypeClasses                    #-}
+{-# LANGUAGE PatternSynonyms                          #-}
 {-# LANGUAGE RankNTypes                               #-}
 {-# LANGUAGE RecordWildCards                          #-}
 {-# LANGUAGE ScopedTypeVariables                      #-}
@@ -17,8 +19,9 @@
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise       #-}
 
 module Backprop.Learn.Model.Regression (
-    Linear, linearRegression
-  , Logistic, logisticRegression
+    LinReg(..), linReg
+  , LogReg, pattern LogReg, _logRegGen, logReg
+  , LRp(..), lrBeta, lrAlpha
   , ARIMA(..), ARIMAp(..), ARIMAs(..)
   , ARIMAUnroll, arimaUnroll
   , ARIMAUnrollFinal, arimaUnrollFinal
@@ -28,7 +31,6 @@ module Backprop.Learn.Model.Regression (
 import           Backprop.Learn.Model.Class
 import           Backprop.Learn.Model.Combinator
 import           Backprop.Learn.Model.Function
-import           Backprop.Learn.Model.Neural
 import           Backprop.Learn.Model.Parameter
 import           Backprop.Learn.Model.State
 import           Control.DeepSeq
@@ -39,6 +41,7 @@ import           Data.List
 import           Data.Maybe
 import           Data.Proxy
 import           Data.Type.Equality
+import           Data.Typeable
 import           GHC.Generics                          (Generic)
 import           GHC.TypeLits.Compare
 import           GHC.TypeLits.Extra
@@ -51,38 +54,105 @@ import           Numeric.LinearAlgebra.Static.Vector
 import           Numeric.OneLiner
 import           Numeric.Opto.Ref
 import           Numeric.Opto.Update hiding            ((<.>))
+import           Statistics.Distribution
 import           Unsafe.Coerce
 import qualified Data.Vector.Storable.Sized            as SVS
 import qualified Numeric.LinearAlgebra                 as HU
 import qualified Numeric.LinearAlgebra.Static          as H
 import qualified System.Random.MWC                     as MWC
 
--- | Multivariate linear regression, from an n-vector to an m-vector.
---
--- Is essentially just a fully connected neural network layer with bias,
--- with no activation function.
-type Linear n m = FC n m
+-- | Multivariate linear regression, from an i-vector to an o-vector.
+newtype LinReg (i :: Nat) (o :: Nat) =
+    LinReg { _linRegGen :: forall m. PrimMonad m
+                        => MWC.Gen (PrimState m)
+                        -> m Double
+           }
+  deriving Typeable
 
--- | Construct a linear regression model from an initialization function
--- for coefficients
-linearRegression
-    :: (forall f. PrimMonad f => MWC.Gen (PrimState f) -> f Double)
-    -> Linear n m
-linearRegression = FC
+-- | Construct an 'LinReg' using a given distribution from
+-- the /statistics/ library.
+linReg :: ContGen d => d -> LinReg i o
+linReg d = LinReg (genContVar d)
 
---  | Logistic regression, from an n-vector to a single class value (0 or
+--  | Mutivariate Logistic regression, from an i-vector to an o-vector.
 --  1).
 --
 --  Essentially a linear regression postcomposed with the logistic
 --  function.
-type Logistic n = RMap (R 1) Double (Linear n 1)
+type LogReg i o = RMap (R o) (R o) (LinReg i o)
 
--- | Construct a logistic regression model from an initialization function
--- for coefficients.
-logisticRegression
+-- | Constructor for a 'LogReg'
+pattern LogReg
     :: (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double)
-    -> Logistic n
-logisticRegression f = RM (logistic . fst . headTail) (FC f)
+    -> LogReg i o
+pattern LogReg { _logRegGen } <- RM _ (LinReg _logRegGen)
+  where
+    LogReg g = RM logistic (LinReg g)
+
+-- | Construct an 'LogReg' using a given distribution from
+-- the /statistics/ library.
+logReg :: ContGen d => d -> LogReg i o
+logReg d = LogReg (genContVar d)
+
+-- | Linear Regression parameter
+data LRp i o = LRp
+    { _lrAlpha    :: !(R o)
+    , _lrBeta :: !(L o i)
+    }
+  deriving (Generic, Typeable, Show)
+
+instance NFData (LRp i o)
+instance (KnownNat i, KnownNat o) => Additive (LRp i o)
+instance (KnownNat i, KnownNat o) => Scaling Double (LRp i o)
+instance (KnownNat i, KnownNat o) => Metric Double (LRp i o)
+instance (KnownNat i, KnownNat o, Ref m (LRp i o) v) => AdditiveInPlace m v (LRp i o)
+instance (KnownNat i, KnownNat o, Ref m (LRp i o) v) => ScalingInPlace m v Double (LRp i o)
+
+lrBeta :: Lens (LRp i o) (LRp i' o) (L o i) (L o i')
+lrBeta f lrp = (\w -> lrp { _lrBeta = w }) <$> f (_lrBeta lrp)
+
+lrAlpha :: Lens' (LRp i o) (R o)
+lrAlpha f lrp = (\b -> lrp { _lrAlpha = b }) <$> f (_lrAlpha lrp)
+
+instance (KnownNat i, KnownNat o) => Num (LRp i o) where
+    (+)         = gPlus
+    (-)         = gMinus
+    (*)         = gTimes
+    negate      = gNegate
+    abs         = gAbs
+    signum      = gSignum
+    fromInteger = gFromInteger
+
+instance (KnownNat i, KnownNat o) => Fractional (LRp i o) where
+    (/)          = gDivide
+    recip        = gRecip
+    fromRational = gFromRational
+
+instance (KnownNat i, KnownNat o) => Floating (LRp i o) where
+    pi    = gPi
+    sqrt  = gSqrt
+    exp   = gExp
+    log   = gLog
+    sin   = gSin
+    cos   = gCos
+    asin  = gAsin
+    acos  = gAcos
+    atan  = gAtan
+    sinh  = gSinh
+    cosh  = gCosh
+    asinh = gAsinh
+    acosh = gAcosh
+    atanh = gAtanh
+
+instance (KnownNat i, KnownNat o) => Learn (R i) (R o) (LinReg i o) where
+    type LParamMaybe (LinReg i o) = 'Just (LRp i o)
+
+    initParam (LinReg f) g = J_ $
+        LRp <$> (vecR <$> SVS.replicateM (f g))
+            <*> (vecL <$> SVS.replicateM (f g))
+
+    runLearn _ (J_ p) = stateless $ \x ->
+        ((p ^^. lrBeta) #> x) + p ^^. lrAlpha
 
 -- | Auto-regressive integrated moving average model.
 --

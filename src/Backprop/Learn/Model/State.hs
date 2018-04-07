@@ -320,60 +320,76 @@ rsDeterm
     -> ReState s t l
 rsDeterm i t f = RS i t f (const (pure . f))
 
--- | Transform a model taking in input into a recurrent model:
--- the input is no longer free, but is always the "previous output" of the
--- model.
+-- | Fix a part of a parameter of a model to be (a function of) the
+-- /previous/ ouput of the model itself.
 --
--- That is, transforms \( X \times Y \rightarrow Y \) into a stateful
--- \( X \rightarrow Y \) with state Y, where the original Y input is
--- essentially "fixed" as the previous output of the model.
+-- Essentially, takes a \( X \times Y \rightarrow Z \) into a /stateful/
+-- \( X \rightarrow Z \), where the Y is given by a function of the
+-- /previous output/ of the model.
 --
--- A @'Recurrent' ab a b@ takes a model taking @ab@ and returning @b@ into
--- model taking @a@ and returning @b@.  Note that @ab@ is supposed to
--- essentially be some tupling of @a@ and @b@; the actual split/join
--- functions are a part of the model description.
-data Recurrent :: Type -> Type -> Type -> Type -> Type where
-    R1 :: { _r1Init  :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m b
-          , _r1Split :: ab -> (a, b)
-          , _r1Join  :: a -> b -> ab
-          , _r1Learn :: l
-          }
-       -> Recurrent ab a b l
+-- Essentially makes a model "recurrent": it receives its previous output
+-- as input.
+--
+-- A @'Recurrent' ab a b c@ takes a model from @ab@ to @c@ and turns it
+-- into a model from @a@ to @c@, with extra state @b@ generated as
+-- a function of the previous input.
+--
+-- @
+-- instance 'Learn' ab c l => Learn a c ('Recurrent' ab a b c l) where
+--
+--     type 'LParamMaybe' (Recurrent ab a b c l) = 'LParamMaybe' l
+--     type 'LStateMaybe' (Recurrent ab a b c l) = 'TupMaybe' ('LStateMaybe' l) (''Just' b)
+-- @
+--
+-- See 'FCR' for an application.
+data Recurrent :: Type -> Type -> Type -> Type -> Type -> Type where
+    Rec :: { _recInit  :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m b
+           , _recSplit :: ab -> (a, b)
+           , _recJoin  :: a -> b -> ab
+           , _recLoop  :: forall s. Reifies s W => BVar s c -> BVar s b
+           , _recLearn :: l
+           }
+        -> Recurrent ab a b c l
   deriving (Typeable)
 
--- TODO: RecurrentN, taking a (T2 a (Vector n b)).
+-- -- TODO: RecurrentN, taking a (T2 a (Vector n b)).
 
-instance (Learn ab b l, KnownMayb (LStateMaybe l), Num a, Num b, Num ab, MaybeC Num (LStateMaybe l))
-        => Learn a b (Recurrent ab a b l) where
-    type LParamMaybe (Recurrent ab a b l) = LParamMaybe l
-    type LStateMaybe (Recurrent ab a b l) = TupMaybe (LStateMaybe l) ('Just b)
+instance ( Learn ab c l
+         , KnownMayb (LStateMaybe l)
+         , Num a, Num b, Num ab
+         , MaybeC Num (LStateMaybe l))
+        => Learn a c (Recurrent ab a b c l) where
+    type LParamMaybe (Recurrent ab a b c l) = LParamMaybe l
+    type LStateMaybe (Recurrent ab a b c l) = TupMaybe (LStateMaybe l) ('Just b)
 
-    initParam = initParam . _r1Learn
-    initState R1{..} g = case knownMayb @(LStateMaybe l) of
-        N_   -> J_ $ _r1Init g
-        J_ _ -> J_ $ T2 <$> fromJ_ (initState _r1Learn g)
-                        <*> _r1Init g
+    initParam = initParam . _recLearn
+    initState Rec{..} g = case knownMayb @(LStateMaybe l) of
+        N_   -> J_ $ _recInit g
+        J_ _ -> J_ $ T2 <$> fromJ_ (initState _recLearn g)
+                        <*> _recInit g
 
-    runLearn R1{..} p x msy = case knownMayb @(LStateMaybe l) of
+    runLearn Rec{..} p x msy = case knownMayb @(LStateMaybe l) of
         N_   -> let y       = fromJ_ msy
-                    (y', _) = runLearn _r1Learn p (isoVar2 _r1Join _r1Split x y) N_
-                in  (y', J_ y')
+                    (y', _) = runLearn _recLearn p
+                        (isoVar2 _recJoin _recSplit x y)
+                        N_
+                in  (y', J_ (_recLoop y'))
         J_ _ -> let sy      = fromJ_ msy
-                    (y', J_ s') = runLearn _r1Learn p
-                                    (isoVar2 _r1Join _r1Split x (sy ^^. t2_2))
-                                    (J_ (sy ^^. t2_1))
-                in  (y', J_ $ isoVar2 T2 t2Tup s' y')
+                    (y', J_ s') = runLearn _recLearn p
+                        (isoVar2 _recJoin _recSplit x (sy ^^. t2_2))
+                        (J_ (sy ^^. t2_1))
+                in  (y', J_ . isoVar2 T2 t2Tup s' . _recLoop $ y')
 
-    runLearnStoch R1{..} g p x msy = case knownMayb @(LStateMaybe l) of
+    runLearnStoch Rec{..} g p x msy = case knownMayb @(LStateMaybe l) of
         N_   -> do
           let y       = fromJ_ msy
-          (y', _) <- runLearnStoch _r1Learn g p (isoVar2 _r1Join _r1Split x y) N_
-          pure (y', J_ y')
+          (y', _) <- runLearnStoch _recLearn g p (isoVar2 _recJoin _recSplit x y) N_
+          pure (y', J_ (_recLoop y'))
         J_ _ -> do
           let sy    = fromJ_ msy
           (y', s') <- second fromJ_
-                  <$> runLearnStoch _r1Learn g p
-                        (isoVar2 _r1Join _r1Split x (sy ^^. t2_2))
+                  <$> runLearnStoch _recLearn g p
+                        (isoVar2 _recJoin _recSplit x (sy ^^. t2_2))
                         (J_ (sy ^^. t2_1))
-          pure (y', J_ $ isoVar2 T2 t2Tup s' y')
+          pure (y', J_ . isoVar2 T2 t2Tup s' . _recLoop $ y')
 

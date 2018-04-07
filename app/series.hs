@@ -57,7 +57,6 @@ data Mode = CSimulate (Maybe Int)
                           , Show p
                           )
                           => CLearn (Model l)
-              -- (forall n. KnownNat n => LearnFunc ('Just p) 'Nothing (SV.Vector n Double) Double)
 
 data Model :: Type -> Type where
     MARIMA :: (KnownNat p, KnownNat d, KnownNat q)
