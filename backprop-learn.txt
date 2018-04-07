@@ -20,11 +20,6 @@ sumLossDecay :: forall n a. (KnownNat n, Num a) => Double -> Loss a -> Loss (Vec
 lastLoss :: (KnownNat (n + 1), Num a) => Loss a -> Loss (Vector (n + 1) a)
 zipLoss :: (Traversable t, Applicative t, Num a) => t Double -> Loss a -> Loss (t a)
 
-module Backprop.Learn.Run
-consecutives :: Monad m => ConduitT i (i, i) m ()
-consecutivesN :: forall v n i m. (KnownNat n, Vector v i, Monad m) => ConduitT i (Vector v n i, Vector v n i) m ()
-leadings :: forall v n i m. (KnownNat n, Vector v i, Monad m) => ConduitT i (Vector v n i, i) m ()
-
 module Data.Type.Mayb
 data Mayb :: (k -> Type) -> Maybe k -> Type
 [N_] :: Mayb f  'Nothing
@@ -40,13 +35,16 @@ zipMayb :: (forall a. f a -> g a -> h a) -> Mayb f m -> Mayb g m -> Mayb h m
 zipMayb3 :: (forall a. f a -> g a -> h a -> i a) -> Mayb f m -> Mayb g m -> Mayb h m -> Mayb i m
 class MaybeWit (c :: k -> Constraint) (m :: Maybe k)
 maybeWit :: MaybeWit c m => Mayb (Wit1 c) m
+
+-- | Map over a type-level <tt>Maybe</tt>.
 splitTupMaybe :: forall f a b. (KnownMayb a, KnownMayb b) => (forall a' b'. (a ~  'Just a', b ~  'Just b') => f (T2 a' b') -> (f a', f b')) -> Mayb f (TupMaybe a b) -> (Mayb f a, Mayb f b)
 tupMaybe :: forall f a b. () => (forall a' b'. (a ~  'Just a', b ~  'Just b') => f a' -> f b' -> f (T2 a' b')) -> Mayb f a -> Mayb f b -> Mayb f (TupMaybe a b)
-instance forall k (f :: k -> *) (m :: GHC.Base.Maybe k). Data.Type.Mayb.MaybeC GHC.Show.Show (f Data.Type.Mayb.<$> m) => GHC.Show.Show (Data.Type.Mayb.Mayb f m)
+boolMayb :: Boolean b -> Mayb P (BoolMayb b)
+instance forall k (f :: k -> *) (m :: GHC.Base.Maybe k). Data.Type.Mayb.MaybeC GHC.Show.Show (f Type.Family.Maybe.<$> m) => GHC.Show.Show (Data.Type.Mayb.Mayb f m)
 instance forall k (c :: k -> GHC.Types.Constraint) (m :: GHC.Base.Maybe k). (Data.Type.Mayb.MaybeC c m, Type.Class.Known.Known (Data.Type.Mayb.Mayb Data.Type.Mayb.P) m) => Data.Type.Mayb.MaybeWit c m
 instance forall k1 (k2 :: k1). Type.Class.Known.Known Data.Type.Mayb.P k2
-instance forall k (m :: GHC.Base.Maybe k) (f :: k -> *). (Type.Class.Known.Known (Data.Type.Mayb.Mayb Data.Type.Mayb.P) m, Data.Type.Mayb.MaybeC GHC.Num.Num (f Data.Type.Mayb.<$> m)) => GHC.Num.Num (Data.Type.Mayb.Mayb f m)
-instance forall k (m :: GHC.Base.Maybe k) (f :: k -> *). (Type.Class.Known.Known (Data.Type.Mayb.Mayb Data.Type.Mayb.P) m, Data.Type.Mayb.MaybeC GHC.Num.Num (f Data.Type.Mayb.<$> m), Data.Type.Mayb.MaybeC GHC.Real.Fractional (f Data.Type.Mayb.<$> m)) => GHC.Real.Fractional (Data.Type.Mayb.Mayb f m)
+instance forall k (m :: GHC.Base.Maybe k) (f :: k -> *). (Type.Class.Known.Known (Data.Type.Mayb.Mayb Data.Type.Mayb.P) m, Data.Type.Mayb.MaybeC GHC.Num.Num (f Type.Family.Maybe.<$> m)) => GHC.Num.Num (Data.Type.Mayb.Mayb f m)
+instance forall k (m :: GHC.Base.Maybe k) (f :: k -> *). (Type.Class.Known.Known (Data.Type.Mayb.Mayb Data.Type.Mayb.P) m, Data.Type.Mayb.MaybeC GHC.Num.Num (f Type.Family.Maybe.<$> m), Data.Type.Mayb.MaybeC GHC.Real.Fractional (f Type.Family.Maybe.<$> m)) => GHC.Real.Fractional (Data.Type.Mayb.Mayb f m)
 instance forall k (f :: k -> *). Type.Class.Known.Known (Data.Type.Mayb.Mayb f) 'GHC.Base.Nothing
 instance forall a1 (f :: a1 -> *) (a2 :: a1). Type.Class.Known.Known f a2 => Type.Class.Known.Known (Data.Type.Mayb.Mayb f) ('GHC.Base.Just a2)
 instance Type.Class.Higher.Functor1 Data.Type.Mayb.Mayb
@@ -1019,7 +1017,7 @@ module Backprop.Learn.Model.Neural.LSTM
 --   <pre>
 --   instance <a>Learn</a> (<a>R</a> i) (R o) (<a>LSTM</a> i o) where
 --       type <a>LParamMaybe</a> (LSTM i o) = '<a>Just</a> (<a>LSTMp</a> i o)
---       type <a>LStateMaybe</a> (LSTM i o) = 'Just (<tt>T2</tt> (R o) (R o))
+--       type <a>LStateMaybe</a> (LSTM i o) = 'Just (<tt>T2</tt> (R o) (R o))     -- cell state, hidden state
 --   </pre>
 type LSTM i o = Recurrent (R (i + o)) (R i) (R o) (R o) (LSTM' i o)
 
@@ -1027,10 +1025,11 @@ type LSTM i o = Recurrent (R (i + o)) (R i) (R o) (R o) (LSTM' i o)
 
 -- | Convenient wrapper over <a>LSTM</a> constructor taking distributions
 --   from the <i>statistics</i> library.
-lstm :: (KnownNat i, KnownNat o, ContGen d, ContGen e, ContGen f) => d -> e -> f -> LSTM i o
+lstm :: (KnownNat i, KnownNat o, ContGen d, ContGen e, ContGen f) => d -> e -> f -> Bool -> LSTM i o
 _lstmGen :: () => LSTM i o -> forall (m :: * -> *). (PrimMonad m, KnownNat i, KnownNat o) => Gen PrimState m -> m Double
 _lstmGenCell :: () => LSTM i o -> forall (m :: * -> *). (PrimMonad m, KnownNat i, KnownNat o) => Gen PrimState m -> m Double
 _lstmGenState :: () => LSTM i o -> forall (m :: * -> *). (PrimMonad m, KnownNat i, KnownNat o) => Gen PrimState m -> m R o
+_lstmForgetBias :: () => LSTM i o -> KnownNat i -> KnownNat o -> Bool
 
 -- | <a>LSTM</a> layer parmateters
 data LSTMp (i :: Nat) (o :: Nat)
@@ -1050,9 +1049,10 @@ lstmOutput :: Lens' (LSTMp i o) (FCp (i + o) o)
 --   This is mostly an implementation detail. It is recommended that you
 --   use <a>LSTM</a> and its constructor, instead of directly using this.
 data LSTM' (i :: Nat) (o :: Nat)
-LSTM' :: forall m. PrimMonad m => Gen (PrimState m) -> m Double -> forall m. PrimMonad m => Gen (PrimState m) -> m Double -> LSTM'
+LSTM' :: forall m. PrimMonad m => Gen (PrimState m) -> m Double -> forall m. PrimMonad m => Gen (PrimState m) -> m Double -> Bool -> LSTM'
 [_lstmGen'] :: LSTM' -> forall m. PrimMonad m => Gen (PrimState m) -> m Double
 [_lstmGenCell'] :: LSTM' -> forall m. PrimMonad m => Gen (PrimState m) -> m Double
+[_lstmForgetBias'] :: LSTM' -> Bool
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Show.Show (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 instance GHC.Generics.Generic (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
@@ -1073,6 +1073,16 @@ runLearnStateless_ :: (Learn a b l, NoState l) => l -> LParam_ I l -> a -> b
 runLearnStochStateless_ :: (Learn a b l, NoState l, PrimMonad m) => l -> Gen (PrimState m) -> LParam_ I l -> a -> m b
 gradLearn :: (Learn a b l, NoState l, Num a, Num b, MaybeC Num (LParamMaybe l)) => l -> LParam_ I l -> a -> (LParam_ I l, a)
 gradLearnStoch :: (Learn a b l, NoState l, Num a, Num b, MaybeC Num (LParamMaybe l), PrimMonad m) => l -> Gen (PrimState m) -> LParam_ I l -> a -> m (LParam_ I l, a)
+iterateLearn :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l)) => (b -> a) -> Int -> l -> LParam_ I l -> a -> LState_ I l -> ([b], LState_ I l)
+iterateLearnM :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), Monad m) => (b -> m a) -> Int -> l -> LParam_ I l -> a -> LState_ I l -> m ([b], LState_ I l)
+iterateLearnStoch :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m) => (b -> m a) -> Int -> l -> Gen (PrimState m) -> LParam_ I l -> a -> LState_ I l -> m ([b], LState_ I l)
+scanLearn :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l)) => l -> LParam_ I l -> [a] -> LState_ I l -> ([b], LState_ I l)
+scanLearnStoch :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m) => l -> Gen (PrimState m) -> LParam_ I l -> [a] -> LState_ I l -> m ([b], LState_ I l)
+iterateLearn_ :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l)) => (b -> a) -> Int -> l -> LParam_ I l -> a -> LState_ I l -> [b]
+iterateLearnM_ :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), Monad m) => (b -> m a) -> Int -> l -> LParam_ I l -> a -> LState_ I l -> m [b]
+iterateLearnStoch_ :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m) => (b -> m a) -> Int -> l -> Gen (PrimState m) -> LParam_ I l -> a -> LState_ I l -> m [b]
+scanLearn_ :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l)) => l -> LParam_ I l -> [a] -> LState_ I l -> [b]
+scanLearnStoch_ :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m) => l -> Gen (PrimState m) -> LParam_ I l -> [a] -> LState_ I l -> m [b]
 
 module Backprop.Learn.Train
 
@@ -1108,5 +1118,12 @@ testLearnAll :: (Learn a b l, NoState l, Foldable t) => Test b -> l -> LParam_ I
 testLearnStochAll :: (Learn a b l, NoState l, PrimMonad m, Foldable t) => Test b -> l -> Gen (PrimState m) -> LParam_ I l -> t (a, b) -> m Double
 instance (GHC.Base.Semigroup a, GHC.Base.Applicative m) => GHC.Base.Semigroup (Backprop.Learn.Test.M m a)
 instance (GHC.Base.Monoid a, GHC.Base.Applicative m) => GHC.Base.Monoid (Backprop.Learn.Test.M m a)
+
+module Backprop.Learn.Run
+consecutives :: Monad m => ConduitT i (i, i) m ()
+consecutivesN :: forall v n i m. (KnownNat n, Vector v i, Monad m) => ConduitT i (Vector v n i, Vector v n i) m ()
+leadings :: forall v n i m. (KnownNat n, Vector v i, Monad m) => ConduitT i (Vector v n i, i) m ()
+conduitLearn :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), Monad m) => l -> LParam_ I l -> LState_ I l -> ConduitT a b m (LState_ I l)
+conduitLearnStoch :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m) => l -> Gen (PrimState m) -> LParam_ I l -> LState_ I l -> ConduitT a b m (LState_ I l)
 
 module Backprop.Learn
