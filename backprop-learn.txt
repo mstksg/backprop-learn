@@ -306,6 +306,21 @@ rsDeterm :: (forall m. PrimMonad m => Gen (PrimState m) -> m t) -> (forall q. Re
 --   See <tt>FCR</tt> for an application.
 data Recurrent :: Type -> Type -> Type -> Type -> Type -> Type
 [Rec] :: {_recInit :: forall m. PrimMonad m => Gen (PrimState m) -> m b, _recSplit :: ab -> (a, b), _recJoin :: a -> b -> ab, _recLoop :: forall s. Reifies s W => BVar s c -> BVar s b, _recLearn :: l} -> Recurrent ab a b c l
+
+-- | Give a stateless model a "dummy" state, the unit <a>T0</a>. For now,
+--   useful for using with combinators like <a>DeState</a> that require
+--   state. However, <a>DeState</a> could also be made more lenient (to
+--   accept non stateful models) in the future.
+--   
+--   <pre>
+--   instance (<a>Learn</a> a b l, <a>NoState</a> l) =&gt; Learn a b (<a>DummyState</a> a b l) where
+--       type <a>LParamMaybe</a> (<a>DummyState</a> a b l) = <a>LParamMaybe</a> l
+--       type <a>LStateMaybe</a> (<a>DummyState</a> a b l) = '<a>Just</a> <a>T0</a>
+--   </pre>
+type DummyState a b l = Recurrent a a T0 b l
+
+-- | Construct a <a>DummyState</a>
+getDummyState :: () => DummyState a b l -> Learn a b l -> NoState l -> l
 instance (Backprop.Learn.Model.Class.Learn ab c l, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LStateMaybe l), GHC.Num.Num a, GHC.Num.Num b, GHC.Num.Num ab, Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.Class.LStateMaybe l)) => Backprop.Learn.Model.Class.Learn a c (Backprop.Learn.Model.State.Recurrent ab a b c l)
 instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.LStateMaybe l ~ 'GHC.Base.Just s) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.State.ReState s t l)
 instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.LStateMaybe l ~ 'GHC.Base.Just s) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.State.DeState s l)
@@ -1011,7 +1026,7 @@ type LSTM i o = Recurrent (R (i + o)) (R i) (R o) (R o) (LSTM' i o)
 -- | Construct an <a>LSTM</a>
 
 -- | Convenient wrapper over <a>LSTM</a> constructor taking distributions
---   from <a>Distribution</a>.
+--   from the <i>statistics</i> library.
 lstm :: (KnownNat i, KnownNat o, ContGen d, ContGen e, ContGen f) => d -> e -> f -> LSTM i o
 _lstmGen :: () => LSTM i o -> forall (m :: * -> *). (PrimMonad m, KnownNat i, KnownNat o) => Gen PrimState m -> m Double
 _lstmGenCell :: () => LSTM i o -> forall (m :: * -> *). (PrimMonad m, KnownNat i, KnownNat o) => Gen PrimState m -> m Double
