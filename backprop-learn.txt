@@ -280,21 +280,32 @@ data ReState :: Type -> Type -> Type -> Type
 --   transformation function.
 rsDeterm :: (forall m. PrimMonad m => Gen (PrimState m) -> m t) -> (forall q. Reifies q W => BVar q s -> BVar q t) -> (forall q. Reifies q W => BVar q t -> BVar q s) -> l -> ReState s t l
 
--- | Transform a model taking in input into a recurrent model: the input is
---   no longer free, but is always the "previous output" of the model.
+-- | Fix a part of a parameter of a model to be (a function of) the
+--   <i>previous</i> ouput of the model itself.
 --   
---   That is, transforms &lt;math&gt; into a stateful &lt;math&gt; with
---   state Y, where the original Y input is essentially "fixed" as the
---   previous output of the model.
+--   Essentially, takes a &lt;math&gt; into a <i>stateful</i> &lt;math&gt;,
+--   where the Y is given by a function of the <i>previous output</i> of
+--   the model.
 --   
---   A <tt><a>Recurrent</a> ab a b</tt> takes a model taking <tt>ab</tt>
---   and returning <tt>b</tt> into model taking <tt>a</tt> and returning
---   <tt>b</tt>. Note that <tt>ab</tt> is supposed to essentially be some
---   tupling of <tt>a</tt> and <tt>b</tt>; the actual split/join functions
---   are a part of the model description.
-data Recurrent :: Type -> Type -> Type -> Type -> Type
-[R1] :: {_r1Init :: forall m. PrimMonad m => Gen (PrimState m) -> m b, _r1Split :: ab -> (a, b), _r1Join :: a -> b -> ab, _r1Learn :: l} -> Recurrent ab a b l
-instance (Backprop.Learn.Model.Class.Learn ab b l, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LStateMaybe l), GHC.Num.Num a, GHC.Num.Num b, GHC.Num.Num ab, Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.Class.LStateMaybe l)) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.State.Recurrent ab a b l)
+--   Essentially makes a model "recurrent": it receives its previous output
+--   as input.
+--   
+--   A <tt><a>Recurrent</a> ab a b c</tt> takes a model from <tt>ab</tt> to
+--   <tt>c</tt> and turns it into a model from <tt>a</tt> to <tt>c</tt>,
+--   with extra state <tt>b</tt> generated as a function of the previous
+--   input.
+--   
+--   <pre>
+--   instance <a>Learn</a> ab c l =&gt; Learn a c (<a>Recurrent</a> ab a b c l) where
+--   
+--       type <a>LParamMaybe</a> (Recurrent ab a b c l) = <a>LParamMaybe</a> l
+--       type <a>LStateMaybe</a> (Recurrent ab a b c l) = <a>TupMaybe</a> (<a>LStateMaybe</a> l) ('<a>Just</a> b)
+--   </pre>
+--   
+--   See <tt>FCR</tt> for an application.
+data Recurrent :: Type -> Type -> Type -> Type -> Type -> Type
+[Rec] :: {_recInit :: forall m. PrimMonad m => Gen (PrimState m) -> m b, _recSplit :: ab -> (a, b), _recJoin :: a -> b -> ab, _recLoop :: forall s. Reifies s W => BVar s c -> BVar s b, _recLearn :: l} -> Recurrent ab a b c l
+instance (Backprop.Learn.Model.Class.Learn ab c l, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LStateMaybe l), GHC.Num.Num a, GHC.Num.Num b, GHC.Num.Num ab, Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.Class.LStateMaybe l)) => Backprop.Learn.Model.Class.Learn a c (Backprop.Learn.Model.State.Recurrent ab a b c l)
 instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.LStateMaybe l ~ 'GHC.Base.Just s) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.State.ReState s t l)
 instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.LStateMaybe l ~ 'GHC.Base.Just s) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.State.DeState s l)
 instance (Backprop.Learn.Model.Class.Learn a b l, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LParamMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.Class.LParamMaybe l), Backprop.Learn.Model.Class.LStateMaybe l ~ 'GHC.Base.Just s, GHC.Num.Num s) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.State.TrainState l)
@@ -773,135 +784,32 @@ instance Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Combinator.L
 instance (Data.Type.Mayb.MaybeC GHC.Num.Num p, Data.Type.Mayb.MaybeC GHC.Num.Num s, Data.Type.Mayb.KnownMayb p, Data.Type.Mayb.KnownMayb s) => Control.Category.Category (Backprop.Learn.Model.Combinator.LearnFunc p s)
 instance (Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> ps), Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> ss)) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Combinator.Chain ls ps ss a b)
 
-module Backprop.Learn.Model.Neural
-
--- | Fully connected feed-forward layer with bias. Parameterized by its
---   initialization distribution.
---   
---   Note that this has no activation function; to use as a model with
---   activation function, chain it with an activation function using
---   <a>RMap</a>, <a>:.~</a>, etc.; see <a>FCA</a> for a convenient type
---   synonym and constructor.
---   
---   Without any activation function, this is essentially a multivariate
---   linear regression.
---   
---   With the logistic function as an activation function, this is
---   essentially multivariate logistic regression. (See <tt>Logistic</tt>)
-newtype FC (i :: Nat) (o :: Nat)
-FC :: forall m. PrimMonad m => Gen (PrimState m) -> m Double -> FC
-[_fcGen] :: FC -> forall m. PrimMonad m => Gen (PrimState m) -> m Double
-
--- | Construct an <tt><a>FC</a> i o</tt> using a given distribution from
---   the <i>statistics</i> library.
-fc :: ContGen d => d -> FC i o
-
--- | Fully connected feed-forward layer parameters.
-data FCp i o
-FCp :: !(R o) -> !(L o i) -> FCp i o
-[_fcBias] :: FCp i o -> !(R o)
-[_fcWeights] :: FCp i o -> !(L o i)
-fcBias :: Lens' (FCp i o) (R o)
-fcWeights :: Lens (FCp i o) (FCp i' o) (L o i) (L o i')
-
--- | Convenient synonym for an <a>FC</a> post-composed with a simple
---   parameterless activation function.
-type FCA i o = RMap (R o) (R o) (FC i o)
-
--- | Construct an <a>FCA</a> using a generating function and activation
---   function.
---   
---   Some common ones include <tt>logistic</tt> and <tt><a>vmap</a>
---   <tt>reLU</tt></tt>.
-
--- | Construct an <tt><a>FCA</a> i o</tt> using a given distribution from
---   the <i>statistics</i> library.
-fca :: ContGen d => d -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R o)) -> FCA i o
-_fcaGen :: () => FCA i o -> forall (m :: * -> *). PrimMonad m => Gen PrimState m -> m Double
-_fcaActivation :: () => FCA i o -> forall s. Reifies s W => BVar s R o -> BVar s R o
-
--- | Fully connected recurrent layer with bias.
---   
---   Parameterized by its initialization distributions, and also the
---   function to compute the new state from previous input.
-data FCR (h :: Nat) (i :: Nat) (o :: Nat)
-FCR :: forall m. PrimMonad m => Gen (PrimState m) -> m Double -> forall m. PrimMonad m => Gen (PrimState m) -> m Double -> forall s. Reifies s W => BVar s (R o) -> BVar s (R h) -> FCR
-[_fcrGen] :: FCR -> forall m. PrimMonad m => Gen (PrimState m) -> m Double
-[_fcrGenState] :: FCR -> forall m. PrimMonad m => Gen (PrimState m) -> m Double
-[_fcrStore] :: FCR -> forall s. Reifies s W => BVar s (R o) -> BVar s (R h)
-
--- | Construct an <tt><a>FCR</a> h i o</tt> using given distributions from
---   the <i>statistics</i> library.
-fcr :: (ContGen d, ContGen e) => d -> e -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R h)) -> FCR h i o
-
--- | Fully connected recurrent layer parameters.
-data FCRp h i o
-FCRp :: !(R o) -> !(L o i) -> !(L o h) -> FCRp h i o
-[_fcrBias] :: FCRp h i o -> !(R o)
-[_fcrInputWeights] :: FCRp h i o -> !(L o i)
-[_fcrStateWeights] :: FCRp h i o -> !(L o h)
-fcrBias :: Lens' (FCRp h i o) (R o)
-fcrInputWeights :: Lens (FCRp h i o) (FCRp h i' o) (L o i) (L o i')
-fcrStateWeights :: Lens (FCRp h i o) (FCRp h' i o) (L o h) (L o h')
-
--- | Convenient synonym for an <a>FCR</a> post-composed with a simple
---   parameterless activation function.
-type FCRA h i o = RMap (R o) (R o) (FCR h i o)
-
--- | Construct an <a>FCRA</a> using a generating function and activation
---   function.
---   
---   Some common ones include <tt>logistic</tt> and <tt><a>vmap</a>
---   <tt>reLU</tt></tt>.
-
--- | Construct an <tt><a>FCRA</a> h i o</tt> using given distributions from
---   the <i>statistics</i> library.
-fcra :: (ContGen d, ContGen e) => d -> e -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R h)) -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R o)) -> FCRA h i o
-_fcraGen :: () => FCRA h i o -> forall (m :: * -> *). PrimMonad m => Gen PrimState m -> m Double
-_fcraGenState :: () => FCRA h i o -> forall (m :: * -> *). PrimMonad m => Gen PrimState m -> m Double
-_fcraStore :: () => FCRA h i o -> forall s. Reifies s W => BVar s R o -> BVar s R h
-_fcraActivation :: () => FCRA h i o -> forall s. Reifies s W => BVar s R o -> BVar s R o
-instance (GHC.TypeNats.KnownNat o, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat h) => GHC.Show.Show (Backprop.Learn.Model.Neural.FCRp h i o)
-instance GHC.Generics.Generic (Backprop.Learn.Model.Neural.FCRp h i o)
-instance (GHC.TypeNats.KnownNat o, GHC.TypeNats.KnownNat i) => GHC.Show.Show (Backprop.Learn.Model.Neural.FCp i o)
-instance GHC.Generics.Generic (Backprop.Learn.Model.Neural.FCp i o)
-instance Control.DeepSeq.NFData (Backprop.Learn.Model.Neural.FCRp h i o)
-instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Additive (Backprop.Learn.Model.Neural.FCRp h i o)
-instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Scaling GHC.Types.Double (Backprop.Learn.Model.Neural.FCRp h i o)
-instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Neural.FCRp h i o)
-instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Neural.FCRp h i o) v) => Numeric.Opto.Update.AdditiveInPlace m v (Backprop.Learn.Model.Neural.FCRp h i o)
-instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Neural.FCRp h i o) v) => Numeric.Opto.Update.ScalingInPlace m v GHC.Types.Double (Backprop.Learn.Model.Neural.FCRp h i o)
-instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Model.Neural.FCRp h i o)
-instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Real.Fractional (Backprop.Learn.Model.Neural.FCRp h i o)
-instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Float.Floating (Backprop.Learn.Model.Neural.FCRp h i o)
-instance (GHC.TypeNats.KnownNat h, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Model.Class.Learn (Internal.Static.R i) (Internal.Static.R o) (Backprop.Learn.Model.Neural.FCR h i o)
-instance Control.DeepSeq.NFData (Backprop.Learn.Model.Neural.FCp i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Additive (Backprop.Learn.Model.Neural.FCp i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Scaling GHC.Types.Double (Backprop.Learn.Model.Neural.FCp i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Neural.FCp i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Neural.FCp i o) v) => Numeric.Opto.Update.AdditiveInPlace m v (Backprop.Learn.Model.Neural.FCp i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Neural.FCp i o) v) => Numeric.Opto.Update.ScalingInPlace m v GHC.Types.Double (Backprop.Learn.Model.Neural.FCp i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Model.Neural.FCp i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Real.Fractional (Backprop.Learn.Model.Neural.FCp i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Float.Floating (Backprop.Learn.Model.Neural.FCp i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Model.Class.Learn (Internal.Static.R i) (Internal.Static.R o) (Backprop.Learn.Model.Neural.FC i o)
-
 module Backprop.Learn.Model.Regression
 
--- | Multivariate linear regression, from an n-vector to an m-vector.
---   
---   Is essentially just a fully connected neural network layer with bias,
---   with no activation function.
-type Linear n m = FC n m
+-- | Multivariate linear regression, from an i-vector to an o-vector.
+newtype LinReg (i :: Nat) (o :: Nat)
+LinReg :: forall m. PrimMonad m => Gen (PrimState m) -> m Double -> LinReg
+[_linRegGen] :: LinReg -> forall m. PrimMonad m => Gen (PrimState m) -> m Double
 
--- | Construct a linear regression model from an initialization function
---   for coefficients
-linearRegression :: (forall f. PrimMonad f => Gen (PrimState f) -> f Double) -> Linear n m
-type Logistic n = RMap (R 1) Double (Linear n 1)
+-- | Construct an <a>LinReg</a> using a given distribution from the
+--   <i>statistics</i> library.
+linReg :: ContGen d => d -> LinReg i o
+type LogReg i o = RMap (R o) (R o) (LinReg i o)
 
--- | Construct a logistic regression model from an initialization function
---   for coefficients.
-logisticRegression :: (forall m. PrimMonad m => Gen (PrimState m) -> m Double) -> Logistic n
+-- | Constructor for a <a>LogReg</a>
+_logRegGen :: () => LogReg i o -> forall (m :: * -> *). PrimMonad m => Gen PrimState m -> m Double
+
+-- | Construct an <a>LogReg</a> using a given distribution from the
+--   <i>statistics</i> library.
+logReg :: ContGen d => d -> LogReg i o
+
+-- | Linear Regression parameter
+data LRp i o
+LRp :: !(R o) -> !(L o i) -> LRp i o
+[_lrAlpha] :: LRp i o -> !(R o)
+[_lrBeta] :: LRp i o -> !(L o i)
+lrBeta :: Lens (LRp i o) (LRp i' o) (L o i) (L o i')
+lrAlpha :: Lens' (LRp i o) (R o)
 
 -- | Auto-regressive integrated moving average model.
 --   
@@ -972,6 +880,8 @@ instance (GHC.TypeNats.KnownNat a, GHC.TypeNats.KnownNat b, GHC.TypeNats.KnownNa
 instance GHC.Generics.Generic (Backprop.Learn.Model.Regression.ARIMAs a b c)
 instance (GHC.TypeNats.KnownNat a, GHC.TypeNats.KnownNat b) => GHC.Show.Show (Backprop.Learn.Model.Regression.ARIMAp a b)
 instance GHC.Generics.Generic (Backprop.Learn.Model.Regression.ARIMAp a b)
+instance (GHC.TypeNats.KnownNat o, GHC.TypeNats.KnownNat i) => GHC.Show.Show (Backprop.Learn.Model.Regression.LRp i o)
+instance GHC.Generics.Generic (Backprop.Learn.Model.Regression.LRp i o)
 instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q) => Backprop.Learn.Model.Class.Learn GHC.Types.Double GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMA p d q)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARIMAs p d q)
 instance GHC.Num.Num (Backprop.Learn.Model.Regression.ARIMAs p d q)
@@ -991,6 +901,90 @@ instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Numeric.Opto.Upda
 instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAp p q)
 instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARIMAp p q) v) => Numeric.Opto.Update.AdditiveInPlace m v (Backprop.Learn.Model.Regression.ARIMAp p q)
 instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARIMAp p q) v) => Numeric.Opto.Update.ScalingInPlace m v GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAp p q)
+instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.LRp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Additive (Backprop.Learn.Model.Regression.LRp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Scaling GHC.Types.Double (Backprop.Learn.Model.Regression.LRp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Regression.LRp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.LRp i o) v) => Numeric.Opto.Update.AdditiveInPlace m v (Backprop.Learn.Model.Regression.LRp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.LRp i o) v) => Numeric.Opto.Update.ScalingInPlace m v GHC.Types.Double (Backprop.Learn.Model.Regression.LRp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Model.Regression.LRp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Real.Fractional (Backprop.Learn.Model.Regression.LRp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Float.Floating (Backprop.Learn.Model.Regression.LRp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Model.Class.Learn (Internal.Static.R i) (Internal.Static.R o) (Backprop.Learn.Model.Regression.LinReg i o)
+
+module Backprop.Learn.Model.Neural
+
+-- | Fully connected feed-forward layer with bias. Parameterized by its
+--   initialization distribution.
+--   
+--   Note that this has no activation function; to use as a model with
+--   activation function, chain it with an activation function using
+--   <a>RMap</a>, <a>:.~</a>, etc.; see <a>FCA</a> for a convenient type
+--   synonym and constructor.
+--   
+--   Without any activation function, this is essentially a multivariate
+--   linear regression.
+--   
+--   With the logistic function as an activation function, this is
+--   essentially multivariate logistic regression. (See <tt>Logistic</tt>)
+type FC i o = LinReg i o
+
+-- | Construct an <tt><a>FC</a> i o</tt> using a given distribution from
+--   the <i>statistics</i> library.
+fc :: ContGen d => d -> FC i o
+type FCp = LRp
+fcBias :: Lens' (FCp i o) (R o)
+fcWeights :: Lens (FCp i o) (FCp i' o) (L o i) (L o i')
+
+-- | Convenient synonym for an <a>FC</a> post-composed with a simple
+--   parameterless activation function.
+type FCA i o = RMap (R o) (R o) (FC i o)
+
+-- | Construct an <a>FCA</a> using a generating function and activation
+--   function.
+--   
+--   Some common ones include <tt>logistic</tt> and <tt><a>vmap</a>
+--   <tt>reLU</tt></tt>.
+
+-- | Construct an <tt><a>FCA</a> i o</tt> using a given distribution from
+--   the <i>statistics</i> library.
+fca :: ContGen d => d -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R o)) -> FCA i o
+_fcaGen :: () => FCA i o -> forall (m :: * -> *). PrimMonad m => Gen PrimState m -> m Double
+_fcaActivation :: () => FCA i o -> forall s. Reifies s W => BVar s R o -> BVar s R o
+
+-- | Fully connected recurrent layer with bias.
+--   
+--   Parameterized by its initialization distributions, and also the
+--   function to compute the new state from previous input.
+type FCR h i o = Recurrent (R (i + h)) (R i) (R h) (R o) (FC (i + h) o)
+
+-- | Construct an <tt><a>FCR</a> h i o</tt> using given distributions from
+--   the <i>statistics</i> library.
+fcr :: (KnownNat h, KnownNat i, ContGen d, ContGen e) => d -> e -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R h)) -> FCR h i o
+type FCRp h i o = FCp (i + h) o
+fcrBias :: Lens' (FCRp h i o) (R o)
+fcrInputWeights :: (KnownNat h, KnownNat i, KnownNat i', KnownNat o) => Lens (FCRp h i o) (FCRp h i' o) (L o i) (L o i')
+fcrStateWeights :: (KnownNat h, KnownNat h', KnownNat i, KnownNat o) => Lens (FCRp h i o) (FCRp h' i o) (L o h) (L o h')
+
+-- | Convenient synonym for an <a>FCR</a> post-composed with a simple
+--   parameterless activation function.
+type FCRA h i o = RMap (R o) (R o) (FCR h i o)
+
+-- | Construct an <a>FCRA</a> using a generating function and activation
+--   function.
+--   
+--   Some common ones include <tt>logistic</tt> and <tt><a>vmap</a>
+--   <tt>reLU</tt></tt>.
+
+-- | Construct an <tt><a>FCRA</a> h i o</tt> using given distributions from
+--   the <i>statistics</i> library.
+fcra :: (KnownNat h, KnownNat i, ContGen d, ContGen e) => d -> e -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R h)) -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R o)) -> FCRA h i o
+_fcraGen :: () => FCRA h i o -> forall (m :: * -> *). (PrimMonad m, KnownNat h, KnownNat i) => Gen PrimState m -> m Double
+_fcraGenState :: () => FCRA h i o -> forall (m :: * -> *). (PrimMonad m, KnownNat h, KnownNat i) => Gen PrimState m -> m R h
+_fcraStore :: () => FCRA h i o -> forall s. (Reifies s W, KnownNat h, KnownNat i) => BVar s R o -> BVar s R h
+_fcraActivation :: () => FCRA h i o -> forall s. (Reifies s W, KnownNat h, KnownNat i) => BVar s R o -> BVar s R o
+
+module Backprop.Learn.Model.Neural.LSTM
 
 module Backprop.Learn.Model
 runLearn_ :: (Learn a b l, MaybeC Num (LStateMaybe l), Num b) => l -> LParam_ I l -> a -> LState_ I l -> (b, LState_ I l)
