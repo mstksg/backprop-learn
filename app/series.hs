@@ -1,3 +1,4 @@
+{-# LANGUAGE ApplicativeDo                            #-}
 {-# LANGUAGE DataKinds                                #-}
 {-# LANGUAGE FlexibleContexts                         #-}
 {-# LANGUAGE GADTs                                    #-}
@@ -22,6 +23,7 @@ import           Control.Monad.IO.Class
 import           Control.Monad.Primitive
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.State
+import           Data.Char
 import           Data.Conduit
 import           Data.Default
 import           Data.Kind
@@ -58,54 +60,58 @@ data Mode = CSimulate (Maybe Int)
               -- (forall n. KnownNat n => LearnFunc ('Just p) 'Nothing (SV.Vector n Double) Double)
 
 data Model :: Type -> Type where
-    MARIMA  :: (KnownNat p, KnownNat d, KnownNat q) => Model (ARIMA p d q)
-    MFCRNN :: Model (Dimap (R 1) (R 1) Double Double (FCRA 3 1 3 :.~ FCA 3 1))
+    MARIMA :: (KnownNat p, KnownNat d, KnownNat q)
+           => Model (ARIMA p d q)
+    MFCRNN :: KnownNat h
+           => Model (Dimap (R 1) (R 1) Double Double (FCRA h 1 h :.~ FCA h 1))
+
+data Process = PSin
 
 modelLearn :: Model t -> t
 modelLearn = \case
-    MARIMA  -> arimaSim
-    MFCRNN -> DM { _dmPre   = konst
-                 , _dmPost  = sumElements
-                 , _dmLearn = fcra (normalDistr 0 0.2) (normalDistr 0 0.2) logistic logistic
-                          :.~ fca (normalDistr 0 0.2) id
-                 }
+    MARIMA -> ARIMA
+      { _arimaGenPhi   = \g i ->
+           (/ (fromIntegral i + 5)) <$> genContVar (normalDistr 0 0.5) g
+      , _arimaGenTheta = \g i ->
+           (/ (fromIntegral i + 5)) <$> genContVar (normalDistr 0 0.5) g
+      , _arimaGenConst = genContVar $ normalDistr 0 0.5
+      , _arimaGenYHist = genContVar $ normalDistr 0 0.5
+      , _arimaGenEHist = genContVar $ normalDistr 0 0.5
+      }
+    MFCRNN -> DM
+      { _dmPre   = konst
+      , _dmPost  = sumElements
+      , _dmLearn = fcra (normalDistr 0 0.2) (normalDistr 0 0.2) logistic logistic
+               :.~ fca (normalDistr 0 0.2) id
+      }
 
 data Options = O { oMode     :: Mode
-                 , oP        :: Natural
-                 , oQ        :: Natural
+                 , oProcess  :: Process
                  , oNoise    :: Double
                  , oInterval :: Int
                  , oLookback :: Natural
                  }
 
-arimaSim :: (KnownNat p, KnownNat q) => ARIMA p d q
-arimaSim = ARIMA { _arimaGenPhi   = \g i ->
-                     (/ (fromIntegral i + 5)) <$> genContVar (normalDistr 0 0.5) g
-                , _arimaGenTheta = \g i ->
-                     (/ (fromIntegral i + 5)) <$> genContVar (normalDistr 0 0.5) g
-                , _arimaGenConst = genContVar $ normalDistr 0 0.5
-                , _arimaGenYHist = genContVar $ normalDistr 0 0.5
-                , _arimaGenEHist = genContVar $ normalDistr 0 0.5
-                }
-
-genSim
-    :: forall p d q m i. (KnownNat p, KnownNat d, KnownNat q, PrimMonad m)
-    => ARIMA p d q
-    -> Double
+processConduit
+    :: PrimMonad m
+    => Process
     -> MWC.Gen (PrimState m)
     -> ConduitT i Double m ()
-genSim sim σ g = do
-    p  <- fromJ_ $ initParam noisySim g
-    s0 <- fromJ_ $ initState noisySim g
-    void . foldr (>=>) pure (repeat (go p)) $ (0, J_I s0)
-  where
-    noisySim = sim :.~ injectNoise (normalDistr 0 σ)
-    go  :: ARIMAp p q
-        -> (Double, Mayb I ('Just (ARIMAs p d q)))
-        -> ConduitT i Double m (Double, Mayb I ('Just (ARIMAs p d q)))
-    go p (y, s) = do
-      ys@(y', _) <- lift $ runLearnStoch_ noisySim g (J_I p) y s
-      ys <$ yield y'
+processConduit = \case
+    PSin -> \g -> void . flip (foldr (>=>) pure) (0, 1) . repeat $ \(t, v) -> do
+      dv <- genContVar (normalDistr 0 0.025) g
+      let v' = min 2 . max 0.5 $ v + dv
+          t' = t + v'
+      yield (sin (2 * pi * (1/25) * t))
+      return (t', v')
+
+noisyConduit
+    :: PrimMonad m
+    => Double
+    -> MWC.Gen (PrimState m)
+    -> ConduitT Double Double m ()
+noisyConduit σ g = C.mapM $ \x ->
+    (x + ) <$> genContVar (normalDistr 0 σ) g
 
 main :: IO ()
 main = MWC.withSystemRandom @IO $ \g -> do
@@ -115,15 +121,14 @@ main = MWC.withSystemRandom @IO $ \g -> do
                            <> header "backprop-learn-arima - backprop-learn demo"
                             )
 
-    SomeNat (Proxy :: Proxy p) <- pure $ someNatVal oP
-    SomeNat (Proxy :: Proxy q) <- pure $ someNatVal oQ
     SomeNat (Proxy :: Proxy n) <- pure $ someNatVal oLookback
     Just Refl <- pure $ Proxy @1 `isLE` Proxy @n
-    let arimaSim'  = arimaSim @p @1 @q
+    let generator = processConduit oProcess g
+                 .| noisyConduit oNoise g
 
     case oMode of
-      CSimulate lim -> do
-        runConduit $ genSim arimaSim' oNoise g
+      CSimulate lim ->
+        runConduit $ generator
                   .| maybe (C.map id) C.take lim
                   .| C.mapM_ print
                   .| C.sinkNull
@@ -131,7 +136,6 @@ main = MWC.withSystemRandom @IO $ \g -> do
       CLearn (modelLearn->model) -> do
         let unrolled = UnrollFinalTrainState @_ @n model
         p0 <- fromJ_ $ initParam unrolled g
-        -- print p0
 
         let report n b = do
               liftIO $ printf "(Batch %d)\n" (b :: Int)
@@ -149,15 +153,13 @@ main = MWC.withSystemRandom @IO $ \g -> do
                       (show (t1 `diffUTCTime` t0))
                     let trainScore = testLearnAll squaredErrorTest unrolled (J_I p) chnk
                     printf "Training error:   %.8f\n" trainScore
-                    -- let e = norm_2 (p0' - p')
-                    -- printf "Error: %0.6f\n" e
                   report n (b + 1)
 
         flip evalStateT []
             . runConduit
-            $ genSim arimaSim' oNoise g
+            $ transPipe lift generator
            .| leadings
-           .| skipSampling 0.02 g
+           .| skipSampling 0.05 g
            .| C.iterM (modify . (:))
            .| runOptoConduit_
                 (RO' Nothing Nothing)
@@ -172,19 +174,12 @@ parseOpt :: Parser Options
 parseOpt = O <$> subparser ( command "simulate" (info (parseSim   <**> helper) (progDesc "Simulate ARIMA only"))
                           <> command "learn"    (info (parseLearn <**> helper) (progDesc "Simulate and learn model"))
                            )
-             <*> option auto
-                   ( short 'p'
-                  <> help "AR(p): Autoregressive degree"
-                  <> showDefault
-                  <> value 3
-                  <> metavar "INT"
-                   )
-             <*> option auto
-                   ( short 'q'
-                  <> help "MA(q): Moving average degree"
-                  <> showDefault
-                  <> value 3
-                  <> metavar "INT"
+             <*> option (maybeReader parseProcess)
+                   ( long "process"
+                  <> help "Process to learn"
+                  <> showDefaultWith showProcess
+                  <> value PSin
+                  <> metavar "PROCESS"
                    )
              <*> option auto
                    ( short 'e'
@@ -206,7 +201,7 @@ parseOpt = O <$> subparser ( command "simulate" (info (parseSim   <**> helper) (
                   <> short 'l'
                   <> help "Learn lookback"
                   <> showDefault
-                  <> value 3
+                  <> value 10
                   <> metavar "INT"
                    )
   where
@@ -219,6 +214,40 @@ parseOpt = O <$> subparser ( command "simulate" (info (parseSim   <**> helper) (
                                       )
     parseLearn :: Parser Mode
     parseLearn = subparser
-        ( command "arima"  (info (pure (CLearn (MARIMA @3 @1 @3))) (progDesc "Learn ARIMA model"))
-       <> command "fcrnn" (info (pure (CLearn MFCRNN)) (progDesc "Learn Fully Connected RNN model"))
+        ( command "arima" (info parseARIMA (progDesc "Learn ARIMA(p,d,q) model"))
+       <> command "fcrnn" (info parseFCRNN (progDesc "Learn Fully Connected RNN model"))
         )
+    parseARIMA :: Parser Mode
+    parseARIMA = do
+        p <- argument auto ( help "AR(p): Autoregressive lookback"
+                          <> metavar "INT"
+                           )
+        d <- argument auto ( help "I(d): Differencing degree"
+                          <> metavar "INT"
+                           )
+        q <- argument auto ( help "MA(q): Moving average lookback"
+                          <> metavar "INT"
+                           )
+        pure $ case (someNatVal p, someNatVal d, someNatVal q) of
+          ( SomeNat (Proxy :: Proxy p)
+            , SomeNat (Proxy :: Proxy d)
+            , SomeNat (Proxy :: Proxy q)
+            ) -> CLearn (MARIMA @p @d @q)
+    parseFCRNN :: Parser Mode
+    parseFCRNN = do
+        h <- argument auto ( help "Hidden layer size"
+                          <> metavar "INT"
+                          <> showDefault
+                          <> value 10
+                           )
+        pure $ case someNatVal h of
+          SomeNat (Proxy :: Proxy h) -> CLearn (MFCRNN @h)
+
+showProcess :: Process -> String
+showProcess PSin = "sin"
+
+parseProcess :: String -> Maybe Process
+parseProcess s = case map toLower s of
+    "sin" -> Just PSin
+    _     -> Nothing
+
