@@ -9,7 +9,7 @@ module Backprop.Learn.Test (
   -- * Tests
     Test
   , maxIxTest, rmseTest
-  , squaredErrorTest, totalSquaredErrorTest, squaredErrorTestV
+  , squaredErrorTest, absErrorTest, totalSquaredErrorTest, squaredErrorTestV
   , crossEntropyTest
   -- * Run tests
   , testLearn, testLearnStoch, testLearnAll, testLearnStochAll
@@ -42,6 +42,9 @@ squaredErrorTest :: Real a => Test a
 squaredErrorTest x y = e * e
   where
     e = realToFrac (x - y)
+
+absErrorTest :: Real a => Test a
+absErrorTest x y = realToFrac . abs $ x - y
 
 totalSquaredErrorTest :: (Applicative t, Foldable t, Real a) => Test (t a)
 totalSquaredErrorTest x y = realToFrac (sum e)

@@ -8,7 +8,7 @@
 module Backprop.Learn.Loss (
     Loss
   , crossEntropy
-  , squaredError, totalSquaredError, squaredErrorV
+  , squaredError, absError, totalSquaredError, squaredErrorV
   , sumLoss
   , sumLossDecay
   , lastLoss
@@ -38,6 +38,9 @@ totalSquaredError targ res = B.sum (e * e)
 
 squaredError :: Loss Double
 squaredError targ res = (res - constVar targ) ** 2
+
+absError :: Loss Double
+absError targ res = abs (res - constVar targ)
 
 sumLoss
     :: (Traversable t, Applicative t, Num a)

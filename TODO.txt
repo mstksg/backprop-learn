@@ -3,3 +3,4 @@
 *   Feedback loops
 *   Get rid of initial state completely nad just require initialiation to zero
     for destate
+*   trace state once unrolled?

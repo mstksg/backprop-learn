@@ -66,10 +66,10 @@ executables:
     - -Wall
     dependencies:
     - backprop-learn
-    - mnist-idx
-    - time
     - data-default
     - filepath
+    - mnist-idx
+    - time
   backprop-learn-series:
     main: series.hs
     source-dirs: app
@@ -81,10 +81,10 @@ executables:
     - -Wall
     dependencies:
     - backprop-learn
-    - time
     - data-default
     - filepath
     - optparse-applicative
+    - time
 
 
 # dependencies:

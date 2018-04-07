@@ -158,7 +158,7 @@ main = MWC.withSystemRandom @IO $ \g -> do
                     printf "Trained on %d points in %s.\n"
                       (length chnk)
                       (show (t1 `diffUTCTime` t0))
-                    let trainScore = testLearnAll squaredErrorTest unrolled (J_I p) chnk
+                    let trainScore = testLearnAll absErrorTest unrolled (J_I p) chnk
                     printf "Training error:   %.8f\n" trainScore
                   report n (b + 1)
 
