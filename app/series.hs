@@ -88,7 +88,7 @@ modelLearn = \case
     MLSTM -> DM
       { _dmPre   = konst
       , _dmPost  = sumElements
-      , _dmLearn = lstm (normalDistr 0 0.2) (normalDistr 0 0.2) (normalDistr 0 0.2)
+      , _dmLearn = lstm (normalDistr 0 0.2) (normalDistr 0 0.2) (normalDistr 0 0.2) True
                :.~ fca (normalDistr 0 0.2) id
       }
 

@@ -16,7 +16,7 @@
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise       #-}
 
 module Backprop.Learn.Model.Neural.LSTM (
-    LSTM, pattern LSTM, lstm, _lstmGen, _lstmGenCell, _lstmGenState
+    LSTM, pattern LSTM, lstm, _lstmGen, _lstmGenCell, _lstmGenState, _lstmForgetBias
   , LSTMp(..), lstmForget , lstmInput, lstmUpdate, lstmOutput
   , LSTM'(..)
   ) where
@@ -29,19 +29,19 @@ import           Backprop.Learn.Model.State
 import           Control.DeepSeq
 import           Control.Monad.Primitive
 import           Data.Typeable
-import           GHC.Generics                          (Generic)
+import           GHC.Generics                                 (Generic)
 import           GHC.TypeNats
 import           Lens.Micro
 import           Numeric.Backprop
-import           Numeric.LinearAlgebra.Static.Backprop
+import           Numeric.LinearAlgebra.Static.Backprop hiding ((&))
 import           Numeric.LinearAlgebra.Static.Vector
 import           Numeric.OneLiner
 import           Numeric.Opto.Ref
 import           Numeric.Opto.Update
 import           Statistics.Distribution
-import qualified Data.Vector.Storable.Sized            as SVS
-import qualified Numeric.LinearAlgebra.Static          as H
-import qualified System.Random.MWC                     as MWC
+import qualified Data.Vector.Storable.Sized                   as SVS
+import qualified Numeric.LinearAlgebra.Static                 as H
+import qualified System.Random.MWC                            as MWC
 
 -- | "Base" for 'LSTM'.  An 'LSTM' is just an 'LSTM'' where the second half
 -- of the input vector is the previous output.
@@ -49,8 +49,9 @@ import qualified System.Random.MWC                     as MWC
 -- This is mostly an implementation detail.  It is recommended that you use
 -- 'LSTM' and its constructor, instead of directly using this.
 data LSTM' (i :: Nat) (o :: Nat) =
-    LSTM' { _lstmGen'     :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double
-          , _lstmGenCell' :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double
+    LSTM' { _lstmGen'        :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double
+          , _lstmGenCell'    :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double
+          , _lstmForgetBias' :: Bool
           }
   deriving (Typeable)
 
@@ -119,10 +120,14 @@ instance (KnownNat i, KnownNat o, KnownNat io, io ~ (i + o)) => Learn (R io) (R 
     type LStateMaybe (LSTM' i o) = 'Just (R o)
 
     initParam LSTM'{..} g = J_ $
-        LSTMp <$> fromJ_ (initParam (FC _lstmGen') g)
+        LSTMp <$> forget
               <*> fromJ_ (initParam (FC _lstmGen') g)
               <*> fromJ_ (initParam (FC _lstmGen') g)
               <*> fromJ_ (initParam (FC _lstmGen') g)
+      where
+        forget
+          | _lstmForgetBias' = set fcBias 1 <$> fromJ_ (initParam (FC _lstmGen') g)
+          | otherwise        = fromJ_ (initParam (FC _lstmGen') g)
     initState LSTM'{..} = J_ . fmap vecR . SVS.replicateM . _lstmGenCell'
 
     runLearn LSTM'{..} (J_ p) x (J_ s) = (h, J_ s')
@@ -141,7 +146,7 @@ instance (KnownNat i, KnownNat o, KnownNat io, io ~ (i + o)) => Learn (R io) (R 
 -- @
 -- instance 'Learn' ('R' i) (R o) ('LSTM' i o) where
 --     type 'LParamMaybe' (LSTM i o) = ''Just' ('LSTMp' i o)
---     type 'LStateMaybe' (LSTM i o) = 'Just ('T2' (R o) (R o))
+--     type 'LStateMaybe' (LSTM i o) = 'Just ('T2' (R o) (R o))     -- cell state, hidden state
 -- @
 type LSTM i o = Recurrent (R (i + o)) (R i) (R o) (R o) (LSTM' i o)
 
@@ -151,22 +156,26 @@ pattern LSTM
     => (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double)     -- ^ '_lstmGen'
     -> (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double)     -- ^ '_lstmGenCell'
     -> (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m (R o))      -- ^ '_lstmGenState'
+    -> Bool                                                             -- ^ '_lstmForgetBias'
     -> LSTM i o
-pattern LSTM { _lstmGen, _lstmGenCell, _lstmGenState } <-
+pattern LSTM { _lstmGen, _lstmGenCell, _lstmGenState, _lstmForgetBias } <-
     Rec { _recInit  = _lstmGenState
-        , _recLearn = LSTM' { _lstmGen'     = _lstmGen
-                            , _lstmGenCell' = _lstmGenCell
+        , _recLearn = LSTM' { _lstmGen'        = _lstmGen
+                            , _lstmGenCell'    = _lstmGenCell
+                            , _lstmForgetBias' = _lstmForgetBias
                             }
         }
   where
-    LSTM g gc gs = Rec { _recInit  = gs
-                       , _recSplit = H.split
-                       , _recJoin  = (H.#)
-                       , _recLoop  = id
-                       , _recLearn = LSTM' { _lstmGen'     = g
-                                           , _lstmGenCell' = gc
-                                           }
-                       }
+    LSTM g gc gs fb = Rec
+      { _recInit  = gs
+      , _recSplit = H.split
+      , _recJoin  = (H.#)
+      , _recLoop  = id
+      , _recLearn = LSTM' { _lstmGen'        = g
+                          , _lstmGenCell'    = gc
+                          , _lstmForgetBias' = fb
+                          }
+      }
 
 -- | Convenient wrapper over 'LSTM' constructor taking distributions from
 -- the /statistics/ library.
@@ -175,6 +184,7 @@ lstm
     => d                    -- ^ generate parameters
     -> e                    -- ^ generate initial cell state
     -> f                    -- ^ generate initial history
+    -> Bool                 -- ^ forgiet bias initialized to 1
     -> LSTM i o
 lstm d e f = LSTM (genContVar d) (genContVar e)
                   (fmap vecR . SVS.replicateM . genContVar f)
