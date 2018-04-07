@@ -21,7 +21,7 @@
 module Backprop.Learn.Model.Regression (
     LinReg(..), linReg
   , LogReg, pattern LogReg, _logRegGen, logReg
-  , LRp(..), lrBeta, lrAlpha
+  , LRp(..), lrBeta, lrAlpha, runLRp
   , ARIMA(..), ARIMAp(..), ARIMAs(..)
   , ARIMAUnroll, arimaUnroll
   , ARIMAUnrollFinal, arimaUnrollFinal
@@ -83,7 +83,7 @@ type LogReg i o = RMap (R o) (R o) (LinReg i o)
 
 -- | Constructor for a 'LogReg'
 pattern LogReg
-    :: (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double)
+    :: (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double)     -- ^ '_logRegGen'
     -> LogReg i o
 pattern LogReg { _logRegGen } <- RM _ (LinReg _logRegGen)
   where
@@ -96,8 +96,8 @@ logReg d = LogReg (genContVar d)
 
 -- | Linear Regression parameter
 data LRp i o = LRp
-    { _lrAlpha    :: !(R o)
-    , _lrBeta :: !(L o i)
+    { _lrAlpha :: !(R o)
+    , _lrBeta  :: !(L o i)
     }
   deriving (Generic, Typeable, Show)
 
@@ -113,6 +113,13 @@ lrBeta f lrp = (\w -> lrp { _lrBeta = w }) <$> f (_lrBeta lrp)
 
 lrAlpha :: Lens' (LRp i o) (R o)
 lrAlpha f lrp = (\b -> lrp { _lrAlpha = b }) <$> f (_lrAlpha lrp)
+
+runLRp
+    :: (KnownNat i, KnownNat o, Reifies s W)
+    => BVar s (LRp i o)
+    -> BVar s (R i)
+    -> BVar s (R o)
+runLRp lrp x = (lrp ^^. lrBeta) #> x + (lrp ^^. lrAlpha)
 
 instance (KnownNat i, KnownNat o) => Num (LRp i o) where
     (+)         = gPlus

@@ -1,23 +1,19 @@
 {-# LANGUAGE DataKinds                                #-}
-{-# LANGUAGE DeriveDataTypeable                       #-}
-{-# LANGUAGE DeriveGeneric                            #-}
 {-# LANGUAGE FlexibleContexts                         #-}
 {-# LANGUAGE FlexibleInstances                        #-}
-{-# LANGUAGE KindSignatures                           #-}
 {-# LANGUAGE MultiParamTypeClasses                    #-}
 {-# LANGUAGE PatternSynonyms                          #-}
 {-# LANGUAGE RankNTypes                               #-}
 {-# LANGUAGE TypeFamilies                             #-}
 {-# LANGUAGE TypeOperators                            #-}
 {-# LANGUAGE UndecidableInstances                     #-}
-{-# LANGUAGE ViewPatterns                             #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise       #-}
 
 module Backprop.Learn.Model.Neural (
   -- * Fully connected
   -- ** Feed-forward
-    FC, fc, FCp, fcBias, fcWeights
+    FC, pattern FC, fc, _fcGen, FCp, fcBias, fcWeights
   -- *** With activation function
   , FCA, pattern FCA, fca, _fcaGen, _fcaActivation
   -- ** Recurrent
@@ -58,7 +54,7 @@ import qualified System.Random.MWC                     as MWC
 type FC i o = LinReg i o
 
 pattern FC
-    :: (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double)
+    :: (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double)     -- ^ '_fcGen'
     -> FC i o
 pattern FC { _fcGen } = LinReg _fcGen
 
@@ -76,8 +72,8 @@ type FCA i o = RMap (R o) (R o) (FC i o)
 --
 -- Some common ones include 'logistic' and @'vmap' 'reLU'@.
 pattern FCA
-    :: (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double)
-    -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R o))
+    :: (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double)     -- ^ '_fcaGen'
+    -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R o))          -- ^ '_fcaActivation'
     -> FCA i o
 pattern FCA { _fcaGen, _fcaActivation } = RM _fcaActivation (FC _fcaGen)
 
@@ -101,13 +97,20 @@ fcBias = lrAlpha
 --
 -- Parameterized by its initialization distributions, and also the function
 -- to compute the new state from previous input.
+--
+-- @
+-- instance 'Learn' ('R' i) (R o) ('FCR' h i o) where
+--     type 'LParamMaybe' (FCR h i o) = ''Just' ('FCRp' h i o)
+--     type 'LStateMaybe' (FCR h i o) = 'Just (R h)
+-- @
 type FCR h i o = Recurrent (R (i + h)) (R i) (R h) (R o) (FC (i + h) o)
 
+-- | Construct an 'FCR'
 pattern FCR
     :: (KnownNat h, KnownNat i)
-    => (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double)
-    -> (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m (R h))
-    -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R h))
+    => (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double)     -- ^ '_fcrGen'
+    -> (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m (R h))      -- ^ '_fcrGenState'
+    -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R h))          -- ^ '_fcrSTore'
     -> FCR h i o
 pattern FCR { _fcrGen, _fcrGenState, _fcrStore } <-
     Rec { _recInit  = _fcrGenState
@@ -142,10 +145,10 @@ type FCRA h i o = RMap (R o) (R o) (FCR h i o)
 -- Some common ones include 'logistic' and @'vmap' 'reLU'@.
 pattern FCRA
     :: (KnownNat h, KnownNat i)
-    => (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double)
-    -> (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m (R h))
-    -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R h))
-    -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R o))
+    => (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double)     -- ^ '_fcraGen'
+    -> (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m (R h))      -- ^ '_fcraGenState'
+    -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R h))          -- ^ '_fcraStore'
+    -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R o))          -- ^ '_fcraActivation'
     -> FCRA h i o
 pattern FCRA { _fcraGen, _fcraGenState, _fcraStore, _fcraActivation }
     = RM _fcraActivation (FCR _fcraGen _fcraGenState _fcraStore)
