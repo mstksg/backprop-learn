@@ -15,10 +15,19 @@ squaredError :: Loss Double
 absError :: Loss Double
 totalSquaredError :: (Num (t Double), Foldable t, Functor t) => Loss (t Double)
 squaredErrorV :: KnownNat n => Loss (R n)
+
+-- | Scale the result of a loss function.
+scaleLoss :: Double -> Loss a -> Loss a
 sumLoss :: (Traversable t, Applicative t, Num a) => Loss a -> Loss (t a)
 sumLossDecay :: forall n a. (KnownNat n, Num a) => Double -> Loss a -> Loss (Vector n a)
 lastLoss :: (KnownNat (n + 1), Num a) => Loss a -> Loss (Vector (n + 1) a)
 zipLoss :: (Traversable t, Applicative t, Num a) => t Double -> Loss a -> Loss (t a)
+
+-- | Lift and sum a loss function over the components of a <a>T2</a>.
+t2Loss :: (Num a, Num b) => Loss a -> Loss b -> Loss (T2 a b)
+
+-- | Lift and sum a loss function over the components of a <a>T3</a>.
+t3Loss :: (Num a, Num b, Num c) => Loss a -> Loss b -> Loss c -> Loss (T3 a b c)
 
 module Data.Type.Mayb
 data Mayb :: (k -> Type) -> Maybe k -> Type
@@ -429,6 +438,9 @@ paramMap :: KnownNat i => (forall m. PrimMonad m => Gen (PrimState m) -> Mayb m 
 --   not have state.
 learnParam :: forall l a b. (Learn a b l, NoState l) => l -> ParamFunc (LParamMaybe l) a b
 
+-- | Identity model, useful for using with other combinators.
+idLearn :: FixedFunc a a
+
 -- | Pre- and post-compose a <a>ParamFunc</a>
 dimapPF :: (forall s. Reifies s W => BVar s a -> BVar s b) -> (forall s. Reifies s W => BVar s c -> BVar s d) -> ParamFunc p b c -> ParamFunc p a d
 
@@ -624,6 +636,17 @@ softMax :: (KnownNat i, Reifies s W) => BVar s (R i) -> BVar s (R i)
 --   
 --   Compare to <a>norm_InfV</a>, which gives the maximum absolute value.
 maxout :: (KnownNat n, Reifies s W) => BVar s (R n) -> BVar s Double
+
+-- | Keep only the top <tt>k</tt> values, and zero out all of the rest.
+--   
+--   Useful for postcomposing in between layers (with a logistic function
+--   before) to encourage the number of "activated" neurons is kept to be
+--   around <tt>k</tt>. Used in k-Sprase autoencoders (see
+--   <tt>KAutoencoder</tt>).
+--   
+--   
+--   <a>http://www.ericlwilkinson.com/blog/2014/11/19/deep-learning-sparse-autoencoders</a>
+kSparse :: forall n s. (Reifies s W, KnownNat n) => Int -> BVar s (R n) -> BVar s (R n)
 instance (GHC.Num.Num a, GHC.Num.Num b, Data.Type.Mayb.MaybeC GHC.Num.Num p, Data.Type.Mayb.KnownMayb p) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Function.ParamFunc p a b)
 instance (Data.Type.Mayb.MaybeC GHC.Num.Num p, Data.Type.Mayb.KnownMayb p) => Control.Category.Category (Backprop.Learn.Model.Function.ParamFunc p)
 
@@ -691,39 +714,6 @@ instance (GHC.Num.Num a, Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$
 
 module Backprop.Learn.Model.Combinator
 
--- | Take a model and turn it into a model that runs its output into itself
---   several times, returning the final result. Parameterized by the number
---   of repeats, and the function to process the output to become the next
---   input.
---   
---   I don't know why anyone would ever want this.
---   
---   See <a>FeedbackTrace</a> if you want to observe all of the
---   intermediate outputs.
-data Feedback :: Type -> Type -> Type -> Type
-[FB] :: {_fbTimes :: Int, _fbFeed :: forall s. Reifies s W => BVar s b -> BVar s a, _fbLearn :: l} -> Feedback a b l
-
--- | Construct a <a>Feedback</a> from an endofunction (a function that
---   returns a value fo the same type as its input) by simply providing the
---   output directly as the next intput.
-feedbackId :: Int -> l -> Feedback a a l
-
--- | Take a model and turn it into a model that runs its output into itself
---   several times, and returns all of the intermediate outputs.
---   Parameterized by the function to process the output to become the next
---   input.
---   
---   See <a>Feedback</a> if you only need the final result.
---   
---   Compare also to <tt>Unroll</tt>.
-data FeedbackTrace :: Nat -> Type -> Type -> Type -> Type
-[FBT] :: {_fbtFeed :: forall s. Reifies s W => BVar s b -> BVar s a, _fbtLearn :: l} -> FeedbackTrace n a b l
-
--- | Construct a <a>FeedbackTrace</a> from an endofunction (a function that
---   returns a value fo the same type as its input) by simply providing the
---   output directly as the next intput.
-feedbackTraceId :: l -> FeedbackTrace n a a l
-
 -- | Chain components linearly, retaining the ability to deconstruct at a
 --   later time.
 data Chain :: [Type] -> [Type] -> [Type] -> Type -> Type -> Type
@@ -787,8 +777,77 @@ onlyLF :: forall p s a b. (KnownMayb p, MaybeC Num p, KnownMayb s, MaybeC Num s)
 --   
 --   Note that this composes in the opposite order of <a>.</a> and
 --   <tt>:.:</tt>, for consistency with the rest of the library.
+--   
+--   The basic autoencoder is simply <tt>l <a>:.~</a> m</tt>, where
+--   <tt><a>Learn</a> a b l</tt> and <tt><a>Learn</a> b a m</tt>. However,
+--   for sparse autoencoder, look at <tt>Autoencoder</tt>.
 data (:.~) :: Type -> Type -> Type
 [:.~] :: l -> m -> l :.~ m
+
+-- | <a>Fork</a>/"Fan out" two models from the same input. Useful for
+data (:&&&) :: Type -> Type -> Type
+[:&&&] :: l -> m -> l :&&& m
+
+-- | K-sparse autoencoder. A normal autoencoder is simply <tt>l <a>:.~</a>
+--   m</tt>; however a k-sparse autoencoder attempts to ensure that the
+--   encoding has about <tt>k</tt> active components for every input.
+--   
+--   
+--   <a>http://www.ericlwilkinson.com/blog/2014/11/19/deep-learning-sparse-autoencoders</a>
+--   
+--   <pre>
+--   instance (<a>Learn</a> a (<a>R</a> n) l, Learn (R n) a m) =&gt; Learn a a (<a>KAutoencoder</a> n l m) where
+--       type <a>LParamMaybe</a> (<a>KAutoencoder</a> n l m) = <a>TupMaybe</a> (LParamMaybe l) (LParamMaybe m)
+--       type <a>LStateMaybe</a> (<a>KAutoencoder</a> n l m) = <a>TupMaybe</a> (LStateMaybe l) (LStateMaybe m)
+--   </pre>
+--   
+--   To "encode" after training this, get the encoder with
+--   <a>kaeEncoder</a>.
+type KAutoencoder n l m = l :.~ FixedFunc (R n) (R n) :.~ m
+
+-- | Construct a <a>KAutoencoder</a>.
+--   
+--   Note that this only has a <a>Learn</a> instance of <tt>l</tt> outputs
+--   <tt><a>R</a> n</tt> and <tt>m</tt> takes <tt><a>R</a> n</tt>. Also,
+--   for this to be an actual autoencoder, the input of <tt>l</tt> has to
+--   be the same as the output of <tt>m</tt>.
+kAutoencoder :: KnownNat n => l -> m -> Int -> KAutoencoder n l m
+kaeEncoder :: KAutoencoder n l m -> l
+kaeDecoder :: KAutoencoder n l m -> m
+
+-- | Take a model and turn it into a model that runs its output into itself
+--   several times, returning the final result. Parameterized by the number
+--   of repeats, and the function to process the output to become the next
+--   input.
+--   
+--   I don't know why anyone would ever want this.
+--   
+--   See <a>FeedbackTrace</a> if you want to observe all of the
+--   intermediate outputs.
+data Feedback :: Type -> Type -> Type -> Type
+[FB] :: {_fbTimes :: Int, _fbFeed :: forall s. Reifies s W => BVar s b -> BVar s a, _fbLearn :: l} -> Feedback a b l
+
+-- | Construct a <a>Feedback</a> from an endofunction (a function that
+--   returns a value fo the same type as its input) by simply providing the
+--   output directly as the next intput.
+feedbackId :: Int -> l -> Feedback a a l
+
+-- | Take a model and turn it into a model that runs its output into itself
+--   several times, and returns all of the intermediate outputs.
+--   Parameterized by the function to process the output to become the next
+--   input.
+--   
+--   See <a>Feedback</a> if you only need the final result.
+--   
+--   Compare also to <tt>Unroll</tt>.
+data FeedbackTrace :: Nat -> Type -> Type -> Type -> Type
+[FBT] :: {_fbtFeed :: forall s. Reifies s W => BVar s b -> BVar s a, _fbtLearn :: l} -> FeedbackTrace n a b l
+
+-- | Construct a <a>FeedbackTrace</a> from an endofunction (a function that
+--   returns a value fo the same type as its input) by simply providing the
+--   output directly as the next intput.
+feedbackTraceId :: l -> FeedbackTrace n a a l
+instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.Learn a c m, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LParamMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LParamMaybe m), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LStateMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LStateMaybe m), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.Class.LParamMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.Class.LParamMaybe m), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.Class.LStateMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.Class.LStateMaybe m), GHC.Num.Num b, GHC.Num.Num c) => Backprop.Learn.Model.Class.Learn a (Numeric.Backprop.Tuple.T2 b c) (l Backprop.Learn.Model.Combinator.:&&& m)
 instance (Backprop.Learn.Model.Class.Learn a b l, GHC.TypeNats.KnownNat n, GHC.Num.Num b) => Backprop.Learn.Model.Class.Learn a (Data.Vector.Sized.Vector n b) (Backprop.Learn.Model.Combinator.FeedbackTrace n a b l)
 instance Backprop.Learn.Model.Class.Learn a b l => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Combinator.Feedback a b l)
 instance Backprop.Learn.Model.Class.Learn a b l => Backprop.Learn.Model.Class.Learn a c (Backprop.Learn.Model.Combinator.RMap b c l)
