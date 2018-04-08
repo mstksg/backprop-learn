@@ -21,6 +21,7 @@ module Backprop.Learn.Model.Function (
   , ParamFuncP, pattern PFP, _pfpInit, _pfpFunc
   , FixedFunc, pattern FF, runFixedFunc
   , paramMap, learnParam
+  , idLearn
   -- ** Combinators
   , dimapPF, lmapPF, rmapPF, compPF, parPF
   -- *** Chain
@@ -108,6 +109,10 @@ pattern FF { runFixedFunc } <- (getFF->runFixedFunc) where
 
 getFF :: forall a b. FixedFunc a b -> (forall s. Reifies s W => BVar s a -> BVar s b)
 getFF ff = _pfFunc ff N_
+
+-- | Identity model, useful for using with other combinators.
+idLearn :: FixedFunc a a
+idLearn = FF id
 
 -- | A @'ParamFunc' p a b@ is a parameterized function from @a@ to @b@,
 -- potentially with trainable parameter @p@.

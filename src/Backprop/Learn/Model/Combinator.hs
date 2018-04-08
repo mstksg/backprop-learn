@@ -22,9 +22,7 @@
 {-# LANGUAGE ViewPatterns           #-}
 
 module Backprop.Learn.Model.Combinator (
-    Feedback(..), feedbackId
-  , FeedbackTrace(..), feedbackTraceId
-  , Chain(..)
+    Chain(..)
   , (~++)
   , chainParamLength
   , chainStateLength
@@ -34,9 +32,14 @@ module Backprop.Learn.Model.Combinator (
   , (.~)
   , nilLF, onlyLF
   , (:.~)(..)
+  , (:&&&)(..)
+  , Autoencoder, pattern AE, _aeEncode, _aeDecode
+  , Feedback(..), feedbackId
+  , FeedbackTrace(..), feedbackTraceId
   ) where
 
 import           Backprop.Learn.Model.Class
+import           Backprop.Learn.Model.Function
 import           Control.Applicative
 import           Control.Category
 import           Control.Monad
@@ -46,19 +49,20 @@ import           Data.Bifunctor
 import           Data.Kind
 import           Data.Type.Equality
 import           Data.Type.Length
-import           Data.Type.Mayb             as Mayb
+import           Data.Type.Mayb                        as Mayb
 import           Data.Type.NonEmpty
 import           Data.Typeable
 import           GHC.TypeNats
 import           Numeric.Backprop
 import           Numeric.Backprop.Tuple
-import           Prelude hiding             ((.), id)
+import           Numeric.LinearAlgebra.Static.Backprop
+import           Prelude hiding                        ((.), id)
 import           Type.Class.Higher
 import           Type.Class.Known
 import           Type.Class.Witness
-import           Type.Family.List           as List
-import qualified Data.Vector.Sized          as SV
-import qualified System.Random.MWC          as MWC
+import           Type.Family.List                      as List
+import qualified Data.Vector.Sized                     as SV
+import qualified System.Random.MWC                     as MWC
 
 -- | Chain components linearly, retaining the ability to deconstruct at
 -- a later time.
@@ -475,6 +479,10 @@ onlyLF f = LF
 --
 -- Note that this composes in the opposite order of '.' and ':.:', for
 -- consistency with the rest of the library.
+--
+-- The basic autoencoder is simply @l ':.~' m@, where @'Learn' a b l@ and
+-- @'Learn' b a m@.  However, for sparse autoencoder, look at
+-- 'Autoencoder'.
 data (:.~) :: Type -> Type -> Type where
     (:.~) :: l -> m -> l :.~ m
 
@@ -673,3 +681,93 @@ instance (Learn a b l, KnownNat n, Num b) => Learn a (SV.Vector n b) (FeedbackTr
         go (x, s) = do
           (y, s') <- runLearnStoch l g p x s
           pure (y, (f y, s'))
+
+-- | "Fork"/"Fan out" two models from the same input.  Useful for
+data (:&&&) :: Type -> Type -> Type where
+    (:&&&) :: l -> m -> l :&&& m
+
+infixr 3 :&&&
+
+instance ( Learn a b l
+         , Learn a c m
+         , KnownMayb (LParamMaybe l)
+         , KnownMayb (LParamMaybe m)
+         , KnownMayb (LStateMaybe l)
+         , KnownMayb (LStateMaybe m)
+         , MaybeC Num (LParamMaybe l)
+         , MaybeC Num (LParamMaybe m)
+         , MaybeC Num (LStateMaybe l)
+         , MaybeC Num (LStateMaybe m)
+         , Num b
+         , Num c
+         )
+      => Learn a (T2 b c) (l :&&& m) where
+    type LParamMaybe (l :&&& m) = TupMaybe (LParamMaybe l) (LParamMaybe m)
+    type LStateMaybe (l :&&& m) = TupMaybe (LStateMaybe l) (LStateMaybe m)
+
+    initParam (l :&&& m) g = tupMaybe @_ @(LParamMaybe l) @(LParamMaybe m)
+        (liftA2 T2)
+        (initParam l g)
+        (initParam m g)
+
+    initState (l :&&& m) g = tupMaybe @_ @(LStateMaybe l) @(LStateMaybe m)
+        (liftA2 T2)
+        (initState l g)
+        (initState m g)
+
+    runLearn (l :&&& m) pq x st = ( isoVar2 T2 t2Tup y z
+                                  , tupMaybe (isoVar2 T2 t2Tup) s' t'
+                                  )
+      where
+        (p, q) = splitTupMaybe @_ @(LParamMaybe l) @(LParamMaybe m)
+                  (\v -> (v ^^. t2_1, v ^^. t2_2))
+                  pq
+        (s, t) = splitTupMaybe @_ @(LStateMaybe l) @(LStateMaybe m)
+                  (\v -> (v ^^. t2_1, v ^^. t2_2))
+                  st
+        (y, s') = runLearn l p x s
+        (z, t') = runLearn m q x t
+
+    runLearnStoch (l :&&& m) g pq x st = do
+        (y, s') <- runLearnStoch l g p x s
+        (z, t') <- runLearnStoch m g q x t
+        pure ( isoVar2 T2 t2Tup y z
+             , tupMaybe (isoVar2 T2 t2Tup) s' t'
+             )
+      where
+        (p, q) = splitTupMaybe @_ @(LParamMaybe l) @(LParamMaybe m)
+                  (\v -> (v ^^. t2_1, v ^^. t2_2))
+                  pq
+        (s, t) = splitTupMaybe @_ @(LStateMaybe l) @(LStateMaybe m)
+                  (\v -> (v ^^. t2_1, v ^^. t2_2))
+                  st
+
+-- | Simple /sparse/ autoencoder that outputs the average activation of
+-- a vector encoding as well as the result.
+--
+-- The traditional autoencoder is simply @l ':.~' m@.  However, the enforce
+-- sparsity, you have to also be able to observe the average activation of
+-- your encoding for your loss function (typically 'klDivergence' for
+-- Kullback-Leibler divergence)
+--
+-- See <http://ufldl.stanford.edu/tutorial/unsupervised/Autoencoders/>.
+--
+-- @
+-- instance ('Learn' a ('R' n) l, Learn (R n) a l, 1 '<=' n) => Learn a ('T2' 'Double' a) where
+--     type 'LParamMaybe' ('Autoencoder' n l m) = 'TupMaybe' (LParamMaybe l) (LParamMaybe m)
+--     type 'LStateMaybe' ('Autoencoder' n l m) = 'TupMaybe' (LStateMaybe l) (LStateMaybe m)
+-- @
+--
+-- To /use/ the autoencoder after training it, just pattern match on 'AE'
+-- or use '_aeEncode' (or '_aeDecode')
+type Autoencoder n l m = l :.~ (FixedFunc (R n) Double :&&& m)
+
+-- | Construct an 'Autoencoder' by giving the encoder and decoder.
+pattern AE
+    :: (Learn a (R n) l, Learn (R n) a m, 1 <= n, KnownNat n)
+    => l                    -- ^ '_aeEncode'
+    -> m                    -- ^ '_aeDecode'
+    -> Autoencoder n l m
+pattern AE { _aeEncode, _aeDecode } <- _aeEncode :.~ (_ :&&& _aeDecode)
+  where
+    AE e d = e :.~ (FF mean :&&& d)
