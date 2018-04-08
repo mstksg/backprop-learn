@@ -33,7 +33,7 @@ module Backprop.Learn.Model.Combinator (
   , nilLF, onlyLF
   , (:.~)(..)
   , (:&&&)(..)
-  , Autoencoder, pattern AE, _aeEncode, _aeDecode
+  , KAutoencoder, kAutoencoder, kaeEncoder, kaeDecoder
   , Feedback(..), feedbackId
   , FeedbackTrace(..), feedbackTraceId
   ) where
@@ -742,32 +742,73 @@ instance ( Learn a b l
                   (\v -> (v ^^. t2_1, v ^^. t2_2))
                   st
 
--- | Simple /sparse/ autoencoder that outputs the average activation of
--- a vector encoding as well as the result.
+-- | K-sparse autoencoder.  A normal autoencoder is simply @l ':.~' m@;
+-- however a k-sparse autoencoder attempts to ensure that the encoding has
+-- about @k@ active components for every input.
 --
--- The traditional autoencoder is simply @l ':.~' m@.  However, the enforce
--- sparsity, you have to also be able to observe the average activation of
--- your encoding for your loss function (typically 'klDivergence' for
--- Kullback-Leibler divergence)
---
--- See <http://ufldl.stanford.edu/tutorial/unsupervised/Autoencoders/>.
+-- <http://www.ericlwilkinson.com/blog/2014/11/19/deep-learning-sparse-autoencoders>
 --
 -- @
--- instance ('Learn' a ('R' n) l, Learn (R n) a l, 1 '<=' n) => Learn a ('T2' 'Double' a) where
---     type 'LParamMaybe' ('Autoencoder' n l m) = 'TupMaybe' (LParamMaybe l) (LParamMaybe m)
---     type 'LStateMaybe' ('Autoencoder' n l m) = 'TupMaybe' (LStateMaybe l) (LStateMaybe m)
+-- instance ('Learn' a ('R' n) l, Learn (R n) a m) => Learn a a ('KAutoencoder' n l m) where
+--     type 'LParamMaybe' ('KAutoencoder' n l m) = 'TupMaybe' (LParamMaybe l) (LParamMaybe m)
+--     type 'LStateMaybe' ('KAutoencoder' n l m) = 'TupMaybe' (LStateMaybe l) (LStateMaybe m)
 -- @
 --
--- To /use/ the autoencoder after training it, just pattern match on 'AE'
--- or use '_aeEncode' (or '_aeDecode')
-type Autoencoder n l m = l :.~ (FixedFunc (R n) Double :&&& m)
+-- To "encode" after training this, get the encoder with 'kaeEncoder'.
+type KAutoencoder n l m = l :.~ FixedFunc (R n) (R n) :.~ m
 
--- | Construct an 'Autoencoder' by giving the encoder and decoder.
-pattern AE
-    :: (Learn a (R n) l, Learn (R n) a m, 1 <= n, KnownNat n)
-    => l                    -- ^ '_aeEncode'
-    -> m                    -- ^ '_aeDecode'
-    -> Autoencoder n l m
-pattern AE { _aeEncode, _aeDecode } <- _aeEncode :.~ (_ :&&& _aeDecode)
-  where
-    AE e d = e :.~ (FF mean :&&& d)
+-- | Construct a 'KAutoencoder'.
+--
+-- Note that this only has a 'Learn' instance of @l@ outputs @'R' n@ and
+-- @m@ takes @'R' n@.  Also, for this to be an actual autoencoder, the
+-- input of @l@ has to be the same as the output of @m@.
+kAutoencoder
+    :: KnownNat n
+    => l
+    -> m
+    -> Int
+    -> KAutoencoder n l m
+kAutoencoder l m k = l :.~ FF (kSparse k) :.~ m
+
+kaeEncoder
+    :: KAutoencoder n l m
+    -> l
+kaeEncoder (l :.~ _ :.~ _) = l
+
+kaeDecoder
+    :: KAutoencoder n l m
+    -> m
+kaeDecoder (_ :.~ _ :.~ m) = m
+
+-- TODO: KL-divergence autoencoders, a la
+-- <http://ufldl.stanford.edu/tutorial/unsupervised/Autoencoders/>.
+
+-- -- | Simple /sparse/ autoencoder that outputs the average activation of
+-- -- a vector encoding as well as the result.
+-- --
+-- -- The traditional autoencoder is simply @l ':.~' m@.  However, the enforce
+-- -- sparsity, you have to also be able to observe the average activation of
+-- -- your encoding for your loss function (typically 'klDivergence' for
+-- -- Kullback-Leibler divergence)
+-- --
+-- -- See <http://ufldl.stanford.edu/tutorial/unsupervised/Autoencoders/>.
+-- --
+-- -- @
+-- -- instance ('Learn' a ('R' n) l, Learn (R n) a l, 1 '<=' n) => Learn a ('T2' 'Double' a) where
+-- --     type 'LParamMaybe' ('Autoencoder' n l m) = 'TupMaybe' (LParamMaybe l) (LParamMaybe m)
+-- --     type 'LStateMaybe' ('Autoencoder' n l m) = 'TupMaybe' (LStateMaybe l) (LStateMaybe m)
+-- -- @
+-- --
+-- -- To /use/ the autoencoder after training it, just pattern match on 'AE'
+-- -- or use '_aeEncode' (or '_aeDecode')
+-- type Autoencoder n l m = l :.~ (FixedFunc (R n) Double :&&& m)
+-- 
+-- -- | Construct an 'Autoencoder' by giving the encoder and decoder.
+-- pattern AE
+--     :: (Learn a (R n) l, Learn (R n) a m, 1 <= n, KnownNat n)
+--     => l                    -- ^ '_aeEncode'
+--     -> m                    -- ^ '_aeDecode'
+--     -> Autoencoder n l m
+-- pattern AE { _aeEncode, _aeDecode } <- _aeEncode :.~ (_ :&&& _aeDecode)
+--   where
+--     AE e d = e :.~ (FF mean :&&& d)

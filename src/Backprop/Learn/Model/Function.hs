@@ -57,6 +57,7 @@ module Backprop.Learn.Model.Function (
   -- ** Mixing
   , softMax
   , maxout
+  , kSparse
   ) where
 
 import           Backprop.Learn.Model.Class
@@ -64,6 +65,7 @@ import           Control.Applicative
 import           Control.Category
 import           Control.Monad.Primitive
 import           Data.Foldable
+import           Data.Proxy
 import           Data.Type.Length
 import           Data.Type.Mayb hiding                        (type (<$>))
 import           Data.Typeable
@@ -77,6 +79,7 @@ import           Type.Class.Known
 import           Type.Class.Witness
 import           Type.Family.List
 import qualified Data.Vector.Sized                            as SV
+import qualified Data.Vector.Sized                            as VS
 import qualified Data.Vector.Storable.Sized                   as SVS
 import qualified Numeric.LinearAlgebra                        as HU
 import qualified Numeric.LinearAlgebra.Static                 as H
@@ -595,3 +598,25 @@ paramMap i f =
        }
 
 -- -- TODO: vmap can do better.
+
+-- | Keep only the top @k@ values, and zero out all of the rest.
+--
+-- Useful for postcomposing in between layers (with a logistic function
+-- before) to encourage the number of "activated" neurons is kept to be
+-- around @k@.  Used in k-Sprase autoencoders (see 'KAutoencoder').
+--
+-- <http://www.ericlwilkinson.com/blog/2014/11/19/deep-learning-sparse-autoencoders>
+kSparse
+    :: forall n s. (Reifies s W, KnownNat n)
+    => Int                      -- ^ number of items to keep
+    -> BVar s (R n)
+    -> BVar s (R n)
+kSparse k = liftOp1 . op1 $ \xs ->
+    let xsSort = HU.sortVector (H.extract xs)
+        thresh = xsSort `HU.atIndex` (n - k)
+        mask   = H.dvmap (\x -> if x >= thresh then 1 else 0) xs
+    in  ( H.dvmap (\x -> if x >= thresh then x else 0) xs
+        , (* mask)
+        )
+  where
+    n = fromIntegral $ natVal (Proxy @n)
