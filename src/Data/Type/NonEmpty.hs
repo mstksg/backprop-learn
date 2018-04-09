@@ -1,59 +1,112 @@
+{-# LANGUAGE BangPatterns           #-}
 {-# LANGUAGE FlexibleInstances      #-}
 {-# LANGUAGE GADTs                  #-}
 {-# LANGUAGE KindSignatures         #-}
+{-# LANGUAGE LambdaCase             #-}
+{-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE PatternSynonyms        #-}
+{-# LANGUAGE ScopedTypeVariables    #-}
+{-# LANGUAGE TypeApplications       #-}
 {-# LANGUAGE TypeFamilies           #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE TypeInType             #-}
 {-# LANGUAGE TypeOperators          #-}
 {-# LANGUAGE UndecidableInstances   #-}
+{-# LANGUAGE ViewPatterns           #-}
 
 module Data.Type.NonEmpty (
-    NETup(..), ToNonEmpty
+    NETup(.., NETT), ToNonEmpty
   , netHead, netTail
   , unNet
   , netT
-  , tNet
   ) where
 
 import           Control.DeepSeq
 import           Data.Kind
 import           Data.List.NonEmpty     (NonEmpty(..))
 import           Data.Type.Length
+import           Lens.Micro
 import           Numeric.Backprop.Tuple
+import           Numeric.Opto.Ref
+import           Numeric.Opto.Update
 import           Type.Class.Known
 import           Type.Family.List
 
 data NETup :: NonEmpty Type -> Type where
     NET :: !a -> !(T as) -> NETup (a ':| as)
 
+pattern NETT :: T (a ': as) -> NETup (a ':| as)
+pattern NETT { netT } <- (\case NET x xs -> x :& xs->(!netT))
+  where
+    NETT (!(x :& xs)) = NET x xs
+{-# COMPLETE NETT #-}
+
 instance (NFData a, ListC (NFData <$> as)) => NFData (NETup (a ':| as)) where
-    rnf (NET x xs) = rnf x `seq` rnf xs
+    rnf (NETT xs) = rnf xs
 
 instance (Num a, ListC (Num <$> as), Known Length as) => Num (NETup (a ':| as)) where
-    NET x xs + NET y ys = NET (x + y) (xs + ys)
-    NET x xs - NET y ys = NET (x - y) (xs - ys)
-    NET x xs * NET y ys = NET (x * y) (xs * ys)
-    negate (NET x xs)   = NET (negate x) (negate xs)
-    abs    (NET x xs)   = NET (abs x   ) (abs xs   )
-    signum (NET x xs)   = NET (signum x) (signum xs)
-    fromInteger x       = NET (fromInteger x) (fromInteger x)
+    NETT xs + NETT ys = NETT (xs + ys)
+    NETT xs - NETT ys = NETT (xs - ys)
+    NETT xs * NETT ys = NETT (xs * ys)
+    negate (NETT xs)  = NETT (negate xs)
+    abs (NETT xs)     = NETT (abs xs)
+    signum (NETT xs)  = NETT (signum xs)
+    fromInteger       = NETT . fromInteger
 
--- instance Additive (NETup (a ':| as))
+instance (Fractional a, ListC (Num <$> as), ListC (Fractional <$> as), Known Length as)
+        => Fractional (NETup (a ':| as)) where
+    NETT xs / NETT ys = NETT (xs / ys)
+    recip (NETT xs)   = NETT (recip xs)
+    fromRational      = NETT . fromRational
 
-netHead :: Functor f => (a -> f b) -> NETup (a ':| as) -> f (NETup (b ':| as))
+instance (Floating a, ListC (Num <$> as), ListC (Fractional <$> as), ListC (Floating <$> as), Known Length as)
+        => Floating (NETup (a ':| as)) where
+    pi              = NETT pi
+    sqrt (NETT xs)  = NETT (sqrt xs)
+    exp (NETT xs)   = NETT (exp xs)
+    log (NETT xs)   = NETT (log xs)
+    sin (NETT xs)   = NETT (sin xs)
+    cos (NETT xs)   = NETT (cos xs)
+    tan (NETT xs)   = NETT (tan xs)
+    asin (NETT xs)  = NETT (asin xs)
+    acos (NETT xs)  = NETT (acos xs)
+    atan (NETT xs)  = NETT (atan xs)
+    sinh (NETT xs)  = NETT (sinh xs)
+    cosh (NETT xs)  = NETT (cosh xs)
+    tanh (NETT xs)  = NETT (tanh xs)
+    asinh (NETT xs) = NETT (asinh xs)
+    acosh (NETT xs) = NETT (acosh xs)
+    atanh (NETT xs) = NETT (atanh xs)
+
+instance (Additive a, Additive (T as))
+      => Additive (NETup (a ':| as)) where
+    NET x xs .+. NET y ys = NET (x .+. y) (xs .+. ys)
+    addZero               = NET addZero addZero
+
+instance (Scaling c a, Scaling c (T as)) => Scaling c (NETup (a ':| as)) where
+    c .* NET x xs = NET (c .* x) (c .* xs)
+    scaleOne      = scaleOne @c @a
+
+instance (Metric c a, Metric c (T as), Ord c, Floating c) => Metric c (NETup (a ':| as)) where
+    NET x xs <.> NET y ys = (x <.> y) + (xs <.> ys)
+    norm_inf (NET x xs)   = max (norm_inf x) (norm_inf xs)
+    norm_0 (NET x xs)     = norm_0 x + norm_0 xs
+    norm_1 (NET x xs)     = norm_1 x + norm_1 xs
+    quadrance (NET x xs)  = quadrance x + quadrance xs
+
+instance (Additive a, Additive (T as), Ref m (NETup (a ':| as)) v)
+        => AdditiveInPlace m v (NETup (a ':| as))
+instance (Scaling s a, Scaling s (T as), Ref m (NETup (a ':| as)) v)
+        => ScalingInPlace m v s (NETup (a ':| as))
+
+netHead :: Lens (NETup (a ':| as)) (NETup (b ':| as)) a b
 netHead f (NET x xs) = (`NET` xs) <$> f x
 
-netTail :: Functor f => (T as -> f (T bs)) -> NETup (a ':| as) -> f (NETup (a ':| bs))
+netTail :: Lens (NETup (a ':| as)) (NETup (a ':| bs)) (T as) (T bs)
 netTail f (NET x xs) = NET x <$> f xs
 
 unNet :: NETup (a ':| as) -> (a, T as)
 unNet (NET x xs) = (x, xs)
-
-netT :: NETup (a ':| as) -> T (a ': as)
-netT (NET x xs) = x :& xs
-
-tNet :: T (a ': as) -> NETup (a ':| as)
-tNet (x :& xs) = NET x xs
 
 type family ToNonEmpty (l :: [k]) = (m :: Maybe (NonEmpty k)) | m -> l where
     ToNonEmpty '[]       = 'Nothing

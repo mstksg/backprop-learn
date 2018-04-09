@@ -29,6 +29,7 @@ ghc-options:
 dependencies:
 - backprop >= 0.1.5
 - base >=4.7 && <5
+- binary
 - conduit
 - containers
 - deepseq
@@ -54,16 +55,19 @@ dependencies:
 library:
   source-dirs: src
 
+_exec: &exec
+  source-dirs: app
+  ghc-options:
+  - -threaded
+  - -rtsopts
+  - -with-rtsopts=-N
+  - -O2
+  - -Wall
+
 executables:
   backprop-learn-mnist:
+    <<: *exec
     main: mnist.hs
-    source-dirs: app
-    ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    - -O2
-    - -Wall
     dependencies:
     - backprop-learn
     - data-default
@@ -71,20 +75,23 @@ executables:
     - mnist-idx
     - time
   backprop-learn-series:
+    <<: *exec
     main: series.hs
-    source-dirs: app
-    ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    - -O2
-    - -Wall
     dependencies:
     - backprop-learn
     - data-default
     - filepath
     - optparse-applicative
     - time
+  backprop-learn-char-rnn:
+    <<: *exec
+    main: char-rnn.hs
+    dependencies:
+    - backprop-learn
+    - data-default
+    - time
+    - text
+    # - optparse-applicative
 
 
 # dependencies:

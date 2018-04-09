@@ -21,7 +21,7 @@
 
 module Backprop.Learn.Model.Class (
     Learn(..)
-  , LParam, LState, NoParam, NoState
+  , LParam, LState, LParams, LStates, NoParam, NoState
   , LParam_, LState_
   , stateless, statelessM
   , runLearnStateless
@@ -37,6 +37,7 @@ import           Data.Type.Mayb
 import           Data.Typeable
 import           Numeric.Backprop
 import           Numeric.Opto.Update
+import           Type.Family.List        (type (++))
 import qualified GHC.TypeLits            as TL
 import qualified System.Random.MWC       as MWC
 
@@ -66,7 +67,15 @@ type LParam_ f l = Mayb f (LParamMaybe l)
 -- s@, for state type @s@.
 type LState_ f l = Mayb f (LStateMaybe l)
 
--- TODO: require NFData
+-- | List of parameters of 'Learn' instances
+type family LParams (ls :: [Type]) :: [Type] where
+    LParams '[]       = '[]
+    LParams (l ': ls) = MaybeToList (LParamMaybe l) ++ LParams ls
+
+-- | List of states of 'Learn' instances
+type family LStates (ls :: [Type]) :: [Type] where
+    LStates '[]       = '[]
+    LStates (l ': ls) = MaybeToList (LStateMaybe l) ++ LStates ls
 
 -- | Class for models that can be trained using gradient descent
 --

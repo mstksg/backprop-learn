@@ -3,4 +3,10 @@
 *   Feedback loops
 *   Get rid of initial state completely nad just require initialiation to zero
     for destate
-*   trace state once unrolled?
+*   trace state or internal activations once unrolled? (actually maybe easy)
+*   KL-divergence autencoders
+*   Variational autoencoders
+*   Address regularization
+*   GRU lstms
+*   Binary
+*   Complete patterns

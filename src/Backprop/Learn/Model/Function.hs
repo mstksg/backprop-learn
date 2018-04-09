@@ -79,7 +79,6 @@ import           Type.Class.Known
 import           Type.Class.Witness
 import           Type.Family.List
 import qualified Data.Vector.Sized                            as SV
-import qualified Data.Vector.Sized                            as VS
 import qualified Data.Vector.Storable.Sized                   as SVS
 import qualified Numeric.LinearAlgebra                        as HU
 import qualified Numeric.LinearAlgebra.Static                 as H

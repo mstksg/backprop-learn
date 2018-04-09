@@ -142,6 +142,7 @@ instance (KnownNat i, KnownNat o) => Floating (LRp i o) where
     log   = gLog
     sin   = gSin
     cos   = gCos
+    tan   = gTan
     asin  = gAsin
     acos  = gAcos
     atan  = gAtan

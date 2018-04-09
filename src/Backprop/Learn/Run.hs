@@ -1,13 +1,18 @@
+{-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE TypeOperators       #-}
 
 module Backprop.Learn.Run (
     consecutives
   , consecutivesN
   , leadings
   , conduitLearn, conduitLearnStoch
+  -- * Encoding and decoding for learning
+  , oneHot', oneHot, oneHotR
+  , SVG.maxIndex, maxIndexR
   ) where
 
 import           Backprop.Learn.Model
@@ -15,15 +20,19 @@ import           Control.Monad
 import           Control.Monad.Primitive
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.Maybe
+import           Data.Bool
 import           Data.Conduit
+import           Data.Finite
 import           Data.Foldable
 import           Data.Proxy
 import           GHC.TypeNats
-import qualified Data.Conduit.Combinators  as C
-import qualified Data.Sequence             as Seq
-import qualified Data.Vector.Generic       as VG
-import qualified Data.Vector.Generic.Sized as SVG
-import qualified System.Random.MWC         as MWC
+import           Numeric.LinearAlgebra.Static
+import           Numeric.LinearAlgebra.Static.Vector
+import qualified Data.Conduit.Combinators            as C
+import qualified Data.Sequence                       as Seq
+import qualified Data.Vector.Generic                 as VG
+import qualified Data.Vector.Generic.Sized           as SVG
+import qualified System.Random.MWC                   as MWC
 
 consecutives :: Monad m => ConduitT i (i, i) m ()
 consecutives = void . runMaybeT $ do
@@ -101,3 +110,25 @@ conduitLearnStoch l g p = go
           (y, s') <- lift $ runLearnStoch_ l g p x s
           yield y
           go s'
+
+-- | What module should this be in?
+oneHot'
+    :: (VG.Vector v a, KnownNat n)
+    => a                -- ^ not hot
+    -> a                -- ^ hot
+    -> Finite n
+    -> SVG.Vector v n a
+oneHot' nothot hot i = SVG.generate (bool nothot hot . (== i))
+
+oneHot
+    :: (VG.Vector v a, KnownNat n, Num a)
+    => Finite n
+    -> SVG.Vector v n a
+oneHot = oneHot' 0 1
+
+oneHotR :: KnownNat n => Finite n -> R n
+oneHotR = vecR . oneHot
+
+-- | Could be in /hmatrix/.
+maxIndexR :: KnownNat n => R (n + 1) -> Finite (n + 1)
+maxIndexR = SVG.maxIndex . rVec
