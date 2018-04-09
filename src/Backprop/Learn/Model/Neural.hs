@@ -124,6 +124,7 @@ pattern FCR { _fcrGen, _fcrGenState, _fcrStore } <-
                      , _recLoop  = s
                      , _recLearn = FC g
                      }
+{-# COMPLETE FCR #-}
 
 -- | Construct an @'FCR' h i o@ using given distributions from the
 -- /statistics/ library.

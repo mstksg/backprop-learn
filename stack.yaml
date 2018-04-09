@@ -71,7 +71,7 @@ packages:
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps:
-- backprop-0.1.5.0
+- backprop-0.1.5.1
 # - type-combinators-0.2.4.3
 # - mnist-idx-0.1.2.6
 # - finite-typelits-0.1.2.0

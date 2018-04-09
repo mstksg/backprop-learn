@@ -108,6 +108,7 @@ pattern FF { runFixedFunc } <- (getFF->runFixedFunc) where
     FF f = PF { _pfInit = const N_
               , _pfFunc = const f
               }
+{-# COMPLETE FF #-}
 
 getFF :: forall a b. FixedFunc a b -> (forall s. Reifies s W => BVar s a -> BVar s b)
 getFF ff = _pfFunc ff N_
@@ -159,6 +160,7 @@ pattern PFP { _pfpInit, _pfpFunc } <- (getPFP->(getWG->_pfpInit,getWF->_pfpFunc)
     PFP i f = PF { _pfInit = J_ . i
                  , _pfFunc = \(J_ p) -> f p
                  }
+{-# COMPLETE PFP #-}
 
 newtype WrapGen p = WG { getWG :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m p }
 newtype WrapFun p a b = WF { getWF :: forall s. Reifies s W => BVar s p -> BVar s a -> BVar s b }

@@ -88,6 +88,7 @@ pattern LogReg
 pattern LogReg { _logRegGen } <- RM _ (LinReg _logRegGen)
   where
     LogReg g = RM logistic (LinReg g)
+{-# COMPLETE LogReg #-}
 
 -- | Construct an 'LogReg' using a given distribution from
 -- the /statistics/ library.

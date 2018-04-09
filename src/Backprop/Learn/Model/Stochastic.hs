@@ -92,6 +92,7 @@ pattern FSF { _fsfRunDeterm, _fsfRunStoch } <- (getFSF->(getWD->_fsfRunDeterm,ge
                  , _sfRunDeterm = const d
                  , _sfRunStoch  = const . s
                  }
+{-# COMPLETE FSF #-}
 
 newtype WrapDeterm a b = WD { getWD :: forall s. Reifies s W => BVar s a -> BVar s b }
 newtype WrapStoch  a b = WS { getWS :: forall m s. (PrimMonad m, Reifies s W) => MWC.Gen (PrimState m) -> BVar s a -> m (BVar s b) }

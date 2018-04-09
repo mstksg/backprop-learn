@@ -417,3 +417,4 @@ pattern DummyState { getDummyState } <- Rec { _recLearn = getDummyState }
                        , _recLoop  = const (constVar T0)
                        , _recLearn = l
                        }
+{-# COMPLETE DummyState #-}

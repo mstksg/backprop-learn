@@ -9,4 +9,3 @@
 *   Address regularization
 *   GRU lstms
 *   Binary
-*   Complete patterns
