@@ -116,6 +116,10 @@ type LParam l = FromJust ( 'ShowType l :<>:  'Text " has no trainable parameters
 --   has no state.
 type LState l = FromJust ( 'ShowType l :<>:  'Text " has no trainable parameters") (LStateMaybe l)
 
+-- | List of parameters of <a>Learn</a> instances
+
+-- | List of states of <a>Learn</a> instances
+
 -- | Constraint specifying that a given model has no trainabale parameters.
 type NoParam l = LParamMaybe l ~  'Nothing
 
@@ -704,26 +708,32 @@ instance GHC.TypeNats.KnownNat n => Backprop.Learn.Model.Class.Learn (Internal.S
 module Data.Type.NonEmpty
 data NETup :: NonEmpty Type -> Type
 [NET] :: !a -> !(T as) -> NETup (a :| as)
-netHead :: Functor f => (a -> f b) -> NETup (a :| as) -> f (NETup (b :| as))
-netTail :: Functor f => (T as -> f (T bs)) -> NETup (a :| as) -> f (NETup (a :| bs))
+netHead :: Lens (NETup (a :| as)) (NETup (b :| as)) a b
+netTail :: Lens (NETup (a :| as)) (NETup (a :| bs)) (T as) (T bs)
 unNet :: NETup (a :| as) -> (a, T as)
-netT :: NETup (a :| as) -> T (a : as)
-tNet :: T (a : as) -> NETup (a :| as)
+netT :: () => NETup a :| as -> T a : as
 instance (Control.DeepSeq.NFData a, Type.Family.List.ListC (Control.DeepSeq.NFData Type.Family.List.<$> as)) => Control.DeepSeq.NFData (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
 instance (GHC.Num.Num a, Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => GHC.Num.Num (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
+instance (GHC.Real.Fractional a, Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> as), Type.Family.List.ListC (GHC.Real.Fractional Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => GHC.Real.Fractional (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
+instance (GHC.Float.Floating a, Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> as), Type.Family.List.ListC (GHC.Real.Fractional Type.Family.List.<$> as), Type.Family.List.ListC (GHC.Float.Floating Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => GHC.Float.Floating (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
+instance (Numeric.Opto.Update.Additive a, Numeric.Opto.Update.Additive (Numeric.Backprop.Tuple.T as)) => Numeric.Opto.Update.Additive (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
+instance (Numeric.Opto.Update.Scaling c a, Numeric.Opto.Update.Scaling c (Numeric.Backprop.Tuple.T as)) => Numeric.Opto.Update.Scaling c (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
+instance (Numeric.Opto.Update.Metric c a, Numeric.Opto.Update.Metric c (Numeric.Backprop.Tuple.T as), GHC.Classes.Ord c, GHC.Float.Floating c) => Numeric.Opto.Update.Metric c (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
+instance (Numeric.Opto.Update.Additive a, Numeric.Opto.Update.Additive (Numeric.Backprop.Tuple.T as), Numeric.Opto.Ref.Ref m (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as)) v) => Numeric.Opto.Update.AdditiveInPlace m v (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
+instance (Numeric.Opto.Update.Scaling s a, Numeric.Opto.Update.Scaling s (Numeric.Backprop.Tuple.T as), Numeric.Opto.Ref.Ref m (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as)) v) => Numeric.Opto.Update.ScalingInPlace m v s (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
 
 module Backprop.Learn.Model.Combinator
 
 -- | Chain components linearly, retaining the ability to deconstruct at a
 --   later time.
-data Chain :: [Type] -> [Type] -> [Type] -> Type -> Type -> Type
-[CNil] :: Chain '[] '[] '[] a a
-[:~>] :: (Learn a b l, KnownMayb (LParamMaybe l), KnownMayb (LStateMaybe l)) => l -> Chain ls ps ss b c -> Chain (l : ls) (MaybeToList (LParamMaybe l) ++ ps) (MaybeToList (LStateMaybe l) ++ ss) a c
+data Chain :: [Type] -> Type -> Type -> Type
+[CNil] :: Chain '[] a a
+[:~>] :: (Learn a b l, KnownMayb (LParamMaybe l), KnownMayb (LStateMaybe l)) => l -> Chain ls b c -> Chain (l : ls) a c
 
 -- | Appending <a>Chain</a>
-(~++) :: forall ls ms ps qs ss ts a b c. () => Chain ls ps ss a b -> Chain ms qs ts b c -> Chain (ls ++ ms) (ps ++ qs) (ss ++ ts) a c
-chainParamLength :: Chain ls ps ss a b -> Length ps
-chainStateLength :: Chain ls ps ss a b -> Length ss
+(~++) :: forall ls ms a b c. () => Chain ls a b -> Chain ms b c -> Chain (ls ++ ms) a c
+chainParamLength :: Chain ls a b -> Length (LParams ls)
+chainStateLength :: Chain ls a b -> Length (LStates ls)
 
 -- | Data type representing trainable models.
 --   
@@ -855,7 +865,7 @@ instance Backprop.Learn.Model.Class.Learn b c l => Backprop.Learn.Model.Class.Le
 instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.Learn b c m, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LParamMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LParamMaybe m), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LStateMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LStateMaybe m), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.Class.LParamMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.Class.LParamMaybe m), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.Class.LStateMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.Class.LStateMaybe m)) => Backprop.Learn.Model.Class.Learn a c (l Backprop.Learn.Model.Combinator.:.~ m)
 instance Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Combinator.LearnFunc p s a b)
 instance (Data.Type.Mayb.MaybeC GHC.Num.Num p, Data.Type.Mayb.MaybeC GHC.Num.Num s, Data.Type.Mayb.KnownMayb p, Data.Type.Mayb.KnownMayb s) => Control.Category.Category (Backprop.Learn.Model.Combinator.LearnFunc p s)
-instance (Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> ps), Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> ss)) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Combinator.Chain ls ps ss a b)
+instance (Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> Backprop.Learn.Model.Class.LParams ls), Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> Backprop.Learn.Model.Class.LStates ls)) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Combinator.Chain ls a b)
 
 module Backprop.Learn.Model.Regression
 
@@ -1135,13 +1145,17 @@ gradLearnStoch :: (Learn a b l, NoState l, Num a, Num b, MaybeC Num (LParamMaybe
 iterateLearn :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l)) => (b -> a) -> Int -> l -> LParam_ I l -> a -> LState_ I l -> ([b], LState_ I l)
 iterateLearnM :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), Monad m) => (b -> m a) -> Int -> l -> LParam_ I l -> a -> LState_ I l -> m ([b], LState_ I l)
 iterateLearnStoch :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m) => (b -> m a) -> Int -> l -> Gen (PrimState m) -> LParam_ I l -> a -> LState_ I l -> m ([b], LState_ I l)
-scanLearn :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l)) => l -> LParam_ I l -> [a] -> LState_ I l -> ([b], LState_ I l)
-scanLearnStoch :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m) => l -> Gen (PrimState m) -> LParam_ I l -> [a] -> LState_ I l -> m ([b], LState_ I l)
-iterateLearn_ :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l)) => (b -> a) -> Int -> l -> LParam_ I l -> a -> LState_ I l -> [b]
+scanLearn :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), Traversable t) => l -> LParam_ I l -> t a -> LState_ I l -> (t b, LState_ I l)
+scanLearnStoch :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m, Traversable t) => l -> Gen (PrimState m) -> LParam_ I l -> t a -> LState_ I l -> m (t b, LState_ I l)
+iterateLearn_ :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l)) => (b -> a) -> l -> LParam_ I l -> a -> LState_ I l -> [b]
 iterateLearnM_ :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), Monad m) => (b -> m a) -> Int -> l -> LParam_ I l -> a -> LState_ I l -> m [b]
 iterateLearnStoch_ :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m) => (b -> m a) -> Int -> l -> Gen (PrimState m) -> LParam_ I l -> a -> LState_ I l -> m [b]
-scanLearn_ :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l)) => l -> LParam_ I l -> [a] -> LState_ I l -> [b]
-scanLearnStoch_ :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m) => l -> Gen (PrimState m) -> LParam_ I l -> [a] -> LState_ I l -> m [b]
+scanLearn_ :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), Traversable t) => l -> LParam_ I l -> t a -> LState_ I l -> t b
+scanLearnStoch_ :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m, Traversable t) => l -> Gen (PrimState m) -> LParam_ I l -> t a -> LState_ I l -> m (t b)
+primeLearn :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), Foldable t) => l -> LParam_ I l -> t a -> LState_ I l -> LState_ I l
+primeLearnStoch :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m, Foldable t) => l -> Gen (PrimState m) -> LParam_ I l -> t a -> LState_ I l -> m (LState_ I l)
+selfPrime :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l)) => (b -> a) -> l -> LParam_ I l -> a -> LState_ I l -> [LState_ I l]
+selfPrimeM :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), Monad m) => (b -> m a) -> Int -> l -> LParam_ I l -> a -> LState_ I l -> m (LState_ I l)
 
 module Backprop.Learn.Train
 
@@ -1184,5 +1198,17 @@ consecutivesN :: forall v n i m. (KnownNat n, Vector v i, Monad m) => ConduitT i
 leadings :: forall v n i m. (KnownNat n, Vector v i, Monad m) => ConduitT i (Vector v n i, i) m ()
 conduitLearn :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), Monad m) => l -> LParam_ I l -> LState_ I l -> ConduitT a b m (LState_ I l)
 conduitLearnStoch :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m) => l -> Gen (PrimState m) -> LParam_ I l -> LState_ I l -> ConduitT a b m (LState_ I l)
+
+-- | What module should this be in?
+oneHot' :: (Vector v a, KnownNat n) => a -> a -> Finite n -> Vector v n a
+oneHot :: (Vector v a, KnownNat n, Num a) => Finite n -> Vector v n a
+oneHotR :: KnownNat n => Finite n -> R n
+
+-- | <i>O(n)</i> Yield the index of the maximum element of the non-empty
+--   vector.
+maxIndex :: (Vector v a, Ord a, KnownNat n) => Vector v n + 1 a -> Finite n + 1
+
+-- | Could be in <i>hmatrix</i>.
+maxIndexR :: KnownNat n => R (n + 1) -> Finite (n + 1)
 
 module Backprop.Learn
