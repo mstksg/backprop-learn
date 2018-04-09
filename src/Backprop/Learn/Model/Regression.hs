@@ -21,7 +21,7 @@
 module Backprop.Learn.Model.Regression (
     LinReg(..), linReg
   , LogReg, pattern LogReg, _logRegGen, logReg
-  , LRp(..), lrBeta, lrAlpha, runLRp
+  , LRp(..), lrBeta, lrAlpha, runLRp, initLRp
   , ARIMA(..), ARIMAp(..), ARIMAs(..)
   , ARIMAUnroll, arimaUnroll
   , ARIMAUnrollFinal, arimaUnrollFinal
@@ -114,6 +114,13 @@ lrBeta f lrp = (\w -> lrp { _lrBeta = w }) <$> f (_lrBeta lrp)
 lrAlpha :: Lens' (LRp i o) (R o)
 lrAlpha f lrp = (\b -> lrp { _lrAlpha = b }) <$> f (_lrAlpha lrp)
 
+initLRp
+    :: (KnownNat i, KnownNat o, Monad m)
+    => m Double
+    -> m (LRp i o)
+initLRp x = LRp <$> (vecR <$> SVS.replicateM x)
+                <*> (vecL <$> SVS.replicateM x)
+
 runLRp
     :: (KnownNat i, KnownNat o, Reifies s W)
     => BVar s (LRp i o)
@@ -155,9 +162,7 @@ instance (KnownNat i, KnownNat o) => Floating (LRp i o) where
 instance (KnownNat i, KnownNat o) => Learn (R i) (R o) (LinReg i o) where
     type LParamMaybe (LinReg i o) = 'Just (LRp i o)
 
-    initParam (LinReg f) g = J_ $
-        LRp <$> (vecR <$> SVS.replicateM (f g))
-            <*> (vecL <$> SVS.replicateM (f g))
+    initParam (LinReg f) g = J_ $ initLRp (f g)
 
     runLearn _ (J_ p) = stateless (runLRp p)
 

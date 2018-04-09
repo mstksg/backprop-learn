@@ -122,13 +122,13 @@ instance (KnownNat i, KnownNat o, KnownNat io, io ~ (i + o)) => Learn (R io) (R 
 
     initParam LSTM'{..} g = J_ $
         LSTMp <$> forget
-              <*> fromJ_ (initParam (FC _lstmGen') g)
-              <*> fromJ_ (initParam (FC _lstmGen') g)
-              <*> fromJ_ (initParam (FC _lstmGen') g)
+              <*> initLRp (_lstmGen' g)
+              <*> initLRp (_lstmGen' g)
+              <*> initLRp (_lstmGen' g)
       where
         forget
-          | _lstmForgetBias' = set fcBias 1 <$> fromJ_ (initParam (FC _lstmGen') g)
-          | otherwise        = fromJ_ (initParam (FC _lstmGen') g)
+          | _lstmForgetBias' = set fcBias 1 <$> initLRp (_lstmGen' g)
+          | otherwise        = initLRp (_lstmGen' g)
     initState LSTM'{..} = J_ . fmap vecR . SVS.replicateM . _lstmGenCell'
 
     runLearn LSTM'{..} (J_ p) x (J_ s) = (h, J_ s')
