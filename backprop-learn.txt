@@ -894,6 +894,7 @@ LRp :: !(R o) -> !(L o i) -> LRp i o
 lrBeta :: Lens (LRp i o) (LRp i' o) (L o i) (L o i')
 lrAlpha :: Lens' (LRp i o) (R o)
 runLRp :: (KnownNat i, KnownNat o, Reifies s W) => BVar s (LRp i o) -> BVar s (R i) -> BVar s (R o)
+initLRp :: (KnownNat i, KnownNat o, Monad m) => m Double -> m (LRp i o)
 
 -- | Auto-regressive integrated moving average model.
 --   
