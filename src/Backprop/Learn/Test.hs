@@ -98,7 +98,7 @@ testLearnCov
     -> Double
 testLearnCov f l p = process . getSum . foldMap go
   where
-    process (T3 (T2 x y) xy n) = (xy - (x * y)) / n
+    process (T3 (T2 x y) xy n) = xy / n - (x * y) / n / n
     go (x, y) = Sum $ T3 (T2 r y') (r * y') 1
       where
         r  = f $ runLearnStateless_ l p x
@@ -113,7 +113,7 @@ testLearnCorr
     -> Double
 testLearnCorr f l p = process . getSum . foldMap go
   where
-    process (T3 (T2 (T2 x x2) (T2 y y2)) xy n) = ((xy - (x * y)) / n)
+    process (T3 (T2 (T2 x x2) (T2 y y2)) xy n) = (xy / n - (x * y) / n / n)
             / sqrt ( x2 / n - (x / n)**2 )
             / sqrt ( y2 / n - (y / n)**2 )
     go (x, y) = Sum $ T3 (T2 (T2 r (r**2)) (T2 y' (y'**2))) (r * y') 1
@@ -163,7 +163,7 @@ testLearnStochCov
     -> m Double
 testLearnStochCov f l g p = fmap (process . getSum) . getM . foldMap (M . go)
   where
-    process (T3 (T2 x y) xy n) = (xy - (x * y)) / n
+    process (T3 (T2 x y) xy n) = xy / n - (x * y) / n / n
     go (x, y) = do
         r <- f <$> runLearnStochStateless_ l g p x
         pure (Sum $ T3 (T2 r y') (r * y') 1)
@@ -180,7 +180,7 @@ testLearnStochCorr
     -> m Double
 testLearnStochCorr f l g p = fmap (process . getSum) . getM . foldMap (M . go)
   where
-    process (T3 (T2 (T2 x x2) (T2 y y2)) xy n) = ((xy - (x * y)) / n)
+    process (T3 (T2 (T2 x x2) (T2 y y2)) xy n) = (xy / n - (x * y) / n / n)
             / sqrt ( x2 / n - (x / n)**2 )
             / sqrt ( y2 / n - (y / n)**2 )
     go (x, y) = do
