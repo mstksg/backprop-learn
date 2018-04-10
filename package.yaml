@@ -91,7 +91,14 @@ executables:
     - data-default
     - time
     - text
-    # - optparse-applicative
+  backprop-learn-word2vec:
+    <<: *exec
+    main: word2vec.hs
+    dependencies:
+    - backprop-learn
+    - data-default
+    - time
+    - text
 
 
 # dependencies:
