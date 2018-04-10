@@ -28,8 +28,6 @@ import           Data.Proxy
 import           Data.Semigroup
 import           GHC.TypeNats
 import           Numeric.Backprop.Tuple
-import qualified Data.Vector.Generic          as VG
-import qualified Data.Vector.Generic.Sized    as SVG
 import qualified Numeric.LinearAlgebra        as HU
 import qualified Numeric.LinearAlgebra.Static as H
 import qualified System.Random.MWC            as MWC

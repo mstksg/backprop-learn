@@ -33,7 +33,9 @@ crossEntropy :: KnownNat n => Loss (R n)
 crossEntropy targ res = -(log res <.> constVar targ)
 
 squaredErrorV :: KnownNat n => Loss (R n)
-squaredErrorV targ res = norm_2V (res - constVar targ)
+squaredErrorV targ res = e <.> e
+  where
+    e = res - constVar targ
 
 totalSquaredError :: (Num (t Double), Foldable t, Functor t) => Loss (t Double)
 totalSquaredError targ res = B.sum (e * e)
@@ -47,7 +49,7 @@ absError :: Loss Double
 absError targ res = abs (res - constVar targ)
 
 -- klDivergence :: Loss Double
--- klDivergence = 
+-- klDivergence =
 
 sumLoss
     :: (Traversable t, Applicative t, Num a)
