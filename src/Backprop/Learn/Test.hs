@@ -15,6 +15,9 @@ module Backprop.Learn.Test (
   , crossEntropyTest
   -- * Run tests
   , testLearn, testLearnStoch, testLearnAll, testLearnStochAll
+  -- ** Correlation tests
+  , testLearnCov, testLearnCorr
+  , testLearnStochCov, testLearnStochCorr
   ) where
 
 import           Backprop.Learn.Model
@@ -25,6 +28,8 @@ import           Data.Proxy
 import           Data.Semigroup
 import           GHC.TypeNats
 import           Numeric.Backprop.Tuple
+import qualified Data.Vector.Generic          as VG
+import qualified Data.Vector.Generic.Sized    as SVG
 import qualified Numeric.LinearAlgebra        as HU
 import qualified Numeric.LinearAlgebra.Static as H
 import qualified System.Random.MWC            as MWC
@@ -40,7 +45,6 @@ maxIxTest x y
 
 rmseTest :: forall n. KnownNat n => Test (H.R n)
 rmseTest x y = H.norm_2 (x - y) / sqrt (fromIntegral (natVal (Proxy @n)))
--- sqrt(x/N) = sqrt(x)/sqrt(N)
 
 squaredErrorTest :: Real a => Test a
 squaredErrorTest x y = e * e
@@ -87,6 +91,38 @@ testLearnStoch
     -> m Double
 testLearnStoch t l g mp x y = t y <$> runLearnStochStateless_ l g mp x
 
+testLearnCov
+    :: (Learn a b l, NoState l, Foldable t)
+    => (b -> Double)      -- ^ projection function to get covariance of
+    -> l
+    -> LParam_ I l
+    -> t (a, b)
+    -> Double
+testLearnCov f l p = process . getSum . foldMap go
+  where
+    process (T3 (T2 x y) xy n) = (xy - (x * y)) / n
+    go (x, y) = Sum $ T3 (T2 r y') (r * y') 1
+      where
+        r  = f $ runLearnStateless_ l p x
+        y' = f y
+
+testLearnCorr
+    :: (Learn a b l, NoState l, Foldable t)
+    => (b -> Double)      -- ^ projection function to get correlation of
+    -> l
+    -> LParam_ I l
+    -> t (a, b)
+    -> Double
+testLearnCorr f l p = process . getSum . foldMap go
+  where
+    process (T3 (T2 (T2 x x2) (T2 y y2)) xy n) = ((xy - (x * y)) / n)
+            / sqrt ( x2 / n - (x / n)**2 )
+            / sqrt ( y2 / n - (y / n)**2 )
+    go (x, y) = Sum $ T3 (T2 (T2 r (r**2)) (T2 y' (y'**2))) (r * y') 1
+      where
+        r  = f $ runLearnStateless_ l p x
+        y' = f y
+
 testLearnAll
     :: (Learn a b l, NoState l, Foldable t)
     => Test b
@@ -118,3 +154,39 @@ testLearnStochAll t l g p = fmap (uncurryT2 (/) . getSum) . getM
                           . foldMap (\(x,y) -> M $ Sum . (`T2` 1) <$> f x y)
   where
     f = testLearnStoch t l g p
+
+testLearnStochCov
+    :: (Learn a b l, NoState l, PrimMonad m, Foldable t)
+    => (b -> Double)      -- ^ projection function to get covariance of
+    -> l
+    -> MWC.Gen (PrimState m)
+    -> LParam_ I l
+    -> t (a, b)
+    -> m Double
+testLearnStochCov f l g p = fmap (process . getSum) . getM . foldMap (M . go)
+  where
+    process (T3 (T2 x y) xy n) = (xy - (x * y)) / n
+    go (x, y) = do
+        r <- f <$> runLearnStochStateless_ l g p x
+        pure (Sum $ T3 (T2 r y') (r * y') 1)
+      where
+        y' = f y
+
+testLearnStochCorr
+    :: (Learn a b l, NoState l, PrimMonad m, Foldable t)
+    => (b -> Double)      -- ^ projection function to get correlation of
+    -> l
+    -> MWC.Gen (PrimState m)
+    -> LParam_ I l
+    -> t (a, b)
+    -> m Double
+testLearnStochCorr f l g p = fmap (process . getSum) . getM . foldMap (M . go)
+  where
+    process (T3 (T2 (T2 x x2) (T2 y y2)) xy n) = ((xy - (x * y)) / n)
+            / sqrt ( x2 / n - (x / n)**2 )
+            / sqrt ( y2 / n - (y / n)**2 )
+    go (x, y) = do
+        r  <- f <$> runLearnStochStateless_ l g p x
+        pure (Sum $ T3 (T2 (T2 r (r**2)) (T2 y' (y'**2))) (r * y') 1)
+      where
+        y' = f y
