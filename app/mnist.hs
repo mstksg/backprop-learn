@@ -83,7 +83,7 @@ main = MWC.withSystemRandom $ \g -> do
             (RO' Nothing Nothing)
             net0
             (adam @_ @(MutVar _ (LParam MNISTNet)) def
-              (learnGradStoch crossEntropy mnistNet g)
+              (learnGradStoch crossEntropy noReg mnistNet g)
             )
        .| mapM_ (report 2500) [0..]
        .| C.sinkNull

@@ -172,7 +172,7 @@ main = MWC.withSystemRandom @IO $ \g -> do
                 (RO' Nothing Nothing)
                 p0
                 (adam @_ @(MutVar _ _) def
-                   (learnGrad squaredError unrolled)
+                   (learnGrad squaredError noReg unrolled)
                 )
            .| report oInterval 0
            .| C.sinkNull

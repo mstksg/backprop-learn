@@ -37,13 +37,14 @@ gradLearnLoss
        , Num (LParam l)
        )
     => Loss b
+    -> Regularizer (LParam l)
     -> l
     -> LParam l
     -> a
     -> b
     -> LParam l
-gradLearnLoss loss l p x y = gradBP (\p' ->
-        loss y (runLearnStateless l (J_ p') (constVar x))
+gradLearnLoss loss reg l p x y = gradBP (\p' ->
+        loss y (runLearnStateless l (J_ p') (constVar x)) + reg p'
     ) p
 
 -- | Stochastic gradient of model with respect to loss function and target
@@ -55,17 +56,19 @@ gradLearnStochLoss
        , PrimMonad m
        )
     => Loss b
+    -> Regularizer (LParam l)
     -> l
     -> MWC.Gen (PrimState m)
     -> LParam l
     -> a
     -> b
     -> m (LParam l)
-gradLearnStochLoss loss l g p x y = do
+gradLearnStochLoss loss reg l g p x y = do
     seed <- MWC.uniformVector @_ @Word32 @VU.Vector g 2
     pure $ gradBP (\p' -> runST $ do
         g' <- MWC.initialize seed
-        loss y <$> runLearnStochStateless l g' (J_ p') (constVar x)
+        lo <- loss y <$> runLearnStochStateless l g' (J_ p') (constVar x)
+        pure (lo + reg p')
       ) p
 
 -- | Using a model's deterministic prediction function (with a given loss
@@ -79,9 +82,10 @@ learnGrad
        , Num (LParam l)
        )
     => Loss b
+    -> Regularizer (LParam l)
     -> l
     -> Grad m (LParam l)
-learnGrad loss l = pureSampling $ \(x,y) p -> gradLearnLoss loss l p x y
+learnGrad loss reg l = pureSampling $ \(x,y) p -> gradLearnLoss loss reg l p x y
 
 -- | Using a model's stochastic prediction function (with a given loss
 -- function), generate a 'Grad' compatible with "Numeric.Opto" and
@@ -95,8 +99,9 @@ learnGradStoch
        , Num (LParam l)
        )
     => Loss b
+    -> Regularizer (LParam l)
     -> l
     -> MWC.Gen (PrimState m)
     -> Grad m (LParam l)
-learnGradStoch loss l g = sampling $ \(x,y) p ->
-      gradLearnStochLoss loss l g p x y
+learnGradStoch loss reg l g = sampling $ \(x,y) p ->
+      gradLearnStochLoss loss reg l g p x y

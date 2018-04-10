@@ -32,6 +32,8 @@ import qualified Numeric.LinearAlgebra        as HU
 import qualified Numeric.LinearAlgebra.Static as H
 import qualified System.Random.MWC            as MWC
 
+-- TODO: support non-double results?
+
 type Test o = o -> o -> Double
 
 maxIxTest :: KnownNat n => Test (H.R n)

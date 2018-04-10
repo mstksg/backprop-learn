@@ -123,7 +123,7 @@ main = MWC.withSystemRandom @IO $ \g -> do
             (RO' Nothing Nothing)
             p0
             (adam @_ @(MutVar _ _) def
-               (learnGradStoch crossEntropy model g)
+               (learnGradStoch crossEntropy noReg model g)
             )
        .| report 2500 0
        .| C.sinkNull

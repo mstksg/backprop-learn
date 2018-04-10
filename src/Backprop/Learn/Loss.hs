@@ -6,9 +6,11 @@
 {-# LANGUAGE TypeOperators       #-}
 
 module Backprop.Learn.Loss (
+  -- * Loss functions
     Loss
   , crossEntropy
   , squaredError, absError, totalSquaredError, squaredErrorV
+  -- ** Manipulate loss functions
   , scaleLoss
   , sumLoss
   , sumLossDecay
@@ -16,6 +18,13 @@ module Backprop.Learn.Loss (
   , zipLoss
   , t2Loss
   , t3Loss
+  -- * Regularization
+  , Regularizer
+  , l2Reg
+  , l1Reg
+  , noReg
+  -- ** Manipulate regularizers
+  , addReg
   ) where
 
 import           Control.Applicative
@@ -24,6 +33,7 @@ import           GHC.TypeNats
 import           Numeric.Backprop
 import           Numeric.Backprop.Tuple
 import           Numeric.LinearAlgebra.Static.Backprop
+import           Numeric.Opto.Update hiding            ((<.>))
 import qualified Data.Vector.Sized                     as SV
 import qualified Prelude.Backprop                      as B
 
@@ -105,3 +115,39 @@ t3Loss f g h (T3 xT yT zT) xRyRzR
         = f xT (xRyRzR ^^. t3_1)
         + g yT (xRyRzR ^^. t3_2)
         + h zT (xRyRzR ^^. t3_3)
+
+-- | A regularizer on parameters
+type Regularizer p = forall s. Reifies s W => BVar s p -> BVar s Double
+
+-- | L2 regularization
+--
+-- \[
+-- \sum_w \frac{1}{2} w^2
+-- \]
+l2Reg
+    :: (Metric Double p, Num p)
+    => Double                   -- ^ scaling factor (often 0.5)
+    -> Regularizer p
+l2Reg λ = liftOp1 . op1 $ \x ->
+            ( λ * quadrance x / 2, (.* x) . (* λ))
+
+-- | L1 regularization
+--
+-- \[
+-- \sum_w \lvert w \rvert
+-- \]
+l1Reg
+    :: (Metric Double p, Num p)
+    => Double                   -- ^ scaling factor (often 0.5)
+    -> Regularizer p
+l1Reg λ = liftOp1 . op1 $ \x ->
+            ( λ * norm_1 x, (.* signum x) . (* λ)
+            )
+
+-- | No regularization
+noReg :: Regularizer p
+noReg _ = constVar 0
+
+-- | Add together two regularizers
+addReg :: Regularizer p -> Regularizer p -> Regularizer p
+addReg = liftA2 (+)
