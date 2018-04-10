@@ -9,3 +9,4 @@
 *   Address regularization
 *   GRU lstms
 *   Binary
+*   Dynamically grow or shrink

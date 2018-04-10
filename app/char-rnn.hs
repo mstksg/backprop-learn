@@ -111,11 +111,12 @@ main = MWC.withSystemRandom @IO $ \g -> do
 
     C.runResourceT . flip evalStateT []
         . runConduit
-        $ forever (C.sourceFile sourceFile)
-       .| C.decodeUtf8
-       .| C.concatMap T.unpack
-       .| C.map (oneHotChar charMap)
-       .| leadings
+        $ forever ( C.sourceFile sourceFile
+                 .| C.decodeUtf8
+                 .| C.concatMap T.unpack
+                 .| C.map (oneHotChar charMap)
+                 .| leadings
+                  )
        .| skipSampling 0.02 g
        .| C.iterM (modify . (:))
        .| runOptoConduit_
