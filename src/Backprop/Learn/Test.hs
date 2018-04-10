@@ -2,6 +2,8 @@
 {-# LANGUAGE FlexibleContexts                     #-}
 {-# LANGUAGE PartialTypeSignatures                #-}
 {-# LANGUAGE RankNTypes                           #-}
+{-# LANGUAGE ScopedTypeVariables                  #-}
+{-# LANGUAGE TypeApplications                     #-}
 {-# LANGUAGE TypeFamilies                         #-}
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 
@@ -19,6 +21,7 @@ import           Backprop.Learn.Model
 import           Control.Applicative
 import           Control.Monad.Primitive
 import           Data.Function
+import           Data.Proxy
 import           Data.Semigroup
 import           GHC.TypeNats
 import           Numeric.Backprop.Tuple
@@ -35,8 +38,8 @@ maxIxTest x y
   where
     match = (==) `on` (HU.maxIndex . H.extract)
 
-rmseTest :: KnownNat n => Test (H.R n)
-rmseTest x y = H.norm_2 (x - y)
+rmseTest :: forall n. KnownNat n => Test (H.R n)
+rmseTest x y = H.norm_2 (x - y) / fromIntegral (natVal (Proxy @n))
 
 squaredErrorTest :: Real a => Test a
 squaredErrorTest x y = e * e
