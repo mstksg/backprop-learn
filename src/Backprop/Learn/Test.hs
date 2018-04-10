@@ -39,7 +39,8 @@ maxIxTest x y
     match = (==) `on` (HU.maxIndex . H.extract)
 
 rmseTest :: forall n. KnownNat n => Test (H.R n)
-rmseTest x y = H.norm_2 (x - y) / fromIntegral (natVal (Proxy @n))
+rmseTest x y = H.norm_2 (x - y) / sqrt (fromIntegral (natVal (Proxy @n)))
+-- sqrt(x/N) = sqrt(x)/sqrt(N)
 
 squaredErrorTest :: Real a => Test a
 squaredErrorTest x y = e * e
