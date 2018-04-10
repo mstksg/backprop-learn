@@ -29,6 +29,25 @@ t2Loss :: (Num a, Num b) => Loss a -> Loss b -> Loss (T2 a b)
 -- | Lift and sum a loss function over the components of a <a>T3</a>.
 t3Loss :: (Num a, Num b, Num c) => Loss a -> Loss b -> Loss c -> Loss (T3 a b c)
 
+-- | A regularizer on parameters
+type Regularizer p = forall s. Reifies s W => BVar s p -> BVar s Double
+
+-- | L2 regularization
+--   
+--   &lt;math&gt;
+l2Reg :: (Metric Double p, Num p) => Double -> Regularizer p
+
+-- | L1 regularization
+--   
+--   &lt;math&gt;
+l1Reg :: (Metric Double p, Num p) => Double -> Regularizer p
+
+-- | No regularization
+noReg :: Regularizer p
+
+-- | Add together two regularizers
+addReg :: Regularizer p -> Regularizer p -> Regularizer p
+
 module Data.Type.Mayb
 data Mayb :: (k -> Type) -> Maybe k -> Type
 [N_] :: Mayb f  'Nothing
@@ -1161,21 +1180,21 @@ selfPrimeM :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), Monad m) => (b ->
 module Backprop.Learn.Train
 
 -- | Gradient of model with respect to loss function and target
-gradLearnLoss :: (Learn a b l, NoState l, LParamMaybe l ~  'Just (LParam l), Num (LParam l)) => Loss b -> l -> LParam l -> a -> b -> LParam l
+gradLearnLoss :: (Learn a b l, NoState l, LParamMaybe l ~  'Just (LParam l), Num (LParam l)) => Loss b -> Regularizer (LParam l) -> l -> LParam l -> a -> b -> LParam l
 
 -- | Stochastic gradient of model with respect to loss function and target
-gradLearnStochLoss :: (Learn a b l, NoState l, LParamMaybe l ~  'Just (LParam l), Num (LParam l), PrimMonad m) => Loss b -> l -> Gen (PrimState m) -> LParam l -> a -> b -> m (LParam l)
+gradLearnStochLoss :: (Learn a b l, NoState l, LParamMaybe l ~  'Just (LParam l), Num (LParam l), PrimMonad m) => Loss b -> Regularizer (LParam l) -> l -> Gen (PrimState m) -> LParam l -> a -> b -> m (LParam l)
 type Grad (m :: * -> *) a = a -> m Diff a
 
 -- | Using a model's deterministic prediction function (with a given loss
 --   function), generate a <a>Grad</a> compatible with <a>Numeric.Opto</a>
 --   and <a>Numeric.Opto.Run</a>.
-learnGrad :: (MonadSample (a, b) m, Learn a b l, NoState l, LParamMaybe l ~  'Just (LParam l), Num (LParam l)) => Loss b -> l -> Grad m (LParam l)
+learnGrad :: (MonadSample (a, b) m, Learn a b l, NoState l, LParamMaybe l ~  'Just (LParam l), Num (LParam l)) => Loss b -> Regularizer (LParam l) -> l -> Grad m (LParam l)
 
 -- | Using a model's stochastic prediction function (with a given loss
 --   function), generate a <a>Grad</a> compatible with <a>Numeric.Opto</a>
 --   and <a>Numeric.Opto.Run</a>.
-learnGradStoch :: (MonadSample (a, b) m, PrimMonad m, Learn a b l, NoState l, LParamMaybe l ~  'Just (LParam l), Num (LParam l)) => Loss b -> l -> Gen (PrimState m) -> Grad m (LParam l)
+learnGradStoch :: (MonadSample (a, b) m, PrimMonad m, Learn a b l, NoState l, LParamMaybe l ~  'Just (LParam l), Num (LParam l)) => Loss b -> Regularizer (LParam l) -> l -> Gen (PrimState m) -> Grad m (LParam l)
 
 module Backprop.Learn.Test
 type Test o = o -> o -> Double
