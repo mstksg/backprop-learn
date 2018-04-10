@@ -1190,6 +1190,10 @@ testLearn :: (Learn a b l, NoState l) => Test b -> l -> LParam_ I l -> a -> b ->
 testLearnStoch :: (Learn a b l, NoState l, PrimMonad m) => Test b -> l -> Gen (PrimState m) -> LParam_ I l -> a -> b -> m Double
 testLearnAll :: (Learn a b l, NoState l, Foldable t) => Test b -> l -> LParam_ I l -> t (a, b) -> Double
 testLearnStochAll :: (Learn a b l, NoState l, PrimMonad m, Foldable t) => Test b -> l -> Gen (PrimState m) -> LParam_ I l -> t (a, b) -> m Double
+testLearnCov :: (Learn a b l, NoState l, Foldable t) => (b -> Double) -> l -> LParam_ I l -> t (a, b) -> Double
+testLearnCorr :: (Learn a b l, NoState l, Foldable t) => (b -> Double) -> l -> LParam_ I l -> t (a, b) -> Double
+testLearnStochCov :: (Learn a b l, NoState l, PrimMonad m, Foldable t) => (b -> Double) -> l -> Gen (PrimState m) -> LParam_ I l -> t (a, b) -> m Double
+testLearnStochCorr :: (Learn a b l, NoState l, PrimMonad m, Foldable t) => (b -> Double) -> l -> Gen (PrimState m) -> LParam_ I l -> t (a, b) -> m Double
 instance (GHC.Base.Semigroup a, GHC.Base.Applicative m) => GHC.Base.Semigroup (Backprop.Learn.Test.M m a)
 instance (GHC.Base.Monoid a, GHC.Base.Applicative m) => GHC.Base.Monoid (Backprop.Learn.Test.M m a)
 
