@@ -1180,7 +1180,7 @@ learnGradStoch :: (MonadSample (a, b) m, PrimMonad m, Learn a b l, NoState l, LP
 module Backprop.Learn.Test
 type Test o = o -> o -> Double
 maxIxTest :: KnownNat n => Test (R n)
-rmseTest :: KnownNat n => Test (R n)
+rmseTest :: forall n. KnownNat n => Test (R n)
 squaredErrorTest :: Real a => Test a
 absErrorTest :: Real a => Test a
 totalSquaredErrorTest :: (Applicative t, Foldable t, Real a) => Test (t a)
