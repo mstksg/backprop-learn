@@ -13,6 +13,7 @@ module Backprop.Learn.Test (
   , maxIxTest, rmseTest
   , squaredErrorTest, absErrorTest, totalSquaredErrorTest, squaredErrorTestV
   , crossEntropyTest
+  , lmapTest
   -- * Run tests
   , testLearn, testLearnStoch, testLearnAll, testLearnStochAll
   -- ** Correlation tests
@@ -69,6 +70,12 @@ squaredErrorTestV x y = e `H.dot` e
 
 crossEntropyTest :: KnownNat n => Test (H.R n)
 crossEntropyTest targ res = -(log res H.<.> targ)
+
+lmapTest
+    :: (a -> b)
+    -> Test b
+    -> Test a
+lmapTest f t x y = t (f x) (f y)
 
 testLearn
     :: (Learn a b l, NoState l)

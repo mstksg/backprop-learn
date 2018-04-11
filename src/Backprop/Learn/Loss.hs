@@ -60,6 +60,8 @@ squaredError targ res = (res - constVar targ) ** 2
 absError :: Loss Double
 absError targ res = abs (res - constVar targ)
 
+-- | Sum of covariances between matching components.  Not sure if anyone
+-- uses this.
 totalCov :: (Num (t Double), Foldable t, Functor t) => Loss (t Double)
 totalCov targ res = -(xy / fromIntegral n - (x * y) / fromIntegral (n * n))
   where
