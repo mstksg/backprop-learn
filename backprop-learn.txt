@@ -556,6 +556,14 @@ tanh :: Floating a => a -> a
 atan :: Floating a => a -> a
 sin :: Floating a => a -> a
 
+-- | Note: if possible, use the potentially much more performant
+--   <a>vmap'</a>.
+vmap :: (Reifies s W, KnownNat n) => BVar s ℝ -> BVar s ℝ -> BVar s R n -> BVar s R n
+
+-- | <a>vmap</a>, but potentially more performant. Only usable if the
+--   mapped function does not depend on any external <a>BVar</a>s.
+vmap' :: (Reifies s W, Num vec n, Storable field, Sized field vec n Vector) => forall s'. Reifies s' W => BVar s' field -> BVar s' field -> BVar s vec n -> BVar s vec n
+
 -- | Usable with functions like <a>*</a>, <a>isru</a>, etc. to turn them
 --   into a form usable with <a>PFP</a>:
 --   
