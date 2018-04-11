@@ -10,6 +10,7 @@ module Backprop.Learn.Loss (
     Loss
   , crossEntropy
   , squaredError, absError, totalSquaredError, squaredErrorV
+  , totalCov
   -- ** Manipulate loss functions
   , scaleLoss
   , sumLoss
@@ -58,6 +59,14 @@ squaredError targ res = (res - constVar targ) ** 2
 
 absError :: Loss Double
 absError targ res = abs (res - constVar targ)
+
+totalCov :: (Num (t Double), Foldable t, Functor t) => Loss (t Double)
+totalCov targ res = -(xy / fromIntegral n - (x * y) / fromIntegral (n * n))
+  where
+    x = constVar $ sum targ
+    y = B.sum res
+    xy = B.sum (constVar targ * res)
+    n = length targ
 
 -- klDivergence :: Loss Double
 -- klDivergence =
