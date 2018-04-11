@@ -92,36 +92,32 @@ testLearnStoch
 testLearnStoch t l g mp x y = t y <$> runLearnStochStateless_ l g mp x
 
 testLearnCov
-    :: (Learn a b l, NoState l, Foldable t)
-    => (b -> Double)      -- ^ projection function to get covariance of
-    -> l
+    :: (Learn a b l, NoState l, Foldable t, Fractional b)
+    => l
     -> LParam_ I l
     -> t (a, b)
-    -> Double
-testLearnCov f l p = process . getSum . foldMap go
+    -> b
+testLearnCov l p = process . getSum . foldMap go
   where
     process (T3 (T2 x y) xy n) = xy / n - (x * y) / n / n
-    go (x, y) = Sum $ T3 (T2 r y') (r * y') 1
+    go (x, y) = Sum $ T3 (T2 r y) (r * y) 1
       where
-        r  = f $ runLearnStateless_ l p x
-        y' = f y
+        r  = runLearnStateless_ l p x
 
 testLearnCorr
-    :: (Learn a b l, NoState l, Foldable t)
-    => (b -> Double)      -- ^ projection function to get correlation of
-    -> l
+    :: (Learn a b l, NoState l, Foldable t, Floating b)
+    => l
     -> LParam_ I l
     -> t (a, b)
-    -> Double
-testLearnCorr f l p = process . getSum . foldMap go
+    -> b
+testLearnCorr l p = process . getSum . foldMap go
   where
     process (T3 (T2 (T2 x x2) (T2 y y2)) xy n) = (xy / n - (x * y) / n / n)
             / sqrt ( x2 / n - (x / n)**2 )
             / sqrt ( y2 / n - (y / n)**2 )
-    go (x, y) = Sum $ T3 (T2 (T2 r (r**2)) (T2 y' (y'**2))) (r * y') 1
+    go (x, y) = Sum $ T3 (T2 (T2 r (r**2)) (T2 y (y**2))) (r * y) 1
       where
-        r  = f $ runLearnStateless_ l p x
-        y' = f y
+        r  = runLearnStateless_ l p x
 
 testLearnAll
     :: (Learn a b l, NoState l, Foldable t)
@@ -156,37 +152,31 @@ testLearnStochAll t l g p = fmap (uncurryT2 (/) . getSum) . getM
     f = testLearnStoch t l g p
 
 testLearnStochCov
-    :: (Learn a b l, NoState l, PrimMonad m, Foldable t)
-    => (b -> Double)      -- ^ projection function to get covariance of
-    -> l
+    :: (Learn a b l, NoState l, PrimMonad m, Foldable t, Fractional b)
+    => l
     -> MWC.Gen (PrimState m)
     -> LParam_ I l
     -> t (a, b)
-    -> m Double
-testLearnStochCov f l g p = fmap (process . getSum) . getM . foldMap (M . go)
+    -> m b
+testLearnStochCov l g p = fmap (process . getSum) . getM . foldMap (M . go)
   where
     process (T3 (T2 x y) xy n) = xy / n - (x * y) / n / n
     go (x, y) = do
-        r <- f <$> runLearnStochStateless_ l g p x
-        pure (Sum $ T3 (T2 r y') (r * y') 1)
-      where
-        y' = f y
+        r <- runLearnStochStateless_ l g p x
+        pure (Sum $ T3 (T2 r y) (r * y) 1)
 
 testLearnStochCorr
-    :: (Learn a b l, NoState l, PrimMonad m, Foldable t)
-    => (b -> Double)      -- ^ projection function to get correlation of
-    -> l
+    :: (Learn a b l, NoState l, PrimMonad m, Foldable t, Floating b)
+    => l
     -> MWC.Gen (PrimState m)
     -> LParam_ I l
     -> t (a, b)
-    -> m Double
-testLearnStochCorr f l g p = fmap (process . getSum) . getM . foldMap (M . go)
+    -> m b
+testLearnStochCorr l g p = fmap (process . getSum) . getM . foldMap (M . go)
   where
     process (T3 (T2 (T2 x x2) (T2 y y2)) xy n) = (xy / n - (x * y) / n / n)
             / sqrt ( x2 / n - (x / n)**2 )
             / sqrt ( y2 / n - (y / n)**2 )
     go (x, y) = do
-        r  <- f <$> runLearnStochStateless_ l g p x
-        pure (Sum $ T3 (T2 (T2 r (r**2)) (T2 y' (y'**2))) (r * y') 1)
-      where
-        y' = f y
+        r  <- runLearnStochStateless_ l g p x
+        pure (Sum $ T3 (T2 (T2 r (r**2)) (T2 y (y**2))) (r * y) 1)
