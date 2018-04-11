@@ -48,6 +48,9 @@ noReg :: Regularizer p
 -- | Add together two regularizers
 addReg :: Regularizer p -> Regularizer p -> Regularizer p
 
+-- | Scale a regularizer's influence
+scaleReg :: Double -> Regularizer p -> Regularizer p
+
 module Data.Type.Mayb
 data Mayb :: (k -> Type) -> Maybe k -> Type
 [N_] :: Mayb f  'Nothing
