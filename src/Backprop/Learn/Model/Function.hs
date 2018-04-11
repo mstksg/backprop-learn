@@ -44,6 +44,8 @@ module Backprop.Learn.Model.Function (
   , tanh
   , atan
   , sin
+  , vmap
+  , vmap'
   -- *** Parameterized
   , liftUniform
   , isru
