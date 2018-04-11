@@ -25,6 +25,7 @@ module Backprop.Learn.Loss (
   , noReg
   -- ** Manipulate regularizers
   , addReg
+  , scaleReg
   ) where
 
 import           Control.Applicative
@@ -151,3 +152,7 @@ noReg _ = constVar 0
 -- | Add together two regularizers
 addReg :: Regularizer p -> Regularizer p -> Regularizer p
 addReg = liftA2 (+)
+
+-- | Scale a regularizer's influence
+scaleReg :: Double -> Regularizer p -> Regularizer p
+scaleReg λ reg = (* constVar λ) . reg
