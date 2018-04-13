@@ -30,6 +30,7 @@ module Backprop.Learn.Model.Class (
   , SomeLearn(..)
   ) where
 
+import           Backprop.Learn.Initialize
 import           Control.DeepSeq
 import           Control.Monad.Primitive
 import           Data.Kind
@@ -37,9 +38,9 @@ import           Data.Type.Mayb
 import           Data.Typeable
 import           Numeric.Backprop
 import           Numeric.Opto.Update
-import           Type.Family.List        (type (++))
-import qualified GHC.TypeLits            as TL
-import qualified System.Random.MWC       as MWC
+import           Type.Family.List          (type (++))
+import qualified GHC.TypeLits              as TL
+import qualified System.Random.MWC         as MWC
 
 -- | The trainable parameter type of a model.  Will be a compile-time error
 -- if the model has no trainable parameters.
@@ -104,36 +105,6 @@ class Learn a b l | l -> a b where
 
     type LParamMaybe l = 'Nothing
     type LStateMaybe l = 'Nothing
-
-    -- | Initialize parameters, given the hyperparameters in @l@.
-    --
-    -- Default definition provided for models with no state.
-    initParam
-        :: PrimMonad m
-        => l
-        -> MWC.Gen (PrimState m)
-        -> LParam_ m l
-    default initParam
-        :: NoParam l
-        => l
-        -> MWC.Gen (PrimState m)
-        -> LParam_ m l
-    initParam _ _ = N_
-
-    -- | Initialize state, given the hyperparameters in @l@.
-    --
-    -- Default definition provided for models with no state.
-    initState
-        :: PrimMonad m
-        => l
-        -> MWC.Gen (PrimState m)
-        -> LState_ m l
-    default initState
-        :: NoState l
-        => l
-        -> MWC.Gen (PrimState m)
-        -> LState_ m l
-    initState _ _ = N_
 
     -- | Run the model itself, deterministically.
     --
@@ -201,12 +172,14 @@ data SomeLearn :: Type -> Type -> Type where
           , Typeable l
           , KnownMayb (LParamMaybe l)
           , KnownMayb (LStateMaybe l)
-          , MaybeC Num (LParamMaybe l)
-          , MaybeC Num (LStateMaybe l)
+          , MaybeC Floating (LParamMaybe l)
+          , MaybeC Floating (LStateMaybe l)
           , MaybeC (Metric Double) (LParamMaybe l)
           , MaybeC (Metric Double) (LStateMaybe l)
           , MaybeC NFData (LParamMaybe l)
           , MaybeC NFData (LStateMaybe l)
+          , MaybeC Initialize (LParamMaybe l)
+          , MaybeC Initialize (LStateMaybe l)
           )
        => l
        -> SomeLearn a b

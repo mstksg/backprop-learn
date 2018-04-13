@@ -13,31 +13,27 @@
 module Backprop.Learn.Model.Neural (
   -- * Fully connected
   -- ** Feed-forward
-    FC, pattern FC, fc, _fcGen, FCp, fcBias, fcWeights
+    FC, pattern FC, FCp, fcBias, fcWeights
   -- *** With activation function
-  , FCA, pattern FCA, fca, _fcaGen, _fcaActivation
+  , FCA, pattern FCA, _fcaActivation
   -- ** Recurrent
-  , FCR, pattern FCR, fcr, FCRp, fcrBias, fcrInputWeights, fcrStateWeights
+  , FCR, pattern FCR, FCRp, fcrBias, fcrInputWeights, fcrStateWeights
   -- *** With activation function
-  , FCRA, pattern FCRA, fcra, _fcraGen, _fcraGenState, _fcraStore, _fcraActivation
+  , FCRA, pattern FCRA, _fcraStore, _fcraActivation
   ) where
 
 
 import           Backprop.Learn.Model.Combinator
 import           Backprop.Learn.Model.Regression
 import           Backprop.Learn.Model.State
-import           Control.Monad.Primitive
 import           Data.Tuple
 import           GHC.TypeNats
 import           Lens.Micro
 import           Numeric.Backprop
 import           Numeric.LinearAlgebra.Static.Backprop
-import           Numeric.LinearAlgebra.Static.Vector
-import           Statistics.Distribution
-import qualified Data.Vector.Storable.Sized            as SVS
 import qualified Numeric.LinearAlgebra.Static          as H
-import qualified System.Random.MWC                     as MWC
 
+-- TODO: get rid of FC, why is it even here
 
 -- | Fully connected feed-forward layer with bias.  Parameterized by its
 -- initialization distribution.
@@ -53,15 +49,8 @@ import qualified System.Random.MWC                     as MWC
 -- essentially multivariate logistic regression. (See 'Logistic')
 type FC i o = LinReg i o
 
-pattern FC
-    :: (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double)     -- ^ '_fcGen'
-    -> FC i o
-pattern FC { _fcGen } = LinReg _fcGen
-
--- | Construct an @'FC' i o@ using a given distribution from the
--- /statistics/ library.
-fc :: ContGen d => d -> FC i o
-fc = linReg
+pattern FC :: FC i o
+pattern FC = LinReg
 
 -- | Convenient synonym for an 'FC' post-composed with a simple
 -- parameterless activation function.
@@ -72,18 +61,9 @@ type FCA i o = RMap (R o) (R o) (FC i o)
 --
 -- Some common ones include 'logistic' and @'vmap' 'reLU'@.
 pattern FCA
-    :: (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double)     -- ^ '_fcaGen'
-    -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R o))          -- ^ '_fcaActivation'
+    :: (forall s. Reifies s W => BVar s (R o) -> BVar s (R o))          -- ^ '_fcaActivation'
     -> FCA i o
-pattern FCA { _fcaGen, _fcaActivation } = RM _fcaActivation (FC _fcaGen)
-
--- | Construct an @'FCA' i o@ using a given distribution from the
--- /statistics/ library.
-fca :: ContGen d
-    => d
-    -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R o))
-    -> FCA i o
-fca d = FCA (genContVar d)
+pattern FCA { _fcaActivation } = RM _fcaActivation FC
 
 type FCp = LRp
 
@@ -108,33 +88,19 @@ type FCR h i o = Recurrent (R (i + h)) (R i) (R h) (R o) (FC (i + h) o)
 -- | Construct an 'FCR'
 pattern FCR
     :: (KnownNat h, KnownNat i)
-    => (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double)     -- ^ '_fcrGen'
-    -> (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m (R h))      -- ^ '_fcrGenState'
-    -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R h))          -- ^ '_fcrSTore'
+    => (forall s. Reifies s W => BVar s (R o) -> BVar s (R h))          -- ^ '_fcrSTore'
     -> FCR h i o
-pattern FCR { _fcrGen, _fcrGenState, _fcrStore } <-
-    Rec { _recInit  = _fcrGenState
-        , _recLoop  = _fcrStore
-        , _recLearn = FC { _fcGen = _fcrGen }
+pattern FCR { _fcrStore } <-
+    Rec { _recLoop  = _fcrStore
+        , _recLearn = FC
         }
   where
-    FCR g gs s = Rec { _recInit  = gs
-                     , _recSplit = H.split
-                     , _recJoin  = (H.#)
-                     , _recLoop  = s
-                     , _recLearn = FC g
-                     }
+    FCR s = Rec { _recSplit = H.split
+                , _recJoin  = (H.#)
+                , _recLoop  = s
+                , _recLearn = FC
+                }
 {-# COMPLETE FCR #-}
-
--- | Construct an @'FCR' h i o@ using given distributions from the
--- /statistics/ library.
-fcr :: (KnownNat h, KnownNat i, ContGen d, ContGen e)
-    => d        -- ^ gen params
-    -> e        -- ^ gen history
-    -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R h))
-    -> FCR h i o
-fcr d e = FCR (genContVar d)
-              (fmap vecR . SVS.replicateM . genContVar e)
 
 -- | Convenient synonym for an 'FCR' post-composed with a simple
 -- parameterless activation function.
@@ -146,23 +112,11 @@ type FCRA h i o = RMap (R o) (R o) (FCR h i o)
 -- Some common ones include 'logistic' and @'vmap' 'reLU'@.
 pattern FCRA
     :: (KnownNat h, KnownNat i)
-    => (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double)     -- ^ '_fcraGen'
-    -> (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m (R h))      -- ^ '_fcraGenState'
-    -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R h))          -- ^ '_fcraStore'
+    => (forall s. Reifies s W => BVar s (R o) -> BVar s (R h))          -- ^ '_fcraStore'
     -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R o))          -- ^ '_fcraActivation'
     -> FCRA h i o
-pattern FCRA { _fcraGen, _fcraGenState, _fcraStore, _fcraActivation }
-    = RM _fcraActivation (FCR _fcraGen _fcraGenState _fcraStore)
-
--- | Construct an @'FCRA' h i o@ using given distributions from the
--- /statistics/ library.
-fcra :: (KnownNat h, KnownNat i, ContGen d, ContGen e)
-    => d                -- ^ gen params
-    -> e                -- ^ gen state
-    -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R h))
-    -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R o))
-    -> FCRA h i o
-fcra d e = FCRA (genContVar d) (fmap vecR . SVS.replicateM . genContVar e)
+pattern FCRA { _fcraStore, _fcraActivation }
+    = RM _fcraActivation (FCR _fcraStore)
 
 type FCRp h i o = FCp (i + h) o
 

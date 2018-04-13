@@ -19,15 +19,16 @@
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise       #-}
 
 module Backprop.Learn.Model.Regression (
-    LinReg(..), linReg
-  , LogReg, pattern LogReg, _logRegGen, logReg
-  , LRp(..), lrBeta, lrAlpha, runLRp, initLRp
+    LinReg(..) 
+  , LogReg, pattern LogReg
+  , LRp(..), lrBeta, lrAlpha, runLRp
   , ARIMA(..), ARIMAp(..), ARIMAs(..)
   , ARIMAUnroll, arimaUnroll
   , ARIMAUnrollFinal, arimaUnrollFinal
   , AR, MA, ARMA
   ) where
 
+import           Backprop.Learn.Initialize
 import           Backprop.Learn.Model.Class
 import           Backprop.Learn.Model.Combinator
 import           Backprop.Learn.Model.Function
@@ -54,7 +55,6 @@ import           Numeric.LinearAlgebra.Static.Vector
 import           Numeric.OneLiner
 import           Numeric.Opto.Ref
 import           Numeric.Opto.Update hiding            ((<.>))
-import           Statistics.Distribution
 import           Unsafe.Coerce
 import qualified Data.Vector.Storable.Sized            as SVS
 import qualified Numeric.LinearAlgebra                 as HU
@@ -62,38 +62,21 @@ import qualified Numeric.LinearAlgebra.Static          as H
 import qualified System.Random.MWC                     as MWC
 
 -- | Multivariate linear regression, from an i-vector to an o-vector.
-newtype LinReg (i :: Nat) (o :: Nat) =
-    LinReg { _linRegGen :: forall m. PrimMonad m
-                        => MWC.Gen (PrimState m)
-                        -> m Double
-           }
+data LinReg (i :: Nat) (o :: Nat) = LinReg 
   deriving Typeable
 
--- | Construct an 'LinReg' using a given distribution from
--- the /statistics/ library.
-linReg :: ContGen d => d -> LinReg i o
-linReg d = LinReg (genContVar d)
-
---  | Mutivariate Logistic regression, from an i-vector to an o-vector.
---  1).
+-- | Mutivariate Logistic regression, from an i-vector to an o-vector.
 --
---  Essentially a linear regression postcomposed with the logistic
---  function.
+-- Essentially a linear regression postcomposed with the logistic
+-- function.
 type LogReg i o = RMap (R o) (R o) (LinReg i o)
 
 -- | Constructor for a 'LogReg'
-pattern LogReg
-    :: (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double)     -- ^ '_logRegGen'
-    -> LogReg i o
-pattern LogReg { _logRegGen } <- RM _ (LinReg _logRegGen)
+pattern LogReg :: LogReg i o
+pattern LogReg <- RM _ LinReg
   where
-    LogReg g = RM logistic (LinReg g)
+    LogReg = RM logistic LinReg
 {-# COMPLETE LogReg #-}
-
--- | Construct an 'LogReg' using a given distribution from
--- the /statistics/ library.
-logReg :: ContGen d => d -> LogReg i o
-logReg d = LogReg (genContVar d)
 
 -- | Linear Regression parameter
 data LRp i o = LRp
@@ -103,6 +86,7 @@ data LRp i o = LRp
   deriving (Generic, Typeable, Show)
 
 instance NFData (LRp i o)
+instance (KnownNat i, KnownNat o) => Initialize (LRp i o)
 instance (KnownNat i, KnownNat o) => Additive (LRp i o)
 instance (KnownNat i, KnownNat o) => Scaling Double (LRp i o)
 instance (KnownNat i, KnownNat o) => Metric Double (LRp i o)
@@ -114,13 +98,6 @@ lrBeta f lrp = (\w -> lrp { _lrBeta = w }) <$> f (_lrBeta lrp)
 
 lrAlpha :: Lens' (LRp i o) (R o)
 lrAlpha f lrp = (\b -> lrp { _lrAlpha = b }) <$> f (_lrAlpha lrp)
-
-initLRp
-    :: (KnownNat i, KnownNat o, Monad m)
-    => m Double
-    -> m (LRp i o)
-initLRp x = LRp <$> (vecR <$> SVS.replicateM x)
-                <*> (vecL <$> SVS.replicateM x)
 
 runLRp
     :: (KnownNat i, KnownNat o, Reifies s W)
@@ -163,8 +140,6 @@ instance (KnownNat i, KnownNat o) => Floating (LRp i o) where
 instance (KnownNat i, KnownNat o) => Learn (R i) (R o) (LinReg i o) where
     type LParamMaybe (LinReg i o) = 'Just (LRp i o)
 
-    initParam (LinReg f) g = J_ $ initLRp (f g)
-
     runLearn _ (J_ p) = stateless (runLRp p)
 
 -- | Auto-regressive integrated moving average model.
@@ -179,10 +154,7 @@ instance (KnownNat i, KnownNat o) => Learn (R i) (R o) (LinReg i o) where
 -- In this state, it is a runnable stateful model.  To train, use with
 -- 'ARIMAUnroll' to unroll and fix the initial state.
 data ARIMA :: Nat -> Nat -> Nat -> Type where
-    ARIMA :: { _arimaGenPhi   :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> Finite p -> m Double
-             , _arimaGenTheta :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> Finite q -> m Double
-             , _arimaGenConst :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double
-             , _arimaGenYHist :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double
+    ARIMA :: { _arimaGenYHist :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double
              , _arimaGenEHist :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double
              }
           -> ARIMA p d q
@@ -267,15 +239,6 @@ data ARIMAs :: Nat -> Nat -> Nat -> Type where
 instance (KnownNat p, KnownNat d, KnownNat q) => Learn Double Double (ARIMA p d q) where
     type LParamMaybe (ARIMA p d q) = 'Just (ARIMAp p q)
     type LStateMaybe (ARIMA p d q) = 'Just (ARIMAs p d q)
-
-    initParam ARIMA{..} g = J_ $
-        ARIMAp <$> (vecR <$> SVS.generateM (_arimaGenPhi   g))
-               <*> (vecR <$> SVS.generateM (_arimaGenTheta g))
-               <*> _arimaGenConst g
-    initState ARIMA{..} g = J_ $
-        ARIMAs <$> _arimaGenYHist g
-               <*> (vecR <$> SVS.replicateM (_arimaGenYHist g))
-               <*> (vecR <$> SVS.replicateM (_arimaGenEHist g))
 
     runLearn ARIMA{..} (J_ p) x (J_ s) = (y, J_ s')
       where
