@@ -9,4 +9,9 @@
 *   Address regularization
 *   GRU lstms
 *   Binary
-*   Dynamically grow or shrink
+*   Dynamically grow or shrink networks
+*   Reinforcement learning: loss function takes no "target"
+*   Elman
+
+
+*   Get rid of initparam and initstate

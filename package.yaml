@@ -42,6 +42,7 @@ dependencies:
 - hmatrix-vector-sized
 - microlens
 - mwc-random
+- one-liner
 - one-liner-instances
 - opto
 - primitive

@@ -13,7 +13,8 @@ module Backprop.Learn.Test (
   , maxIxTest, rmseTest
   , squaredErrorTest, absErrorTest, totalSquaredErrorTest, squaredErrorTestV
   , crossEntropyTest
-  , lmapTest
+  -- ** Manipulate tests
+  , lossTest, lmapTest
   -- * Run tests
   , testLearn, testLearnStoch, testLearnAll, testLearnStochAll
   -- ** Correlation tests
@@ -21,6 +22,7 @@ module Backprop.Learn.Test (
   , testLearnStochCov, testLearnStochCorr
   ) where
 
+import           Backprop.Learn.Loss
 import           Backprop.Learn.Model
 import           Control.Applicative
 import           Control.Monad.Primitive
@@ -28,6 +30,7 @@ import           Data.Function
 import           Data.Proxy
 import           Data.Semigroup
 import           GHC.TypeNats
+import           Numeric.Backprop
 import           Numeric.Backprop.Tuple
 import qualified Numeric.LinearAlgebra        as HU
 import qualified Numeric.LinearAlgebra.Static as H
@@ -36,6 +39,10 @@ import qualified System.Random.MWC            as MWC
 -- TODO: support non-double results?
 
 type Test o = o -> o -> Double
+
+-- | Create a 'Test' from a 'Loss'
+lossTest :: Loss a -> Test a
+lossTest l x = evalBP (l x)
 
 maxIxTest :: KnownNat n => Test (H.R n)
 maxIxTest x y
