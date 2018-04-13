@@ -8,6 +8,34 @@
 @package backprop-learn
 @version 0.1.0.0
 
+module Backprop.Learn.Initialize
+
+-- | Class for types that are basically a bunch of <a>Double</a>s, which
+--   can be initialized with a given identical and independent
+--   distribution.
+class Initialize p
+initialize :: (Initialize p, ContGen d, PrimMonad m) => d -> Gen (PrimState m) -> m p
+initialize :: (Initialize p, ADTRecord p, Constraints p Initialize, ContGen d, PrimMonad m) => d -> Gen (PrimState m) -> m p
+gInitialize :: (ADTRecord p, Constraints p Initialize, ContGen d, PrimMonad m) => d -> Gen (PrimState m) -> m p
+
+-- | <a>initialize</a> definition if <tt>p</tt> is a single number.
+initializeSingle :: (ContGen d, PrimMonad m, Fractional p) => d -> Gen (PrimState m) -> m p
+instance Backprop.Learn.Initialize.Initialize GHC.Types.Double
+instance Backprop.Learn.Initialize.Initialize GHC.Types.Float
+instance Backprop.Learn.Initialize.Initialize a => Backprop.Learn.Initialize.Initialize (Data.Complex.Complex a)
+instance Backprop.Learn.Initialize.Initialize Numeric.Backprop.Tuple.T0
+instance (Backprop.Learn.Initialize.Initialize a, Backprop.Learn.Initialize.Initialize b) => Backprop.Learn.Initialize.Initialize (Numeric.Backprop.Tuple.T2 a b)
+instance (Backprop.Learn.Initialize.Initialize a, Backprop.Learn.Initialize.Initialize b, Backprop.Learn.Initialize.Initialize c) => Backprop.Learn.Initialize.Initialize (Numeric.Backprop.Tuple.T3 a b c)
+instance (Type.Family.List.ListC (Backprop.Learn.Initialize.Initialize Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => Backprop.Learn.Initialize.Initialize (Numeric.Backprop.Tuple.T as)
+instance Backprop.Learn.Initialize.Initialize ()
+instance (Backprop.Learn.Initialize.Initialize a, Backprop.Learn.Initialize.Initialize b) => Backprop.Learn.Initialize.Initialize (a, b)
+instance (Backprop.Learn.Initialize.Initialize a, Backprop.Learn.Initialize.Initialize b, Backprop.Learn.Initialize.Initialize c) => Backprop.Learn.Initialize.Initialize (a, b, c)
+instance (Data.Vector.Generic.Base.Vector v a, GHC.TypeNats.KnownNat n, Backprop.Learn.Initialize.Initialize a) => Backprop.Learn.Initialize.Initialize (Data.Vector.Generic.Sized.Internal.Vector v n a)
+instance GHC.TypeNats.KnownNat n => Backprop.Learn.Initialize.Initialize (Internal.Static.R n)
+instance GHC.TypeNats.KnownNat n => Backprop.Learn.Initialize.Initialize (Internal.Static.C n)
+instance (GHC.TypeNats.KnownNat n, GHC.TypeNats.KnownNat m) => Backprop.Learn.Initialize.Initialize (Internal.Static.L n m)
+instance (GHC.TypeNats.KnownNat n, GHC.TypeNats.KnownNat m) => Backprop.Learn.Initialize.Initialize (Internal.Static.M n m)
+
 module Backprop.Learn.Loss
 type Loss a = forall s. Reifies s W => a -> BVar s a -> BVar s Double
 crossEntropy :: KnownNat n => Loss (R n)
@@ -15,6 +43,10 @@ squaredError :: Loss Double
 absError :: Loss Double
 totalSquaredError :: (Num (t Double), Foldable t, Functor t) => Loss (t Double)
 squaredErrorV :: KnownNat n => Loss (R n)
+
+-- | Sum of covariances between matching components. Not sure if anyone
+--   uses this.
+totalCov :: (Num (t Double), Foldable t, Functor t) => Loss (t Double)
 
 -- | Scale the result of a loss function.
 scaleLoss :: Double -> Loss a -> Loss a
@@ -1216,14 +1248,18 @@ absErrorTest :: Real a => Test a
 totalSquaredErrorTest :: (Applicative t, Foldable t, Real a) => Test (t a)
 squaredErrorTestV :: KnownNat n => Test (R n)
 crossEntropyTest :: KnownNat n => Test (R n)
+
+-- | Create a <a>Test</a> from a <a>Loss</a>
+lossTest :: Loss a -> Test a
+lmapTest :: (a -> b) -> Test b -> Test a
 testLearn :: (Learn a b l, NoState l) => Test b -> l -> LParam_ I l -> a -> b -> Double
 testLearnStoch :: (Learn a b l, NoState l, PrimMonad m) => Test b -> l -> Gen (PrimState m) -> LParam_ I l -> a -> b -> m Double
 testLearnAll :: (Learn a b l, NoState l, Foldable t) => Test b -> l -> LParam_ I l -> t (a, b) -> Double
 testLearnStochAll :: (Learn a b l, NoState l, PrimMonad m, Foldable t) => Test b -> l -> Gen (PrimState m) -> LParam_ I l -> t (a, b) -> m Double
-testLearnCov :: (Learn a b l, NoState l, Foldable t) => (b -> Double) -> l -> LParam_ I l -> t (a, b) -> Double
-testLearnCorr :: (Learn a b l, NoState l, Foldable t) => (b -> Double) -> l -> LParam_ I l -> t (a, b) -> Double
-testLearnStochCov :: (Learn a b l, NoState l, PrimMonad m, Foldable t) => (b -> Double) -> l -> Gen (PrimState m) -> LParam_ I l -> t (a, b) -> m Double
-testLearnStochCorr :: (Learn a b l, NoState l, PrimMonad m, Foldable t) => (b -> Double) -> l -> Gen (PrimState m) -> LParam_ I l -> t (a, b) -> m Double
+testLearnCov :: (Learn a b l, NoState l, Foldable t, Fractional b) => l -> LParam_ I l -> t (a, b) -> b
+testLearnCorr :: (Learn a b l, NoState l, Foldable t, Floating b) => l -> LParam_ I l -> t (a, b) -> b
+testLearnStochCov :: (Learn a b l, NoState l, PrimMonad m, Foldable t, Fractional b) => l -> Gen (PrimState m) -> LParam_ I l -> t (a, b) -> m b
+testLearnStochCorr :: (Learn a b l, NoState l, PrimMonad m, Foldable t, Floating b) => l -> Gen (PrimState m) -> LParam_ I l -> t (a, b) -> m b
 instance (GHC.Base.Semigroup a, GHC.Base.Applicative m) => GHC.Base.Semigroup (Backprop.Learn.Test.M m a)
 instance (GHC.Base.Monoid a, GHC.Base.Applicative m) => GHC.Base.Monoid (Backprop.Learn.Test.M m a)
 
