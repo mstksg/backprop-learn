@@ -18,7 +18,7 @@
 module Backprop.Learn.Model.Function (
   -- * Types
     ParamFunc(..)
-  , ParamFuncP, pattern PFP, _pfpInit, _pfpFunc
+  , ParamFuncP, pattern PFP, runParamFuncP
   , FixedFunc, pattern FF, runFixedFunc
   , paramMap, learnParam
   , idLearn
@@ -63,9 +63,7 @@ module Backprop.Learn.Model.Function (
   ) where
 
 import           Backprop.Learn.Model.Class
-import           Control.Applicative
 import           Control.Category
-import           Control.Monad.Primitive
 import           Data.Foldable
 import           Data.Proxy
 import           Data.Type.Length
@@ -76,16 +74,13 @@ import           Numeric.Backprop
 import           Numeric.Backprop.Tuple
 import           Numeric.LinearAlgebra.Static.Backprop hiding (tr)
 import           Prelude hiding                               ((.), id)
-import           Type.Class.Higher
 import           Type.Class.Known
-import           Type.Class.Witness
 import           Type.Family.List
 import qualified Data.Vector.Sized                            as SV
 import qualified Data.Vector.Storable.Sized                   as SVS
 import qualified Numeric.LinearAlgebra                        as HU
 import qualified Numeric.LinearAlgebra.Static                 as H
 import qualified Numeric.LinearAlgebra.Static.Vector          as H
-import qualified System.Random.MWC                            as MWC
 
 -- | An unparameterized function.  Has a 'Category' instance.
 --
@@ -107,13 +102,11 @@ type FixedFunc = ParamFunc 'Nothing
 -- just a function from @'BVar' s a@ to @'BVar' s b@.
 pattern FF :: (forall s. Reifies s W => BVar s a -> BVar s b) -> FixedFunc a b
 pattern FF { runFixedFunc } <- (getFF->runFixedFunc) where
-    FF f = PF { _pfInit = const N_
-              , _pfFunc = const f
-              }
+    FF f = PF (const f)
 {-# COMPLETE FF #-}
 
 getFF :: forall a b. FixedFunc a b -> (forall s. Reifies s W => BVar s a -> BVar s b)
-getFF ff = _pfFunc ff N_
+getFF ff = runParamFunc ff N_
 
 -- | Identity model, useful for using with other combinators.
 idLearn :: FixedFunc a a
@@ -123,9 +116,8 @@ idLearn = FF id
 -- potentially with trainable parameter @p@.
 --
 -- A utility wrapper for a deterministic and stateless model.
-data ParamFunc p a b =
-    PF { _pfInit :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> Mayb m p
-       , _pfFunc :: forall s. Reifies s W => Mayb (BVar s) p -> BVar s a -> BVar s b
+newtype ParamFunc p a b =
+    PF { runParamFunc :: forall s. Reifies s W => Mayb (BVar s) p -> BVar s a -> BVar s b
        }
   deriving (Typeable)
 
@@ -133,44 +125,30 @@ instance ( Num a, Num b, MaybeC Num p, KnownMayb p)
       => Learn a b (ParamFunc p a b) where
     type LParamMaybe (ParamFunc p a b) = p
 
-    initParam = _pfInit
-    runLearn p = stateless . _pfFunc p
+    runLearn p = stateless . runParamFunc p
 
-instance (MaybeC Num p, KnownMayb p) => Category (ParamFunc p) where
-    id = PF { _pfInit = \_ -> map1 (pure 0 \\) $ maybeWit @_ @Num
-            , _pfFunc = const id
-            }
-    f . g = PF { _pfInit = \gen -> zipMayb3 (liftA2 (+) \\)
-                                     (maybeWit @_ @Num)
-                                     (_pfInit f gen)
-                                     (_pfInit g gen)
-               , _pfFunc = \p -> _pfFunc f p
-                               . _pfFunc g p
-               }
+instance Category (ParamFunc p) where
+    id = PF (const id)
+    f . g = PF $ \p -> runParamFunc f p
+                     . runParamFunc g p
 
 -- | Convenient type synonym for a 'ParamFunc' with parameters.
 --
--- Mostly made to be easy to construct/deconstruct with 'PFP', '_pfpInit',
--- and '_pfpFunc'.
+-- Mostly made to be easy to construct/deconstruct with 'PFP' and
+-- 'runParamFuncP'.
 type ParamFuncP p = ParamFunc ('Just p)
 
-pattern PFP :: (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m p)
-            -> (forall s. Reifies s W => BVar s p -> BVar s a -> BVar s b)
+pattern PFP :: (forall s. Reifies s W => BVar s p -> BVar s a -> BVar s b)
             -> ParamFuncP p a b
-pattern PFP { _pfpInit, _pfpFunc } <- (getPFP->(getWG->_pfpInit,getWF->_pfpFunc))
+pattern PFP { runParamFuncP } <- (getPFP->(getWF->runParamFuncP))
   where
-    PFP i f = PF { _pfInit = J_ . i
-                 , _pfFunc = \(J_ p) -> f p
-                 }
+    PFP f = PF $ \(J_ p) -> f p
 {-# COMPLETE PFP #-}
 
-newtype WrapGen p = WG { getWG :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m p }
 newtype WrapFun p a b = WF { getWF :: forall s. Reifies s W => BVar s p -> BVar s a -> BVar s b }
 
-getPFP :: ParamFuncP p a b -> (WrapGen p, WrapFun p a b)
-getPFP pf = ( WG (fromJ_ . _pfInit pf)
-            , WF (\case p -> _pfFunc pf (J_ p))
-            )
+getPFP :: ParamFuncP p a b -> WrapFun p a b
+getPFP pf = WF (\case p -> runParamFunc pf (J_ p))
 
 -- | Create a 'ParamFunc' from any instance of 'Learn' that does not have
 -- state.
@@ -178,23 +156,16 @@ learnParam
     :: forall l a b. (Learn a b l, NoState l)
     => l
     -> ParamFunc (LParamMaybe l) a b
-learnParam l = PF { _pfInit = initParam l
-                  , _pfFunc = runLearnStateless l
-                  }
+learnParam l = PF (runLearnStateless l)
 
 -- | 'ParamFuncP' taking a singleton list; meant to be used with '.-'
 onlyPF
     :: forall p a b. (KnownMayb p, MaybeC Num p)
     => ParamFunc p a b
     -> ParamFuncP (T (MaybeToList p)) a b
-onlyPF f = PFP { _pfpInit = fmap prodT
-                          . traverse1 (fmap I)
-                          . maybToList
-                          . _pfInit f
-               , _pfpFunc = \ps -> case knownMayb @p of
-                   N_   -> _pfFunc f N_
-                   J_ _ -> _pfFunc f (J_ (isoVar tOnly onlyT ps))
-               }
+onlyPF f = PFP $ \ps -> case knownMayb @p of
+                          N_   -> runParamFunc f N_
+                          J_ _ -> runParamFunc f (J_ (isoVar tOnly onlyT ps))
 
 
 -- | Compose two 'ParamFuncP's on lists.
@@ -203,11 +174,8 @@ onlyPF f = PFP { _pfpInit = fmap prodT
     => ParamFuncP (T ps) b c
     -> ParamFuncP (T qs) a b
     -> ParamFuncP (T (ps ++ qs)) a c
-f .- g = PFP { _pfpInit = \gen -> tAppend <$> fromJ_ (_pfInit f gen)
-                                          <*> fromJ_ (_pfInit g gen)
-             , _pfpFunc = \ps -> _pfFunc f (J_ (ps ^^. tTake @ps @qs known))
-                               . _pfFunc g (J_ (ps ^^. tDrop @ps @qs known))
-             }
+f .- g = PFP $ \ps -> runParamFuncP f (ps ^^. tTake @ps @qs known)
+                    . runParamFuncP g (ps ^^. tDrop @ps @qs known)
 infixr 9 .-
 
 -- | The identity of '.-'
@@ -220,9 +188,7 @@ dimapPF
     -> (forall s. Reifies s W => BVar s c -> BVar s d)
     -> ParamFunc p b c
     -> ParamFunc p a d
-dimapPF f g h = PF { _pfInit = _pfInit h
-                   , _pfFunc = \p -> g . _pfFunc h p . f
-                   }
+dimapPF f g h = PF $ \p -> g . runParamFunc h p . f
 
 -- | Precompose a 'ParamFunc'
 lmapPF
@@ -244,15 +210,10 @@ compPF
     => ParamFunc p a b
     -> ParamFunc q b c
     -> ParamFunc (TupMaybe p q) a c
-compPF f g = PF { _pfInit = \gen -> tupMaybe @_ @p @q
-                                        (liftA2 T2)
-                                        (_pfInit f gen)
-                                        (_pfInit g gen)
-                , _pfFunc = \pq ->
-                    let (p, q) = splitTupMaybe @_ @p @q
-                            (\pq' -> (pq' ^^. t2_1, pq' ^^. t2_2)) pq
-                    in  _pfFunc g q . _pfFunc f p
-                }
+compPF f g = PF $ \pq ->
+    let (p, q) = splitTupMaybe @_ @p @q
+            (\pq' -> (pq' ^^. t2_1, pq' ^^. t2_2)) pq
+    in  runParamFunc g q . runParamFunc f p
 
 -- | Compose two 'ParamFunc's in parallel
 parPF
@@ -260,16 +221,11 @@ parPF
     => ParamFunc p a c
     -> ParamFunc q b d
     -> ParamFunc (TupMaybe p q) (T2 a b) (T2 c d)
-parPF f g = PF { _pfInit = \gen -> tupMaybe @_ @p @q
-                                        (liftA2 T2)
-                                        (_pfInit f gen)
-                                        (_pfInit g gen)
-               , _pfFunc = \pq xy ->
-                    let (p, q) = splitTupMaybe @_ @p @q
-                            (\pq' -> (pq' ^^. t2_1, pq' ^^. t2_2)) pq
-                    in  isoVar2 T2 t2Tup (_pfFunc f p (xy ^^. t2_1))
-                                         (_pfFunc g q (xy ^^. t2_2))
-               }
+parPF f g = PF $ \pq xy ->
+    let (p, q) = splitTupMaybe @_ @p @q
+            (\pq' -> (pq' ^^. t2_1, pq' ^^. t2_2)) pq
+    in  isoVar2 T2 t2Tup (runParamFunc f p (xy ^^. t2_1))
+                         (runParamFunc g q (xy ^^. t2_2))
 
 -- TODO: replace all of these with manual ops?
 
@@ -592,13 +548,9 @@ liftUniform f = f . konst
 -- entire map, and trained.
 paramMap
     :: KnownNat i
-    => (forall m. PrimMonad m => MWC.Gen (PrimState m) -> Mayb m p)
-    -> (forall s. Reifies s W => Mayb (BVar s) p -> BVar s Double -> BVar s Double)
+    => (forall s. Reifies s W => Mayb (BVar s) p -> BVar s Double -> BVar s Double)
     -> ParamFunc p (R i) (R i)
-paramMap i f =
-    PF { _pfInit = i
-       , _pfFunc = vmap . f
-       }
+paramMap f = PF (vmap . f)
 
 -- -- TODO: vmap can do better.
 

@@ -55,6 +55,8 @@ data Mode = CSimulate (Maybe Int)
                           , Metric Double p
                           , Show s
                           , Show p
+                          , Initialize p
+                          , Initialize s
                           )
                           => CLearn (Model l)
 
@@ -62,34 +64,27 @@ data Model :: Type -> Type where
     MARIMA :: (KnownNat p, KnownNat d, KnownNat q)
            => Model (ARIMA p d q)
     MFCRNN :: KnownNat h
-           => Model (Dimap (R 1) (R 1) Double Double (FCRA h 1 h :.~ FCA h 1))
+           => Model (Dimap (R 1) (R 1) Double Double (FCRA h 1 h :.~ FC h 1))
     MLSTM  :: KnownNat h
-           => Model (Dimap (R 1) (R 1) Double Double (LSTM 1 h :.~ FCA h 1))
+           => Model (Dimap (R 1) (R 1) Double Double (LSTM 1 h :.~ FC h 1))
 
 data Process = PSin
 
 modelLearn :: Model t -> t
 modelLearn = \case
     MARIMA -> ARIMA
-      { _arimaGenPhi   = \g i ->
-           (/ (fromIntegral i + 5)) <$> genContVar (normalDistr 0 0.5) g
-      , _arimaGenTheta = \g i ->
-           (/ (fromIntegral i + 5)) <$> genContVar (normalDistr 0 0.5) g
-      , _arimaGenConst = genContVar $ normalDistr 0 0.5
-      , _arimaGenYHist = genContVar $ normalDistr 0 0.5
+      { _arimaGenYHist = genContVar $ normalDistr 0 0.5
       , _arimaGenEHist = genContVar $ normalDistr 0 0.5
       }
     MFCRNN -> DM
       { _dmPre   = konst
       , _dmPost  = sumElements
-      , _dmLearn = fcra (normalDistr 0 0.2) (normalDistr 0 0.2) logistic logistic
-               :.~ fca (normalDistr 0 0.2) id
+      , _dmLearn = FCRA logistic logistic :.~ FC
       }
     MLSTM -> DM
       { _dmPre   = konst
       , _dmPost  = sumElements
-      , _dmLearn = lstm (normalDistr 0 0.2) (normalDistr 0 0.2) (normalDistr 0 0.2) True
-               :.~ fca (normalDistr 0 0.2) id
+      , _dmLearn = LSTM :.~ FC
       }
 
 data Options = O { oMode     :: Mode
@@ -142,7 +137,7 @@ main = MWC.withSystemRandom @IO $ \g -> do
 
       CLearn (modelLearn->model) -> do
         let unrolled = UnrollFinalTrainState @_ @n model
-        p0 <- fromJ_ $ initParam unrolled g
+        p0 <- initParamNormal [unrolled] 0.2 g
 
         let report n b = do
               liftIO $ printf "(Batch %d)\n" (b :: Int)

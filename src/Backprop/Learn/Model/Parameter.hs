@@ -52,7 +52,6 @@ instance (Learn a b l, LParamMaybe l ~ 'Just p) => Learn a b (DeParam p l) where
     type LParamMaybe (DeParam p l) = 'Nothing
     type LStateMaybe (DeParam p l) = LStateMaybe l
 
-    initState = initState . _dpLearn
     runLearn DP{..} _ = runLearn _dpLearn (J_ (constVar _dpParam))
     runLearnStoch DP{..} g _ x s = do
       p <- constVar <$> _dpParamStoch g
@@ -86,12 +85,6 @@ instance (Learn a b l, LParamMaybe l ~ 'Just p, Num p, Num q) => Learn a b (DePa
     type LParamMaybe (DeParamAt p q l) = LParamMaybe l
     type LStateMaybe (DeParamAt p q l) = LStateMaybe l
 
-    initParam DPA{..} g = J_ $ do
-        p <- fromJ_ $ initParam _dpaLearn g
-        q <- _dpaParamStoch g
-        pure $ p & _dpaLens .~ q
-    initState = initState . _dpaLearn
-
     runLearn DPA{..} (J_ p) = runLearn _dpaLearn (J_ p')
       where
         p' = p & _dpaLens .~~ constVar _dpaParam
@@ -109,8 +102,7 @@ instance (Learn a b l, LParamMaybe l ~ 'Just p, Num p, Num q) => Learn a b (DePa
 -- a @'DeParam' p@, and one could implement @'DeParamAt' p q@ in terms of
 -- @'ReParam' p (''Just' q)@.
 data ReParam :: Type -> Maybe Type -> Type -> Type where
-    RP :: { _rpInitParam :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> Mayb m q
-          , _rpFrom      :: forall s. Reifies s W => Mayb (BVar s) q -> BVar s p
+    RP :: { _rpFrom      :: forall s. Reifies s W => Mayb (BVar s) q -> BVar s p
           , _rpFromStoch :: forall m s. (PrimMonad m, Reifies s W) => MWC.Gen (PrimState m) -> Mayb (BVar s) q -> m (BVar s p)
           , _rpLearn     :: l
           }
@@ -121,9 +113,6 @@ instance (Learn a b l, LParamMaybe l ~ 'Just p) => Learn a b (ReParam p q l) whe
     type LParamMaybe (ReParam p q l) = q
     type LStateMaybe (ReParam p q l) = LStateMaybe l
 
-    initParam = _rpInitParam
-    initState = initState . _rpLearn
-
     runLearn RP{..} q = runLearn _rpLearn (J_ (_rpFrom q))
     runLearnStoch RP{..} g q x s = do
       p <- _rpFromStoch g q
@@ -132,8 +121,7 @@ instance (Learn a b l, LParamMaybe l ~ 'Just p) => Learn a b (ReParam p q l) whe
 -- | Create a 'ReParam' from a deterministic, non-stochastic
 -- transformation function.
 rpDeterm
-    :: (forall m. PrimMonad m => MWC.Gen (PrimState m) -> Mayb m q)
-    -> (forall s. Reifies s W => Mayb (BVar s) q -> BVar s p)
+    :: (forall s. Reifies s W => Mayb (BVar s) q -> BVar s p)
     -> l
     -> ReParam p q l
-rpDeterm i f = RP i f (const (pure . f))
+rpDeterm f = RP f (const (pure . f))

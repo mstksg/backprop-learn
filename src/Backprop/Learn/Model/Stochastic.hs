@@ -6,6 +6,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PatternSynonyms       #-}
 {-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeInType            #-}
 {-# LANGUAGE UndecidableInstances  #-}
@@ -57,8 +58,7 @@ instance KnownNat n => Learn (R n) (R n) (DO n) where
 -- deterministic mode ideally should approximate some mean of the
 -- stochastic mode.
 data StochFunc :: Maybe Type -> Type -> Type -> Type where
-    SF :: { _sfInitParam :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> Mayb m p
-          , _sfRunDeterm :: forall s. Reifies s W => Mayb (BVar s) p -> BVar s a -> BVar s b
+    SF :: { _sfRunDeterm :: forall s. Reifies s W => Mayb (BVar s) p -> BVar s a -> BVar s b
           , _sfRunStoch
               :: forall m s. (PrimMonad m, Reifies s W)
               => MWC.Gen (PrimState m)
@@ -73,10 +73,8 @@ instance Learn a b (StochFunc p a b) where
     type LParamMaybe (StochFunc p a b) = p
     type LStateMaybe (StochFunc p a b) = 'Nothing
 
-    initParam = _sfInitParam
-
-    runLearn (SF _ r _) = stateless . r
-    runLearnStoch (SF _ _ r) g = statelessM . r g
+    runLearn SF{..} = stateless . _sfRunDeterm
+    runLearnStoch SF{..} g = statelessM . _sfRunStoch g
 
 -- | Convenient alias for a 'StochFunc' (random-valued function with both
 -- deterministic and stochastic modes) with no trained parameters.
@@ -88,8 +86,7 @@ pattern FSF :: (forall s. Reifies s W => BVar s a -> BVar s b)
             -> FixedStochFunc a b
 pattern FSF { _fsfRunDeterm, _fsfRunStoch } <- (getFSF->(getWD->_fsfRunDeterm,getWS->_fsfRunStoch))
   where
-    FSF d s = SF { _sfInitParam = const N_
-                 , _sfRunDeterm = const d
+    FSF d s = SF { _sfRunDeterm = const d
                  , _sfRunStoch  = const . s
                  }
 {-# COMPLETE FSF #-}
@@ -98,9 +95,9 @@ newtype WrapDeterm a b = WD { getWD :: forall s. Reifies s W => BVar s a -> BVar
 newtype WrapStoch  a b = WS { getWS :: forall m s. (PrimMonad m, Reifies s W) => MWC.Gen (PrimState m) -> BVar s a -> m (BVar s b) }
 
 getFSF :: FixedStochFunc a b -> (WrapDeterm a b, WrapStoch a b)
-getFSF (SF _ d s) = ( WD (d N_)
-                    , WS (`s` N_)
-                    )
+getFSF SF{..} = ( WD (_sfRunDeterm N_)
+                , WS (`_sfRunStoch` N_)
+                )
 
 -- | Random leaky rectified linear unit
 rreLU

@@ -57,7 +57,6 @@ import           Numeric.Backprop
 import           Numeric.Backprop.Tuple
 import           Numeric.LinearAlgebra.Static.Backprop
 import           Prelude hiding                        ((.), id)
-import           Type.Class.Higher
 import           Type.Class.Known
 import           Type.Class.Witness
 import           Type.Family.List                      as List
@@ -82,41 +81,8 @@ instance ( ListC (Num List.<$> LParams ls)
     type LParamMaybe (Chain ls a b) = NETup Mayb.<$> ToNonEmpty (LParams ls)
     type LStateMaybe (Chain ls a b) = NETup Mayb.<$> ToNonEmpty (LStates ls)
 
-    initParam     = initChainParam
-    initState     = initChainState
     runLearn      = runChainLearn
     runLearnStoch = runChainLearnStoch
-
-
-initChainParam
-    :: forall ls a b m. PrimMonad m
-    => Chain ls a b
-    -> MWC.Gen (PrimState m)
-    -> Mayb m (NETup Mayb.<$> ToNonEmpty (LParams ls))
-initChainParam = \case
-    CNil -> \_ -> N_
-    (l :: l) :~> ls -> case knownMayb @(LParamMaybe l) of
-      N_   -> initChainParam ls
-      J_ _ -> \g -> J_ $ do
-        q <- fromJ_ $ initParam l g
-        case chainParamLength ls of
-          LZ   -> pure $ NET q TNil
-          LS _ -> NET q . netT <$> fromJ_ (initChainParam ls g)
-
-initChainState
-    :: forall ls a b m. PrimMonad m
-    => Chain ls a b
-    -> MWC.Gen (PrimState m)
-    -> Mayb m (NETup Mayb.<$> ToNonEmpty (LStates ls))
-initChainState = \case
-    CNil -> \_ -> N_
-    (l :: l) :~> ls -> case knownMayb @(LStateMaybe l) of
-      N_   -> initChainState ls
-      J_ _ -> \g -> J_ $ do
-        q <- fromJ_ $ initState l g
-        case chainStateLength ls of
-          LZ   -> pure $ NET q TNil
-          LS _ -> NET q . netT <$> fromJ_ (initChainState ls g)
 
 runChainLearn
     :: (Reifies s W, ListC (Num List.<$> LParams ls), ListC (Num List.<$> LStates ls))
@@ -320,9 +286,7 @@ assocMaybAppend = \case
 -- Useful for performant composition, but you lose the ability to decompose
 -- parts.
 data LearnFunc :: Maybe Type -> Maybe Type -> Type -> Type -> Type where
-    LF :: { _lfInitParam :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> Mayb m p
-          , _lfInitState :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> Mayb m s
-          , _lfRunLearn
+    LF :: { _lfRunLearn
                :: forall q. Reifies q W
                => Mayb (BVar q) p
                -> BVar q a
@@ -343,9 +307,7 @@ learnFunc
     :: Learn a b l
     => l
     -> LearnFunc (LParamMaybe l) (LStateMaybe l) a b
-learnFunc l = LF { _lfInitParam     = initParam l
-                 , _lfInitState     = initState l
-                 , _lfRunLearn      = runLearn l
+learnFunc l = LF { _lfRunLearn      = runLearn l
                  , _lfRunLearnStoch = runLearnStoch l
                  }
 
@@ -353,26 +315,14 @@ instance Learn a b (LearnFunc p s a b) where
     type LParamMaybe (LearnFunc p s a b) = p
     type LStateMaybe (LearnFunc p s a b) = s
 
-    initParam     = _lfInitParam
-    initState     = _lfInitState
     runLearn      = _lfRunLearn
     runLearnStoch = _lfRunLearnStoch
 
-instance (MaybeC Num p, MaybeC Num s, KnownMayb p, KnownMayb s) => Category (LearnFunc p s) where
-    id = LF { _lfInitParam     = \_ -> map1 (pure 0 \\) $ maybeWit @_ @Num @p
-            , _lfInitState     = \_ -> map1 (pure 0 \\) $ maybeWit @_ @Num @s
-            , _lfRunLearn      = \_ -> (,)
+instance Category (LearnFunc p s) where
+    id = LF { _lfRunLearn      = \_ -> (,)
             , _lfRunLearnStoch = \_ _ x -> pure . (x,)
             }
-    f . g = LF { _lfInitParam = \gen -> zipMayb3 (liftA2 (+) \\)
-                      (maybeWit @_ @Num @p)
-                      (_lfInitParam f gen)
-                      (_lfInitParam g gen)
-               , _lfInitState = \gen -> zipMayb3 (liftA2 (+) \\)
-                      (maybeWit @_ @Num @s)
-                      (_lfInitState f gen)
-                      (_lfInitState g gen)
-               , _lfRunLearn  = \p x s0 ->
+    f . g = LF { _lfRunLearn  = \p x s0 ->
                     let (y, s1) = _lfRunLearn g p x s0
                     in  _lfRunLearn f p y s1
                , _lfRunLearnStoch = \gen p x s0 -> do
@@ -396,12 +346,7 @@ instance (MaybeC Num p, MaybeC Num s, KnownMayb p, KnownMayb s) => Category (Lea
     => LearnFunc ('Just (T ps        )) ('Just (T ss         )) b c
     -> LearnFunc ('Just (T qs        )) ('Just (T ts         )) a b
     -> LearnFunc ('Just (T (ps ++ qs))) ('Just (T (ss ++ ts ))) a c
-f .~ g = LF { _lfInitParam = \gen -> J_ $ tAppend <$> fromJ_ (_lfInitParam f gen)
-                                                  <*> fromJ_ (_lfInitParam g gen)
-            , _lfInitState = \gen -> J_ $ tAppend <$> fromJ_ (_lfInitState f gen)
-                                                  <*> fromJ_ (_lfInitState g gen)
-
-            , _lfRunLearn  = \(J_ psqs) x (J_ ssts) -> appendLength @ss @ts known known //
+f .~ g = LF { _lfRunLearn  = \(J_ psqs) x (J_ ssts) -> appendLength @ss @ts known known //
                 let (y, J_ ts) = _lfRunLearn g (J_ (psqs ^^. tDrop @ps @qs known))
                                                x
                                                (J_ (ssts ^^. tDrop @ss @ts known))
@@ -435,17 +380,7 @@ onlyLF
     => LearnFunc p s a b
     -> LearnFunc ('Just (T (MaybeToList p))) ('Just (T (MaybeToList s))) a b
 onlyLF f = LF
-    { _lfInitParam = J_
-                   . fmap prodT
-                   . traverse1 (fmap I)
-                   . maybToList
-                   . _lfInitParam f
-    , _lfInitState = J_
-                   . fmap prodT
-                   . traverse1 (fmap I)
-                   . maybToList
-                   . _lfInitState f
-    , _lfRunLearn = \(J_ ps) x ssM@(J_ ss) -> case knownMayb @p of
+    { _lfRunLearn = \(J_ ps) x ssM@(J_ ss) -> case knownMayb @p of
         N_ -> case knownMayb @s of
           N_ -> (second . const) ssM
               $ _lfRunLearn f N_ x N_
@@ -500,16 +435,6 @@ instance ( Learn a b l
       => Learn a c (l :.~ m) where
     type LParamMaybe (l :.~ m) = TupMaybe (LParamMaybe l) (LParamMaybe m)
     type LStateMaybe (l :.~ m) = TupMaybe (LStateMaybe l) (LStateMaybe m)
-
-    initParam (l :.~ m) g = tupMaybe @_ @(LParamMaybe l) @(LParamMaybe m)
-        (liftA2 T2)
-        (initParam l g)
-        (initParam m g)
-
-    initState (l :.~ m) g = tupMaybe @_ @(LStateMaybe l) @(LStateMaybe m)
-        (liftA2 T2)
-        (initState l g)
-        (initState m g)
 
     runLearn (l :.~ m) pq x st = (z, tupMaybe (isoVar2 T2 t2Tup) s' t')
       where
@@ -578,18 +503,12 @@ instance Learn b c l => Learn a c (LMap b a l) where
     type LParamMaybe (LMap b a l) = LParamMaybe l
     type LStateMaybe (LMap b a l) = LStateMaybe l
 
-    initParam = initParam . _lmLearn
-    initState = initState . _lmLearn
-
     runLearn (LM f l) p x = runLearn l p (f x)
     runLearnStoch (LM f l) g p x = runLearnStoch l g p (f x)
 
 instance Learn a b l => Learn a c (RMap b c l) where
     type LParamMaybe (RMap b c l) = LParamMaybe l
     type LStateMaybe (RMap b c l) = LStateMaybe l
-
-    initParam = initParam . _rmLearn
-    initState = initState . _rmLearn
 
     runLearn (RM f l) p x = first f . runLearn l p x
     runLearnStoch (RM f l) g p x = (fmap . first) f . runLearnStoch l g p x
@@ -620,9 +539,6 @@ feedbackId n = FB n id
 instance Learn a b l => Learn a b (Feedback a b l) where
     type LParamMaybe (Feedback a b l) = LParamMaybe l
     type LStateMaybe (Feedback a b l) = LStateMaybe l
-
-    initParam = initParam . _fbLearn
-    initState = initState . _fbLearn
 
     runLearn (FB n f l) p = runState
                           . foldr (>=>) go (replicate (n - 1) (fmap f . go))
@@ -658,9 +574,6 @@ feedbackTraceId = FBT id
 instance (Learn a b l, KnownNat n, Num b) => Learn a (SV.Vector n b) (FeedbackTrace n a b l) where
     type LParamMaybe (FeedbackTrace n a b l) = LParamMaybe l
     type LStateMaybe (FeedbackTrace n a b l) = LStateMaybe l
-
-    initParam = initParam . _fbtLearn
-    initState = initState . _fbtLearn
 
     runLearn (FBT f l) p x0 =
           second snd
@@ -702,16 +615,6 @@ instance ( Learn a b l
       => Learn a (T2 b c) (l :&&& m) where
     type LParamMaybe (l :&&& m) = TupMaybe (LParamMaybe l) (LParamMaybe m)
     type LStateMaybe (l :&&& m) = TupMaybe (LStateMaybe l) (LStateMaybe m)
-
-    initParam (l :&&& m) g = tupMaybe @_ @(LParamMaybe l) @(LParamMaybe m)
-        (liftA2 T2)
-        (initParam l g)
-        (initParam m g)
-
-    initState (l :&&& m) g = tupMaybe @_ @(LStateMaybe l) @(LStateMaybe m)
-        (liftA2 T2)
-        (initState l g)
-        (initState m g)
 
     runLearn (l :&&& m) pq x st = ( isoVar2 T2 t2Tup y z
                                   , tupMaybe (isoVar2 T2 t2Tup) s' t'

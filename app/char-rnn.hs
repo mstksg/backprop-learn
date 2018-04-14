@@ -28,7 +28,6 @@ import           Numeric.Backprop.Tuple
 import           Numeric.LinearAlgebra.Static.Backprop
 import           Numeric.LinearAlgebra.Static.Vector
 import           Numeric.Opto
-import           Statistics.Distribution.Normal
 import           System.Environment
 import           Text.Printf
 import qualified Conduit                               as C
@@ -48,11 +47,11 @@ type CharRNN n h1 h2 = Chain '[ LSTM n h1
                          (R n) (R n)
 
 charRNN :: (KnownNat n, KnownNat h1, KnownNat h2) => CharRNN n h1 h2
-charRNN = lstm (normalDistr 0 0.2) (normalDistr 0 0.2) (normalDistr 0 0.2) True
+charRNN = LSTM
       :~> DO 0.25
-      :~> lstm (normalDistr 0 0.2) (normalDistr 0 0.2) (normalDistr 0 0.2) True
+      :~> LSTM
       :~> DO 0.25
-      :~> fca  (normalDistr 0 0.2) softMax
+      :~> FCA softMax
       :~> CNil
 
 oneHotChar
@@ -75,7 +74,7 @@ main = MWC.withSystemRandom @IO $ \g -> do
     let model0 = charRNN @n @100 @50
         model  = UnrollFinalTrainState @_ @15 model0
 
-    p0 <- fromJ_ $ initParam model g
+    p0 <- initParamNormal [model] 0.2 g
 
     let report n b = do
           liftIO $ printf "(Batch %d)\n" (b :: Int)

@@ -19,11 +19,12 @@ module Data.Type.NonEmpty (
   , netHead, netTail
   , unNet
   , netT
+  , NonEmpty(..)
   ) where
 
 import           Control.DeepSeq
 import           Data.Kind
-import           Data.List.NonEmpty     (NonEmpty(..))
+import           Data.List.NonEmpty        (NonEmpty(..))
 import           Data.Type.Length
 import           Lens.Micro
 import           Numeric.Backprop.Tuple

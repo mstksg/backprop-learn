@@ -111,9 +111,6 @@ instance (Learn a b l, KnownNat n, Num a, Num b) => Learn (SV.Vector n a) (SV.Ve
     type LParamMaybe (Unroll n l) = LParamMaybe l
     type LStateMaybe (Unroll n l) = LStateMaybe l
 
-    initParam = initParam . getUnroll
-    initState = initState . getUnroll
-
     runLearn (Unroll l) p x s = first collectVar
                               . flip runState s
                               . traverse (state . runLearn l p)
@@ -179,9 +176,6 @@ instance (Learn a b l, Num a, 1 <= n) => Learn (SV.Vector n a) b (UnrollFinal n 
     type LParamMaybe (UnrollFinal n l) = LParamMaybe l
     type LStateMaybe (UnrollFinal n l) = LStateMaybe l
 
-    initParam = initParam . getUnrollFinal
-    initState = initState . getUnrollFinal
-
     runLearn (UnrollFinal l) p xs s0 =
         foldl' (\(_, s) x -> runLearn l p x s)
                (error "runLearn (unrollFinal): n cannot be 0", s0)
@@ -223,13 +217,6 @@ instance ( Learn a b l
     type LParamMaybe (TrainState l) = TupMaybe (LParamMaybe l) (LStateMaybe l)
     type LStateMaybe (TrainState l) = 'Nothing
 
-    initParam (TrainState l) g = case knownMayb @(LParamMaybe l) of
-      N_   -> case knownMayb @(LStateMaybe l) of
-        J_ _ -> initState l g
-      J_ _ -> case knownMayb @(LStateMaybe l) of
-        J_ _ -> J_ $ T2 <$> fromJ_ (initParam l g)
-                        <*> fromJ_ (initState l g)
-
     runLearn (TrainState l) t x _ = (second . const) N_
                                   . runLearn l p x
                                   $ s
@@ -269,8 +256,6 @@ instance (Learn a b l, LStateMaybe l ~ 'Just s) => Learn a b (DeState s l) where
     type LParamMaybe (DeState s l) = LParamMaybe l
     type LStateMaybe (DeState s l) = 'Nothing
 
-    initParam = initParam . _dsLearn
-
     runLearn (DS s _ l) p x _ = (second . const) N_
                               . runLearn l p x
                               $ J_ (constVar s)
@@ -287,8 +272,7 @@ instance (Learn a b l, LStateMaybe l ~ 'Just s) => Learn a b (DeState s l) where
 --
 -- @'ReState' p '()'@ is essentially 'DeState'.
 data ReState :: Type -> Type -> Type -> Type where
-    RS :: { _rsInitState :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m t
-          , _rsTo        :: forall q. Reifies q W => BVar q s -> BVar q t
+    RS :: { _rsTo        :: forall q. Reifies q W => BVar q s -> BVar q t
           , _rsFrom      :: forall q. Reifies q W => BVar q t -> BVar q s
           , _rsFromStoch :: forall m q. (PrimMonad m, Reifies q W) => MWC.Gen (PrimState m) -> BVar q t -> m (BVar q s)
           , _rsLearn     :: l
@@ -299,9 +283,6 @@ data ReState :: Type -> Type -> Type -> Type where
 instance (Learn a b l, LStateMaybe l ~ 'Just s) => Learn a b (ReState s t l) where
     type LParamMaybe (ReState s t l) = LParamMaybe l
     type LStateMaybe (ReState s t l) = 'Just t
-
-    initParam = initParam . _rsLearn
-    initState = (J_ .) . _rsInitState
 
     runLearn RS{..} p x = second (J_ . _rsTo . fromJ_)
                         . runLearn _rsLearn p x
@@ -315,12 +296,11 @@ instance (Learn a b l, LStateMaybe l ~ 'Just s) => Learn a b (ReState s t l) whe
 -- | Create a 'ReState' from a deterministic, non-stochastic transformation
 -- function.
 rsDeterm
-    :: (forall m. PrimMonad m => MWC.Gen (PrimState m) -> m t)     -- ^ initialize state
-    -> (forall q. Reifies q W => BVar q s -> BVar q t)             -- ^ to
+    :: (forall q. Reifies q W => BVar q s -> BVar q t)             -- ^ to
     -> (forall q. Reifies q W => BVar q t -> BVar q s)             -- ^ from
     -> l                                                           -- ^ model
     -> ReState s t l
-rsDeterm i t f = RS i t f (const (pure . f))
+rsDeterm t f = RS t f (const (pure . f))
 
 -- | Fix a part of a parameter of a model to be (a function of) the
 -- /previous/ ouput of the model itself.
@@ -345,8 +325,7 @@ rsDeterm i t f = RS i t f (const (pure . f))
 --
 -- See 'FCR' for an application.
 data Recurrent :: Type -> Type -> Type -> Type -> Type -> Type where
-    Rec :: { _recInit  :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m b
-           , _recSplit :: ab -> (a, b)
+    Rec :: { _recSplit :: ab -> (a, b)
            , _recJoin  :: a -> b -> ab
            , _recLoop  :: forall s. Reifies s W => BVar s c -> BVar s b
            , _recLearn :: l
@@ -363,12 +342,6 @@ instance ( Learn ab c l
         => Learn a c (Recurrent ab a b c l) where
     type LParamMaybe (Recurrent ab a b c l) = LParamMaybe l
     type LStateMaybe (Recurrent ab a b c l) = TupMaybe (LStateMaybe l) ('Just b)
-
-    initParam = initParam . _recLearn
-    initState Rec{..} g = case knownMayb @(LStateMaybe l) of
-        N_   -> J_ $ _recInit g
-        J_ _ -> J_ $ T2 <$> fromJ_ (initState _recLearn g)
-                        <*> _recInit g
 
     runLearn Rec{..} p x msy = case knownMayb @(LStateMaybe l) of
         N_   -> let y       = fromJ_ msy
@@ -411,8 +384,7 @@ type DummyState a b l = Recurrent a a T0 b l
 pattern DummyState :: (Learn a b l, NoState l) => l -> DummyState a b l
 pattern DummyState { getDummyState } <- Rec { _recLearn = getDummyState }
   where
-    DummyState l = Rec { _recInit  = const (pure T0)
-                       , _recSplit = (,T0)
+    DummyState l = Rec { _recSplit = (,T0)
                        , _recJoin  = const
                        , _recLoop  = const (constVar T0)
                        , _recLearn = l
