@@ -8,34 +8,6 @@
 @package backprop-learn
 @version 0.1.0.0
 
-module Backprop.Learn.Initialize
-
--- | Class for types that are basically a bunch of <a>Double</a>s, which
---   can be initialized with a given identical and independent
---   distribution.
-class Initialize p
-initialize :: (Initialize p, ContGen d, PrimMonad m) => d -> Gen (PrimState m) -> m p
-initialize :: (Initialize p, ADTRecord p, Constraints p Initialize, ContGen d, PrimMonad m) => d -> Gen (PrimState m) -> m p
-gInitialize :: (ADTRecord p, Constraints p Initialize, ContGen d, PrimMonad m) => d -> Gen (PrimState m) -> m p
-
--- | <a>initialize</a> definition if <tt>p</tt> is a single number.
-initializeSingle :: (ContGen d, PrimMonad m, Fractional p) => d -> Gen (PrimState m) -> m p
-instance Backprop.Learn.Initialize.Initialize GHC.Types.Double
-instance Backprop.Learn.Initialize.Initialize GHC.Types.Float
-instance Backprop.Learn.Initialize.Initialize a => Backprop.Learn.Initialize.Initialize (Data.Complex.Complex a)
-instance Backprop.Learn.Initialize.Initialize Numeric.Backprop.Tuple.T0
-instance (Backprop.Learn.Initialize.Initialize a, Backprop.Learn.Initialize.Initialize b) => Backprop.Learn.Initialize.Initialize (Numeric.Backprop.Tuple.T2 a b)
-instance (Backprop.Learn.Initialize.Initialize a, Backprop.Learn.Initialize.Initialize b, Backprop.Learn.Initialize.Initialize c) => Backprop.Learn.Initialize.Initialize (Numeric.Backprop.Tuple.T3 a b c)
-instance (Type.Family.List.ListC (Backprop.Learn.Initialize.Initialize Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => Backprop.Learn.Initialize.Initialize (Numeric.Backprop.Tuple.T as)
-instance Backprop.Learn.Initialize.Initialize ()
-instance (Backprop.Learn.Initialize.Initialize a, Backprop.Learn.Initialize.Initialize b) => Backprop.Learn.Initialize.Initialize (a, b)
-instance (Backprop.Learn.Initialize.Initialize a, Backprop.Learn.Initialize.Initialize b, Backprop.Learn.Initialize.Initialize c) => Backprop.Learn.Initialize.Initialize (a, b, c)
-instance (Data.Vector.Generic.Base.Vector v a, GHC.TypeNats.KnownNat n, Backprop.Learn.Initialize.Initialize a) => Backprop.Learn.Initialize.Initialize (Data.Vector.Generic.Sized.Internal.Vector v n a)
-instance GHC.TypeNats.KnownNat n => Backprop.Learn.Initialize.Initialize (Internal.Static.R n)
-instance GHC.TypeNats.KnownNat n => Backprop.Learn.Initialize.Initialize (Internal.Static.C n)
-instance (GHC.TypeNats.KnownNat n, GHC.TypeNats.KnownNat m) => Backprop.Learn.Initialize.Initialize (Internal.Static.L n m)
-instance (GHC.TypeNats.KnownNat n, GHC.TypeNats.KnownNat m) => Backprop.Learn.Initialize.Initialize (Internal.Static.M n m)
-
 module Backprop.Learn.Loss
 type Loss a = forall s. Reifies s W => a -> BVar s a -> BVar s Double
 crossEntropy :: KnownNat n => Loss (R n)
@@ -112,6 +84,59 @@ instance forall k (f :: k -> *). Type.Class.Known.Known (Data.Type.Mayb.Mayb f) 
 instance forall a1 (f :: a1 -> *) (a2 :: a1). Type.Class.Known.Known f a2 => Type.Class.Known.Known (Data.Type.Mayb.Mayb f) ('GHC.Base.Just a2)
 instance Type.Class.Higher.Functor1 Data.Type.Mayb.Mayb
 
+module Data.Type.NonEmpty
+data NETup :: NonEmpty Type -> Type
+[NET] :: !a -> !(T as) -> NETup (a :| as)
+netHead :: Lens (NETup (a :| as)) (NETup (b :| as)) a b
+netTail :: Lens (NETup (a :| as)) (NETup (a :| bs)) (T as) (T bs)
+unNet :: NETup (a :| as) -> (a, T as)
+netT :: () => NETup a :| as -> T a : as
+
+-- | Non-empty (and non-strict) list type.
+data NonEmpty a
+(:|) :: a -> [a] -> NonEmpty a
+instance (Control.DeepSeq.NFData a, Type.Family.List.ListC (Control.DeepSeq.NFData Type.Family.List.<$> as)) => Control.DeepSeq.NFData (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
+instance (GHC.Num.Num a, Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => GHC.Num.Num (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
+instance (GHC.Real.Fractional a, Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> as), Type.Family.List.ListC (GHC.Real.Fractional Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => GHC.Real.Fractional (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
+instance (GHC.Float.Floating a, Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> as), Type.Family.List.ListC (GHC.Real.Fractional Type.Family.List.<$> as), Type.Family.List.ListC (GHC.Float.Floating Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => GHC.Float.Floating (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
+instance (Numeric.Opto.Update.Additive a, Numeric.Opto.Update.Additive (Numeric.Backprop.Tuple.T as)) => Numeric.Opto.Update.Additive (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
+instance (Numeric.Opto.Update.Scaling c a, Numeric.Opto.Update.Scaling c (Numeric.Backprop.Tuple.T as)) => Numeric.Opto.Update.Scaling c (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
+instance (Numeric.Opto.Update.Metric c a, Numeric.Opto.Update.Metric c (Numeric.Backprop.Tuple.T as), GHC.Classes.Ord c, GHC.Float.Floating c) => Numeric.Opto.Update.Metric c (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
+instance (Numeric.Opto.Update.Additive a, Numeric.Opto.Update.Additive (Numeric.Backprop.Tuple.T as), Numeric.Opto.Ref.Ref m (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as)) v) => Numeric.Opto.Update.AdditiveInPlace m v (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
+instance (Numeric.Opto.Update.Scaling s a, Numeric.Opto.Update.Scaling s (Numeric.Backprop.Tuple.T as), Numeric.Opto.Ref.Ref m (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as)) v) => Numeric.Opto.Update.ScalingInPlace m v s (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
+
+module Backprop.Learn.Initialize
+
+-- | Class for types that are basically a bunch of <a>Double</a>s, which
+--   can be initialized with a given identical and independent
+--   distribution.
+class Initialize p
+initialize :: (Initialize p, ContGen d, PrimMonad m) => d -> Gen (PrimState m) -> m p
+initialize :: (Initialize p, ADTRecord p, Constraints p Initialize, ContGen d, PrimMonad m) => d -> Gen (PrimState m) -> m p
+
+-- | <a>initialize</a> for any instance of <tt>Generic</tt>.
+gInitialize :: (ADTRecord p, Constraints p Initialize, ContGen d, PrimMonad m) => d -> Gen (PrimState m) -> m p
+initializeNormal :: (Initialize p, PrimMonad m) => Double -> Gen (PrimState m) -> m p
+
+-- | <a>initialize</a> definition if <tt>p</tt> is a single number.
+initializeSingle :: (ContGen d, PrimMonad m, Fractional p) => d -> Gen (PrimState m) -> m p
+instance Backprop.Learn.Initialize.Initialize GHC.Types.Double
+instance Backprop.Learn.Initialize.Initialize GHC.Types.Float
+instance Backprop.Learn.Initialize.Initialize a => Backprop.Learn.Initialize.Initialize (Data.Complex.Complex a)
+instance Backprop.Learn.Initialize.Initialize Numeric.Backprop.Tuple.T0
+instance (Backprop.Learn.Initialize.Initialize a, Backprop.Learn.Initialize.Initialize b) => Backprop.Learn.Initialize.Initialize (Numeric.Backprop.Tuple.T2 a b)
+instance (Backprop.Learn.Initialize.Initialize a, Backprop.Learn.Initialize.Initialize b, Backprop.Learn.Initialize.Initialize c) => Backprop.Learn.Initialize.Initialize (Numeric.Backprop.Tuple.T3 a b c)
+instance (Type.Family.List.ListC (Backprop.Learn.Initialize.Initialize Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => Backprop.Learn.Initialize.Initialize (Numeric.Backprop.Tuple.T as)
+instance (Backprop.Learn.Initialize.Initialize a, Type.Family.List.ListC (Backprop.Learn.Initialize.Initialize Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => Backprop.Learn.Initialize.Initialize (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
+instance Backprop.Learn.Initialize.Initialize ()
+instance (Backprop.Learn.Initialize.Initialize a, Backprop.Learn.Initialize.Initialize b) => Backprop.Learn.Initialize.Initialize (a, b)
+instance (Backprop.Learn.Initialize.Initialize a, Backprop.Learn.Initialize.Initialize b, Backprop.Learn.Initialize.Initialize c) => Backprop.Learn.Initialize.Initialize (a, b, c)
+instance (Data.Vector.Generic.Base.Vector v a, GHC.TypeNats.KnownNat n, Backprop.Learn.Initialize.Initialize a) => Backprop.Learn.Initialize.Initialize (Data.Vector.Generic.Sized.Internal.Vector v n a)
+instance GHC.TypeNats.KnownNat n => Backprop.Learn.Initialize.Initialize (Internal.Static.R n)
+instance GHC.TypeNats.KnownNat n => Backprop.Learn.Initialize.Initialize (Internal.Static.C n)
+instance (GHC.TypeNats.KnownNat n, GHC.TypeNats.KnownNat m) => Backprop.Learn.Initialize.Initialize (Internal.Static.L n m)
+instance (GHC.TypeNats.KnownNat n, GHC.TypeNats.KnownNat m) => Backprop.Learn.Initialize.Initialize (Internal.Static.M n m)
+
 module Backprop.Learn.Model.Class
 
 -- | Class for models that can be trained using gradient descent
@@ -126,26 +151,6 @@ class Learn a b l | l -> a b where {
     type LParamMaybe l =  'Nothing;
     type LStateMaybe l =  'Nothing;
 }
-
--- | Initialize parameters, given the hyperparameters in <tt>l</tt>.
---   
---   Default definition provided for models with no state.
-initParam :: (Learn a b l, PrimMonad m) => l -> Gen (PrimState m) -> LParam_ m l
-
--- | Initialize parameters, given the hyperparameters in <tt>l</tt>.
---   
---   Default definition provided for models with no state.
-initParam :: (Learn a b l, NoParam l) => l -> Gen (PrimState m) -> LParam_ m l
-
--- | Initialize state, given the hyperparameters in <tt>l</tt>.
---   
---   Default definition provided for models with no state.
-initState :: (Learn a b l, PrimMonad m) => l -> Gen (PrimState m) -> LState_ m l
-
--- | Initialize state, given the hyperparameters in <tt>l</tt>.
---   
---   Default definition provided for models with no state.
-initState :: (Learn a b l, NoState l) => l -> Gen (PrimState m) -> LState_ m l
 
 -- | Run the model itself, deterministically.
 --   
@@ -194,6 +199,10 @@ stateless :: (a -> b) -> (a -> s -> (b, s))
 
 -- | Useful for defining <a>runLearnStoch</a> if your model has no state.
 statelessM :: Functor m => (a -> m b) -> (a -> s -> m (b, s))
+initParam :: forall l p m d proxy. (LParamMaybe l ~  'Just p, Initialize p, ContGen d, PrimMonad m) => proxy l -> d -> Gen (PrimState m) -> m (LParam l)
+initParamMaybe :: forall l m d proxy. (MaybeC Initialize (LParamMaybe l), ContGen d, PrimMonad m, KnownMayb (LParamMaybe l)) => proxy l -> d -> Gen (PrimState m) -> LParam_ m l
+initParamNormal :: forall l p m proxy. (LParamMaybe l ~  'Just p, Initialize p, PrimMonad m) => proxy l -> Double -> Gen (PrimState m) -> m (LParam l)
+initParamNormalMaybe :: forall l m proxy. (MaybeC Initialize (LParamMaybe l), PrimMonad m, KnownMayb (LParamMaybe l)) => proxy l -> Double -> Gen (PrimState m) -> LParam_ m l
 runLearnStateless :: (Learn a b l, Reifies s W, NoState l) => l -> LParam_ (BVar s) l -> BVar s a -> BVar s b
 runLearnStochStateless :: (Learn a b l, Reifies s W, NoState l, PrimMonad m) => l -> Gen (PrimState m) -> LParam_ (BVar s) l -> BVar s a -> m (BVar s b)
 data Mayb :: (k -> Type) -> Maybe k -> Type
@@ -209,7 +218,7 @@ I :: a -> I a
 -- | Existential wrapper for learnable model, representing a trainable
 --   function from <tt>a</tt> to <tt>b</tt>.
 data SomeLearn :: Type -> Type -> Type
-[SL] :: (Learn a b l, Typeable l, KnownMayb (LParamMaybe l), KnownMayb (LStateMaybe l), MaybeC Num (LParamMaybe l), MaybeC Num (LStateMaybe l), MaybeC (Metric Double) (LParamMaybe l), MaybeC (Metric Double) (LStateMaybe l), MaybeC NFData (LParamMaybe l), MaybeC NFData (LStateMaybe l)) => l -> SomeLearn a b
+[SL] :: (Learn a b l, Typeable l, KnownMayb (LParamMaybe l), KnownMayb (LStateMaybe l), MaybeC Floating (LParamMaybe l), MaybeC Floating (LStateMaybe l), MaybeC (Metric Double) (LParamMaybe l), MaybeC (Metric Double) (LStateMaybe l), MaybeC NFData (LParamMaybe l), MaybeC NFData (LStateMaybe l), MaybeC Initialize (LParamMaybe l), MaybeC Initialize (LStateMaybe l)) => l -> SomeLearn a b
 
 module Backprop.Learn.Model.State
 
@@ -340,11 +349,11 @@ _ufdsLearn :: () => UnrollFinalDeState n l -> l
 --   
 --   <tt><a>ReState</a> p '()'</tt> is essentially <a>DeState</a>.
 data ReState :: Type -> Type -> Type -> Type
-[RS] :: {_rsInitState :: forall m. PrimMonad m => Gen (PrimState m) -> m t, _rsTo :: forall q. Reifies q W => BVar q s -> BVar q t, _rsFrom :: forall q. Reifies q W => BVar q t -> BVar q s, _rsFromStoch :: forall m q. (PrimMonad m, Reifies q W) => Gen (PrimState m) -> BVar q t -> m (BVar q s), _rsLearn :: l} -> ReState s t l
+[RS] :: {_rsTo :: forall q. Reifies q W => BVar q s -> BVar q t, _rsFrom :: forall q. Reifies q W => BVar q t -> BVar q s, _rsFromStoch :: forall m q. (PrimMonad m, Reifies q W) => Gen (PrimState m) -> BVar q t -> m (BVar q s), _rsLearn :: l} -> ReState s t l
 
 -- | Create a <a>ReState</a> from a deterministic, non-stochastic
 --   transformation function.
-rsDeterm :: (forall m. PrimMonad m => Gen (PrimState m) -> m t) -> (forall q. Reifies q W => BVar q s -> BVar q t) -> (forall q. Reifies q W => BVar q t -> BVar q s) -> l -> ReState s t l
+rsDeterm :: (forall q. Reifies q W => BVar q s -> BVar q t) -> (forall q. Reifies q W => BVar q t -> BVar q s) -> l -> ReState s t l
 
 -- | Fix a part of a parameter of a model to be (a function of) the
 --   <i>previous</i> ouput of the model itself.
@@ -370,7 +379,7 @@ rsDeterm :: (forall m. PrimMonad m => Gen (PrimState m) -> m t) -> (forall q. Re
 --   
 --   See <tt>FCR</tt> for an application.
 data Recurrent :: Type -> Type -> Type -> Type -> Type -> Type
-[Rec] :: {_recInit :: forall m. PrimMonad m => Gen (PrimState m) -> m b, _recSplit :: ab -> (a, b), _recJoin :: a -> b -> ab, _recLoop :: forall s. Reifies s W => BVar s c -> BVar s b, _recLearn :: l} -> Recurrent ab a b c l
+[Rec] :: {_recSplit :: ab -> (a, b), _recJoin :: a -> b -> ab, _recLoop :: forall s. Reifies s W => BVar s c -> BVar s b, _recLearn :: l} -> Recurrent ab a b c l
 
 -- | Give a stateless model a "dummy" state, the unit <a>T0</a>. For now,
 --   useful for using with combinators like <a>DeState</a> that require
@@ -440,7 +449,7 @@ data ReParam :: Type -> Maybe Type -> Type -> Type
 
 -- | Create a <a>ReParam</a> from a deterministic, non-stochastic
 --   transformation function.
-rpDeterm :: (forall m. PrimMonad m => Gen (PrimState m) -> Mayb m q) -> (forall s. Reifies s W => Mayb (BVar s) q -> BVar s p) -> l -> ReParam p q l
+rpDeterm :: (forall s. Reifies s W => Mayb (BVar s) q -> BVar s p) -> l -> ReParam p q l
 instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.LParamMaybe l ~ 'GHC.Base.Just p) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Parameter.ReParam p q l)
 instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.LParamMaybe l ~ 'GHC.Base.Just p, GHC.Num.Num p, GHC.Num.Num q) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Parameter.DeParamAt p q l)
 instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.LParamMaybe l ~ 'GHC.Base.Just p) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Parameter.DeParam p l)
@@ -452,18 +461,16 @@ module Backprop.Learn.Model.Function
 --   <tt>p</tt>.
 --   
 --   A utility wrapper for a deterministic and stateless model.
-data ParamFunc p a b
-PF :: forall m. PrimMonad m => Gen (PrimState m) -> Mayb m p -> forall s. Reifies s W => Mayb (BVar s) p -> BVar s a -> BVar s b -> ParamFunc p a b
-[_pfInit] :: ParamFunc p a b -> forall m. PrimMonad m => Gen (PrimState m) -> Mayb m p
-[_pfFunc] :: ParamFunc p a b -> forall s. Reifies s W => Mayb (BVar s) p -> BVar s a -> BVar s b
+newtype ParamFunc p a b
+PF :: forall s. Reifies s W => Mayb (BVar s) p -> BVar s a -> BVar s b -> ParamFunc p a b
+[runParamFunc] :: ParamFunc p a b -> forall s. Reifies s W => Mayb (BVar s) p -> BVar s a -> BVar s b
 
 -- | Convenient type synonym for a <a>ParamFunc</a> with parameters.
 --   
---   Mostly made to be easy to construct/deconstruct with <a>PFP</a>,
---   <a>_pfpInit</a>, and <a>_pfpFunc</a>.
+--   Mostly made to be easy to construct/deconstruct with <a>PFP</a> and
+--   <a>runParamFuncP</a>.
 type ParamFuncP p = ParamFunc ( 'Just p)
-_pfpInit :: () => ParamFuncP p a b -> forall (m :: * -> *). PrimMonad m => Gen PrimState m -> m p
-_pfpFunc :: () => ParamFuncP p a b -> forall s. Reifies s W => BVar s p -> BVar s a -> BVar s b
+runParamFuncP :: () => ParamFuncP p a b -> forall s. Reifies s W => BVar s p -> BVar s a -> BVar s b
 
 -- | An unparameterized function. Has a <a>Category</a> instance.
 --   
@@ -490,7 +497,7 @@ runFixedFunc :: () => FixedFunc a b -> forall s. Reifies s W => BVar s a -> BVar
 -- | Utility function to make a <a>ParamFunc</a> that maps a parameterized
 --   function over every item in the <a>R</a>. The parameter is shared
 --   across the entire map, and trained.
-paramMap :: KnownNat i => (forall m. PrimMonad m => Gen (PrimState m) -> Mayb m p) -> (forall s. Reifies s W => Mayb (BVar s) p -> BVar s Double -> BVar s Double) -> ParamFunc p (R i) (R i)
+paramMap :: KnownNat i => (forall s. Reifies s W => Mayb (BVar s) p -> BVar s Double -> BVar s Double) -> ParamFunc p (R i) (R i)
 
 -- | Create a <a>ParamFunc</a> from any instance of <a>Learn</a> that does
 --   not have state.
@@ -714,7 +721,7 @@ maxout :: (KnownNat n, Reifies s W) => BVar s (R n) -> BVar s Double
 --   <a>http://www.ericlwilkinson.com/blog/2014/11/19/deep-learning-sparse-autoencoders</a>
 kSparse :: forall n s. (Reifies s W, KnownNat n) => Int -> BVar s (R n) -> BVar s (R n)
 instance (GHC.Num.Num a, GHC.Num.Num b, Data.Type.Mayb.MaybeC GHC.Num.Num p, Data.Type.Mayb.KnownMayb p) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Function.ParamFunc p a b)
-instance (Data.Type.Mayb.MaybeC GHC.Num.Num p, Data.Type.Mayb.KnownMayb p) => Control.Category.Category (Backprop.Learn.Model.Function.ParamFunc p)
+instance Control.Category.Category (Backprop.Learn.Model.Function.ParamFunc p)
 
 module Backprop.Learn.Model.Stochastic
 
@@ -734,7 +741,7 @@ DO :: Double -> DO
 --   deterministic mode ideally should approximate some mean of the
 --   stochastic mode.
 data StochFunc :: Maybe Type -> Type -> Type -> Type
-[SF] :: {_sfInitParam :: forall m. PrimMonad m => Gen (PrimState m) -> Mayb m p, _sfRunDeterm :: forall s. Reifies s W => Mayb (BVar s) p -> BVar s a -> BVar s b, _sfRunStoch :: forall m s. (PrimMonad m, Reifies s W) => Gen (PrimState m) -> Mayb (BVar s) p -> BVar s a -> m (BVar s b)} -> StochFunc p a b
+[SF] :: {_sfRunDeterm :: forall s. Reifies s W => Mayb (BVar s) p -> BVar s a -> BVar s b, _sfRunStoch :: forall m s. (PrimMonad m, Reifies s W) => Gen (PrimState m) -> Mayb (BVar s) p -> BVar s a -> m (BVar s b)} -> StochFunc p a b
 
 -- | Convenient alias for a <a>StochFunc</a> (random-valued function with
 --   both deterministic and stochastic modes) with no trained parameters.
@@ -767,23 +774,6 @@ applyNoiseR :: (ContGen d, Mean d, KnownNat n) => d -> FixedStochFunc (R n) (R n
 instance Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Stochastic.StochFunc p a b)
 instance GHC.TypeNats.KnownNat n => Backprop.Learn.Model.Class.Learn (Internal.Static.R n) (Internal.Static.R n) (Backprop.Learn.Model.Stochastic.DO n)
 
-module Data.Type.NonEmpty
-data NETup :: NonEmpty Type -> Type
-[NET] :: !a -> !(T as) -> NETup (a :| as)
-netHead :: Lens (NETup (a :| as)) (NETup (b :| as)) a b
-netTail :: Lens (NETup (a :| as)) (NETup (a :| bs)) (T as) (T bs)
-unNet :: NETup (a :| as) -> (a, T as)
-netT :: () => NETup a :| as -> T a : as
-instance (Control.DeepSeq.NFData a, Type.Family.List.ListC (Control.DeepSeq.NFData Type.Family.List.<$> as)) => Control.DeepSeq.NFData (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
-instance (GHC.Num.Num a, Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => GHC.Num.Num (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
-instance (GHC.Real.Fractional a, Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> as), Type.Family.List.ListC (GHC.Real.Fractional Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => GHC.Real.Fractional (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
-instance (GHC.Float.Floating a, Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> as), Type.Family.List.ListC (GHC.Real.Fractional Type.Family.List.<$> as), Type.Family.List.ListC (GHC.Float.Floating Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => GHC.Float.Floating (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
-instance (Numeric.Opto.Update.Additive a, Numeric.Opto.Update.Additive (Numeric.Backprop.Tuple.T as)) => Numeric.Opto.Update.Additive (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
-instance (Numeric.Opto.Update.Scaling c a, Numeric.Opto.Update.Scaling c (Numeric.Backprop.Tuple.T as)) => Numeric.Opto.Update.Scaling c (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
-instance (Numeric.Opto.Update.Metric c a, Numeric.Opto.Update.Metric c (Numeric.Backprop.Tuple.T as), GHC.Classes.Ord c, GHC.Float.Floating c) => Numeric.Opto.Update.Metric c (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
-instance (Numeric.Opto.Update.Additive a, Numeric.Opto.Update.Additive (Numeric.Backprop.Tuple.T as), Numeric.Opto.Ref.Ref m (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as)) v) => Numeric.Opto.Update.AdditiveInPlace m v (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
-instance (Numeric.Opto.Update.Scaling s a, Numeric.Opto.Update.Scaling s (Numeric.Backprop.Tuple.T as), Numeric.Opto.Ref.Ref m (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as)) v) => Numeric.Opto.Update.ScalingInPlace m v s (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
-
 module Backprop.Learn.Model.Combinator
 
 -- | Chain components linearly, retaining the ability to deconstruct at a
@@ -802,7 +792,7 @@ chainStateLength :: Chain ls a b -> Length (LStates ls)
 --   Useful for performant composition, but you lose the ability to
 --   decompose parts.
 data LearnFunc :: Maybe Type -> Maybe Type -> Type -> Type -> Type
-[LF] :: {_lfInitParam :: forall m. PrimMonad m => Gen (PrimState m) -> Mayb m p, _lfInitState :: forall m. PrimMonad m => Gen (PrimState m) -> Mayb m s, _lfRunLearn :: forall q. Reifies q W => Mayb (BVar q) p -> BVar q a -> Mayb (BVar q) s -> (BVar q b, Mayb (BVar q) s), _lfRunLearnStoch :: forall m q. (PrimMonad m, Reifies q W) => Gen (PrimState m) -> Mayb (BVar q) p -> BVar q a -> Mayb (BVar q) s -> m (BVar q b, Mayb (BVar q) s)} -> LearnFunc p s a b
+[LF] :: {_lfRunLearn :: forall q. Reifies q W => Mayb (BVar q) p -> BVar q a -> Mayb (BVar q) s -> (BVar q b, Mayb (BVar q) s), _lfRunLearnStoch :: forall m q. (PrimMonad m, Reifies q W) => Gen (PrimState m) -> Mayb (BVar q) p -> BVar q a -> Mayb (BVar q) s -> m (BVar q b, Mayb (BVar q) s)} -> LearnFunc p s a b
 learnFunc :: Learn a b l => l -> LearnFunc (LParamMaybe l) (LStateMaybe l) a b
 
 -- | Pre-compose a pure parameterless function to a model.
@@ -926,27 +916,22 @@ instance Backprop.Learn.Model.Class.Learn a b l => Backprop.Learn.Model.Class.Le
 instance Backprop.Learn.Model.Class.Learn b c l => Backprop.Learn.Model.Class.Learn a c (Backprop.Learn.Model.Combinator.LMap b a l)
 instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.Learn b c m, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LParamMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LParamMaybe m), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LStateMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LStateMaybe m), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.Class.LParamMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.Class.LParamMaybe m), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.Class.LStateMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.Class.LStateMaybe m)) => Backprop.Learn.Model.Class.Learn a c (l Backprop.Learn.Model.Combinator.:.~ m)
 instance Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Combinator.LearnFunc p s a b)
-instance (Data.Type.Mayb.MaybeC GHC.Num.Num p, Data.Type.Mayb.MaybeC GHC.Num.Num s, Data.Type.Mayb.KnownMayb p, Data.Type.Mayb.KnownMayb s) => Control.Category.Category (Backprop.Learn.Model.Combinator.LearnFunc p s)
+instance Control.Category.Category (Backprop.Learn.Model.Combinator.LearnFunc p s)
 instance (Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> Backprop.Learn.Model.Class.LParams ls), Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> Backprop.Learn.Model.Class.LStates ls)) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Combinator.Chain ls a b)
 
 module Backprop.Learn.Model.Regression
 
 -- | Multivariate linear regression, from an i-vector to an o-vector.
-newtype LinReg (i :: Nat) (o :: Nat)
-LinReg :: forall m. PrimMonad m => Gen (PrimState m) -> m Double -> LinReg
-[_linRegGen] :: LinReg -> forall m. PrimMonad m => Gen (PrimState m) -> m Double
+data LinReg (i :: Nat) (o :: Nat)
+LinReg :: LinReg
 
--- | Construct an <a>LinReg</a> using a given distribution from the
---   <i>statistics</i> library.
-linReg :: ContGen d => d -> LinReg i o
+-- | Mutivariate Logistic regression, from an i-vector to an o-vector.
+--   
+--   Essentially a linear regression postcomposed with the logistic
+--   function.
 type LogReg i o = RMap (R o) (R o) (LinReg i o)
 
 -- | Constructor for a <a>LogReg</a>
-_logRegGen :: () => LogReg i o -> forall (m :: * -> *). PrimMonad m => Gen PrimState m -> m Double
-
--- | Construct an <a>LogReg</a> using a given distribution from the
---   <i>statistics</i> library.
-logReg :: ContGen d => d -> LogReg i o
 
 -- | Linear Regression parameter
 data LRp i o
@@ -956,7 +941,6 @@ LRp :: !(R o) -> !(L o i) -> LRp i o
 lrBeta :: Lens (LRp i o) (LRp i' o) (L o i) (L o i')
 lrAlpha :: Lens' (LRp i o) (R o)
 runLRp :: (KnownNat i, KnownNat o, Reifies s W) => BVar s (LRp i o) -> BVar s (R i) -> BVar s (R o)
-initLRp :: (KnownNat i, KnownNat o, Monad m) => m Double -> m (LRp i o)
 
 -- | Auto-regressive integrated moving average model.
 --   
@@ -970,7 +954,7 @@ initLRp :: (KnownNat i, KnownNat o, Monad m) => m Double -> m (LRp i o)
 --   In this state, it is a runnable stateful model. To train, use with
 --   <a>ARIMAUnroll</a> to unroll and fix the initial state.
 data ARIMA :: Nat -> Nat -> Nat -> Type
-[ARIMA] :: {_arimaGenPhi :: forall m. PrimMonad m => Gen (PrimState m) -> Finite p -> m Double, _arimaGenTheta :: forall m. PrimMonad m => Gen (PrimState m) -> Finite q -> m Double, _arimaGenConst :: forall m. PrimMonad m => Gen (PrimState m) -> m Double, _arimaGenYHist :: forall m. PrimMonad m => Gen (PrimState m) -> m Double, _arimaGenEHist :: forall m. PrimMonad m => Gen (PrimState m) -> m Double} -> ARIMA p d q
+[ARIMA] :: {_arimaGenYHist :: forall m. PrimMonad m => Gen (PrimState m) -> m Double, _arimaGenEHist :: forall m. PrimMonad m => Gen (PrimState m) -> m Double} -> ARIMA p d q
 
 -- | <a>ARIMA</a> parmaeters
 data ARIMAp :: Nat -> Nat -> Type
@@ -1039,6 +1023,7 @@ instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNa
 instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q) => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAs p d q)
 instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARIMAs p d q) v) => Numeric.Opto.Update.AdditiveInPlace m v (Backprop.Learn.Model.Regression.ARIMAs p d q)
 instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARIMAs p d q) v) => Numeric.Opto.Update.ScalingInPlace m v GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAs p d q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q) => Backprop.Learn.Initialize.Initialize (Backprop.Learn.Model.Regression.ARIMAs p d q)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARIMAp p q)
 instance GHC.Num.Num (Backprop.Learn.Model.Regression.ARIMAp p q)
 instance GHC.Real.Fractional (Backprop.Learn.Model.Regression.ARIMAp p q)
@@ -1048,7 +1033,9 @@ instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Numeric.Opto.Upda
 instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAp p q)
 instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARIMAp p q) v) => Numeric.Opto.Update.AdditiveInPlace m v (Backprop.Learn.Model.Regression.ARIMAp p q)
 instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARIMAp p q) v) => Numeric.Opto.Update.ScalingInPlace m v GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAp p q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Backprop.Learn.Initialize.Initialize (Backprop.Learn.Model.Regression.ARIMAp p q)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.LRp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Initialize.Initialize (Backprop.Learn.Model.Regression.LRp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Additive (Backprop.Learn.Model.Regression.LRp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Scaling GHC.Types.Double (Backprop.Learn.Model.Regression.LRp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Regression.LRp i o)
@@ -1075,11 +1062,6 @@ module Backprop.Learn.Model.Neural
 --   With the logistic function as an activation function, this is
 --   essentially multivariate logistic regression. (See <tt>Logistic</tt>)
 type FC i o = LinReg i o
-
--- | Construct an <tt><a>FC</a> i o</tt> using a given distribution from
---   the <i>statistics</i> library.
-fc :: ContGen d => d -> FC i o
-_fcGen :: () => FC i o -> forall (m :: * -> *). PrimMonad m => Gen PrimState m -> m Double
 type FCp = LRp
 fcBias :: Lens' (FCp i o) (R o)
 fcWeights :: Lens (FCp i o) (FCp i' o) (L o i) (L o i')
@@ -1093,11 +1075,6 @@ type FCA i o = RMap (R o) (R o) (FC i o)
 --   
 --   Some common ones include <tt>logistic</tt> and <tt><a>vmap</a>
 --   <tt>reLU</tt></tt>.
-
--- | Construct an <tt><a>FCA</a> i o</tt> using a given distribution from
---   the <i>statistics</i> library.
-fca :: ContGen d => d -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R o)) -> FCA i o
-_fcaGen :: () => FCA i o -> forall (m :: * -> *). PrimMonad m => Gen PrimState m -> m Double
 _fcaActivation :: () => FCA i o -> forall s. Reifies s W => BVar s R o -> BVar s R o
 
 -- | Fully connected recurrent layer with bias.
@@ -1113,10 +1090,6 @@ _fcaActivation :: () => FCA i o -> forall s. Reifies s W => BVar s R o -> BVar s
 type FCR h i o = Recurrent (R (i + h)) (R i) (R h) (R o) (FC (i + h) o)
 
 -- | Construct an <a>FCR</a>
-
--- | Construct an <tt><a>FCR</a> h i o</tt> using given distributions from
---   the <i>statistics</i> library.
-fcr :: (KnownNat h, KnownNat i, ContGen d, ContGen e) => d -> e -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R h)) -> FCR h i o
 type FCRp h i o = FCp (i + h) o
 fcrBias :: Lens' (FCRp h i o) (R o)
 fcrInputWeights :: (KnownNat h, KnownNat i, KnownNat i', KnownNat o) => Lens (FCRp h i o) (FCRp h i' o) (L o i) (L o i')
@@ -1131,12 +1104,6 @@ type FCRA h i o = RMap (R o) (R o) (FCR h i o)
 --   
 --   Some common ones include <tt>logistic</tt> and <tt><a>vmap</a>
 --   <tt>reLU</tt></tt>.
-
--- | Construct an <tt><a>FCRA</a> h i o</tt> using given distributions from
---   the <i>statistics</i> library.
-fcra :: (KnownNat h, KnownNat i, ContGen d, ContGen e) => d -> e -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R h)) -> (forall s. Reifies s W => BVar s (R o) -> BVar s (R o)) -> FCRA h i o
-_fcraGen :: () => FCRA h i o -> forall (m :: * -> *). (PrimMonad m, KnownNat h, KnownNat i) => Gen PrimState m -> m Double
-_fcraGenState :: () => FCRA h i o -> forall (m :: * -> *). (PrimMonad m, KnownNat h, KnownNat i) => Gen PrimState m -> m R h
 _fcraStore :: () => FCRA h i o -> forall s. (Reifies s W, KnownNat h, KnownNat i) => BVar s R o -> BVar s R h
 _fcraActivation :: () => FCRA h i o -> forall s. (Reifies s W, KnownNat h, KnownNat i) => BVar s R o -> BVar s R o
 
@@ -1154,14 +1121,6 @@ module Backprop.Learn.Model.Neural.LSTM
 type LSTM i o = Recurrent (R (i + o)) (R i) (R o) (R o) (LSTM' i o)
 
 -- | Construct an <a>LSTM</a>
-
--- | Convenient wrapper over <a>LSTM</a> constructor taking distributions
---   from the <i>statistics</i> library.
-lstm :: (KnownNat i, KnownNat o, ContGen d, ContGen e, ContGen f) => d -> e -> f -> Bool -> LSTM i o
-_lstmGen :: () => LSTM i o -> forall (m :: * -> *). (PrimMonad m, KnownNat i, KnownNat o) => Gen PrimState m -> m Double
-_lstmGenCell :: () => LSTM i o -> forall (m :: * -> *). (PrimMonad m, KnownNat i, KnownNat o) => Gen PrimState m -> m Double
-_lstmGenState :: () => LSTM i o -> forall (m :: * -> *). (PrimMonad m, KnownNat i, KnownNat o) => Gen PrimState m -> m R o
-_lstmForgetBias :: () => LSTM i o -> KnownNat i -> KnownNat o -> Bool
 
 -- | <a>LSTM</a> layer parmateters
 data LSTMp (i :: Nat) (o :: Nat)
@@ -1181,10 +1140,7 @@ lstmOutput :: Lens' (LSTMp i o) (FCp (i + o) o)
 --   This is mostly an implementation detail. It is recommended that you
 --   use <a>LSTM</a> and its constructor, instead of directly using this.
 data LSTM' (i :: Nat) (o :: Nat)
-LSTM' :: forall m. PrimMonad m => Gen (PrimState m) -> m Double -> forall m. PrimMonad m => Gen (PrimState m) -> m Double -> Bool -> LSTM'
-[_lstmGen'] :: LSTM' -> forall m. PrimMonad m => Gen (PrimState m) -> m Double
-[_lstmGenCell'] :: LSTM' -> forall m. PrimMonad m => Gen (PrimState m) -> m Double
-[_lstmForgetBias'] :: LSTM' -> Bool
+LSTM' :: LSTM'
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Show.Show (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 instance GHC.Generics.Generic (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
@@ -1193,6 +1149,7 @@ instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Upda
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Neural.LSTM.LSTMp i o) v) => Numeric.Opto.Update.AdditiveInPlace m v (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Neural.LSTM.LSTMp i o) v) => Numeric.Opto.Update.ScalingInPlace m v GHC.Types.Double (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Initialize.Initialize (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Real.Fractional (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Float.Floating (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
