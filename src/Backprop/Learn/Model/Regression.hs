@@ -376,6 +376,9 @@ instance (KnownNat p, KnownNat d, KnownNat q, Ref m (ARIMAs p d q) v) => Additiv
 instance (KnownNat p, KnownNat q, Ref m (ARIMAp p q) v) => ScalingInPlace m v Double (ARIMAp p q)
 instance (KnownNat p, KnownNat d, KnownNat q, Ref m (ARIMAs p d q) v) => ScalingInPlace m v Double (ARIMAs p d q)
 
+instance (KnownNat p, KnownNat q) => Initialize (ARIMAp p q)
+instance (KnownNat p, KnownNat d, KnownNat q) => Initialize (ARIMAs p d q)
+
 arimaPhi :: Lens (ARIMAp p q) (ARIMAp p' q) (R p) (R p')
 arimaPhi f a = (\x' -> a { _arimaPhi = x' } ) <$> f (_arimaPhi a)
 

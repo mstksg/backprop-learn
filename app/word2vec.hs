@@ -1,11 +1,10 @@
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TupleSections         #-}
+{-# LANGUAGE TypeApplications      #-}
+{-# LANGUAGE TypeOperators         #-}
 
--- import           Data.Foldable
--- import           Data.Maybe
 import           Backprop.Learn
 import           Control.DeepSeq
 import           Control.Exception
@@ -24,7 +23,6 @@ import           GHC.TypeNats
 import           Numeric.Backprop.Tuple
 import           Numeric.LinearAlgebra.Static.Backprop
 import           Numeric.Opto
-import           Statistics.Distribution.Normal
 import           System.Environment
 import           Text.Printf
 import qualified Conduit                               as C
@@ -42,10 +40,10 @@ type Decoder n e = FCA e n
 type Word2Vec n e = Encoder n e :.~ Decoder n e
 
 encoder :: Encoder n e
-encoder = fca (normalDistr 0 0.2) logistic
+encoder = FCA logistic
 
 decoder :: KnownNat n => Decoder n e
-decoder = fca (normalDistr 0 0.2) softMax
+decoder = FCA softMax
 
 word2vec :: forall n e. KnownNat n => Word2Vec n e
 word2vec = encoder :.~ decoder
@@ -71,7 +69,7 @@ main = MWC.withSystemRandom @IO $ \g -> do
     printf "%d unique words found.\n" (natVal (Proxy @n))
 
     let model@(enc :.~ _) = word2vec @n @100
-    p0 <- fromJ_ $ initParam model g
+    p0 <- initParamNormal [model] 0.2 g
 
 
     let report n b = do

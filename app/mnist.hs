@@ -27,7 +27,6 @@ import           Data.Traversable
 import           Data.Tuple
 import           Numeric.LinearAlgebra.Static.Backprop
 import           Numeric.Opto
-import           Statistics.Distribution.Normal
 import           System.Environment
 import           System.FilePath
 import           Text.Printf
@@ -40,9 +39,9 @@ import qualified System.Random.MWC                     as MWC
 type MNISTNet = FCA 784 300 :.~ DO 300 :.~ FCA 300 10
 
 mnistNet :: MNISTNet
-mnistNet = fca (normalDistr 0 0.2) logistic
+mnistNet = FCA logistic
        :.~ DO 0.25
-       :.~ fca (normalDistr 0 0.2) softMax
+       :.~ FCA softMax
 
 main :: IO ()
 main = MWC.withSystemRandom $ \g -> do
@@ -52,7 +51,7 @@ main = MWC.withSystemRandom $ \g -> do
     Just test  <- loadMNIST (datadir </> "t10k-images-idx3-ubyte")
                             (datadir </> "t10k-labels-idx1-ubyte")
     putStrLn "Loaded data."
-    net0 <- fromJ_ $ initParam mnistNet g
+    net0 <- initParamNormal [mnistNet] 0.2 g
 
     let report n b = do
           liftIO $ printf "(Batch %d)\n" (b :: Int)
