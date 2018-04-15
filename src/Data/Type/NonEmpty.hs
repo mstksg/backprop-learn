@@ -24,7 +24,7 @@ module Data.Type.NonEmpty (
 
 import           Control.DeepSeq
 import           Data.Kind
-import           Data.List.NonEmpty        (NonEmpty(..))
+import           Data.List.NonEmpty     (NonEmpty(..))
 import           Data.Type.Length
 import           Lens.Micro
 import           Numeric.Backprop.Tuple
@@ -32,6 +32,7 @@ import           Numeric.Opto.Ref
 import           Numeric.Opto.Update
 import           Type.Class.Known
 import           Type.Family.List
+import qualified Data.Binary            as Bi
 
 data NETup :: NonEmpty Type -> Type where
     NET :: !a -> !(T as) -> NETup (a ':| as)
@@ -100,6 +101,11 @@ instance (Additive a, Additive (T as), Ref m (NETup (a ':| as)) v)
 instance (Scaling s a, Scaling s (T as), Ref m (NETup (a ':| as)) v)
         => ScalingInPlace m v s (NETup (a ':| as))
 
+instance (Bi.Binary a, ListC (Bi.Binary <$> as), Known Length as) => Bi.Binary (NETup (a ':| as)) where
+    get = NET <$> Bi.get
+              <*> Bi.get
+    put (NET x xs) = Bi.put x *> Bi.put xs
+
 netHead :: Lens (NETup (a ':| as)) (NETup (b ':| as)) a b
 netHead f (NET x xs) = (`NET` xs) <$> f x
 
@@ -112,4 +118,3 @@ unNet (NET x xs) = (x, xs)
 type family ToNonEmpty (l :: [k]) = (m :: Maybe (NonEmpty k)) | m -> l where
     ToNonEmpty '[]       = 'Nothing
     ToNonEmpty (a ': as) = 'Just (a ':| as)
-

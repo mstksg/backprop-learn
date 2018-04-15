@@ -33,8 +33,6 @@ import           Numeric.Backprop
 import           Numeric.LinearAlgebra.Static.Backprop
 import qualified Numeric.LinearAlgebra.Static          as H
 
--- TODO: get rid of FC, why is it even here
-
 -- | Fully connected feed-forward layer with bias.  Parameterized by its
 -- initialization distribution.
 --

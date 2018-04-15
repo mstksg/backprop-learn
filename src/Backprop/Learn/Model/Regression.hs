@@ -19,7 +19,7 @@
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise       #-}
 
 module Backprop.Learn.Model.Regression (
-    LinReg(..) 
+    LinReg(..)
   , LogReg, pattern LogReg
   , LRp(..), lrBeta, lrAlpha, runLRp
   , ARIMA(..), ARIMAp(..), ARIMAs(..)
@@ -56,13 +56,14 @@ import           Numeric.OneLiner
 import           Numeric.Opto.Ref
 import           Numeric.Opto.Update hiding            ((<.>))
 import           Unsafe.Coerce
+import qualified Data.Binary                           as Bi
 import qualified Data.Vector.Storable.Sized            as SVS
 import qualified Numeric.LinearAlgebra                 as HU
 import qualified Numeric.LinearAlgebra.Static          as H
 import qualified System.Random.MWC                     as MWC
 
 -- | Multivariate linear regression, from an i-vector to an o-vector.
-data LinReg (i :: Nat) (o :: Nat) = LinReg 
+data LinReg (i :: Nat) (o :: Nat) = LinReg
   deriving Typeable
 
 -- | Mutivariate Logistic regression, from an i-vector to an o-vector.
@@ -92,6 +93,7 @@ instance (KnownNat i, KnownNat o) => Scaling Double (LRp i o)
 instance (KnownNat i, KnownNat o) => Metric Double (LRp i o)
 instance (KnownNat i, KnownNat o, Ref m (LRp i o) v) => AdditiveInPlace m v (LRp i o)
 instance (KnownNat i, KnownNat o, Ref m (LRp i o) v) => ScalingInPlace m v Double (LRp i o)
+instance (KnownNat i, KnownNat o) => Bi.Binary (LRp i o)
 
 lrBeta :: Lens (LRp i o) (LRp i' o) (L o i) (L o i')
 lrBeta f lrp = (\w -> lrp { _lrBeta = w }) <$> f (_lrBeta lrp)
@@ -378,6 +380,9 @@ instance (KnownNat p, KnownNat d, KnownNat q, Ref m (ARIMAs p d q) v) => Scaling
 
 instance (KnownNat p, KnownNat q) => Initialize (ARIMAp p q)
 instance (KnownNat p, KnownNat d, KnownNat q) => Initialize (ARIMAs p d q)
+
+instance (KnownNat p, KnownNat q) => Bi.Binary (ARIMAp p q)
+instance (KnownNat p, KnownNat d, KnownNat q) => Bi.Binary (ARIMAs p d q)
 
 arimaPhi :: Lens (ARIMAp p q) (ARIMAp p' q) (R p) (R p')
 arimaPhi f a = (\x' -> a { _arimaPhi = x' } ) <$> f (_arimaPhi a)

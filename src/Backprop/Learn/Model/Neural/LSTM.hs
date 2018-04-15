@@ -29,15 +29,16 @@ import           Backprop.Learn.Model.Regression
 import           Backprop.Learn.Model.State
 import           Control.DeepSeq
 import           Data.Typeable
-import           GHC.Generics                                 (Generic)
+import           GHC.Generics                          (Generic)
 import           GHC.TypeNats
 import           Lens.Micro
 import           Numeric.Backprop
-import           Numeric.LinearAlgebra.Static.Backprop hiding ((&))
+import           Numeric.LinearAlgebra.Static.Backprop
 import           Numeric.OneLiner
 import           Numeric.Opto.Ref
 import           Numeric.Opto.Update
-import qualified Numeric.LinearAlgebra.Static                 as H
+import qualified Data.Binary                           as Bi
+import qualified Numeric.LinearAlgebra.Static          as H
 
 -- | "Base" for 'LSTM'.  An 'LSTM' is just an 'LSTM'' where the second half
 -- of the input vector is the previous output.
@@ -65,6 +66,7 @@ instance (KnownNat i, KnownNat o) => Scaling Double (LSTMp i o)
 instance (KnownNat i, KnownNat o) => Metric Double (LSTMp i o)
 instance (KnownNat i, KnownNat o, Ref m (LSTMp i o) v) => AdditiveInPlace m v (LSTMp i o)
 instance (KnownNat i, KnownNat o, Ref m (LSTMp i o) v) => ScalingInPlace m v Double (LSTMp i o)
+instance (KnownNat i, KnownNat o) => Bi.Binary (LSTMp i o)
 
 -- | Forget biases initialized to 1
 instance (KnownNat i, KnownNat o) => Initialize (LSTMp i o) where
