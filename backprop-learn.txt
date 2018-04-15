@@ -104,6 +104,7 @@ instance (Numeric.Opto.Update.Scaling c a, Numeric.Opto.Update.Scaling c (Numeri
 instance (Numeric.Opto.Update.Metric c a, Numeric.Opto.Update.Metric c (Numeric.Backprop.Tuple.T as), GHC.Classes.Ord c, GHC.Float.Floating c) => Numeric.Opto.Update.Metric c (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
 instance (Numeric.Opto.Update.Additive a, Numeric.Opto.Update.Additive (Numeric.Backprop.Tuple.T as), Numeric.Opto.Ref.Ref m (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as)) v) => Numeric.Opto.Update.AdditiveInPlace m v (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
 instance (Numeric.Opto.Update.Scaling s a, Numeric.Opto.Update.Scaling s (Numeric.Backprop.Tuple.T as), Numeric.Opto.Ref.Ref m (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as)) v) => Numeric.Opto.Update.ScalingInPlace m v s (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
+instance (Data.Binary.Class.Binary a, Type.Family.List.ListC (Data.Binary.Class.Binary Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => Data.Binary.Class.Binary (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
 
 module Backprop.Learn.Initialize
 
@@ -1024,6 +1025,7 @@ instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNa
 instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARIMAs p d q) v) => Numeric.Opto.Update.AdditiveInPlace m v (Backprop.Learn.Model.Regression.ARIMAs p d q)
 instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARIMAs p d q) v) => Numeric.Opto.Update.ScalingInPlace m v GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAs p d q)
 instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q) => Backprop.Learn.Initialize.Initialize (Backprop.Learn.Model.Regression.ARIMAs p d q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q) => Data.Binary.Class.Binary (Backprop.Learn.Model.Regression.ARIMAs p d q)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARIMAp p q)
 instance GHC.Num.Num (Backprop.Learn.Model.Regression.ARIMAp p q)
 instance GHC.Real.Fractional (Backprop.Learn.Model.Regression.ARIMAp p q)
@@ -1034,6 +1036,7 @@ instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Numeric.Opto.Upda
 instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARIMAp p q) v) => Numeric.Opto.Update.AdditiveInPlace m v (Backprop.Learn.Model.Regression.ARIMAp p q)
 instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARIMAp p q) v) => Numeric.Opto.Update.ScalingInPlace m v GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAp p q)
 instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Backprop.Learn.Initialize.Initialize (Backprop.Learn.Model.Regression.ARIMAp p q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Data.Binary.Class.Binary (Backprop.Learn.Model.Regression.ARIMAp p q)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.LRp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Initialize.Initialize (Backprop.Learn.Model.Regression.LRp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Additive (Backprop.Learn.Model.Regression.LRp i o)
@@ -1041,6 +1044,7 @@ instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Upda
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Regression.LRp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.LRp i o) v) => Numeric.Opto.Update.AdditiveInPlace m v (Backprop.Learn.Model.Regression.LRp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.LRp i o) v) => Numeric.Opto.Update.ScalingInPlace m v GHC.Types.Double (Backprop.Learn.Model.Regression.LRp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Data.Binary.Class.Binary (Backprop.Learn.Model.Regression.LRp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Model.Regression.LRp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Real.Fractional (Backprop.Learn.Model.Regression.LRp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Float.Floating (Backprop.Learn.Model.Regression.LRp i o)
@@ -1149,6 +1153,7 @@ instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Upda
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Neural.LSTM.LSTMp i o) v) => Numeric.Opto.Update.AdditiveInPlace m v (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Neural.LSTM.LSTMp i o) v) => Numeric.Opto.Update.ScalingInPlace m v GHC.Types.Double (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Data.Binary.Class.Binary (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Initialize.Initialize (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Real.Fractional (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
