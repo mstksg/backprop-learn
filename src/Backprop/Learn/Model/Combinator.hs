@@ -656,7 +656,7 @@ instance ( Learn a b l
 -- @
 --
 -- To "encode" after training this, get the encoder with 'kaeEncoder'.
-type KAutoencoder n l m = l :.~ FixedFunc (R n) (R n) :.~ m
+type KAutoencoder n l m = RMap (R n) (R n) l :.~ m
 
 -- | Construct a 'KAutoencoder'.
 --
@@ -669,17 +669,18 @@ kAutoencoder
     -> m
     -> Int
     -> KAutoencoder n l m
-kAutoencoder l m k = l :.~ FF (kSparse k) :.~ m
+kAutoencoder l m k = RM (kSparse k) l
+                 :.~ m
 
 kaeEncoder
     :: KAutoencoder n l m
     -> l
-kaeEncoder (l :.~ _ :.~ _) = l
+kaeEncoder (RM _ l :.~ _) = l
 
 kaeDecoder
     :: KAutoencoder n l m
     -> m
-kaeDecoder (_ :.~ _ :.~ m) = m
+kaeDecoder (_ :.~ m) = m
 
 -- TODO: KL-divergence autoencoders, a la
 -- <http://ufldl.stanford.edu/tutorial/unsupervised/Autoencoders/>.
