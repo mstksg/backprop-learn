@@ -1,18 +1,15 @@
 {-# LANGUAGE AllowAmbiguousTypes     #-}
 {-# LANGUAGE ConstraintKinds         #-}
 {-# LANGUAGE DataKinds               #-}
-{-# LANGUAGE DefaultSignatures       #-}
 {-# LANGUAGE FlexibleContexts        #-}
 {-# LANGUAGE FlexibleInstances       #-}
 {-# LANGUAGE FunctionalDependencies  #-}
 {-# LANGUAGE GADTs                   #-}
 {-# LANGUAGE KindSignatures          #-}
-{-# LANGUAGE LambdaCase              #-}
 {-# LANGUAGE MultiParamTypeClasses   #-}
 {-# LANGUAGE PatternSynonyms         #-}
 {-# LANGUAGE ScopedTypeVariables     #-}
 {-# LANGUAGE TupleSections           #-}
-{-# LANGUAGE TypeApplications        #-}
 {-# LANGUAGE TypeFamilies            #-}
 {-# LANGUAGE TypeFamilyDependencies  #-}
 {-# LANGUAGE TypeInType              #-}
@@ -25,7 +22,6 @@ module Backprop.Learn.Model.Class (
   , LParam, LState, LParams, LStates, NoParam, NoState
   , LParam_, LState_
   , stateless, statelessM
-  , initParam, initParamMaybe, initParamNormal, initParamNormalMaybe
   , runLearnStateless
   , runLearnStochStateless
   , Mayb(..), fromJ_, MaybeC, KnownMayb, knownMayb, I(..)
@@ -40,7 +36,6 @@ import           Data.Type.Mayb
 import           Data.Typeable
 import           Numeric.Backprop
 import           Numeric.Opto.Update
-import           Statistics.Distribution
 import           Type.Family.List          (type (++))
 import qualified GHC.TypeLits              as TL
 import qualified System.Random.MWC         as MWC
@@ -137,62 +132,6 @@ class Learn a b l | l -> a b where
         -> LState_ (BVar s) l
         -> m (BVar s b, LState_ (BVar s) l)
     runLearnStoch l _ p x s = pure (runLearn l p x s)
-
-initParamMaybe
-    :: forall l m d proxy.
-     ( MaybeC Initialize (LParamMaybe l)
-     , ContGen d
-     , PrimMonad m
-     , KnownMayb (LParamMaybe l)
-     )
-    => proxy l                            -- ^ ignored
-    -> d
-    -> MWC.Gen (PrimState m)
-    -> LParam_ m l
-initParamMaybe _ d g = case knownMayb @(LParamMaybe l) of
-                    N_            -> N_
-                    J_ (_ :: P p) -> J_ $ initialize @p d g
-
-initParam
-    :: forall l p m d proxy.
-     ( LParamMaybe l ~ 'Just p
-     , Initialize p
-     , ContGen d
-     , PrimMonad m
-     )
-    => proxy l                            -- ^ ignored
-    -> d
-    -> MWC.Gen (PrimState m)
-    -> m (LParam l)
-initParam _ = initialize @p
-
-initParamNormalMaybe
-    :: forall l m proxy.
-     ( MaybeC Initialize (LParamMaybe l)
-     , PrimMonad m
-     , KnownMayb (LParamMaybe l)
-     )
-    => proxy l                            -- ^ ignored
-    -> Double
-    -> MWC.Gen (PrimState m)
-    -> LParam_ m l
-initParamNormalMaybe _ d g = case knownMayb @(LParamMaybe l) of
-    N_            -> N_
-    J_ (_ :: P p) -> J_ $ initializeNormal @p d g
-
-
-initParamNormal
-    :: forall l p m proxy.
-     ( LParamMaybe l ~ 'Just p
-     , Initialize p
-     , PrimMonad m
-     )
-    => proxy l                            -- ^ ignored
-    -> Double
-    -> MWC.Gen (PrimState m)
-    -> m (LParam l)
-initParamNormal _ = initializeNormal @p
-
 
 -- | Useful for defining 'runLearn' if your model has no state.
 stateless

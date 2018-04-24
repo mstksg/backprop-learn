@@ -704,7 +704,7 @@ kaeDecoder (_ :.~ m) = m
 -- -- To /use/ the autoencoder after training it, just pattern match on 'AE'
 -- -- or use '_aeEncode' (or '_aeDecode')
 -- type Autoencoder n l m = l :.~ (FixedFunc (R n) Double :&&& m)
--- 
+--
 -- -- | Construct an 'Autoencoder' by giving the encoder and decoder.
 -- pattern AE
 --     :: (Learn a (R n) l, Learn (R n) a m, 1 <= n, KnownNat n)

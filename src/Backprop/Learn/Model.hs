@@ -1,6 +1,9 @@
 {-# LANGUAGE BangPatterns           #-}
+{-# LANGUAGE DataKinds              #-}
+{-# LANGUAGE FlexibleContexts       #-}
 {-# LANGUAGE GADTs                  #-}
 {-# LANGUAGE LambdaCase             #-}
+{-# LANGUAGE ScopedTypeVariables    #-}
 {-# LANGUAGE TupleSections          #-}
 {-# LANGUAGE TypeApplications       #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
@@ -9,6 +12,9 @@ module Backprop.Learn.Model (
     module M
   , runLearn_, runLearnStoch_, runLearnStateless_, runLearnStochStateless_
   , gradLearn, gradLearnStoch
+  -- * Work with parameters
+  , initParam, initParamMaybe, initParamNormal, initParamNormalMaybe
+  , encodeParam, decodeParam, decodeParamOrFail, saveParam, loadParam, loadParamOrFail
   -- * Iterated runners
   , iterateLearn, iterateLearnM, iterateLearnStoch
   , scanLearn, scanLearnStoch
@@ -19,6 +25,7 @@ module Backprop.Learn.Model (
   , primeLearn, primeLearnStoch, selfPrime, selfPrimeM
   ) where
 
+import           Backprop.Learn.Initialize
 import           Backprop.Learn.Model.Class       as M
 import           Backprop.Learn.Model.Combinator  as M
 import           Backprop.Learn.Model.Function    as M
@@ -34,9 +41,13 @@ import           Control.Monad.Trans.State
 import           Data.Bifunctor
 import           Data.Foldable
 import           Data.Functor.Identity
+import           Data.Type.Mayb
 import           Data.Word
 import           Numeric.Backprop
 import           Numeric.Backprop.Tuple
+import           Statistics.Distribution
+import qualified Data.Binary                      as Bi
+import qualified Data.ByteString.Lazy             as BSL
 import qualified Data.Vector.Unboxed              as VU
 import qualified System.Random.MWC                as MWC
 
@@ -325,3 +336,102 @@ primeLearnStoch
     -> m (LState_ I l)
 primeLearnStoch l g p = execStateT . traverse_ (StateT . runLearnStoch_ l g p)
 
+initParamMaybe
+    :: forall l m d proxy.
+     ( MaybeC Initialize (LParamMaybe l)
+     , ContGen d
+     , PrimMonad m
+     , KnownMayb (LParamMaybe l)
+     )
+    => proxy l                            -- ^ ignored
+    -> d
+    -> MWC.Gen (PrimState m)
+    -> LParam_ m l
+initParamMaybe _ d g = case knownMayb @(LParamMaybe l) of
+                    N_            -> N_
+                    J_ (_ :: P p) -> J_ $ initialize @p d g
+
+initParam
+    :: forall l m d proxy.
+     ( Initialize (LParam l)
+     , ContGen d
+     , PrimMonad m
+     )
+    => proxy l                            -- ^ ignored
+    -> d
+    -> MWC.Gen (PrimState m)
+    -> m (LParam l)
+initParam _ = initialize
+
+initParamNormalMaybe
+    :: forall l m proxy.
+     ( MaybeC Initialize (LParamMaybe l)
+     , PrimMonad m
+     , KnownMayb (LParamMaybe l)
+     )
+    => proxy l                            -- ^ ignored
+    -> Double
+    -> MWC.Gen (PrimState m)
+    -> LParam_ m l
+initParamNormalMaybe _ d g = case knownMayb @(LParamMaybe l) of
+    N_            -> N_
+    J_ (_ :: P p) -> J_ $ initializeNormal @p d g
+
+
+initParamNormal
+    :: forall l m proxy.
+     ( Initialize (LParam l)
+     , PrimMonad m
+     )
+    => proxy l                            -- ^ ignored
+    -> Double
+    -> MWC.Gen (PrimState m)
+    -> m (LParam l)
+initParamNormal _ = initializeNormal
+
+encodeParam
+    :: Bi.Binary (LParam l)
+    => proxy l                              -- ^ ignored
+    -> LParam l
+    -> BSL.ByteString
+encodeParam _ = Bi.encode
+
+decodeParam
+    :: Bi.Binary (LParam l)
+    => proxy l                              -- ^ ignored
+    -> BSL.ByteString
+    -> LParam l
+decodeParam _ = Bi.decode
+
+decodeParamOrFail
+    :: Bi.Binary (LParam l)
+    => proxy l                              -- ^ ignored
+    -> BSL.ByteString
+    -> Either String (LParam l)
+decodeParamOrFail _ = bimap thrd thrd . Bi.decodeOrFail
+
+saveParam
+    :: Bi.Binary (LParam l)
+    => proxy l
+    -> FilePath
+    -> LParam l
+    -> IO ()
+saveParam p fp = BSL.writeFile fp . encodeParam p
+
+loadParam
+    :: Bi.Binary (LParam l)
+    => proxy l
+    -> FilePath
+    -> IO (LParam l)
+loadParam p fp = decodeParam p <$> BSL.readFile fp
+
+loadParamOrFail
+    :: Bi.Binary (LParam l)
+    => proxy l
+    -> FilePath
+    -> IO (Either String (LParam l))
+loadParamOrFail p fp = decodeParamOrFail p <$> BSL.readFile fp
+
+
+thrd :: (a,b,c) -> c
+thrd (_,_,z) = z
