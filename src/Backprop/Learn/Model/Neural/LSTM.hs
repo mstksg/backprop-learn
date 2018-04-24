@@ -8,6 +8,8 @@
 {-# LANGUAGE PatternSynonyms                          #-}
 {-# LANGUAGE RankNTypes                               #-}
 {-# LANGUAGE RecordWildCards                          #-}
+{-# LANGUAGE ScopedTypeVariables                      #-}
+{-# LANGUAGE TypeApplications                         #-}
 {-# LANGUAGE TypeFamilies                             #-}
 {-# LANGUAGE TypeInType                               #-}
 {-# LANGUAGE TypeOperators                            #-}
@@ -16,9 +18,14 @@
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise       #-}
 
 module Backprop.Learn.Model.Neural.LSTM (
+    -- * Basic LSTM
     LSTM, pattern LSTM
   , LSTMp(..), lstmForget, lstmInput, lstmUpdate, lstmOutput
   , LSTM'(..)
+    -- * GRU
+  , GRU, pattern GRU
+  , GRUp(..), gruMemory, gruUpdate, gruOutput
+  , GRU'(..)
   ) where
 
 import           Backprop.Learn.Initialize
@@ -150,4 +157,107 @@ pattern LSTM <- Rec { _recLearn = LSTM' }
       , _recJoin  = (H.#)
       , _recLoop  = id
       , _recLearn = LSTM'
+      }
+
+-- | "Base" for 'GRU'.  An 'GRU' is just an 'GRU'' where the second half
+-- of the input vector is the previous output.
+--
+-- This is mostly an implementation detail.  It is recommended that you use
+-- 'GRU' and its constructor, instead of directly using this.
+data GRU' (i :: Nat) (o :: Nat) = GRU'
+  deriving (Typeable)
+
+
+-- | 'GRU' layer parmateters
+data GRUp (i :: Nat) (o :: Nat) =
+    GRUp { _gruMemory :: !(FCp (i + o) o)
+         , _gruUpdate :: !(FCp (i + o) o)
+         , _gruOutput :: !(FCp (i + o) o)
+         }
+  deriving (Generic, Typeable, Show)
+
+instance NFData (GRUp i o)
+instance (KnownNat i, KnownNat o) => Additive (GRUp i o)
+instance (KnownNat i, KnownNat o) => Scaling Double (GRUp i o)
+instance (KnownNat i, KnownNat o) => Metric Double (GRUp i o)
+instance (KnownNat i, KnownNat o, Ref m (GRUp i o) v) => AdditiveInPlace m v (GRUp i o)
+instance (KnownNat i, KnownNat o, Ref m (GRUp i o) v) => ScalingInPlace m v Double (GRUp i o)
+instance (KnownNat i, KnownNat o) => Bi.Binary (GRUp i o)
+
+-- | Forget biases initialized to 1
+instance (KnownNat i, KnownNat o) => Initialize (GRUp i o) where
+    initialize d g = GRUp <$> initialize d g
+                          <*> initialize d g
+                          <*> initialize d g
+
+instance (KnownNat i, KnownNat o) => Num (GRUp i o) where
+    (+)         = gPlus
+    (-)         = gMinus
+    (*)         = gTimes
+    negate      = gNegate
+    abs         = gAbs
+    signum      = gSignum
+    fromInteger = gFromInteger
+
+instance (KnownNat i, KnownNat o) => Fractional (GRUp i o) where
+    (/)          = gDivide
+    recip        = gRecip
+    fromRational = gFromRational
+
+instance (KnownNat i, KnownNat o) => Floating (GRUp i o) where
+    pi    = gPi
+    sqrt  = gSqrt
+    exp   = gExp
+    log   = gLog
+    sin   = gSin
+    cos   = gCos
+    asin  = gAsin
+    acos  = gAcos
+    atan  = gAtan
+    sinh  = gSinh
+    cosh  = gCosh
+    asinh = gAsinh
+    acosh = gAcosh
+    atanh = gAtanh
+
+gruMemory :: Lens' (GRUp i o) (FCp (i + o) o)
+gruMemory f x = (\y -> x { _gruMemory = y }) <$> f (_gruMemory x)
+
+gruUpdate :: Lens' (GRUp i o) (FCp (i + o) o)
+gruUpdate f x = (\y -> x { _gruUpdate = y }) <$> f (_gruUpdate x)
+
+gruOutput :: Lens' (GRUp i o) (FCp (i + o) o)
+gruOutput f x = (\y -> x { _gruOutput = y }) <$> f (_gruOutput x)
+
+instance (KnownNat i, KnownNat o, KnownNat io, io ~ (i + o)) => Learn (R io) (R o) (GRU' i o) where
+    type LParamMaybe (GRU' i o) = 'Just (GRUp i o)
+    type LStateMaybe (GRU' i o) = 'Nothing
+
+    runLearn GRU' (J_ p) = stateless $ \x ->
+        let z      = logistic $ runLRp (p ^^. gruMemory) x
+            r      = logistic $ runLRp (p ^^. gruUpdate) x
+            r'     = 1 # r
+            h'     = tanh     $ runLRp (p ^^. gruOutput) (r' * x)
+        in  (1 - z) * snd (split @i x) + z * h'
+
+-- | Gated Recurrent Unit
+--
+-- <http://colah.github.io/posts/2015-08-Understanding-LSTMs/>
+--
+-- @
+-- instance 'Learn' ('R' i) (R o) ('GRU' i o) where
+--     type 'LParamMaybe' (GRU i o) = ''Just' ('GRUp' i o)
+--     type 'LStateMaybe' (GRU i o) = 'Just (R o)
+-- @
+type GRU i o = Recurrent (R (i + o)) (R i) (R o) (R o) (GRU' i o)
+
+-- | Construct an 'GRU'
+pattern GRU :: (KnownNat i, KnownNat o) => GRU i o
+pattern GRU <- Rec { _recLearn = GRU' }
+  where
+    GRU = Rec
+      { _recSplit = H.split
+      , _recJoin  = (H.#)
+      , _recLoop  = id
+      , _recLearn = GRU'
       }
