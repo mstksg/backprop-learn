@@ -200,10 +200,6 @@ stateless :: (a -> b) -> (a -> s -> (b, s))
 
 -- | Useful for defining <a>runLearnStoch</a> if your model has no state.
 statelessM :: Functor m => (a -> m b) -> (a -> s -> m (b, s))
-initParam :: forall l p m d proxy. (LParamMaybe l ~  'Just p, Initialize p, ContGen d, PrimMonad m) => proxy l -> d -> Gen (PrimState m) -> m (LParam l)
-initParamMaybe :: forall l m d proxy. (MaybeC Initialize (LParamMaybe l), ContGen d, PrimMonad m, KnownMayb (LParamMaybe l)) => proxy l -> d -> Gen (PrimState m) -> LParam_ m l
-initParamNormal :: forall l p m proxy. (LParamMaybe l ~  'Just p, Initialize p, PrimMonad m) => proxy l -> Double -> Gen (PrimState m) -> m (LParam l)
-initParamNormalMaybe :: forall l m proxy. (MaybeC Initialize (LParamMaybe l), PrimMonad m, KnownMayb (LParamMaybe l)) => proxy l -> Double -> Gen (PrimState m) -> LParam_ m l
 runLearnStateless :: (Learn a b l, Reifies s W, NoState l) => l -> LParam_ (BVar s) l -> BVar s a -> BVar s b
 runLearnStochStateless :: (Learn a b l, Reifies s W, NoState l, PrimMonad m) => l -> Gen (PrimState m) -> LParam_ (BVar s) l -> BVar s a -> m (BVar s b)
 data Mayb :: (k -> Type) -> Maybe k -> Type
@@ -1212,6 +1208,16 @@ runLearnStateless_ :: (Learn a b l, NoState l) => l -> LParam_ I l -> a -> b
 runLearnStochStateless_ :: (Learn a b l, NoState l, PrimMonad m) => l -> Gen (PrimState m) -> LParam_ I l -> a -> m b
 gradLearn :: (Learn a b l, NoState l, Num a, Num b, MaybeC Num (LParamMaybe l)) => l -> LParam_ I l -> a -> (LParam_ I l, a)
 gradLearnStoch :: (Learn a b l, NoState l, Num a, Num b, MaybeC Num (LParamMaybe l), PrimMonad m) => l -> Gen (PrimState m) -> LParam_ I l -> a -> m (LParam_ I l, a)
+initParam :: forall l m d proxy. (Initialize (LParam l), ContGen d, PrimMonad m) => proxy l -> d -> Gen (PrimState m) -> m (LParam l)
+initParamMaybe :: forall l m d proxy. (MaybeC Initialize (LParamMaybe l), ContGen d, PrimMonad m, KnownMayb (LParamMaybe l)) => proxy l -> d -> Gen (PrimState m) -> LParam_ m l
+initParamNormal :: forall l m proxy. (Initialize (LParam l), PrimMonad m) => proxy l -> Double -> Gen (PrimState m) -> m (LParam l)
+initParamNormalMaybe :: forall l m proxy. (MaybeC Initialize (LParamMaybe l), PrimMonad m, KnownMayb (LParamMaybe l)) => proxy l -> Double -> Gen (PrimState m) -> LParam_ m l
+encodeParam :: Binary (LParam l) => proxy l -> LParam l -> ByteString
+decodeParam :: Binary (LParam l) => proxy l -> ByteString -> LParam l
+decodeParamOrFail :: Binary (LParam l) => proxy l -> ByteString -> Either String (LParam l)
+saveParam :: Binary (LParam l) => proxy l -> FilePath -> LParam l -> IO ()
+loadParam :: Binary (LParam l) => proxy l -> FilePath -> IO (LParam l)
+loadParamOrFail :: Binary (LParam l) => proxy l -> FilePath -> IO (Either String (LParam l))
 iterateLearn :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l)) => (b -> a) -> Int -> l -> LParam_ I l -> a -> LState_ I l -> ([b], LState_ I l)
 iterateLearnM :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), Monad m) => (b -> m a) -> Int -> l -> LParam_ I l -> a -> LState_ I l -> m ([b], LState_ I l)
 iterateLearnStoch :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m) => (b -> m a) -> Int -> l -> Gen (PrimState m) -> LParam_ I l -> a -> LState_ I l -> m ([b], LState_ I l)
