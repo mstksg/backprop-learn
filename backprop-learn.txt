@@ -866,7 +866,7 @@ data (:&&&) :: Type -> Type -> Type
 --   
 --   To "encode" after training this, get the encoder with
 --   <a>kaeEncoder</a>.
-type KAutoencoder n l m = l :.~ FixedFunc (R n) (R n) :.~ m
+type KAutoencoder n l m = RMap (R n) (R n) l :.~ m
 
 -- | Construct a <a>KAutoencoder</a>.
 --   
