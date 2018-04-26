@@ -941,11 +941,22 @@ lrBeta :: Lens (LRp i o) (LRp i' o) (L o i) (L o i')
 lrAlpha :: Lens' (LRp i o) (R o)
 runLRp :: (KnownNat i, KnownNat o, Reifies s W) => BVar s (LRp i o) -> BVar s (R i) -> BVar s (R o)
 
--- | Adjust an <a>LRp</a> to take extra inputs, initialized randomly
-addInput :: (PrimMonad m, ContGen d, KnownNat i, KnownNat j, KnownNat o) => LRp i o -> d -> Gen (PrimState m) -> m (LRp (i + j) o)
+-- | Adjust an <a>LRp</a> to take extra inputs, initialized randomly.
+--   
+--   Initial contributions to each output is randomized.
+expandInput :: (PrimMonad m, ContGen d, KnownNat i, KnownNat j, KnownNat o) => LRp i o -> d -> Gen (PrimState m) -> m (LRp (i + j) o)
 
 -- | Adjust an <a>LRp</a> to return extra ouputs, initialized randomly
-addOutput :: (PrimMonad m, ContGen d, KnownNat i, KnownNat o, KnownNat p) => LRp i o -> d -> Gen (PrimState m) -> m (LRp i (o + p))
+expandOutput :: (PrimMonad m, ContGen d, KnownNat i, KnownNat o, KnownNat p) => LRp i o -> d -> Gen (PrimState m) -> m (LRp i (o + p))
+
+-- | Premute (or remove) inputs
+--   
+--   Removed inputs will simply have their contributions removed from each
+--   output.
+reshapeInput :: KnownNat i => Vector i' (Finite i) -> LRp i o -> LRp i' o
+
+-- | Premute (or remove) outputs
+reshapeOutput :: KnownNat o => Vector o' (Finite o) -> LRp i o -> LRp i o'
 
 -- | Auto-regressive integrated moving average model.
 --   
