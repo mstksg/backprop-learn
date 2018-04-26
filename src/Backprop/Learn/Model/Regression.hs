@@ -23,7 +23,7 @@ module Backprop.Learn.Model.Regression (
     LinReg(..)
   , LogReg, pattern LogReg
   , LRp(..), lrBeta, lrAlpha, runLRp
-  , addInput, addOutput
+  , expandInput, expandOutput, reshapeInput, reshapeOutput
   , ARIMA(..), ARIMAp(..), ARIMAs(..)
   , ARIMAUnroll, arimaUnroll
   , ARIMAUnrollFinal, arimaUnrollFinal
@@ -60,6 +60,8 @@ import           Numeric.Opto.Update hiding            ((<.>))
 import           Statistics.Distribution
 import           Unsafe.Coerce
 import qualified Data.Binary                           as Bi
+import qualified Data.Vector.Generic.Sized             as SVG
+import qualified Data.Vector.Sized                     as SV
 import qualified Data.Vector.Storable.Sized            as SVS
 import qualified Numeric.LinearAlgebra                 as HU
 import qualified Numeric.LinearAlgebra.Static          as H
@@ -148,25 +150,50 @@ instance (KnownNat i, KnownNat o) => Learn (R i) (R o) (LinReg i o) where
     runLearn _ (J_ p) = stateless (runLRp p)
 
 -- | Adjust an 'LRp' to take extra inputs, initialized randomly
-addInput
+expandInput
     :: (PrimMonad m, ContGen d, KnownNat i, KnownNat j, KnownNat o)
     => LRp i o
     -> d
     -> MWC.Gen (PrimState m)
     -> m (LRp (i + j) o)
-addInput LRp{..} d g = LRp _lrAlpha . (_lrBeta H.|||) <$> initialize d g
+expandInput LRp{..} d g = LRp _lrAlpha . (_lrBeta H.|||) <$> initialize d g
 
 -- | Adjust an 'LRp' to return extra ouputs, initialized randomly
-addOutput
+expandOutput
     :: (PrimMonad m, ContGen d, KnownNat i, KnownNat o, KnownNat p)
     => LRp i o
     -> d
     -> MWC.Gen (PrimState m)
     -> m (LRp i (o + p))
-addOutput LRp{..} d g = do
+expandOutput LRp{..} d g = do
     newAlpha <- initialize d g
     newBeta  <- initialize d g
     pure (LRp (_lrAlpha H.# newAlpha) (_lrBeta H.=== newBeta))
+
+-- | Premute (or remove) inputs
+reshapeInput
+    :: KnownNat i
+    => SV.Vector i' (Finite i)
+    -> LRp i o
+    -> LRp i' o
+reshapeInput is p = p { _lrBeta = colsL . fmap (β `SV.index`) $ is
+                      }
+  where
+    β = lCols (_lrBeta p)
+
+-- | Premute (or remove) outputs
+reshapeOutput
+    :: KnownNat o
+    => SV.Vector o' (Finite o)
+    -> LRp i o
+    -> LRp i o'
+reshapeOutput is LRp{..} =
+    LRp { _lrAlpha = vecR . SVG.convert . fmap (α `SVS.index`) $ is
+        , _lrBeta  = rowsL . fmap (β `SV.index`) $ is
+        }
+  where
+    α = rVec _lrAlpha
+    β = lRows _lrBeta
 
 
 -- | Auto-regressive integrated moving average model.
