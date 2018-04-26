@@ -184,7 +184,6 @@ instance (KnownNat i, KnownNat o, Ref m (GRUp i o) v) => AdditiveInPlace m v (GR
 instance (KnownNat i, KnownNat o, Ref m (GRUp i o) v) => ScalingInPlace m v Double (GRUp i o)
 instance (KnownNat i, KnownNat o) => Bi.Binary (GRUp i o)
 
--- | Forget biases initialized to 1
 instance (KnownNat i, KnownNat o) => Initialize (GRUp i o) where
     initialize d g = GRUp <$> initialize d g
                           <*> initialize d g

@@ -343,6 +343,8 @@ preLU α x | x < 0     = α * x
 
 -- | Exponential linear unit
 --
+-- To use with vectors ('R'), use 'vmap''.
+--
 -- To use as a learned parameter:
 --
 -- @
@@ -354,7 +356,7 @@ preLU α x | x < 0     = α * x
 -- To fix the paramater, just partially apply a parameter:
 --
 -- @
--- 'eLU' 0.01 :: 'BVar' s ('R' n) -> BVar s (R n)
+-- 'vmap'' ('eLU' 0.01) :: 'BVar' s ('R' n) -> BVar s (R n)
 -- @
 --
 -- \[

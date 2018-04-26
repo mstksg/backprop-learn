@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes                      #-}
+{-# LANGUAGE ApplicativeDo                            #-}
 {-# LANGUAGE DeriveDataTypeable                       #-}
 {-# LANGUAGE DeriveGeneric                            #-}
 {-# LANGUAGE FlexibleContexts                         #-}
@@ -22,6 +23,7 @@ module Backprop.Learn.Model.Regression (
     LinReg(..)
   , LogReg, pattern LogReg
   , LRp(..), lrBeta, lrAlpha, runLRp
+  , addInput, addOutput
   , ARIMA(..), ARIMAp(..), ARIMAs(..)
   , ARIMAUnroll, arimaUnroll
   , ARIMAUnrollFinal, arimaUnrollFinal
@@ -55,6 +57,7 @@ import           Numeric.LinearAlgebra.Static.Vector
 import           Numeric.OneLiner
 import           Numeric.Opto.Ref
 import           Numeric.Opto.Update hiding            ((<.>))
+import           Statistics.Distribution
 import           Unsafe.Coerce
 import qualified Data.Binary                           as Bi
 import qualified Data.Vector.Storable.Sized            as SVS
@@ -143,6 +146,28 @@ instance (KnownNat i, KnownNat o) => Learn (R i) (R o) (LinReg i o) where
     type LParamMaybe (LinReg i o) = 'Just (LRp i o)
 
     runLearn _ (J_ p) = stateless (runLRp p)
+
+-- | Adjust an 'LRp' to take extra inputs, initialized randomly
+addInput
+    :: (PrimMonad m, ContGen d, KnownNat i, KnownNat j, KnownNat o)
+    => LRp i o
+    -> d
+    -> MWC.Gen (PrimState m)
+    -> m (LRp (i + j) o)
+addInput LRp{..} d g = LRp _lrAlpha . (_lrBeta H.|||) <$> initialize d g
+
+-- | Adjust an 'LRp' to return extra ouputs, initialized randomly
+addOutput
+    :: (PrimMonad m, ContGen d, KnownNat i, KnownNat o, KnownNat p)
+    => LRp i o
+    -> d
+    -> MWC.Gen (PrimState m)
+    -> m (LRp i (o + p))
+addOutput LRp{..} d g = do
+    newAlpha <- initialize d g
+    newBeta  <- initialize d g
+    pure (LRp (_lrAlpha H.# newAlpha) (_lrBeta H.=== newBeta))
+
 
 -- | Auto-regressive integrated moving average model.
 --
