@@ -665,6 +665,8 @@ sreLUPFP :: (KnownNat n, Reifies s W) => BVar s (T2 (T2 Double Double) (T2 Doubl
 
 -- | Exponential linear unit
 --   
+--   To use with vectors (<a>R</a>), use <a>vmap'</a>.
+--   
 --   To use as a learned parameter:
 --   
 --   <pre>
@@ -676,7 +678,7 @@ sreLUPFP :: (KnownNat n, Reifies s W) => BVar s (T2 (T2 Double Double) (T2 Doubl
 --   To fix the paramater, just partially apply a parameter:
 --   
 --   <pre>
---   <a>eLU</a> 0.01 :: <a>BVar</a> s (<a>R</a> n) -&gt; BVar s (R n)
+--   <a>vmap'</a> (<a>eLU</a> 0.01) :: <a>BVar</a> s (<a>R</a> n) -&gt; BVar s (R n)
 --   </pre>
 --   
 --   &lt;math&gt;
@@ -938,6 +940,12 @@ LRp :: !(R o) -> !(L o i) -> LRp i o
 lrBeta :: Lens (LRp i o) (LRp i' o) (L o i) (L o i')
 lrAlpha :: Lens' (LRp i o) (R o)
 runLRp :: (KnownNat i, KnownNat o, Reifies s W) => BVar s (LRp i o) -> BVar s (R i) -> BVar s (R o)
+
+-- | Adjust an <a>LRp</a> to take extra inputs, initialized randomly
+addInput :: (PrimMonad m, ContGen d, KnownNat i, KnownNat j, KnownNat o) => LRp i o -> d -> Gen (PrimState m) -> m (LRp (i + j) o)
+
+-- | Adjust an <a>LRp</a> to return extra ouputs, initialized randomly
+addOutput :: (PrimMonad m, ContGen d, KnownNat i, KnownNat o, KnownNat p) => LRp i o -> d -> Gen (PrimState m) -> m (LRp i (o + p))
 
 -- | Auto-regressive integrated moving average model.
 --   
