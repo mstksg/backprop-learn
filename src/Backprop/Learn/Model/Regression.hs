@@ -149,7 +149,9 @@ instance (KnownNat i, KnownNat o) => Learn (R i) (R o) (LinReg i o) where
 
     runLearn _ (J_ p) = stateless (runLRp p)
 
--- | Adjust an 'LRp' to take extra inputs, initialized randomly
+-- | Adjust an 'LRp' to take extra inputs, initialized randomly.
+--
+-- Initial contributions to each output is randomized.
 expandInput
     :: (PrimMonad m, ContGen d, KnownNat i, KnownNat j, KnownNat o)
     => LRp i o
@@ -171,13 +173,15 @@ expandOutput LRp{..} d g = do
     pure (LRp (_lrAlpha H.# newAlpha) (_lrBeta H.=== newBeta))
 
 -- | Premute (or remove) inputs
+--
+-- Removed inputs will simply have their contributions removed from each
+-- output.
 reshapeInput
     :: KnownNat i
     => SV.Vector i' (Finite i)
     -> LRp i o
     -> LRp i' o
-reshapeInput is p = p { _lrBeta = colsL . fmap (β `SV.index`) $ is
-                      }
+reshapeInput is p = p { _lrBeta = colsL . fmap (β `SV.index`) $ is }
   where
     β = lCols (_lrBeta p)
 
@@ -230,6 +234,7 @@ data ARIMA :: Nat -> Nat -> Nat -> Type where
 --     type 'LStateMaybe' (ARIMAUnroll p q) = 'Nothing
 -- @
 type ARIMAUnroll p d q = DeParamAt (T2 (ARIMAp p q) (ARIMAs p d q))
+                                   (T2 (ARIMAp p q) (T2 Double (R (p + d))))
                                    (R q)
                                    (UnrollTrainState (Max (p + d) q) (ARIMA p d q))
 
@@ -243,9 +248,20 @@ type ARIMAUnroll p d q = DeParamAt (T2 (ARIMAp p q) (ARIMAs p d q))
 --     type 'LStateMaybe' (ARIMAUnrollFinal p q) = 'Nothing
 -- @
 type ARIMAUnrollFinal p d q = DeParamAt (T2 (ARIMAp p q) (ARIMAs p d q))
+                                        (T2 (ARIMAp p q) (T2 Double (R (p + d))))
                                         (R q)
                                         (UnrollFinalTrainState (Max (p + d) q) (ARIMA p d q))
 
+splitHist
+    :: T2 (ARIMAp p q) (ARIMAs p d q)
+    -> (T2 (ARIMAp p q) (T2 Double (R (p + d))), R q)
+splitHist (T2 p ARIMAs{..}) = (T2 p (T2 _arimaYPred _arimaYHist), _arimaEHist)
+
+joinHist
+    :: T2 (ARIMAp p q) (T2 Double (R (p + d)))
+    -> R q
+    -> T2 (ARIMAp p q) (ARIMAs p d q)
+joinHist (T2 p (T2 _arimaYPred _arimaYHist)) _arimaEHist = T2 p ARIMAs{..}
 
 -- | Constructor for 'ARIMAUnroll'
 arimaUnroll
@@ -253,9 +269,10 @@ arimaUnroll
     => ARIMA p d q
     -> ARIMAUnroll p d q
 arimaUnroll a@ARIMA{..} = DPA
-    { _dpaParam      = 0
+    { _dpaSplit      = splitHist
+    , _dpaJoin       = joinHist
+    , _dpaParam      = 0
     , _dpaParamStoch = fmap vecR . SVS.replicateM . _arimaGenEHist
-    , _dpaLens       = t2_2 . arimaEHist
     , _dpaLearn      = UnrollTrainState a
     }
 
@@ -265,9 +282,10 @@ arimaUnrollFinal
     => ARIMA p d q
     -> ARIMAUnrollFinal p d q
 arimaUnrollFinal a@ARIMA{..} = DPA
-    { _dpaParam      = 0
+    { _dpaSplit      = splitHist
+    , _dpaJoin       = joinHist
+    , _dpaParam      = 0
     , _dpaParamStoch = fmap vecR . SVS.replicateM . _arimaGenEHist
-    , _dpaLens       = t2_2 . arimaEHist
     , _dpaLearn      = UnrollFinalTrainState a
     }
 
@@ -284,9 +302,9 @@ data ARIMAp :: Nat -> Nat -> Type where
 -- | 'ARIMA' state
 data ARIMAs :: Nat -> Nat -> Nat -> Type where
     ARIMAs :: { _arimaYPred :: !Double
-             , _arimaYHist :: !(R (p + d))
-             , _arimaEHist :: !(R q)
-             }
+              , _arimaYHist :: !(R (p + d))
+              , _arimaEHist :: !(R q)
+              }
           -> ARIMAs p d q
   deriving (Generic, Show)
 

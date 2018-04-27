@@ -25,7 +25,6 @@ import           Backprop.Learn.Model.Class
 import           Control.Monad.Primitive
 import           Data.Kind
 import           Data.Typeable
-import           Lens.Micro
 import           Numeric.Backprop
 import qualified System.Random.MWC          as MWC
 
@@ -57,41 +56,39 @@ instance (Learn a b l, LParamMaybe l ~ 'Just p) => Learn a b (DeParam p l) where
       p <- constVar <$> _dpParamStoch g
       runLearnStoch _dpLearn g (J_ p) x s
 
--- | Wrapping a mode with @'DeParamAt' p q@ will fix a specific part of the
--- parameter type @p@ to a given fixed (or stochastic with a fixed
--- distribution) value of type @q@.  That field is not backpropagated, and
--- so its gradient will always be zero.
+-- | Wrapping a mode with @'DeParamAt' pq p q@ says that the mode's
+-- parameter @pq@ can be split into @p@ and @q@, and fixes @q@ to a given
+-- fixed (or stochastic with a fixed distribution) value.  The model now
+-- effectively has parameter @p@ only, and the @q@ part will not be
+-- backpropagated.
 --
--- The part is specified using a 'Lens''.  This really only makes sense if
--- @p@ is a record, and the lens points to a field (or multiple fields, to
--- a tuple) of the record.
---
--- 'DeParam' is essentially 'DeParamAt', with 'id' as the lens.
-data DeParamAt :: Type -> Type -> Type -> Type where
-    DPA :: { _dpaParam      :: q
+-- 'DeParam' is essentially 'DeParamAt' where @p@ is '()' or 'T0'.
+data DeParamAt :: Type -> Type -> Type -> Type -> Type where
+    DPA :: { _dpaSplit      :: pq -> (p, q)
+           , _dpaJoin       :: p -> q -> pq
+           , _dpaParam      :: q
            , _dpaParamStoch :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m q
-           , _dpaLens       :: Lens' p q
            , _dpaLearn      :: l
            }
-        -> DeParamAt p q l
+        -> DeParamAt pq p q l
   deriving (Typeable)
 
 -- | Create a 'DeParamAt' from a deterministic, non-stochastic fixed value
 -- as a part of the parameter.
-dpaDeterm :: q -> Lens' p q -> l -> DeParamAt p q l
-dpaDeterm q = DPA q (const (pure q))
+dpaDeterm :: (pq -> (p, q)) -> (p -> q -> pq) -> q -> l -> DeParamAt pq p q l
+dpaDeterm s j q = DPA s j q (const (pure q))
 
-instance (Learn a b l, LParamMaybe l ~ 'Just p, Num p, Num q) => Learn a b (DeParamAt p q l) where
-    type LParamMaybe (DeParamAt p q l) = LParamMaybe l
-    type LStateMaybe (DeParamAt p q l) = LStateMaybe l
+instance (Learn a b l, LParamMaybe l ~ 'Just pq, Num pq, Num p, Num q) => Learn a b (DeParamAt pq p q l) where
+    type LParamMaybe (DeParamAt pq p q l) = 'Just p
+    type LStateMaybe (DeParamAt pq p q l) = LStateMaybe l
 
     runLearn DPA{..} (J_ p) = runLearn _dpaLearn (J_ p')
       where
-        p' = p & _dpaLens .~~ constVar _dpaParam
+        p' = isoVar2 _dpaJoin _dpaSplit p (constVar _dpaParam)
 
     runLearnStoch DPA{..} g (J_ p) x s = do
         q <- _dpaParamStoch g
-        let p' = p & _dpaLens .~~ constVar q
+        let p' = isoVar2 _dpaJoin _dpaSplit p (constVar q)
         runLearnStoch _dpaLearn g (J_ p') x s
 
 
