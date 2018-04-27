@@ -416,23 +416,20 @@ data DeParam :: Type -> Type -> Type
 --   parameter.
 dpDeterm :: p -> l -> DeParam p l
 
--- | Wrapping a mode with <tt><a>DeParamAt</a> p q</tt> will fix a specific
---   part of the parameter type <tt>p</tt> to a given fixed (or stochastic
---   with a fixed distribution) value of type <tt>q</tt>. That field is not
---   backpropagated, and so its gradient will always be zero.
+-- | Wrapping a mode with <tt><a>DeParamAt</a> pq p q</tt> says that the
+--   mode's parameter <tt>pq</tt> can be split into <tt>p</tt> and
+--   <tt>q</tt>, and fixes <tt>q</tt> to a given fixed (or stochastic with
+--   a fixed distribution) value. The model now effectively has parameter
+--   <tt>p</tt> only, and the <tt>q</tt> part will not be backpropagated.
 --   
---   The part is specified using a <a>Lens'</a>. This really only makes
---   sense if <tt>p</tt> is a record, and the lens points to a field (or
---   multiple fields, to a tuple) of the record.
---   
---   <a>DeParam</a> is essentially <a>DeParamAt</a>, with <a>id</a> as the
---   lens.
-data DeParamAt :: Type -> Type -> Type -> Type
-[DPA] :: {_dpaParam :: q, _dpaParamStoch :: forall m. PrimMonad m => Gen (PrimState m) -> m q, _dpaLens :: Lens' p q, _dpaLearn :: l} -> DeParamAt p q l
+--   <a>DeParam</a> is essentially <a>DeParamAt</a> where <tt>p</tt> is
+--   '()' or <tt>T0</tt>.
+data DeParamAt :: Type -> Type -> Type -> Type -> Type
+[DPA] :: {_dpaSplit :: pq -> (p, q), _dpaJoin :: p -> q -> pq, _dpaParam :: q, _dpaParamStoch :: forall m. PrimMonad m => Gen (PrimState m) -> m q, _dpaLearn :: l} -> DeParamAt pq p q l
 
 -- | Create a <a>DeParamAt</a> from a deterministic, non-stochastic fixed
 --   value as a part of the parameter.
-dpaDeterm :: q -> Lens' p q -> l -> DeParamAt p q l
+dpaDeterm :: (pq -> (p, q)) -> (p -> q -> pq) -> q -> l -> DeParamAt pq p q l
 
 -- | Pre-apply a function to the parameter before the original model sees
 --   it. A <tt><a>ReParam</a> p q</tt> turns a model taking <tt>p</tt> into
@@ -448,7 +445,7 @@ data ReParam :: Type -> Maybe Type -> Type -> Type
 --   transformation function.
 rpDeterm :: (forall s. Reifies s W => Mayb (BVar s) q -> BVar s p) -> l -> ReParam p q l
 instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.LParamMaybe l ~ 'GHC.Base.Just p) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Parameter.ReParam p q l)
-instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.LParamMaybe l ~ 'GHC.Base.Just p, GHC.Num.Num p, GHC.Num.Num q) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Parameter.DeParamAt p q l)
+instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.LParamMaybe l ~ 'GHC.Base.Just pq, GHC.Num.Num pq, GHC.Num.Num p, GHC.Num.Num q) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Parameter.DeParamAt pq p q l)
 instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.LParamMaybe l ~ 'GHC.Base.Just p) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Parameter.DeParam p l)
 
 module Backprop.Learn.Model.Function
@@ -996,7 +993,7 @@ data ARIMAs :: Nat -> Nat -> Nat -> Type
 --       type <a>LParamMaybe</a> (ARIMAUnroll p q) = 'Just (T2 (ARIMAp p q) (ARIMAs p q))
 --       type <a>LStateMaybe</a> (ARIMAUnroll p q) = 'Nothing
 --   </pre>
-type ARIMAUnroll p d q = DeParamAt (T2 (ARIMAp p q) (ARIMAs p d q)) (R q) (UnrollTrainState (Max (p + d) q) (ARIMA p d q))
+type ARIMAUnroll p d q = DeParamAt (T2 (ARIMAp p q) (ARIMAs p d q)) (T2 (ARIMAp p q) (T2 Double (R (p + d)))) (R q) (UnrollTrainState (Max (p + d) q) (ARIMA p d q))
 
 -- | Constructor for <a>ARIMAUnroll</a>
 arimaUnroll :: KnownNat q => ARIMA p d q -> ARIMAUnroll p d q
@@ -1010,7 +1007,7 @@ arimaUnroll :: KnownNat q => ARIMA p d q -> ARIMAUnroll p d q
 --       type <a>LParamMaybe</a> (ARIMAUnrollFinal p q) = 'Just (T2 (ARIMAp p q) (ARIMAs p q))
 --       type <a>LStateMaybe</a> (ARIMAUnrollFinal p q) = 'Nothing
 --   </pre>
-type ARIMAUnrollFinal p d q = DeParamAt (T2 (ARIMAp p q) (ARIMAs p d q)) (R q) (UnrollFinalTrainState (Max (p + d) q) (ARIMA p d q))
+type ARIMAUnrollFinal p d q = DeParamAt (T2 (ARIMAp p q) (ARIMAs p d q)) (T2 (ARIMAp p q) (T2 Double (R (p + d)))) (R q) (UnrollFinalTrainState (Max (p + d) q) (ARIMA p d q))
 
 -- | Constructor for <a>ARIMAUnrollFinal</a>
 arimaUnrollFinal :: KnownNat q => ARIMA p d q -> ARIMAUnrollFinal p d q
