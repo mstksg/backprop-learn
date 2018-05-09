@@ -116,8 +116,7 @@ t2Loss
     => Loss a                   -- ^ loss on first component
     -> Loss b                   -- ^ loss on second component
     -> Loss (T.T2 a b)
-t2Loss f g (T.T2 xT yT) xRyR = f xT (xRyR ^^. t2_1)
-                             + g yT (xRyR ^^. t2_2)
+t2Loss f g (T.T2 xT yT) (T2B xR yR) = f xT xR + g yT yR
 
 -- | Lift and sum a loss function over the components of a 'T.T3'.
 t3Loss

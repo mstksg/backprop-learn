@@ -443,10 +443,10 @@ instance ( Learn a b l
     runLearn (l :.~ m) pq x st = (z, tupMaybe T2B s' t')
       where
         (p, q) = splitTupMaybe @_ @(LParamMaybe l) @(LParamMaybe m)
-                  (\v -> (v ^^. t2_1, v ^^. t2_2))
+                  (\(T2B v u) -> (v, u))
                   pq
         (s, t) = splitTupMaybe @_ @(LStateMaybe l) @(LStateMaybe m)
-                  (\v -> (v ^^. t2_1, v ^^. t2_2))
+                  (\(T2B v u) -> (v, u))
                   st
         (y, s') = runLearn l p x s
         (z, t') = runLearn m q y t
@@ -457,10 +457,10 @@ instance ( Learn a b l
         pure (z, tupMaybe T2B s' t')
       where
         (p, q) = splitTupMaybe @_ @(LParamMaybe l) @(LParamMaybe m)
-                  (\v -> (v ^^. t2_1, v ^^. t2_2))
+                  (\(T2B v u) -> (v, u))
                   pq
         (s, t) = splitTupMaybe @_ @(LStateMaybe l) @(LStateMaybe m)
-                  (\v -> (v ^^. t2_1, v ^^. t2_2))
+                  (\(T2B v u) -> (v, u))
                   st
 
 -- | Pre-compose a pure parameterless function to a model.
@@ -626,10 +626,10 @@ instance ( Learn a b l
                                   )
       where
         (p, q) = splitTupMaybe @_ @(LParamMaybe l) @(LParamMaybe m)
-                  (\v -> (v ^^. t2_1, v ^^. t2_2))
+                  (\(T2B v u) -> (v, u))
                   pq
         (s, t) = splitTupMaybe @_ @(LStateMaybe l) @(LStateMaybe m)
-                  (\v -> (v ^^. t2_1, v ^^. t2_2))
+                  (\(T2B v u) -> (v, u))
                   st
         (y, s') = runLearn l p x s
         (z, t') = runLearn m q x t
@@ -642,10 +642,10 @@ instance ( Learn a b l
              )
       where
         (p, q) = splitTupMaybe @_ @(LParamMaybe l) @(LParamMaybe m)
-                  (\v -> (v ^^. t2_1, v ^^. t2_2))
+                  (\(T2B v u) -> (v, u))
                   pq
         (s, t) = splitTupMaybe @_ @(LStateMaybe l) @(LStateMaybe m)
-                  (\v -> (v ^^. t2_1, v ^^. t2_2))
+                  (\(T2B v u) -> (v, u))
                   st
 
 -- | K-sparse autoencoder.  A normal autoencoder is simply @l ':.~' m@;

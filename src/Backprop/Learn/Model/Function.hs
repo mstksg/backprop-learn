@@ -212,8 +212,7 @@ compPF
     -> ParamFunc q b c
     -> ParamFunc (TupMaybe p q) a c
 compPF f g = PF $ \pq ->
-    let (p, q) = splitTupMaybe @_ @p @q
-            (\pq' -> (pq' ^^. t2_1, pq' ^^. t2_2)) pq
+    let (p, q) = splitTupMaybe @_ @p @q (\(T2B p' q') -> (p', q')) pq
     in  runParamFunc g q . runParamFunc f p
 
 -- | Compose two 'ParamFunc's in parallel
@@ -231,11 +230,10 @@ parPF
     => ParamFunc p a c
     -> ParamFunc q b d
     -> ParamFunc (TupMaybe p q) (T.T2 a b) (T.T2 c d)
-parPF f g = PF $ \pq xy ->
-    let (p, q) = splitTupMaybe @_ @p @q
-            (\pq' -> (pq' ^^. t2_1, pq' ^^. t2_2)) pq
-    in  T2B (runParamFunc f p (xy ^^. t2_1))
-            (runParamFunc g q (xy ^^. t2_2))
+parPF f g = PF $ \pq (T2B x y) ->
+    let (p, q) = splitTupMaybe @_ @p @q (\(T2B p' q') -> (p', q')) pq
+    in  T2B (runParamFunc f p x)
+            (runParamFunc g q y)
 
 -- TODO: replace all of these with manual ops?
 
@@ -414,11 +412,7 @@ sreLUPFP
     => BVar s (T.T2 (T.T2 Double Double) (T.T2 Double Double))
     -> BVar s (R n)
     -> BVar s (R n)
-sreLUPFP taltar = vmap $ sreLU (tal ^^. t2_1) (tal ^^. t2_2)
-                               (tar ^^. t2_1) (tar ^^. t2_2)
-  where
-    tal = taltar ^^. t2_1
-    tar = taltar ^^. t2_2
+sreLUPFP (T2B (T2B tl al) (T2B tr ar)) = vmap (sreLU tl al tr ar)
 
 -- | Inverse square root linear unit
 --
@@ -460,7 +454,7 @@ aplPFP
     => BVar s (T.T2 (L n m) (L n m))
     -> BVar s (R m)
     -> BVar s (R m)
-aplPFP ab = apl (ab ^^. t2_1) (ab ^^. t2_2)
+aplPFP (T2B a b) = apl a b
 
 -- | SoftPlus
 --

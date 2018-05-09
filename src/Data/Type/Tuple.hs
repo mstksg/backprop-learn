@@ -687,6 +687,7 @@ pattern T2B
 pattern T2B x y <- (\xy -> (xy ^^. _1, xy ^^. _2) -> (x, y))
   where
     T2B = isoVar2 T2 t2Tup
+{-# COMPLETE T2B #-}
 
 pattern T3B
     :: (Backprop a, Backprop b, Backprop c, Reifies s W)
@@ -697,6 +698,7 @@ pattern T3B
 pattern T3B x y z <- (\xyz -> (xyz ^^. _1, xyz ^^. _2, xyz ^^. _3) -> (x, y, z))
   where
     T3B = isoVar3 T3 t3Tup
+{-# COMPLETE T3B #-}
 
 instance (Additive a, Additive b) => Additive (T2 a b) where
     (.+.)   = gAdd

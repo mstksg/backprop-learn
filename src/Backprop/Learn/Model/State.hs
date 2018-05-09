@@ -223,7 +223,7 @@ instance ( Learn a b l
                                   $ s
       where
         (p, s) = splitTupMaybe @_ @(LParamMaybe l) @(LStateMaybe l)
-                   (\v -> (v ^^. t2_1, v ^^. t2_2))
+                   (\(T2B v u) -> (v, u))
                    t
 
     runLearnStoch (TrainState l) g t x _ = (fmap . second . const) N_
@@ -231,7 +231,7 @@ instance ( Learn a b l
                                          $ s
       where
         (p, s) = splitTupMaybe @_ @(LParamMaybe l) @(LStateMaybe l)
-                   (\v -> (v ^^. t2_1, v ^^. t2_2))
+                   (\(T2B v u) -> (v, u))
                    t
 
 -- | Make a model stateless by pre-applying a fixed state (or a stochastic
@@ -350,10 +350,10 @@ instance ( Learn ab c l
                         (isoVar2 _recJoin _recSplit x y)
                         N_
                 in  (y', J_ (_recLoop y'))
-        J_ _ -> let sy      = fromJ_ msy
+        J_ _ -> let T2B s y     = fromJ_ msy
                     (y', J_ s') = runLearn _recLearn p
-                        (isoVar2 _recJoin _recSplit x (sy ^^. t2_2))
-                        (J_ (sy ^^. t2_1))
+                        (isoVar2 _recJoin _recSplit x y)
+                        (J_ s)
                 in  (y', J_ $ T2B s' (_recLoop y'))
 
     runLearnStoch Rec{..} g p x msy = case knownMayb @(LStateMaybe l) of
@@ -362,11 +362,11 @@ instance ( Learn ab c l
           (y', _) <- runLearnStoch _recLearn g p (isoVar2 _recJoin _recSplit x y) N_
           pure (y', J_ (_recLoop y'))
         J_ _ -> do
-          let sy    = fromJ_ msy
+          let T2B s y = fromJ_ msy
           (y', s') <- second fromJ_
                   <$> runLearnStoch _recLearn g p
-                        (isoVar2 _recJoin _recSplit x (sy ^^. t2_2))
-                        (J_ (sy ^^. t2_1))
+                        (isoVar2 _recJoin _recSplit x y)
+                        (J_ s)
           pure (y', J_ $ T2B s' (_recLoop y'))
 
 -- | Give a stateless model a "dummy" state, the unit 'T0'.  For now,
