@@ -8,52 +8,322 @@
 @package backprop-learn
 @version 0.1.0.0
 
-module Backprop.Learn.Loss
-type Loss a = forall s. Reifies s W => a -> BVar s a -> BVar s Double
-crossEntropy :: KnownNat n => Loss (R n)
-squaredError :: Loss Double
-absError :: Loss Double
-totalSquaredError :: (Num (t Double), Foldable t, Functor t) => Loss (t Double)
-squaredErrorV :: KnownNat n => Loss (R n)
 
--- | Sum of covariances between matching components. Not sure if anyone
---   uses this.
-totalCov :: (Num (t Double), Foldable t, Functor t) => Loss (t Double)
-
--- | Scale the result of a loss function.
-scaleLoss :: Double -> Loss a -> Loss a
-sumLoss :: (Traversable t, Applicative t, Num a) => Loss a -> Loss (t a)
-sumLossDecay :: forall n a. (KnownNat n, Num a) => Double -> Loss a -> Loss (Vector n a)
-lastLoss :: (KnownNat (n + 1), Num a) => Loss a -> Loss (Vector (n + 1) a)
-zipLoss :: (Traversable t, Applicative t, Num a) => t Double -> Loss a -> Loss (t a)
-
--- | Lift and sum a loss function over the components of a <a>T2</a>.
-t2Loss :: (Num a, Num b) => Loss a -> Loss b -> Loss (T2 a b)
-
--- | Lift and sum a loss function over the components of a <a>T3</a>.
-t3Loss :: (Num a, Num b, Num c) => Loss a -> Loss b -> Loss c -> Loss (T3 a b c)
-
--- | A regularizer on parameters
-type Regularizer p = forall s. Reifies s W => BVar s p -> BVar s Double
-
--- | L2 regularization
+-- | Canonical strict tuples (and unit) with <a>Num</a> instances for usage
+--   with <i>backprop</i>. This is here to solve the problem of orphan
+--   instances in libraries and potential mismatched tuple types.
 --   
---   &lt;math&gt;
-l2Reg :: (Metric Double p, Num p) => Double -> Regularizer p
-
--- | L1 regularization
+--   If you are writing a library that needs to export <a>BVar</a>s of
+--   tuples, consider using the tuples in this module so that your library
+--   can have easy interoperability with other libraries using
+--   <i>backprop</i>.
 --   
---   &lt;math&gt;
-l1Reg :: (Metric Double p, Num p) => Double -> Regularizer p
+--   Because of API decisions, <a>backprop</a> and <a>gradBP</a> only work
+--   with things with <a>Num</a> instances. However, this disallows default
+--   <tt>Prelude</tt> tuples (without orphan instances from packages like
+--   <a>NumInstances</a>).
+--   
+--   Until tuples have <a>Num</a> instances in <i>base</i>, this module is
+--   intended to be a workaround for situations where:
+--   
+--   This comes up often in cases where:
+--   
+--   <ol>
+--   <li>A function wants to return more than one value (<tt><a>BVar</a> s
+--   (<a>T2</a> a b)</tt></li>
+--   <li>You want to uncurry a <a>BVar</a> function to use with
+--   <a>backprop</a> and <a>gradBP</a>.</li>
+--   <li>You want to use the useful <tt>Prism</tt>s automatically generated
+--   by the lens library, which use tuples for multiple-constructor
+--   fields.</li>
+--   </ol>
+--   
+--   Only 2-tuples and 3-tuples are provided. Any more and you should
+--   probably be using your own custom product types, with instances
+--   automatically generated from something like
+--   <a>one-liner-instances</a>.
+--   
+--   Lenses into the fields are provided, but they also work with
+--   <a>_1</a>, <a>_2</a>, and <a>_3</a> from <a>Lens.Micro</a>. However,
+--   note that these are incompatible with <a>_1</a>, <a>_2</a>, and
+--   <a>_3</a> from <a>Control.Lens</a>.
+--   
+--   You can "construct" a <tt><a>BVar</a> s (<a>T2</a> a b)</tt> with
+--   functions like <a>isoVar</a>.
+module Data.Type.Tuple
 
--- | No regularization
-noReg :: Regularizer p
+-- | Unit ('()') with <a>Num</a>, <a>Fractional</a>, and <a>Floating</a>
+--   instances.
+--   
+--   Be aware that the methods in its numerical instances are all
+--   non-strict:
+--   
+--   <pre>
+--   _ + _ = <a>T0</a>
+--   <a>negate</a> _ = <a>T0</a>
+--   <a>fromIntegral</a> _ = <a>T0</a>
+--   </pre>
+data T0
+T0 :: T0
 
--- | Add together two regularizers
-addReg :: Regularizer p -> Regularizer p -> Regularizer p
+-- | Strict 2-tuple with <a>Num</a>, <a>Fractional</a>, and <a>Floating</a>
+--   instances.
+data T2 a b
+T2 :: !a -> !b -> T2 a b
 
--- | Scale a regularizer's influence
-scaleReg :: Double -> Regularizer p -> Regularizer p
+-- | Convert to a Haskell tuple.
+--   
+--   Forms an isomorphism with <a>tupT2</a>.
+t2Tup :: T2 a b -> (a, b)
+
+-- | Convert from Haskell tuple.
+--   
+--   Forms an isomorphism with <a>t2Tup</a>.
+tupT2 :: (a, b) -> T2 a b
+
+-- | Uncurry a function to take in a <a>T2</a> of its arguments
+uncurryT2 :: (a -> b -> c) -> T2 a b -> c
+
+-- | Curry a function taking a <a>T2</a> of its arguments
+curryT2 :: (T2 a b -> c) -> a -> b -> c
+
+-- | Lens into the first field of a <a>T2</a>. Also exported as <a>_1</a>
+--   from <a>Lens.Micro</a>.
+t2_1 :: Lens (T2 a b) (T2 a' b) a a'
+
+-- | Lens into the second field of a <a>T2</a>. Also exported as <a>_2</a>
+--   from <a>Lens.Micro</a>.
+t2_2 :: Lens (T2 a b) (T2 a b') b b'
+
+-- | Strict 3-tuple with a <a>Num</a>, <a>Fractional</a>, and
+--   <a>Floating</a> instances.
+data T3 a b c
+T3 :: !a -> !b -> !c -> T3 a b c
+
+-- | Convert to a Haskell tuple.
+--   
+--   Forms an isomorphism with <a>tupT3</a>.
+t3Tup :: T3 a b c -> (a, b, c)
+
+-- | Convert from Haskell tuple.
+--   
+--   Forms an isomorphism with <a>t3Tup</a>.
+tupT3 :: (a, b, c) -> T3 a b c
+
+-- | Lens into the first field of a <a>T3</a>. Also exported as <a>_1</a>
+--   from <a>Lens.Micro</a>.
+t3_1 :: Lens (T3 a b c) (T3 a' b c) a a'
+
+-- | Lens into the second field of a <a>T3</a>. Also exported as <a>_2</a>
+--   from <a>Lens.Micro</a>.
+t3_2 :: Lens (T3 a b c) (T3 a b' c) b b'
+
+-- | Lens into the third field of a <a>T3</a>. Also exported as <a>_3</a>
+--   from <a>Lens.Micro</a>.
+t3_3 :: Lens (T3 a b c) (T3 a b c') c c'
+
+-- | Uncurry a function to take in a <a>T3</a> of its arguments
+uncurryT3 :: (a -> b -> c -> d) -> T3 a b c -> d
+
+-- | Curry a function taking a <a>T3</a> of its arguments
+curryT3 :: (T3 a b c -> d) -> a -> b -> c -> d
+
+-- | Strict inductive N-tuple with a <a>Num</a>, <a>Fractional</a>, and
+--   <a>Floating</a> instances.
+--   
+--   It is basically "yet another HList", like the one found in
+--   <a>Data.Type.Product</a> and many other locations on the haskell
+--   ecosystem. Because it's inductively defined, it has O(n) random
+--   indexing, but is efficient for zipping and mapping and other
+--   sequential consumption patterns.
+--   
+--   It is provided because of its <a>Num</a> instance, making it useful
+--   for <i>backproup</i>. Will be obsolete when <a>Product</a> gets
+--   numerical instances.
+data T :: [Type] -> Type
+[TNil] :: T '[]
+[:&] :: !a -> !(T as) -> T (a : as)
+
+-- | Index into a <a>T</a>.
+--   
+--   <i>O(i)</i>
+indexT :: Index as a -> T as -> a
+
+-- | Extract a singleton <a>T</a>
+--   
+--   Forms an isomorphism with <a>onlyT</a>
+tOnly :: T '[a] -> a
+
+-- | A singleton <a>T</a>
+--   
+--   Forms an isomorphism with <a>tOnly</a>
+onlyT :: a -> T '[a]
+
+-- | Split a <a>T</a>. For splits known at compile-time, you can use
+--   <a>known</a> to derive the <a>Length</a> automatically.
+--   
+--   Forms an isomorphism with <a>tAppend</a>.
+tSplit :: Length as -> T (as ++ bs) -> (T as, T bs)
+
+-- | Append two <a>T</a>s.
+--   
+--   Forms an isomorphism with <a>tSplit</a>.
+tAppend :: T as -> T bs -> T (as ++ bs)
+infixr 5 `tAppend`
+
+-- | Convert a <a>T</a> to a <a>Tuple</a>.
+--   
+--   Forms an isomorphism with <a>prodT</a>.
+tProd :: T as -> Tuple as
+
+-- | Convert a <a>Tuple</a> to a <a>T</a>.
+--   
+--   Forms an isomorphism with <a>tProd</a>.
+prodT :: Tuple as -> T as
+
+-- | Lens into a given index of a <a>T</a>.
+tIx :: Index as a -> Lens' (T as) a
+
+-- | Lens into the head of a <a>T</a>
+tHead :: Lens (T (a : as)) (T (b : as)) a b
+
+-- | Lens into the tail of a <a>T</a>
+tTail :: Lens (T (a : as)) (T (a : bs)) (T as) (T bs)
+
+-- | Lens into the initial portion of a <a>T</a>. For splits known at
+--   compile-time, you can use <a>known</a> to derive the <a>Length</a>
+--   automatically.
+tTake :: forall as bs cs. Length as -> Lens (T (as ++ bs)) (T (cs ++ bs)) (T as) (T cs)
+
+-- | Lens into the ending portion of a <a>T</a>. For splits known at
+--   compile-time, you can use <a>known</a> to derive the <a>Length</a>
+--   automatically.
+tDrop :: forall as bs cs. Length as -> Lens (T (as ++ bs)) (T (as ++ cs)) (T bs) (T cs)
+
+-- | Initialize a <a>T</a> with a Rank-N value. Mostly used internally, but
+--   provided in case useful.
+--   
+--   Must be used with <i>TypeApplications</i> to provide the Rank-N
+--   constraint.
+constT :: forall c as. ListC (c <$> as) => (forall a. c a => a) -> Length as -> T as
+
+-- | Map over a <a>T</a> with a Rank-N function. Mostly used internally,
+--   but provided in case useful.
+--   
+--   Must be used with <i>TypeApplications</i> to provide the Rank-N
+--   constraint.
+mapT :: forall c as. ListC (c <$> as) => (forall a. c a => a -> a) -> T as -> T as
+
+-- | Map over a <a>T</a> with a Rank-N function. Mostly used internally,
+--   but provided in case useful.
+--   
+--   Must be used with <i>TypeApplications</i> to provide the Rank-N
+--   constraint.
+zipT :: forall c as. ListC (c <$> as) => (forall a. c a => a -> a -> a) -> T as -> T as -> T as
+instance (Data.Data.Data a, Data.Data.Data b, Data.Data.Data c) => Data.Data.Data (Data.Type.Tuple.T3 a b c)
+instance GHC.Base.Functor (Data.Type.Tuple.T3 a b)
+instance GHC.Generics.Generic (Data.Type.Tuple.T3 a b c)
+instance (GHC.Classes.Ord a, GHC.Classes.Ord b, GHC.Classes.Ord c) => GHC.Classes.Ord (Data.Type.Tuple.T3 a b c)
+instance (GHC.Classes.Eq a, GHC.Classes.Eq b, GHC.Classes.Eq c) => GHC.Classes.Eq (Data.Type.Tuple.T3 a b c)
+instance (GHC.Read.Read a, GHC.Read.Read b, GHC.Read.Read c) => GHC.Read.Read (Data.Type.Tuple.T3 a b c)
+instance (GHC.Show.Show a, GHC.Show.Show b, GHC.Show.Show c) => GHC.Show.Show (Data.Type.Tuple.T3 a b c)
+instance (Data.Data.Data a, Data.Data.Data b) => Data.Data.Data (Data.Type.Tuple.T2 a b)
+instance GHC.Base.Functor (Data.Type.Tuple.T2 a)
+instance GHC.Generics.Generic (Data.Type.Tuple.T2 a b)
+instance (GHC.Classes.Ord a, GHC.Classes.Ord b) => GHC.Classes.Ord (Data.Type.Tuple.T2 a b)
+instance (GHC.Classes.Eq a, GHC.Classes.Eq b) => GHC.Classes.Eq (Data.Type.Tuple.T2 a b)
+instance (GHC.Read.Read a, GHC.Read.Read b) => GHC.Read.Read (Data.Type.Tuple.T2 a b)
+instance (GHC.Show.Show a, GHC.Show.Show b) => GHC.Show.Show (Data.Type.Tuple.T2 a b)
+instance Data.Data.Data Data.Type.Tuple.T0
+instance GHC.Generics.Generic Data.Type.Tuple.T0
+instance GHC.Classes.Ord Data.Type.Tuple.T0
+instance GHC.Classes.Eq Data.Type.Tuple.T0
+instance GHC.Read.Read Data.Type.Tuple.T0
+instance GHC.Show.Show Data.Type.Tuple.T0
+instance Type.Family.List.ListC (GHC.Show.Show Type.Family.List.<$> as) => GHC.Show.Show (Data.Type.Tuple.T as)
+instance Type.Family.List.ListC (GHC.Classes.Eq Type.Family.List.<$> as) => GHC.Classes.Eq (Data.Type.Tuple.T as)
+instance (Type.Family.List.ListC (GHC.Classes.Eq Type.Family.List.<$> as), Type.Family.List.ListC (GHC.Classes.Ord Type.Family.List.<$> as)) => GHC.Classes.Ord (Data.Type.Tuple.T as)
+instance Type.Family.List.ListC (Control.DeepSeq.NFData Type.Family.List.<$> as) => Control.DeepSeq.NFData (Data.Type.Tuple.T as)
+instance Lens.Micro.Internal.Field1 (Data.Type.Tuple.T (a : as)) (Data.Type.Tuple.T (a : as)) a a
+instance Lens.Micro.Internal.Field2 (Data.Type.Tuple.T (a : b : as)) (Data.Type.Tuple.T (a : b : as)) b b
+instance Lens.Micro.Internal.Field3 (Data.Type.Tuple.T (a : b : c : as)) (Data.Type.Tuple.T (a : b : c : as)) c c
+instance (Type.Class.Known.Known Data.Type.Length.Length as, Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> as)) => GHC.Num.Num (Data.Type.Tuple.T as)
+instance (Type.Class.Known.Known Data.Type.Length.Length as, Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> as), Type.Family.List.ListC (GHC.Real.Fractional Type.Family.List.<$> as)) => GHC.Real.Fractional (Data.Type.Tuple.T as)
+instance (Type.Class.Known.Known Data.Type.Length.Length as, Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> as), Type.Family.List.ListC (GHC.Real.Fractional Type.Family.List.<$> as), Type.Family.List.ListC (GHC.Float.Floating Type.Family.List.<$> as)) => GHC.Float.Floating (Data.Type.Tuple.T as)
+instance Type.Family.List.ListC (GHC.Base.Semigroup Type.Family.List.<$> as) => GHC.Base.Semigroup (Data.Type.Tuple.T as)
+instance (Type.Class.Known.Known Data.Type.Length.Length as, Type.Family.List.ListC (GHC.Base.Semigroup Type.Family.List.<$> as), Type.Family.List.ListC (GHC.Base.Monoid Type.Family.List.<$> as)) => GHC.Base.Monoid (Data.Type.Tuple.T as)
+instance (Type.Class.Known.Known Data.Type.Length.Length as, Type.Family.List.ListC (Data.Binary.Class.Binary Type.Family.List.<$> as)) => Data.Binary.Class.Binary (Data.Type.Tuple.T as)
+instance Type.Family.List.ListC (Numeric.Backprop.Class.Backprop Type.Family.List.<$> as) => Numeric.Backprop.Class.Backprop (Data.Type.Tuple.T as)
+instance (Type.Family.List.ListC (Numeric.Opto.Update.Additive Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => Numeric.Opto.Update.Additive (Data.Type.Tuple.T as)
+instance Numeric.Opto.Update.Scaling c a => Numeric.Opto.Update.Scaling c (Data.Type.Tuple.T '[a])
+instance (Numeric.Opto.Update.Scaling c b, Numeric.Opto.Update.Scaling c (Data.Type.Tuple.T (a : as)), Numeric.Opto.Update.Additive a, Type.Family.List.ListC (Numeric.Opto.Update.Additive Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => Numeric.Opto.Update.Scaling c (Data.Type.Tuple.T (b : a : as))
+instance Numeric.Opto.Update.Metric c a => Numeric.Opto.Update.Metric c (Data.Type.Tuple.T '[a])
+instance (Numeric.Opto.Update.Metric c b, Numeric.Opto.Update.Metric c (Data.Type.Tuple.T (a : as)), Numeric.Opto.Update.Scaling c (Data.Type.Tuple.T (a : as)), Numeric.Opto.Update.Additive a, Type.Family.List.ListC (Numeric.Opto.Update.Additive Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as, GHC.Classes.Ord c, GHC.Float.Floating c) => Numeric.Opto.Update.Metric c (Data.Type.Tuple.T (b : a : as))
+instance (Numeric.Opto.Ref.Ref m (Data.Type.Tuple.T as) v, Numeric.Opto.Update.Additive (Data.Type.Tuple.T as)) => Numeric.Opto.Update.AdditiveInPlace m v (Data.Type.Tuple.T as)
+instance (Numeric.Opto.Ref.Ref m (Data.Type.Tuple.T as) v, Numeric.Opto.Update.Scaling c (Data.Type.Tuple.T as)) => Numeric.Opto.Update.ScalingInPlace m v c (Data.Type.Tuple.T as)
+instance (Control.DeepSeq.NFData a, Control.DeepSeq.NFData b, Control.DeepSeq.NFData c) => Control.DeepSeq.NFData (Data.Type.Tuple.T3 a b c)
+instance (Data.Binary.Class.Binary a, Data.Binary.Class.Binary b, Data.Binary.Class.Binary c) => Data.Binary.Class.Binary (Data.Type.Tuple.T3 a b c)
+instance Data.Bifunctor.Bifunctor (Data.Type.Tuple.T3 a)
+instance Lens.Micro.Internal.Field1 (Data.Type.Tuple.T3 a b c) (Data.Type.Tuple.T3 a' b c) a a'
+instance Lens.Micro.Internal.Field2 (Data.Type.Tuple.T3 a b c) (Data.Type.Tuple.T3 a b' c) b b'
+instance Lens.Micro.Internal.Field3 (Data.Type.Tuple.T3 a b c) (Data.Type.Tuple.T3 a b c') c c'
+instance (GHC.Num.Num a, GHC.Num.Num b, GHC.Num.Num c) => GHC.Num.Num (Data.Type.Tuple.T3 a b c)
+instance (GHC.Real.Fractional a, GHC.Real.Fractional b, GHC.Real.Fractional c) => GHC.Real.Fractional (Data.Type.Tuple.T3 a b c)
+instance (GHC.Float.Floating a, GHC.Float.Floating b, GHC.Float.Floating c) => GHC.Float.Floating (Data.Type.Tuple.T3 a b c)
+instance (GHC.Base.Semigroup a, GHC.Base.Semigroup b, GHC.Base.Semigroup c) => GHC.Base.Semigroup (Data.Type.Tuple.T3 a b c)
+instance (GHC.Base.Monoid a, GHC.Base.Monoid b, GHC.Base.Monoid c) => GHC.Base.Monoid (Data.Type.Tuple.T3 a b c)
+instance (Numeric.Backprop.Class.Backprop a, Numeric.Backprop.Class.Backprop b, Numeric.Backprop.Class.Backprop c) => Numeric.Backprop.Class.Backprop (Data.Type.Tuple.T3 a b c)
+instance (Numeric.Opto.Update.Additive a, Numeric.Opto.Update.Additive b, Numeric.Opto.Update.Additive c) => Numeric.Opto.Update.Additive (Data.Type.Tuple.T3 a b c)
+instance (Numeric.Opto.Update.Scaling c a, Numeric.Opto.Update.Scaling c b, Numeric.Opto.Update.Scaling c d) => Numeric.Opto.Update.Scaling c (Data.Type.Tuple.T3 a b d)
+instance (Numeric.Opto.Update.Metric c a, Numeric.Opto.Update.Metric c b, Numeric.Opto.Update.Metric c d, GHC.Classes.Ord c, GHC.Float.Floating c) => Numeric.Opto.Update.Metric c (Data.Type.Tuple.T3 a b d)
+instance (Numeric.Opto.Ref.Ref m (Data.Type.Tuple.T3 a b c) v, Numeric.Opto.Update.Additive a, Numeric.Opto.Update.Additive b, Numeric.Opto.Update.Additive c) => Numeric.Opto.Update.AdditiveInPlace m v (Data.Type.Tuple.T3 a b c)
+instance (Numeric.Opto.Ref.Ref m (Data.Type.Tuple.T3 a b d) v, Numeric.Opto.Update.Scaling c a, Numeric.Opto.Update.Scaling c b, Numeric.Opto.Update.Scaling c d) => Numeric.Opto.Update.ScalingInPlace m v c (Data.Type.Tuple.T3 a b d)
+instance (Control.DeepSeq.NFData a, Control.DeepSeq.NFData b) => Control.DeepSeq.NFData (Data.Type.Tuple.T2 a b)
+instance (Data.Binary.Class.Binary a, Data.Binary.Class.Binary b) => Data.Binary.Class.Binary (Data.Type.Tuple.T2 a b)
+instance Data.Bifunctor.Bifunctor Data.Type.Tuple.T2
+instance Lens.Micro.Internal.Field1 (Data.Type.Tuple.T2 a b) (Data.Type.Tuple.T2 a' b) a a'
+instance Lens.Micro.Internal.Field2 (Data.Type.Tuple.T2 a b) (Data.Type.Tuple.T2 a b') b b'
+instance (GHC.Num.Num a, GHC.Num.Num b) => GHC.Num.Num (Data.Type.Tuple.T2 a b)
+instance (GHC.Real.Fractional a, GHC.Real.Fractional b) => GHC.Real.Fractional (Data.Type.Tuple.T2 a b)
+instance (GHC.Float.Floating a, GHC.Float.Floating b) => GHC.Float.Floating (Data.Type.Tuple.T2 a b)
+instance (GHC.Base.Semigroup a, GHC.Base.Semigroup b) => GHC.Base.Semigroup (Data.Type.Tuple.T2 a b)
+instance (GHC.Base.Monoid a, GHC.Base.Monoid b) => GHC.Base.Monoid (Data.Type.Tuple.T2 a b)
+instance (Numeric.Backprop.Class.Backprop a, Numeric.Backprop.Class.Backprop b) => Numeric.Backprop.Class.Backprop (Data.Type.Tuple.T2 a b)
+instance (Numeric.Opto.Update.Additive a, Numeric.Opto.Update.Additive b) => Numeric.Opto.Update.Additive (Data.Type.Tuple.T2 a b)
+instance (Numeric.Opto.Update.Scaling c a, Numeric.Opto.Update.Scaling c b) => Numeric.Opto.Update.Scaling c (Data.Type.Tuple.T2 a b)
+instance (Numeric.Opto.Update.Metric c a, Numeric.Opto.Update.Metric c b, GHC.Classes.Ord c, GHC.Float.Floating c) => Numeric.Opto.Update.Metric c (Data.Type.Tuple.T2 a b)
+instance (Numeric.Opto.Ref.Ref m (Data.Type.Tuple.T2 a b) v, Numeric.Opto.Update.Additive a, Numeric.Opto.Update.Additive b) => Numeric.Opto.Update.AdditiveInPlace m v (Data.Type.Tuple.T2 a b)
+instance (Numeric.Opto.Ref.Ref m (Data.Type.Tuple.T2 a b) v, Numeric.Opto.Update.Scaling c a, Numeric.Opto.Update.Scaling c b) => Numeric.Opto.Update.ScalingInPlace m v c (Data.Type.Tuple.T2 a b)
+instance Control.DeepSeq.NFData Data.Type.Tuple.T0
+instance Data.Binary.Class.Binary Data.Type.Tuple.T0
+instance GHC.Num.Num Data.Type.Tuple.T0
+instance GHC.Real.Fractional Data.Type.Tuple.T0
+instance GHC.Float.Floating Data.Type.Tuple.T0
+instance GHC.Base.Semigroup Data.Type.Tuple.T0
+instance GHC.Base.Monoid Data.Type.Tuple.T0
+
+module Data.Type.NonEmpty
+data NETup :: NonEmpty Type -> Type
+[NET] :: !a -> !(T as) -> NETup (a :| as)
+netHead :: Lens (NETup (a :| as)) (NETup (b :| as)) a b
+netTail :: Lens (NETup (a :| as)) (NETup (a :| bs)) (T as) (T bs)
+unNet :: NETup (a :| as) -> (a, T as)
+netT :: () => NETup a :| as -> T a : as
+
+-- | Non-empty (and non-strict) list type.
+data NonEmpty a
+(:|) :: a -> [a] -> NonEmpty a
+instance (Control.DeepSeq.NFData a, Type.Family.List.ListC (Control.DeepSeq.NFData Type.Family.List.<$> as)) => Control.DeepSeq.NFData (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
+instance (GHC.Num.Num a, Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => GHC.Num.Num (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
+instance (GHC.Real.Fractional a, Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> as), Type.Family.List.ListC (GHC.Real.Fractional Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => GHC.Real.Fractional (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
+instance (GHC.Float.Floating a, Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> as), Type.Family.List.ListC (GHC.Real.Fractional Type.Family.List.<$> as), Type.Family.List.ListC (GHC.Float.Floating Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => GHC.Float.Floating (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
+instance (Numeric.Opto.Update.Additive a, Numeric.Opto.Update.Additive (Data.Type.Tuple.T as)) => Numeric.Opto.Update.Additive (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
+instance (Numeric.Opto.Update.Scaling c a, Numeric.Opto.Update.Scaling c (Data.Type.Tuple.T as)) => Numeric.Opto.Update.Scaling c (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
+instance (Numeric.Opto.Update.Metric c a, Numeric.Opto.Update.Metric c (Data.Type.Tuple.T as), GHC.Classes.Ord c, GHC.Float.Floating c) => Numeric.Opto.Update.Metric c (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
+instance (Numeric.Opto.Update.Additive a, Numeric.Opto.Update.Additive (Data.Type.Tuple.T as), Numeric.Opto.Ref.Ref m (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as)) v) => Numeric.Opto.Update.AdditiveInPlace m v (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
+instance (Numeric.Opto.Update.Scaling s a, Numeric.Opto.Update.Scaling s (Data.Type.Tuple.T as), Numeric.Opto.Ref.Ref m (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as)) v) => Numeric.Opto.Update.ScalingInPlace m v s (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
+instance (Numeric.Backprop.Class.Backprop a, Type.Family.List.ListC (Numeric.Backprop.Class.Backprop Type.Family.List.<$> as)) => Numeric.Backprop.Class.Backprop (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
+instance (Data.Binary.Class.Binary a, Type.Family.List.ListC (Data.Binary.Class.Binary Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => Data.Binary.Class.Binary (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
 
 module Data.Type.Mayb
 data Mayb :: (k -> Type) -> Maybe k -> Type
@@ -84,27 +354,48 @@ instance forall k (f :: k -> *). Type.Class.Known.Known (Data.Type.Mayb.Mayb f) 
 instance forall a1 (f :: a1 -> *) (a2 :: a1). Type.Class.Known.Known f a2 => Type.Class.Known.Known (Data.Type.Mayb.Mayb f) ('GHC.Base.Just a2)
 instance Type.Class.Higher.Functor1 Data.Type.Mayb.Mayb
 
-module Data.Type.NonEmpty
-data NETup :: NonEmpty Type -> Type
-[NET] :: !a -> !(T as) -> NETup (a :| as)
-netHead :: Lens (NETup (a :| as)) (NETup (b :| as)) a b
-netTail :: Lens (NETup (a :| as)) (NETup (a :| bs)) (T as) (T bs)
-unNet :: NETup (a :| as) -> (a, T as)
-netT :: () => NETup a :| as -> T a : as
+module Backprop.Learn.Loss
+type Loss a = forall s. Reifies s W => a -> BVar s a -> BVar s Double
+crossEntropy :: KnownNat n => Loss (R n)
+squaredError :: Loss Double
+absError :: Loss Double
+totalSquaredError :: (Backprop (t Double), Num (t Double), Foldable t, Functor t) => Loss (t Double)
+squaredErrorV :: KnownNat n => Loss (R n)
 
--- | Non-empty (and non-strict) list type.
-data NonEmpty a
-(:|) :: a -> [a] -> NonEmpty a
-instance (Control.DeepSeq.NFData a, Type.Family.List.ListC (Control.DeepSeq.NFData Type.Family.List.<$> as)) => Control.DeepSeq.NFData (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
-instance (GHC.Num.Num a, Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => GHC.Num.Num (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
-instance (GHC.Real.Fractional a, Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> as), Type.Family.List.ListC (GHC.Real.Fractional Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => GHC.Real.Fractional (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
-instance (GHC.Float.Floating a, Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> as), Type.Family.List.ListC (GHC.Real.Fractional Type.Family.List.<$> as), Type.Family.List.ListC (GHC.Float.Floating Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => GHC.Float.Floating (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
-instance (Numeric.Opto.Update.Additive a, Numeric.Opto.Update.Additive (Numeric.Backprop.Tuple.T as)) => Numeric.Opto.Update.Additive (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
-instance (Numeric.Opto.Update.Scaling c a, Numeric.Opto.Update.Scaling c (Numeric.Backprop.Tuple.T as)) => Numeric.Opto.Update.Scaling c (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
-instance (Numeric.Opto.Update.Metric c a, Numeric.Opto.Update.Metric c (Numeric.Backprop.Tuple.T as), GHC.Classes.Ord c, GHC.Float.Floating c) => Numeric.Opto.Update.Metric c (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
-instance (Numeric.Opto.Update.Additive a, Numeric.Opto.Update.Additive (Numeric.Backprop.Tuple.T as), Numeric.Opto.Ref.Ref m (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as)) v) => Numeric.Opto.Update.AdditiveInPlace m v (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
-instance (Numeric.Opto.Update.Scaling s a, Numeric.Opto.Update.Scaling s (Numeric.Backprop.Tuple.T as), Numeric.Opto.Ref.Ref m (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as)) v) => Numeric.Opto.Update.ScalingInPlace m v s (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
-instance (Data.Binary.Class.Binary a, Type.Family.List.ListC (Data.Binary.Class.Binary Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => Data.Binary.Class.Binary (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
+-- | Scale the result of a loss function.
+scaleLoss :: Double -> Loss a -> Loss a
+sumLoss :: (Traversable t, Applicative t, Backprop a) => Loss a -> Loss (t a)
+sumLossDecay :: forall n a. (KnownNat n, Backprop a) => Double -> Loss a -> Loss (Vector n a)
+lastLoss :: (KnownNat (n + 1), Backprop a) => Loss a -> Loss (Vector (n + 1) a)
+zipLoss :: (Traversable t, Applicative t, Backprop a) => t Double -> Loss a -> Loss (t a)
+
+-- | Lift and sum a loss function over the components of a <a>T2</a>.
+t2Loss :: (Backprop a, Backprop b) => Loss a -> Loss b -> Loss (T2 a b)
+
+-- | Lift and sum a loss function over the components of a <a>T3</a>.
+t3Loss :: (Backprop a, Backprop b, Backprop c) => Loss a -> Loss b -> Loss c -> Loss (T3 a b c)
+
+-- | A regularizer on parameters
+type Regularizer p = forall s. Reifies s W => BVar s p -> BVar s Double
+
+-- | L2 regularization
+--   
+--   &lt;math&gt;
+l2Reg :: (Metric Double p, Backprop p) => Double -> Regularizer p
+
+-- | L1 regularization
+--   
+--   &lt;math&gt;
+l1Reg :: (Num p, Metric Double p, Backprop p) => Double -> Regularizer p
+
+-- | No regularization
+noReg :: Regularizer p
+
+-- | Add together two regularizers
+addReg :: Regularizer p -> Regularizer p -> Regularizer p
+
+-- | Scale a regularizer's influence
+scaleReg :: Double -> Regularizer p -> Regularizer p
 
 module Backprop.Learn.Initialize
 
@@ -124,10 +415,10 @@ initializeSingle :: (ContGen d, PrimMonad m, Fractional p) => d -> Gen (PrimStat
 instance Backprop.Learn.Initialize.Initialize GHC.Types.Double
 instance Backprop.Learn.Initialize.Initialize GHC.Types.Float
 instance Backprop.Learn.Initialize.Initialize a => Backprop.Learn.Initialize.Initialize (Data.Complex.Complex a)
-instance Backprop.Learn.Initialize.Initialize Numeric.Backprop.Tuple.T0
-instance (Backprop.Learn.Initialize.Initialize a, Backprop.Learn.Initialize.Initialize b) => Backprop.Learn.Initialize.Initialize (Numeric.Backprop.Tuple.T2 a b)
-instance (Backprop.Learn.Initialize.Initialize a, Backprop.Learn.Initialize.Initialize b, Backprop.Learn.Initialize.Initialize c) => Backprop.Learn.Initialize.Initialize (Numeric.Backprop.Tuple.T3 a b c)
-instance (Type.Family.List.ListC (Backprop.Learn.Initialize.Initialize Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => Backprop.Learn.Initialize.Initialize (Numeric.Backprop.Tuple.T as)
+instance Backprop.Learn.Initialize.Initialize Data.Type.Tuple.T0
+instance (Backprop.Learn.Initialize.Initialize a, Backprop.Learn.Initialize.Initialize b) => Backprop.Learn.Initialize.Initialize (Data.Type.Tuple.T2 a b)
+instance (Backprop.Learn.Initialize.Initialize a, Backprop.Learn.Initialize.Initialize b, Backprop.Learn.Initialize.Initialize c) => Backprop.Learn.Initialize.Initialize (Data.Type.Tuple.T3 a b c)
+instance (Type.Family.List.ListC (Backprop.Learn.Initialize.Initialize Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => Backprop.Learn.Initialize.Initialize (Data.Type.Tuple.T as)
 instance (Backprop.Learn.Initialize.Initialize a, Type.Family.List.ListC (Backprop.Learn.Initialize.Initialize Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => Backprop.Learn.Initialize.Initialize (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
 instance Backprop.Learn.Initialize.Initialize ()
 instance (Backprop.Learn.Initialize.Initialize a, Backprop.Learn.Initialize.Initialize b) => Backprop.Learn.Initialize.Initialize (a, b)
@@ -392,12 +683,12 @@ type DummyState a b l = Recurrent a a T0 b l
 
 -- | Construct a <a>DummyState</a>
 getDummyState :: () => DummyState a b l -> Learn a b l -> NoState l -> l
-instance (Backprop.Learn.Model.Class.Learn ab c l, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LStateMaybe l), GHC.Num.Num a, GHC.Num.Num b, GHC.Num.Num ab, Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.Class.LStateMaybe l)) => Backprop.Learn.Model.Class.Learn a c (Backprop.Learn.Model.State.Recurrent ab a b c l)
+instance (Backprop.Learn.Model.Class.Learn ab c l, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LStateMaybe l), Numeric.Backprop.Class.Backprop a, Numeric.Backprop.Class.Backprop b, Numeric.Backprop.Class.Backprop ab, Data.Type.Mayb.MaybeC Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Class.LStateMaybe l)) => Backprop.Learn.Model.Class.Learn a c (Backprop.Learn.Model.State.Recurrent ab a b c l)
 instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.LStateMaybe l ~ 'GHC.Base.Just s) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.State.ReState s t l)
 instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.LStateMaybe l ~ 'GHC.Base.Just s) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.State.DeState s l)
-instance (Backprop.Learn.Model.Class.Learn a b l, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LParamMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.Class.LParamMaybe l), Backprop.Learn.Model.Class.LStateMaybe l ~ 'GHC.Base.Just s, GHC.Num.Num s) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.State.TrainState l)
-instance (Backprop.Learn.Model.Class.Learn a b l, GHC.Num.Num a, 1 GHC.TypeNats.<= n) => Backprop.Learn.Model.Class.Learn (Data.Vector.Sized.Vector n a) b (Backprop.Learn.Model.State.UnrollFinal n l)
-instance (Backprop.Learn.Model.Class.Learn a b l, GHC.TypeNats.KnownNat n, GHC.Num.Num a, GHC.Num.Num b) => Backprop.Learn.Model.Class.Learn (Data.Vector.Sized.Vector n a) (Data.Vector.Sized.Vector n b) (Backprop.Learn.Model.State.Unroll n l)
+instance (Backprop.Learn.Model.Class.Learn a b l, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LParamMaybe l), Data.Type.Mayb.MaybeC Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Class.LParamMaybe l), Backprop.Learn.Model.Class.LStateMaybe l ~ 'GHC.Base.Just s, Numeric.Backprop.Class.Backprop s) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.State.TrainState l)
+instance (Backprop.Learn.Model.Class.Learn a b l, Numeric.Backprop.Class.Backprop a, 1 GHC.TypeNats.<= n) => Backprop.Learn.Model.Class.Learn (Data.Vector.Sized.Vector n a) b (Backprop.Learn.Model.State.UnrollFinal n l)
+instance (Backprop.Learn.Model.Class.Learn a b l, GHC.TypeNats.KnownNat n, Numeric.Backprop.Class.Backprop a, Numeric.Backprop.Class.Backprop b) => Backprop.Learn.Model.Class.Learn (Numeric.Backprop.Class.ABP (Data.Vector.Sized.Vector n) a) (Numeric.Backprop.Class.ABP (Data.Vector.Sized.Vector n) b) (Backprop.Learn.Model.State.Unroll n l)
 
 module Backprop.Learn.Model.Parameter
 
@@ -445,7 +736,7 @@ data ReParam :: Type -> Maybe Type -> Type -> Type
 --   transformation function.
 rpDeterm :: (forall s. Reifies s W => Mayb (BVar s) q -> BVar s p) -> l -> ReParam p q l
 instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.LParamMaybe l ~ 'GHC.Base.Just p) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Parameter.ReParam p q l)
-instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.LParamMaybe l ~ 'GHC.Base.Just pq, GHC.Num.Num pq, GHC.Num.Num p, GHC.Num.Num q) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Parameter.DeParamAt pq p q l)
+instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.LParamMaybe l ~ 'GHC.Base.Just pq, Numeric.Backprop.Class.Backprop pq, Numeric.Backprop.Class.Backprop p, Numeric.Backprop.Class.Backprop q) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Parameter.DeParamAt pq p q l)
 instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.LParamMaybe l ~ 'GHC.Base.Just p) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Parameter.DeParam p l)
 
 module Backprop.Learn.Model.Function
@@ -510,13 +801,13 @@ lmapPF :: (forall s. Reifies s W => BVar s a -> BVar s b) -> ParamFunc p b c -> 
 rmapPF :: (forall s. Reifies s W => BVar s b -> BVar s c) -> ParamFunc p a b -> ParamFunc p a c
 
 -- | Compose two <a>ParamFunc</a>s sequentially
-compPF :: forall p q a b c. (MaybeC Num p, MaybeC Num q, KnownMayb p, KnownMayb q) => ParamFunc p a b -> ParamFunc q b c -> ParamFunc (TupMaybe p q) a c
+compPF :: forall p q a b c. (MaybeC Backprop p, MaybeC Backprop q, KnownMayb p, KnownMayb q) => ParamFunc p a b -> ParamFunc q b c -> ParamFunc (TupMaybe p q) a c
 
 -- | Compose two <a>ParamFunc</a>s in parallel
-parPF :: forall p q a b c d. (MaybeC Num p, MaybeC Num q, KnownMayb p, KnownMayb q, Num a, Num b, Num c, Num d) => ParamFunc p a c -> ParamFunc q b d -> ParamFunc (TupMaybe p q) (T2 a b) (T2 c d)
+parPF :: forall p q a b c d. (MaybeC Backprop p, MaybeC Backprop q, KnownMayb p, KnownMayb q, Backprop a, Backprop b, Backprop c, Backprop d) => ParamFunc p a c -> ParamFunc q b d -> ParamFunc (TupMaybe p q) (T2 a b) (T2 c d)
 
 -- | Compose two <a>ParamFuncP</a>s on lists.
-(.-) :: forall ps qs a b c. (ListC (Num <$> ps), ListC (Num <$> qs), Known Length ps, Known Length qs) => ParamFuncP (T ps) b c -> ParamFuncP (T qs) a b -> ParamFuncP (T (ps ++ qs)) a c
+(.-) :: forall ps qs a b c. (ListC (Backprop <$> ps), ListC (Backprop <$> qs), Known Length ps) => ParamFuncP (T ps) b c -> ParamFuncP (T qs) a b -> ParamFuncP (T (ps ++ qs)) a c
 infixr 9 .-
 
 -- | The identity of <a>.-</a>
@@ -524,7 +815,7 @@ nilPF :: ParamFuncP (T '[]) a a
 
 -- | <a>ParamFuncP</a> taking a singleton list; meant to be used with
 --   <a>.-</a>
-onlyPF :: forall p a b. (KnownMayb p, MaybeC Num p) => ParamFunc p a b -> ParamFuncP (T (MaybeToList p)) a b
+onlyPF :: forall p a b. (KnownMayb p, MaybeC Backprop p) => ParamFunc p a b -> ParamFuncP (T (MaybeToList p)) a b
 
 -- | Binary step / heaviside step
 --   
@@ -823,13 +1114,13 @@ _dmPost :: () => Dimap b c a d l -> forall s. Reifies s W => BVar s c -> BVar s 
 _dmLearn :: () => Dimap b c a d l -> l
 
 -- | Compose two <a>LearnFunc</a> on lists.
-(.~) :: forall ps qs ss ts a b c. (ListC (Num <$> ps), ListC (Num <$> qs), ListC (Num <$> ss), ListC (Num <$> ts), ListC (Num <$> (ss ++ ts)), Known Length ps, Known Length qs, Known Length ss, Known Length ts) => LearnFunc ( 'Just (T ps)) ( 'Just (T ss)) b c -> LearnFunc ( 'Just (T qs)) ( 'Just (T ts)) a b -> LearnFunc ( 'Just (T (ps ++ qs))) ( 'Just (T (ss ++ ts))) a c
+(.~) :: forall ps qs ss ts a b c. (ListC (Backprop <$> ps), ListC (Backprop <$> qs), ListC (Backprop <$> ss), ListC (Backprop <$> ts), ListC (Backprop <$> (ss ++ ts)), Known Length ps, Known Length ss, Known Length ts) => LearnFunc ( 'Just (T ps)) ( 'Just (T ss)) b c -> LearnFunc ( 'Just (T qs)) ( 'Just (T ts)) a b -> LearnFunc ( 'Just (T (ps ++ qs))) ( 'Just (T (ss ++ ts))) a c
 
 -- | Identity of <a>.~</a>
 nilLF :: LearnFunc ( 'Just (T '[])) ( 'Just (T '[])) a a
 
 -- | <a>LearnFunc</a> with singleton lists; meant to be used with <a>.~</a>
-onlyLF :: forall p s a b. (KnownMayb p, MaybeC Num p, KnownMayb s, MaybeC Num s) => LearnFunc p s a b -> LearnFunc ( 'Just (T (MaybeToList p))) ( 'Just (T (MaybeToList s))) a b
+onlyLF :: forall p s a b. (KnownMayb p, MaybeC Backprop p, KnownMayb s, MaybeC Backprop s) => LearnFunc p s a b -> LearnFunc ( 'Just (T (MaybeToList p))) ( 'Just (T (MaybeToList s))) a b
 
 -- | Compose two layers sequentially
 --   
@@ -905,15 +1196,15 @@ data FeedbackTrace :: Nat -> Type -> Type -> Type -> Type
 --   returns a value fo the same type as its input) by simply providing the
 --   output directly as the next intput.
 feedbackTraceId :: l -> FeedbackTrace n a a l
-instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.Learn a c m, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LParamMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LParamMaybe m), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LStateMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LStateMaybe m), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.Class.LParamMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.Class.LParamMaybe m), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.Class.LStateMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.Class.LStateMaybe m), GHC.Num.Num b, GHC.Num.Num c) => Backprop.Learn.Model.Class.Learn a (Numeric.Backprop.Tuple.T2 b c) (l Backprop.Learn.Model.Combinator.:&&& m)
-instance (Backprop.Learn.Model.Class.Learn a b l, GHC.TypeNats.KnownNat n, GHC.Num.Num b) => Backprop.Learn.Model.Class.Learn a (Data.Vector.Sized.Vector n b) (Backprop.Learn.Model.Combinator.FeedbackTrace n a b l)
+instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.Learn a c m, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LParamMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LParamMaybe m), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LStateMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LStateMaybe m), Data.Type.Mayb.MaybeC Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Class.LParamMaybe l), Data.Type.Mayb.MaybeC Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Class.LParamMaybe m), Data.Type.Mayb.MaybeC Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Class.LStateMaybe l), Data.Type.Mayb.MaybeC Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Class.LStateMaybe m), Numeric.Backprop.Class.Backprop b, Numeric.Backprop.Class.Backprop c) => Backprop.Learn.Model.Class.Learn a (Data.Type.Tuple.T2 b c) (l Backprop.Learn.Model.Combinator.:&&& m)
+instance (Backprop.Learn.Model.Class.Learn a b l, GHC.TypeNats.KnownNat n, Numeric.Backprop.Class.Backprop b) => Backprop.Learn.Model.Class.Learn a (Numeric.Backprop.Class.ABP (Data.Vector.Sized.Vector n) b) (Backprop.Learn.Model.Combinator.FeedbackTrace n a b l)
 instance Backprop.Learn.Model.Class.Learn a b l => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Combinator.Feedback a b l)
 instance Backprop.Learn.Model.Class.Learn a b l => Backprop.Learn.Model.Class.Learn a c (Backprop.Learn.Model.Combinator.RMap b c l)
 instance Backprop.Learn.Model.Class.Learn b c l => Backprop.Learn.Model.Class.Learn a c (Backprop.Learn.Model.Combinator.LMap b a l)
-instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.Learn b c m, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LParamMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LParamMaybe m), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LStateMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LStateMaybe m), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.Class.LParamMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.Class.LParamMaybe m), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.Class.LStateMaybe l), Data.Type.Mayb.MaybeC GHC.Num.Num (Backprop.Learn.Model.Class.LStateMaybe m)) => Backprop.Learn.Model.Class.Learn a c (l Backprop.Learn.Model.Combinator.:.~ m)
+instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.Learn b c m, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LParamMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LParamMaybe m), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LStateMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LStateMaybe m), Data.Type.Mayb.MaybeC Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Class.LParamMaybe l), Data.Type.Mayb.MaybeC Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Class.LParamMaybe m), Data.Type.Mayb.MaybeC Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Class.LStateMaybe l), Data.Type.Mayb.MaybeC Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Class.LStateMaybe m)) => Backprop.Learn.Model.Class.Learn a c (l Backprop.Learn.Model.Combinator.:.~ m)
 instance Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Combinator.LearnFunc p s a b)
 instance Control.Category.Category (Backprop.Learn.Model.Combinator.LearnFunc p s)
-instance (Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> Backprop.Learn.Model.Class.LParams ls), Type.Family.List.ListC (GHC.Num.Num Type.Family.List.<$> Backprop.Learn.Model.Class.LStates ls)) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Combinator.Chain ls a b)
+instance (Type.Family.List.ListC (Numeric.Backprop.Class.Backprop Type.Family.List.<$> Backprop.Learn.Model.Class.LParams ls), Type.Family.List.ListC (Numeric.Backprop.Class.Backprop Type.Family.List.<$> Backprop.Learn.Model.Class.LStates ls)) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Combinator.Chain ls a b)
 
 module Backprop.Learn.Model.Regression
 
@@ -1038,6 +1329,7 @@ instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNa
 instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARIMAs p d q) v) => Numeric.Opto.Update.ScalingInPlace m v GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAs p d q)
 instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q) => Backprop.Learn.Initialize.Initialize (Backprop.Learn.Model.Regression.ARIMAs p d q)
 instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q) => Data.Binary.Class.Binary (Backprop.Learn.Model.Regression.ARIMAs p d q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q) => Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Regression.ARIMAs p d q)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARIMAp p q)
 instance GHC.Num.Num (Backprop.Learn.Model.Regression.ARIMAp p q)
 instance GHC.Real.Fractional (Backprop.Learn.Model.Regression.ARIMAp p q)
@@ -1049,6 +1341,7 @@ instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref
 instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARIMAp p q) v) => Numeric.Opto.Update.ScalingInPlace m v GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAp p q)
 instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Backprop.Learn.Initialize.Initialize (Backprop.Learn.Model.Regression.ARIMAp p q)
 instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Data.Binary.Class.Binary (Backprop.Learn.Model.Regression.ARIMAp p q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Regression.ARIMAp p q)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.LRp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Initialize.Initialize (Backprop.Learn.Model.Regression.LRp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Additive (Backprop.Learn.Model.Regression.LRp i o)
@@ -1057,6 +1350,7 @@ instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Upda
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.LRp i o) v) => Numeric.Opto.Update.AdditiveInPlace m v (Backprop.Learn.Model.Regression.LRp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.LRp i o) v) => Numeric.Opto.Update.ScalingInPlace m v GHC.Types.Double (Backprop.Learn.Model.Regression.LRp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Data.Binary.Class.Binary (Backprop.Learn.Model.Regression.LRp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Regression.LRp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Model.Regression.LRp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Real.Fractional (Backprop.Learn.Model.Regression.LRp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Float.Floating (Backprop.Learn.Model.Regression.LRp i o)
@@ -1132,7 +1426,7 @@ module Backprop.Learn.Model.Neural.LSTM
 --   <pre>
 --   instance <a>Learn</a> (<a>R</a> i) (R o) (<a>LSTM</a> i o) where
 --       type <a>LParamMaybe</a> (LSTM i o) = '<a>Just</a> (<a>LSTMp</a> i o)
---       type <a>LStateMaybe</a> (LSTM i o) = 'Just (<tt>T2</tt> (R o) (R o))     -- cell state, hidden state
+--       type <a>LStateMaybe</a> (LSTM i o) = 'Just (<a>T2</a> (R o) (R o))     -- cell state, hidden state
 --   </pre>
 type LSTM i o = Recurrent (R (i + o)) (R i) (R o) (R o) (LSTM' i o)
 
@@ -1199,6 +1493,7 @@ instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Upda
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Neural.LSTM.GRUp i o) v) => Numeric.Opto.Update.AdditiveInPlace m v (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Neural.LSTM.GRUp i o) v) => Numeric.Opto.Update.ScalingInPlace m v GHC.Types.Double (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Data.Binary.Class.Binary (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Initialize.Initialize (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Real.Fractional (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
@@ -1211,6 +1506,7 @@ instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Upda
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Neural.LSTM.LSTMp i o) v) => Numeric.Opto.Update.AdditiveInPlace m v (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Neural.LSTM.LSTMp i o) v) => Numeric.Opto.Update.ScalingInPlace m v GHC.Types.Double (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Data.Binary.Class.Binary (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Initialize.Initialize (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Real.Fractional (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
@@ -1218,12 +1514,153 @@ instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Float.Floatin
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, GHC.TypeNats.KnownNat io, io ~ (i GHC.TypeNats.+ o)) => Backprop.Learn.Model.Class.Learn (Internal.Static.R io) (Internal.Static.R o) (Backprop.Learn.Model.Neural.LSTM.LSTM' i o)
 
 module Backprop.Learn.Model
-runLearn_ :: (Learn a b l, MaybeC Num (LStateMaybe l), Num b) => l -> LParam_ I l -> a -> LState_ I l -> (b, LState_ I l)
-runLearnStoch_ :: (Learn a b l, MaybeC Num (LStateMaybe l), Num b, PrimMonad m) => l -> Gen (PrimState m) -> LParam_ I l -> a -> LState_ I l -> m (b, LState_ I l)
+
+-- | Class of values that can be backpropagated in general.
+--   
+--   For instances of <a>Num</a>, these methods can be given by
+--   <a>zeroNum</a>, <a>addNum</a>, and <a>oneNum</a>. There are also
+--   generic options given in <a>Numeric.Backprop.Class</a> for functors,
+--   <a>IsList</a> instances, and <a>Generic</a> instances.
+--   
+--   <pre>
+--   instance <a>Backprop</a> <a>Double</a> where
+--       <a>zero</a> = <a>zeroNum</a>
+--       <a>add</a> = <a>addNum</a>
+--       <a>one</a> = <a>oneNum</a>
+--   </pre>
+--   
+--   If you leave the body of an instance declaration blank, GHC Generics
+--   will be used to derive instances if the type has a single constructor
+--   and each field is an instance of <a>Backprop</a>.
+--   
+--   To ensure that backpropagation works in a sound way, should obey the
+--   laws:
+--   
+--   <ul>
+--   <li><i><i>identity</i></i></li>
+--   </ul>
+--   
+--   <ul>
+--   <li><pre><a>add</a> x (<a>zero</a> y) = x</pre></li>
+--   <li><pre><a>add</a> (<a>zero</a> x) y = y</pre></li>
+--   </ul>
+--   
+--   Also implies preservation of information, making <tt><a>zipWith</a>
+--   (<a>+</a>)</tt> an illegal implementation for lists and vectors.
+--   
+--   This is only expected to be true up to potential "extra zeroes" in
+--   <tt>x</tt> and <tt>y</tt> in the result.
+--   
+--   <ul>
+--   <li><i><i>commutativity</i></i></li>
+--   </ul>
+--   
+--   <ul>
+--   <li><pre><a>add</a> x y = <a>add</a> y x</pre></li>
+--   </ul>
+--   
+--   <ul>
+--   <li><i><i>associativity</i></i></li>
+--   </ul>
+--   
+--   <ul>
+--   <li><pre><a>add</a> x (<a>add</a> y z) = <a>add</a> (<a>add</a> x y)
+--   z</pre></li>
+--   </ul>
+--   
+--   <ul>
+--   <li><i><i>idempotence</i></i></li>
+--   </ul>
+--   
+--   <ul>
+--   <li><pre><a>zero</a> <a>.</a> <a>zero</a> = <a>zero</a></pre></li>
+--   <li><pre><a>one</a> <a>.</a> <a>one</a> = <a>one</a></pre></li>
+--   </ul>
+--   
+--   Note that not all values in the backpropagation process needs all of
+--   these methods: Only the "final result" needs <a>one</a>, for example.
+--   These are all grouped under one typeclass for convenience in defining
+--   instances, and also to talk about sensible laws. For fine-grained
+--   control, use the "explicit" versions of library functions (for
+--   example, in <a>Numeric.Backprop.Explicit</a>) instead of
+--   <a>Backprop</a> based ones.
+--   
+--   This typeclass replaces the reliance on <a>Num</a> of the previous API
+--   (v0.1). <a>Num</a> is strictly more powerful than <a>Backprop</a>, and
+--   is a stronger constraint on types than is necessary for proper
+--   backpropagating. In particular, <a>fromInteger</a> is a problem for
+--   many types, preventing useful backpropagation for lists,
+--   variable-length vectors (like <a>Data.Vector</a>) and variable-size
+--   matrices from linear algebra libraries like <i>hmatrix</i> and
+--   <i>accelerate</i>.
+class Backprop a
+
+-- | "Zero out" all components of a value. For scalar values, this should
+--   just be <tt><a>const</a> 0</tt>. For vectors and matrices, this should
+--   set all components to zero, the additive identity.
+--   
+--   Should be idempotent:
+--   
+--   <ul>
+--   <li><pre><a>zero</a> <a>.</a> <a>zero</a> = <a>zero</a></pre></li>
+--   </ul>
+--   
+--   Should be as <i>lazy</i> as possible. This behavior is observed for
+--   all instances provided by this library.
+--   
+--   See <a>zeroNum</a> for a pre-built definition for instances of
+--   <a>Num</a> and <a>zeroFunctor</a> for a definition for instances of
+--   <a>Functor</a>. If left blank, will automatically be
+--   <a>genericZero</a>, a pre-built definition for instances of
+--   <a>Generic</a> whose fields are all themselves instances of
+--   <a>Backprop</a>.
+zero :: Backprop a => a -> a
+
+-- | Add together two values of a type. To combine contributions of
+--   gradients, so should be information-preserving:
+--   
+--   <ul>
+--   <li><pre><a>add</a> x (<a>zero</a> y) = x</pre></li>
+--   <li><pre><a>add</a> (<a>zero</a> x) y = y</pre></li>
+--   </ul>
+--   
+--   Should be as <i>strict</i> as possible. This behavior is observed for
+--   all instances provided by this library.
+--   
+--   See <a>addNum</a> for a pre-built definition for instances of
+--   <a>Num</a> and <tt>addFunctor</tt> for a definition for instances of
+--   <a>Functor</a>. If left blank, will automatically be
+--   <a>genericAdd</a>, a pre-built definition for instances of
+--   <a>Generic</a> with one constructor whose fields are all themselves
+--   instances of <a>Backprop</a>.
+add :: Backprop a => a -> a -> a
+
+-- | <a>One</a> all components of a value. For scalar values, this should
+--   just be <tt><a>const</a> 1</tt>. For vectors and matrices, this should
+--   set all components to one, the multiplicative identity.
+--   
+--   Should be idempotent:
+--   
+--   <ul>
+--   <li><pre><a>one</a> <a>.</a> <a>one</a> = <a>one</a></pre></li>
+--   </ul>
+--   
+--   Should be as <i>lazy</i> as possible. This behavior is observed for
+--   all instances provided by this library.
+--   
+--   See <a>oneNum</a> for a pre-built definition for instances of
+--   <a>Num</a> and <a>oneFunctor</a> for a definition for instances of
+--   <a>Functor</a>. If left blank, will automatically be
+--   <a>genericOne</a>, a pre-built definition for instances of
+--   <a>Generic</a> whose fields are all themselves instances of
+--   <a>Backprop</a>.
+one :: Backprop a => a -> a
+runLearn_ :: (Learn a b l, MaybeC Backprop (LStateMaybe l), Backprop b) => l -> LParam_ I l -> a -> LState_ I l -> (b, LState_ I l)
+runLearnStoch_ :: (Learn a b l, MaybeC Backprop (LStateMaybe l), Backprop b, PrimMonad m) => l -> Gen (PrimState m) -> LParam_ I l -> a -> LState_ I l -> m (b, LState_ I l)
 runLearnStateless_ :: (Learn a b l, NoState l) => l -> LParam_ I l -> a -> b
 runLearnStochStateless_ :: (Learn a b l, NoState l, PrimMonad m) => l -> Gen (PrimState m) -> LParam_ I l -> a -> m b
-gradLearn :: (Learn a b l, NoState l, Num a, Num b, MaybeC Num (LParamMaybe l)) => l -> LParam_ I l -> a -> (LParam_ I l, a)
-gradLearnStoch :: (Learn a b l, NoState l, Num a, Num b, MaybeC Num (LParamMaybe l), PrimMonad m) => l -> Gen (PrimState m) -> LParam_ I l -> a -> m (LParam_ I l, a)
+gradLearn :: (Learn a b l, NoState l, Backprop a, Backprop b, MaybeC Backprop (LParamMaybe l)) => l -> LParam_ I l -> a -> (LParam_ I l, a)
+gradLearnStoch :: (Learn a b l, NoState l, Backprop a, Backprop b, MaybeC Backprop (LParamMaybe l), PrimMonad m) => l -> Gen (PrimState m) -> LParam_ I l -> a -> m (LParam_ I l, a)
 initParam :: forall l m d proxy. (Initialize (LParam l), ContGen d, PrimMonad m) => proxy l -> d -> Gen (PrimState m) -> m (LParam l)
 initParamMaybe :: forall l m d proxy. (MaybeC Initialize (LParamMaybe l), ContGen d, PrimMonad m, KnownMayb (LParamMaybe l)) => proxy l -> d -> Gen (PrimState m) -> LParam_ m l
 initParamNormal :: forall l m proxy. (Initialize (LParam l), PrimMonad m) => proxy l -> Double -> Gen (PrimState m) -> m (LParam l)
@@ -1234,39 +1671,39 @@ decodeParamOrFail :: Binary (LParam l) => proxy l -> ByteString -> Either String
 saveParam :: Binary (LParam l) => proxy l -> FilePath -> LParam l -> IO ()
 loadParam :: Binary (LParam l) => proxy l -> FilePath -> IO (LParam l)
 loadParamOrFail :: Binary (LParam l) => proxy l -> FilePath -> IO (Either String (LParam l))
-iterateLearn :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l)) => (b -> a) -> Int -> l -> LParam_ I l -> a -> LState_ I l -> ([b], LState_ I l)
-iterateLearnM :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), Monad m) => (b -> m a) -> Int -> l -> LParam_ I l -> a -> LState_ I l -> m ([b], LState_ I l)
-iterateLearnStoch :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m) => (b -> m a) -> Int -> l -> Gen (PrimState m) -> LParam_ I l -> a -> LState_ I l -> m ([b], LState_ I l)
-scanLearn :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), Traversable t) => l -> LParam_ I l -> t a -> LState_ I l -> (t b, LState_ I l)
-scanLearnStoch :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m, Traversable t) => l -> Gen (PrimState m) -> LParam_ I l -> t a -> LState_ I l -> m (t b, LState_ I l)
-iterateLearn_ :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l)) => (b -> a) -> l -> LParam_ I l -> a -> LState_ I l -> [b]
-iterateLearnM_ :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), Monad m) => (b -> m a) -> Int -> l -> LParam_ I l -> a -> LState_ I l -> m [b]
-iterateLearnStoch_ :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m) => (b -> m a) -> Int -> l -> Gen (PrimState m) -> LParam_ I l -> a -> LState_ I l -> m [b]
-scanLearn_ :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), Traversable t) => l -> LParam_ I l -> t a -> LState_ I l -> t b
-scanLearnStoch_ :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m, Traversable t) => l -> Gen (PrimState m) -> LParam_ I l -> t a -> LState_ I l -> m (t b)
-primeLearn :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), Foldable t) => l -> LParam_ I l -> t a -> LState_ I l -> LState_ I l
-primeLearnStoch :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m, Foldable t) => l -> Gen (PrimState m) -> LParam_ I l -> t a -> LState_ I l -> m (LState_ I l)
-selfPrime :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l)) => (b -> a) -> l -> LParam_ I l -> a -> LState_ I l -> [LState_ I l]
-selfPrimeM :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), Monad m) => (b -> m a) -> Int -> l -> LParam_ I l -> a -> LState_ I l -> m (LState_ I l)
+iterateLearn :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l)) => (b -> a) -> Int -> l -> LParam_ I l -> a -> LState_ I l -> ([b], LState_ I l)
+iterateLearnM :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), Monad m) => (b -> m a) -> Int -> l -> LParam_ I l -> a -> LState_ I l -> m ([b], LState_ I l)
+iterateLearnStoch :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), PrimMonad m) => (b -> m a) -> Int -> l -> Gen (PrimState m) -> LParam_ I l -> a -> LState_ I l -> m ([b], LState_ I l)
+scanLearn :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), Traversable t) => l -> LParam_ I l -> t a -> LState_ I l -> (t b, LState_ I l)
+scanLearnStoch :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), PrimMonad m, Traversable t) => l -> Gen (PrimState m) -> LParam_ I l -> t a -> LState_ I l -> m (t b, LState_ I l)
+iterateLearn_ :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l)) => (b -> a) -> l -> LParam_ I l -> a -> LState_ I l -> [b]
+iterateLearnM_ :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), Monad m) => (b -> m a) -> Int -> l -> LParam_ I l -> a -> LState_ I l -> m [b]
+iterateLearnStoch_ :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), PrimMonad m) => (b -> m a) -> Int -> l -> Gen (PrimState m) -> LParam_ I l -> a -> LState_ I l -> m [b]
+scanLearn_ :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), Traversable t) => l -> LParam_ I l -> t a -> LState_ I l -> t b
+scanLearnStoch_ :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), PrimMonad m, Traversable t) => l -> Gen (PrimState m) -> LParam_ I l -> t a -> LState_ I l -> m (t b)
+primeLearn :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), Foldable t) => l -> LParam_ I l -> t a -> LState_ I l -> LState_ I l
+primeLearnStoch :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), PrimMonad m, Foldable t) => l -> Gen (PrimState m) -> LParam_ I l -> t a -> LState_ I l -> m (LState_ I l)
+selfPrime :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l)) => (b -> a) -> l -> LParam_ I l -> a -> LState_ I l -> [LState_ I l]
+selfPrimeM :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), Monad m) => (b -> m a) -> Int -> l -> LParam_ I l -> a -> LState_ I l -> m (LState_ I l)
 
 module Backprop.Learn.Train
 
 -- | Gradient of model with respect to loss function and target
-gradLearnLoss :: (Learn a b l, NoState l, LParamMaybe l ~  'Just (LParam l), Num (LParam l)) => Loss b -> Regularizer (LParam l) -> l -> LParam l -> a -> b -> LParam l
+gradLearnLoss :: (Learn a b l, NoState l, LParamMaybe l ~  'Just (LParam l), Backprop (LParam l)) => Loss b -> Regularizer (LParam l) -> l -> LParam l -> a -> b -> LParam l
 
 -- | Stochastic gradient of model with respect to loss function and target
-gradLearnStochLoss :: (Learn a b l, NoState l, LParamMaybe l ~  'Just (LParam l), Num (LParam l), PrimMonad m) => Loss b -> Regularizer (LParam l) -> l -> Gen (PrimState m) -> LParam l -> a -> b -> m (LParam l)
+gradLearnStochLoss :: (Learn a b l, NoState l, LParamMaybe l ~  'Just (LParam l), Backprop (LParam l), PrimMonad m) => Loss b -> Regularizer (LParam l) -> l -> Gen (PrimState m) -> LParam l -> a -> b -> m (LParam l)
 type Grad (m :: * -> *) a = a -> m Diff a
 
 -- | Using a model's deterministic prediction function (with a given loss
 --   function), generate a <a>Grad</a> compatible with <a>Numeric.Opto</a>
 --   and <a>Numeric.Opto.Run</a>.
-learnGrad :: (MonadSample (a, b) m, Learn a b l, NoState l, LParamMaybe l ~  'Just (LParam l), Num (LParam l)) => Loss b -> Regularizer (LParam l) -> l -> Grad m (LParam l)
+learnGrad :: (MonadSample (a, b) m, Learn a b l, NoState l, LParamMaybe l ~  'Just (LParam l), Backprop (LParam l)) => Loss b -> Regularizer (LParam l) -> l -> Grad m (LParam l)
 
 -- | Using a model's stochastic prediction function (with a given loss
 --   function), generate a <a>Grad</a> compatible with <a>Numeric.Opto</a>
 --   and <a>Numeric.Opto.Run</a>.
-learnGradStoch :: (MonadSample (a, b) m, PrimMonad m, Learn a b l, NoState l, LParamMaybe l ~  'Just (LParam l), Num (LParam l)) => Loss b -> Regularizer (LParam l) -> l -> Gen (PrimState m) -> Grad m (LParam l)
+learnGradStoch :: (MonadSample (a, b) m, PrimMonad m, Learn a b l, NoState l, LParamMaybe l ~  'Just (LParam l), Backprop (LParam l)) => Loss b -> Regularizer (LParam l) -> l -> Gen (PrimState m) -> Grad m (LParam l)
 
 module Backprop.Learn.Test
 type Test o = o -> o -> Double
@@ -1289,15 +1726,13 @@ testLearnCov :: (Learn a b l, NoState l, Foldable t, Fractional b) => l -> LPara
 testLearnCorr :: (Learn a b l, NoState l, Foldable t, Floating b) => l -> LParam_ I l -> t (a, b) -> b
 testLearnStochCov :: (Learn a b l, NoState l, PrimMonad m, Foldable t, Fractional b) => l -> Gen (PrimState m) -> LParam_ I l -> t (a, b) -> m b
 testLearnStochCorr :: (Learn a b l, NoState l, PrimMonad m, Foldable t, Floating b) => l -> Gen (PrimState m) -> LParam_ I l -> t (a, b) -> m b
-instance (GHC.Base.Semigroup a, GHC.Base.Applicative m) => GHC.Base.Semigroup (Backprop.Learn.Test.M m a)
-instance (GHC.Base.Monoid a, GHC.Base.Applicative m) => GHC.Base.Monoid (Backprop.Learn.Test.M m a)
 
 module Backprop.Learn.Run
 consecutives :: Monad m => ConduitT i (i, i) m ()
 consecutivesN :: forall v n i m. (KnownNat n, Vector v i, Monad m) => ConduitT i (Vector v n i, Vector v n i) m ()
 leadings :: forall v n i m. (KnownNat n, Vector v i, Monad m) => ConduitT i (Vector v n i, i) m ()
-conduitLearn :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), Monad m) => l -> LParam_ I l -> LState_ I l -> ConduitT a b m (LState_ I l)
-conduitLearnStoch :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m) => l -> Gen (PrimState m) -> LParam_ I l -> LState_ I l -> ConduitT a b m (LState_ I l)
+conduitLearn :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), Monad m) => l -> LParam_ I l -> LState_ I l -> ConduitT a b m (LState_ I l)
+conduitLearnStoch :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), PrimMonad m) => l -> Gen (PrimState m) -> LParam_ I l -> LState_ I l -> ConduitT a b m (LState_ I l)
 
 -- | What module should this be in?
 oneHot' :: (Vector v a, KnownNat n) => a -> a -> Finite n -> Vector v n a
