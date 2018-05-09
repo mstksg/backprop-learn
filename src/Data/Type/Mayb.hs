@@ -34,12 +34,11 @@ import           Data.Kind
 import           Data.Type.Boolean
 import           Data.Type.Combinator
 import           Data.Type.Product
-import           Numeric.Backprop.Tuple
 import           Type.Class.Higher
 import           Type.Class.Known
 import           Type.Class.Witness
-import           Type.Family.Maybe      (type (<$>))
-import qualified GHC.TypeLits           as TL
+import           Type.Family.Maybe         (type (<$>))
+import qualified GHC.TypeLits              as TL
 
 type family MaybeC (c :: k -> Constraint) (m :: Maybe k) :: Constraint where
     MaybeC c ('Just a) = c a
@@ -173,11 +172,11 @@ type family TupMaybe (a :: Maybe Type) (b :: Maybe Type) :: Maybe Type where
     TupMaybe 'Nothing  'Nothing  = 'Nothing
     TupMaybe 'Nothing  ('Just b) = 'Just b
     TupMaybe ('Just a) 'Nothing  = 'Just a
-    TupMaybe ('Just a) ('Just b) = 'Just (T2 a b)
+    TupMaybe ('Just a) ('Just b) = 'Just (a, b)
 
 tupMaybe
     :: forall f a b. ()
-    => (forall a' b'. (a ~ 'Just a', b ~ 'Just b') => f a' -> f b' -> f (T2 a' b'))
+    => (forall a' b'. (a ~ 'Just a', b ~ 'Just b') => f a' -> f b' -> f (a', b'))
     -> Mayb f a
     -> Mayb f b
     -> Mayb f (TupMaybe a b)
@@ -191,7 +190,7 @@ tupMaybe f = \case
 
 splitTupMaybe
     :: forall f a b. (KnownMayb a, KnownMayb b)
-    => (forall a' b'. (a ~ 'Just a', b ~ 'Just b') => f (T2 a' b') -> (f a', f b'))
+    => (forall a' b'. (a ~ 'Just a', b ~ 'Just b') => f (a', b') -> (f a', f b'))
     -> Mayb f (TupMaybe a b)
     -> (Mayb f a, Mayb f b)
 splitTupMaybe f = case knownMayb @a of

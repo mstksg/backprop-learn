@@ -51,7 +51,6 @@ import           GHC.TypeLits.Extra
 import           GHC.TypeNats
 import           Lens.Micro
 import           Numeric.Backprop
-import           Numeric.Backprop.Tuple
 import           Numeric.LinearAlgebra.Static.Backprop
 import           Numeric.LinearAlgebra.Static.Vector
 import           Numeric.OneLiner
@@ -144,6 +143,8 @@ instance (KnownNat i, KnownNat o) => Floating (LRp i o) where
     acosh = gAcosh
     atanh = gAtanh
 
+instance (KnownNat i, KnownNat o) => Backprop (LRp i o)
+
 instance (KnownNat i, KnownNat o) => Learn (R i) (R o) (LinReg i o) where
     type LParamMaybe (LinReg i o) = 'Just (LRp i o)
 
@@ -233,8 +234,8 @@ data ARIMA :: Nat -> Nat -> Nat -> Type where
 --     type 'LParamMaybe' (ARIMAUnroll p q) = 'Just (T2 (ARIMAp p q) (ARIMAs p q))
 --     type 'LStateMaybe' (ARIMAUnroll p q) = 'Nothing
 -- @
-type ARIMAUnroll p d q = DeParamAt (T2 (ARIMAp p q) (ARIMAs p d q))
-                                   (T2 (ARIMAp p q) (T2 Double (R (p + d))))
+type ARIMAUnroll p d q = DeParamAt (ARIMAp p q, ARIMAs p d q)
+                                   (ARIMAp p q, (Double, R (p + d)))
                                    (R q)
                                    (UnrollTrainState (Max (p + d) q) (ARIMA p d q))
 
@@ -247,21 +248,21 @@ type ARIMAUnroll p d q = DeParamAt (T2 (ARIMAp p q) (ARIMAs p d q))
 --     type 'LParamMaybe' (ARIMAUnrollFinal p q) = 'Just (T2 (ARIMAp p q) (ARIMAs p q))
 --     type 'LStateMaybe' (ARIMAUnrollFinal p q) = 'Nothing
 -- @
-type ARIMAUnrollFinal p d q = DeParamAt (T2 (ARIMAp p q) (ARIMAs p d q))
-                                        (T2 (ARIMAp p q) (T2 Double (R (p + d))))
+type ARIMAUnrollFinal p d q = DeParamAt (ARIMAp p q, ARIMAs p d q)
+                                        (ARIMAp p q, (Double, R (p + d)))
                                         (R q)
                                         (UnrollFinalTrainState (Max (p + d) q) (ARIMA p d q))
 
 splitHist
-    :: T2 (ARIMAp p q) (ARIMAs p d q)
-    -> (T2 (ARIMAp p q) (T2 Double (R (p + d))), R q)
-splitHist (T2 p ARIMAs{..}) = (T2 p (T2 _arimaYPred _arimaYHist), _arimaEHist)
+    :: (ARIMAp p q, ARIMAs p d q)
+    -> ((ARIMAp p q, (Double, R (p + d))), R q)
+splitHist (p, ARIMAs{..}) = ((p, (_arimaYPred, _arimaYHist)), _arimaEHist)
 
 joinHist
-    :: T2 (ARIMAp p q) (T2 Double (R (p + d)))
+    :: (ARIMAp p q, (Double, R (p + d)))
     -> R q
-    -> T2 (ARIMAp p q) (ARIMAs p d q)
-joinHist (T2 p (T2 _arimaYPred _arimaYHist)) _arimaEHist = T2 p ARIMAs{..}
+    -> (ARIMAp p q, ARIMAs p d q)
+joinHist (p, (_arimaYPred, _arimaYHist)) _arimaEHist = (p, ARIMAs{..})
 
 -- | Constructor for 'ARIMAUnroll'
 arimaUnroll
@@ -428,6 +429,9 @@ instance Floating (ARIMAs p d q) where
     asinh = gAsinh
     acosh = gAcosh
     atanh = gAtanh
+
+instance Backprop (ARIMAp p q)
+instance Backprop (ARIMAs p d q)
 
 instance Additive (ARIMAp p q) where
     (.+.)   = gAdd

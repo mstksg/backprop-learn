@@ -78,7 +78,8 @@ data DeParamAt :: Type -> Type -> Type -> Type -> Type where
 dpaDeterm :: (pq -> (p, q)) -> (p -> q -> pq) -> q -> l -> DeParamAt pq p q l
 dpaDeterm s j q = DPA s j q (const (pure q))
 
-instance (Learn a b l, LParamMaybe l ~ 'Just pq, Num pq, Num p, Num q) => Learn a b (DeParamAt pq p q l) where
+instance (Learn a b l, LParamMaybe l ~ 'Just pq, Backprop pq, Backprop p, Backprop q)
+        => Learn a b (DeParamAt pq p q l) where
     type LParamMaybe (DeParamAt pq p q l) = 'Just p
     type LStateMaybe (DeParamAt pq p q l) = LStateMaybe l
 
@@ -96,8 +97,8 @@ instance (Learn a b l, LParamMaybe l ~ 'Just pq, Num pq, Num p, Num q) => Learn 
 -- it.  A @'ReParam' p q@ turns a model taking @p@ into a model taking @q@.
 --
 -- Note that a @'ReParam' p ''Nothing'@ is essentially the same as
--- a @'DeParam' p@, and one could implement @'DeParamAt' p q@ in terms of
--- @'ReParam' p (''Just' q)@.
+-- a @'DeParam' p@, and one could implement @'DeParamAt' pq p q@ in terms of
+-- @'ReParam' pq (''Just' p)@.
 data ReParam :: Type -> Maybe Type -> Type -> Type where
     RP :: { _rpFrom      :: forall s. Reifies s W => Mayb (BVar s) q -> BVar s p
           , _rpFromStoch :: forall m s. (PrimMonad m, Reifies s W) => MWC.Gen (PrimState m) -> Mayb (BVar s) q -> m (BVar s p)

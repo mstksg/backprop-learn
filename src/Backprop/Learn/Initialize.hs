@@ -5,6 +5,7 @@
 {-# LANGUAGE FlexibleContexts                         #-}
 {-# LANGUAGE FlexibleInstances                        #-}
 {-# LANGUAGE GADTs                                    #-}
+{-# LANGUAGE LambdaCase                               #-}
 {-# LANGUAGE RankNTypes                               #-}
 {-# LANGUAGE ScopedTypeVariables                      #-}
 {-# LANGUAGE TypeApplications                         #-}
@@ -22,11 +23,12 @@ module Backprop.Learn.Initialize (
 
 import           Control.Monad.Primitive
 import           Data.Complex
+import           Data.Type.Combinator
 import           Data.Type.Length
 import           Data.Type.NonEmpty
+import           Data.Type.Product
 import           GHC.TypeNats
 import           Generics.OneLiner
-import           Numeric.Backprop.Tuple
 import           Numeric.LinearAlgebra.Static.Vector
 import           Statistics.Distribution
 import           Statistics.Distribution.Normal
@@ -84,14 +86,30 @@ instance Initialize Float where
 -- | Initializes real and imaginary components identically
 instance Initialize a => Initialize (Complex a) where
 
-instance Initialize T0
-instance (Initialize a, Initialize b) => Initialize (T2 a b)
-instance (Initialize a, Initialize b, Initialize c) => Initialize (T3 a b c)
+-- instance Initialize T0
+-- instance (Initialize a, Initialize b) => Initialize (T2 a b)
+-- instance (Initialize a, Initialize b, Initialize c) => Initialize (T3 a b c)
 
-instance (ListC (Initialize <$> as), Known Length as) => Initialize (T as) where
-    initialize d g = constTA @Initialize (initialize d g) known
+-- instance (ListC (Initialize <$> as), Known Length as) => Initialize (T as) where
+--     initialize d g = constTA @Initialize (initialize d g) known
 
-instance (Initialize a, ListC (Initialize <$> as), Known Length as) => Initialize (NETup (a ':| as)) where
+instance Initialize a => Initialize (I a) where
+    initialize d g = I <$> initialize d g
+
+instance (ListC (Initialize <$> (f <$> as)), Known Length as) => Initialize (Prod f as) where
+    initialize d g = initProd d g known
+
+initProd
+    :: (ContGen d, ListC (Initialize <$> (f <$> as)), PrimMonad m)
+    => d
+    -> MWC.Gen (PrimState m)
+    -> Length as
+    -> m (Prod f as)
+initProd d g = \case
+    LZ   -> pure Ø
+    LS l -> (:<) <$> initialize d g <*> initProd d g l
+
+instance (Initialize a, ListC (Initialize <$> (I <$> as)), Known Length as) => Initialize (NETup (a ':| as)) where
     initialize d g = NET <$> initialize d g
                          <*> initialize d g
 
@@ -113,14 +131,14 @@ instance (KnownNat n, KnownNat m) => Initialize (H.M n m) where
     initialize d = fmap vecM . initialize d
 
 
-constTA
-    :: forall c as f. (ListC (c <$> as), Applicative f)
-    => (forall a. c a => f a)
-    -> Length as
-    -> f (T as)
-constTA x = go
-  where
-    go :: forall bs. ListC (c <$> bs) => Length bs -> f (T bs)
-    go LZ     = pure TNil
-    go (LS l) = (:&) <$> x <*> go l
+-- constTA
+--     :: forall c as f. (ListC (c <$> as), Applicative f)
+--     => (forall a. c a => f a)
+--     -> Length as
+--     -> f (T as)
+-- constTA x = go
+--   where
+--     go :: forall bs. ListC (c <$> bs) => Length bs -> f (T bs)
+--     go LZ     = pure TNil
+--     go (LS l) = (:&) <$> x <*> go l
 

@@ -44,7 +44,6 @@ import           Data.Functor.Identity
 import           Data.Type.Mayb
 import           Data.Word
 import           Numeric.Backprop
-import           Numeric.Backprop.Tuple
 import           Statistics.Distribution
 import qualified Data.Binary                      as Bi
 import qualified Data.ByteString.Lazy             as BSL
@@ -53,7 +52,7 @@ import qualified System.Random.MWC                as MWC
 
 -- TODO: this can be more efficient by breaking out into separate functions
 runLearn_
-    :: (Learn a b l, MaybeC Num (LStateMaybe l), Num b)
+    :: (Learn a b l, MaybeC Backprop (LStateMaybe l), Backprop b)
     => l
     -> LParam_ I l
     -> a
@@ -62,24 +61,24 @@ runLearn_
 runLearn_ l mp x ms = case mp of
     N_ -> case ms of
       N_       -> (evalBP (runLearnStateless l N_) x, N_)
-      J_ (I s) -> second (J_ . I) . t2Tup
-                . evalBP2 (\x' s' -> uncurry (isoVar2 T2 t2Tup)
-                                       . second fromJ_
-                                       $ runLearn l N_ x' (J_ s')
+      J_ (I s) -> second (J_ . I)
+                . evalBP2 (\x' s' -> uncurry T2
+                                   . second fromJ_
+                                   $ runLearn l N_ x' (J_ s')
                           ) x
                 $ s
     J_ (I p) -> case ms of
       N_       -> (evalBP2 (runLearnStateless l . J_) p x, N_)
-      J_ (I s) -> second (J_ . I) . t2Tup
+      J_ (I s) -> second (J_ . I)
                 . evalBPN (\(p' :< x' :< s' :< Ø) ->
-                                uncurry (isoVar2 T2 t2Tup)
+                                uncurry T2
                               . second fromJ_
                               $ runLearn l (J_ p') x' (J_ s')
                           )
                 $ (p ::< x ::< s ::< Ø)
 
 runLearnStoch_
-    :: (Learn a b l, MaybeC Num (LStateMaybe l), Num b, PrimMonad m)
+    :: (Learn a b l, MaybeC Backprop (LStateMaybe l), Backprop b, PrimMonad m)
     => l
     -> MWC.Gen (PrimState m)
     -> LParam_ I l
@@ -95,9 +94,9 @@ runLearnStoch_ l g mp x ms = do
             g' <- MWC.initialize seed
             runLearnStochStateless l g' N_ x'
           ) x
-        J_ (I s) -> second (J_ . I) . t2Tup $ evalBP2 (\x' s' -> runST $ do
+        J_ (I s) -> second (J_ . I) $ evalBP2 (\x' s' -> runST $ do
             g' <- MWC.initialize seed
-            uncurry (isoVar2 T2 t2Tup) . second fromJ_
+            uncurry T2 . second fromJ_
               <$> runLearnStoch l g' N_ x' (J_ s')
           ) x s
       J_ (I p) -> case ms of
@@ -105,9 +104,9 @@ runLearnStoch_ l g mp x ms = do
             g' <- MWC.initialize seed
             runLearnStochStateless l g' (J_ p') x'
           ) p x
-        J_ (I s) -> second (J_ . I) . t2Tup $ evalBPN (\(p' :< x' :< s' :< Ø) -> runST $ do
+        J_ (I s) -> second (J_ . I) $ evalBPN (\(p' :< x' :< s' :< Ø) -> runST $ do
             g' <- MWC.initialize seed
-            uncurry (isoVar2 T2 t2Tup) . second fromJ_
+            uncurry T2 . second fromJ_
               <$> runLearnStoch l g' (J_ p') x' (J_ s')
           ) (p ::< x ::< s ::< Ø)
 
@@ -141,7 +140,7 @@ runLearnStochStateless_ l g mp x = do
         ) p x
 
 gradLearn
-    :: (Learn a b l, NoState l, Num a, Num b, MaybeC Num (LParamMaybe l))
+    :: (Learn a b l, NoState l, Backprop a, Backprop b, MaybeC Backprop (LParamMaybe l))
     => l
     -> LParam_ I l
     -> a
@@ -151,7 +150,7 @@ gradLearn l = \case
     J_ (I p) -> first (J_ . I) . gradBP2 (runLearnStateless l . J_) p
 
 gradLearnStoch
-    :: (Learn a b l, NoState l, Num a, Num b, MaybeC Num (LParamMaybe l), PrimMonad m)
+    :: (Learn a b l, NoState l, Backprop a, Backprop b, MaybeC Backprop (LParamMaybe l), PrimMonad m)
     => l
     -> MWC.Gen (PrimState m)
     -> LParam_ I l
@@ -170,7 +169,7 @@ gradLearnStoch l g mp x = do
         ) p x
 
 iterateLearn
-    :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l))
+    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l))
     => (b -> a)         -- ^ loop
     -> Int              -- ^ num times
     -> l
@@ -181,7 +180,7 @@ iterateLearn
 iterateLearn f n l p x = runIdentity . iterateLearnM (Identity . f) n l p x
 
 iterateLearn_
-    :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l))
+    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l))
     => (b -> a)         -- ^ loop
     -> l
     -> LParam_ I l
@@ -195,7 +194,7 @@ iterateLearn_ f l p = go
         (y, s') = runLearn_ l p x s
 
 selfPrime
-    :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l))
+    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l))
     => (b -> a)         -- ^ loop
     -> l
     -> LParam_ I l
@@ -209,7 +208,7 @@ selfPrime f l p = go
         (y, s') = runLearn_ l p x s
 
 iterateLearnM
-    :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), Monad m)
+    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), Monad m)
     => (b -> m a)           -- ^ loop
     -> Int                  -- ^ num times
     -> l
@@ -227,7 +226,7 @@ iterateLearnM f n l p = go 0
       | otherwise = pure ([], s)
 
 iterateLearnM_
-    :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), Monad m)
+    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), Monad m)
     => (b -> m a)           -- ^ loop
     -> Int                  -- ^ num times
     -> l
@@ -238,7 +237,7 @@ iterateLearnM_
 iterateLearnM_ f n l p x = fmap fst . iterateLearnM f n l p x
 
 selfPrimeM
-    :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), Monad m)
+    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), Monad m)
     => (b -> m a)           -- ^ loop
     -> Int                  -- ^ num times
     -> l
@@ -249,7 +248,7 @@ selfPrimeM
 selfPrimeM f n l p x = fmap snd . iterateLearnM f n l p x
 
 iterateLearnStoch
-    :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m)
+    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), PrimMonad m)
     => (b -> m a)           -- ^ loop
     -> Int                  -- ^ num times
     -> l
@@ -268,7 +267,7 @@ iterateLearnStoch f n l g p = go 0
       | otherwise = pure ([], s)
 
 iterateLearnStoch_
-    :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m)
+    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), PrimMonad m)
     => (b -> m a)           -- ^ loop
     -> Int                  -- ^ num times
     -> l
@@ -280,7 +279,7 @@ iterateLearnStoch_
 iterateLearnStoch_ f n l g p x = fmap fst . iterateLearnStoch f n l g p x
 
 scanLearn
-    :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), Traversable t)
+    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), Traversable t)
     => l
     -> LParam_ I l
     -> t a
@@ -289,7 +288,7 @@ scanLearn
 scanLearn l p = runState . traverse (state . runLearn_ l p)
 
 scanLearn_
-    :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), Traversable t)
+    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), Traversable t)
     => l
     -> LParam_ I l
     -> t a
@@ -298,7 +297,7 @@ scanLearn_
 scanLearn_ l p xs = fst . scanLearn l p xs
 
 primeLearn
-    :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), Foldable t)
+    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), Foldable t)
     => l
     -> LParam_ I l
     -> t a
@@ -307,7 +306,7 @@ primeLearn
 primeLearn l p = execState . traverse_ (state . runLearn_ l p)
 
 scanLearnStoch
-    :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m, Traversable t)
+    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), PrimMonad m, Traversable t)
     => l
     -> MWC.Gen (PrimState m)
     -> LParam_ I l
@@ -317,7 +316,7 @@ scanLearnStoch
 scanLearnStoch l g p = runStateT . traverse (StateT . runLearnStoch_ l g p)
 
 scanLearnStoch_
-    :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m, Traversable t)
+    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), PrimMonad m, Traversable t)
     => l
     -> MWC.Gen (PrimState m)
     -> LParam_ I l
@@ -327,7 +326,7 @@ scanLearnStoch_
 scanLearnStoch_ l g p xs = fmap fst . scanLearnStoch l g p xs
 
 primeLearnStoch
-    :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m, Foldable t)
+    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), PrimMonad m, Foldable t)
     => l
     -> MWC.Gen (PrimState m)
     -> LParam_ I l

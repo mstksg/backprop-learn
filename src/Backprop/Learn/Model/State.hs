@@ -41,17 +41,18 @@ import           Control.Monad.Primitive
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.State
 import           Control.Monad.Trans.Writer
-import           Data.Typeable
 import           Data.Bifunctor
 import           Data.Foldable
 import           Data.Kind
 import           Data.Semigroup
 import           Data.Tuple
 import           Data.Type.Mayb
+import           Data.Typeable
 import           GHC.TypeNats
+import           Lens.Micro
 import           Numeric.Backprop
-import           Numeric.Backprop.Tuple
 import qualified Data.Vector.Sized          as SV
+import qualified Numeric.Backprop.Explicit  as BPE
 import qualified System.Random.MWC          as MWC
 
 -- | Unroll a (usually) stateful model into one taking a vector of
@@ -107,21 +108,24 @@ pattern UDS
 pattern UDS { _udsInitState, _udsInitStateStoch, _udsLearn } =
       DS _udsInitState _udsInitStateStoch (Unroll _udsLearn)
 
-instance (Learn a b l, KnownNat n, Num a, Num b) => Learn (SV.Vector n a) (SV.Vector n b) (Unroll n l) where
+instance (Learn a b l, Backprop a, Backprop b)
+        => Learn (SV.Vector n a) (SV.Vector n b) (Unroll n l) where
     type LParamMaybe (Unroll n l) = LParamMaybe l
     type LStateMaybe (Unroll n l) = LStateMaybe l
 
-    runLearn (Unroll l) p x s = first collectVar
-                              . flip runState s
-                              . traverse (state . runLearn l p)
-                              . sequenceVar
-                              $ x
+    runLearn (Unroll l) p x s =
+        first (BPE.collectVar BPE.addFunc BPE.zeroFunc BPE.zfFunctor)
+      . flip runState s
+      . traverse (state . runLearn l p)
+      . sequenceVar
+      $ x
 
-    runLearnStoch (Unroll l) g p x s = (fmap . first) collectVar
-                                     . flip runStateT s
-                                     . traverse (StateT . runLearnStoch l g p)
-                                     . sequenceVar
-                                     $ x
+    runLearnStoch (Unroll l) g p x s =
+        (fmap . first) (BPE.collectVar BPE.addFunc BPE.zeroFunc BPE.zfFunctor)
+      . flip runStateT s
+      . traverse (StateT . runLearnStoch l g p)
+      . sequenceVar
+      $ x
 
 -- | Version of 'Unroll' that only keeps the "final" result, dropping all
 -- of the intermediate results.
@@ -172,7 +176,7 @@ pattern UFDS
 pattern UFDS { _ufdsInitState, _ufdsInitStateStoch, _ufdsLearn } =
       DS _ufdsInitState _ufdsInitStateStoch (UnrollFinal _ufdsLearn)
 
-instance (Learn a b l, Num a, 1 <= n) => Learn (SV.Vector n a) b (UnrollFinal n l) where
+instance (Learn a b l, Backprop a, 1 <= n) => Learn (SV.Vector n a) b (UnrollFinal n l) where
     type LParamMaybe (UnrollFinal n l) = LParamMaybe l
     type LStateMaybe (UnrollFinal n l) = LStateMaybe l
 
@@ -209,9 +213,9 @@ newtype TrainState :: Type -> Type where
 
 instance ( Learn a b l
          , KnownMayb (LParamMaybe l)
-         , MaybeC Num (LParamMaybe l)
+         , MaybeC Backprop (LParamMaybe l)
          , LStateMaybe l ~ 'Just s
-         , Num s
+         , Backprop s
          )
       => Learn a b (TrainState l) where
     type LParamMaybe (TrainState l) = TupMaybe (LParamMaybe l) (LStateMaybe l)
@@ -222,7 +226,7 @@ instance ( Learn a b l
                                   $ s
       where
         (p, s) = splitTupMaybe @_ @(LParamMaybe l) @(LStateMaybe l)
-                   (\v -> (v ^^. t2_1, v ^^. t2_2))
+                   (\v -> (v ^^. _1, v ^^. _2))
                    t
 
     runLearnStoch (TrainState l) g t x _ = (fmap . second . const) N_
@@ -230,7 +234,7 @@ instance ( Learn a b l
                                          $ s
       where
         (p, s) = splitTupMaybe @_ @(LParamMaybe l) @(LStateMaybe l)
-                   (\v -> (v ^^. t2_1, v ^^. t2_2))
+                   (\v -> (v ^^. _1, v ^^. _2))
                    t
 
 -- | Make a model stateless by pre-applying a fixed state (or a stochastic
@@ -263,6 +267,8 @@ instance (Learn a b l, LStateMaybe l ~ 'Just s) => Learn a b (DeState s l) where
       s <- constVar <$> gs g
       (y, _) <- runLearnStoch l g p x (J_ s)
       pure (y, N_)
+
+-- TODO: DeStateAt ?
 
 -- | Transform the state of a model by providing functions to pre-apply and
 -- post-apply before and after the original model sees the state.
@@ -337,8 +343,8 @@ data Recurrent :: Type -> Type -> Type -> Type -> Type -> Type where
 
 instance ( Learn ab c l
          , KnownMayb (LStateMaybe l)
-         , Num a, Num b, Num ab
-         , MaybeC Num (LStateMaybe l))
+         , Backprop a, Backprop b, Backprop ab
+         , MaybeC Backprop (LStateMaybe l))
         => Learn a c (Recurrent ab a b c l) where
     type LParamMaybe (Recurrent ab a b c l) = LParamMaybe l
     type LStateMaybe (Recurrent ab a b c l) = TupMaybe (LStateMaybe l) ('Just b)
@@ -351,9 +357,9 @@ instance ( Learn ab c l
                 in  (y', J_ (_recLoop y'))
         J_ _ -> let sy      = fromJ_ msy
                     (y', J_ s') = runLearn _recLearn p
-                        (isoVar2 _recJoin _recSplit x (sy ^^. t2_2))
-                        (J_ (sy ^^. t2_1))
-                in  (y', J_ . isoVar2 T2 t2Tup s' . _recLoop $ y')
+                        (isoVar2 _recJoin _recSplit x (sy ^^. _2))
+                        (J_ (sy ^^. _1))
+                in  (y', J_ . isoVar2 (,) id s' . _recLoop $ y')
 
     runLearnStoch Rec{..} g p x msy = case knownMayb @(LStateMaybe l) of
         N_   -> do
@@ -364,9 +370,9 @@ instance ( Learn ab c l
           let sy    = fromJ_ msy
           (y', s') <- second fromJ_
                   <$> runLearnStoch _recLearn g p
-                        (isoVar2 _recJoin _recSplit x (sy ^^. t2_2))
-                        (J_ (sy ^^. t2_1))
-          pure (y', J_ . isoVar2 T2 t2Tup s' . _recLoop $ y')
+                        (isoVar2 _recJoin _recSplit x (sy ^^. _2))
+                        (J_ (sy ^^. _1))
+          pure (y', J_ . isoVar2 (,) id s' . _recLoop $ y')
 
 -- | Give a stateless model a "dummy" state, the unit 'T0'.  For now,
 -- useful for using with combinators like 'DeState' that require state.
@@ -376,17 +382,17 @@ instance ( Learn ab c l
 -- @
 -- instance ('Learn' a b l, 'NoState' l) => Learn a b ('DummyState' a b l) where
 --     type 'LParamMaybe' ('DummyState' a b l) = 'LParamMaybe' l
---     type 'LStateMaybe' ('DummyState' a b l) = ''Just' 'T0'
+--     type 'LStateMaybe' ('DummyState' a b l) = ''Just' '()'
 -- @
-type DummyState a b l = Recurrent a a T0 b l
+type DummyState a b l = Recurrent a a () b l
 
 -- | Construct a 'DummyState'
 pattern DummyState :: (Learn a b l, NoState l) => l -> DummyState a b l
 pattern DummyState { getDummyState } <- Rec { _recLearn = getDummyState }
   where
-    DummyState l = Rec { _recSplit = (,T0)
+    DummyState l = Rec { _recSplit = (,())
                        , _recJoin  = const
-                       , _recLoop  = const (constVar T0)
+                       , _recLoop  = const (constVar ())
                        , _recLearn = l
                        }
 {-# COMPLETE DummyState #-}
