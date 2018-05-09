@@ -34,7 +34,7 @@ gradLearnLoss
     :: ( Learn a b l
        , NoState l
        , LParamMaybe l ~ 'Just (LParam l)
-       , Num (LParam l)
+       , Backprop (LParam l)
        )
     => Loss b
     -> Regularizer (LParam l)
@@ -52,7 +52,7 @@ gradLearnStochLoss
     :: ( Learn a b l
        , NoState l
        , LParamMaybe l ~ 'Just (LParam l)
-       , Num (LParam l)
+       , Backprop (LParam l)
        , PrimMonad m
        )
     => Loss b
@@ -79,7 +79,7 @@ learnGrad
        , Learn a b l
        , NoState l
        , LParamMaybe l ~ 'Just (LParam l)
-       , Num (LParam l)
+       , Backprop (LParam l)
        )
     => Loss b
     -> Regularizer (LParam l)
@@ -96,7 +96,7 @@ learnGradStoch
        , Learn a b l
        , NoState l
        , LParamMaybe l ~ 'Just (LParam l)
-       , Num (LParam l)
+       , Backprop (LParam l)
        )
     => Loss b
     -> Regularizer (LParam l)

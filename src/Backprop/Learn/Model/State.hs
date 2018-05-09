@@ -41,16 +41,16 @@ import           Control.Monad.Primitive
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.State
 import           Control.Monad.Trans.Writer
-import           Data.Typeable
 import           Data.Bifunctor
 import           Data.Foldable
 import           Data.Kind
 import           Data.Semigroup
 import           Data.Tuple
 import           Data.Type.Mayb
+import           Data.Type.Tuple hiding     (T2(..), T3(..))
+import           Data.Typeable
 import           GHC.TypeNats
 import           Numeric.Backprop
-import           Numeric.Backprop.Tuple
 import qualified Data.Vector.Sized          as SV
 import qualified System.Random.MWC          as MWC
 
@@ -107,7 +107,8 @@ pattern UDS
 pattern UDS { _udsInitState, _udsInitStateStoch, _udsLearn } =
       DS _udsInitState _udsInitStateStoch (Unroll _udsLearn)
 
-instance (Learn a b l, KnownNat n, Num a, Num b) => Learn (SV.Vector n a) (SV.Vector n b) (Unroll n l) where
+instance (Learn a b l, KnownNat n, Backprop a, Backprop b)
+      => Learn (ABP (SV.Vector n) a) (ABP (SV.Vector n) b) (Unroll n l) where
     type LParamMaybe (Unroll n l) = LParamMaybe l
     type LStateMaybe (Unroll n l) = LStateMaybe l
 
@@ -172,7 +173,7 @@ pattern UFDS
 pattern UFDS { _ufdsInitState, _ufdsInitStateStoch, _ufdsLearn } =
       DS _ufdsInitState _ufdsInitStateStoch (UnrollFinal _ufdsLearn)
 
-instance (Learn a b l, Num a, 1 <= n) => Learn (SV.Vector n a) b (UnrollFinal n l) where
+instance (Learn a b l, Backprop a, 1 <= n) => Learn (SV.Vector n a) b (UnrollFinal n l) where
     type LParamMaybe (UnrollFinal n l) = LParamMaybe l
     type LStateMaybe (UnrollFinal n l) = LStateMaybe l
 
@@ -209,9 +210,9 @@ newtype TrainState :: Type -> Type where
 
 instance ( Learn a b l
          , KnownMayb (LParamMaybe l)
-         , MaybeC Num (LParamMaybe l)
+         , MaybeC Backprop (LParamMaybe l)
          , LStateMaybe l ~ 'Just s
-         , Num s
+         , Backprop s
          )
       => Learn a b (TrainState l) where
     type LParamMaybe (TrainState l) = TupMaybe (LParamMaybe l) (LStateMaybe l)
@@ -337,8 +338,8 @@ data Recurrent :: Type -> Type -> Type -> Type -> Type -> Type where
 
 instance ( Learn ab c l
          , KnownMayb (LStateMaybe l)
-         , Num a, Num b, Num ab
-         , MaybeC Num (LStateMaybe l))
+         , Backprop a, Backprop b, Backprop ab
+         , MaybeC Backprop (LStateMaybe l))
         => Learn a c (Recurrent ab a b c l) where
     type LParamMaybe (Recurrent ab a b c l) = LParamMaybe l
     type LStateMaybe (Recurrent ab a b c l) = TupMaybe (LStateMaybe l) ('Just b)
@@ -353,7 +354,7 @@ instance ( Learn ab c l
                     (y', J_ s') = runLearn _recLearn p
                         (isoVar2 _recJoin _recSplit x (sy ^^. t2_2))
                         (J_ (sy ^^. t2_1))
-                in  (y', J_ . isoVar2 T2 t2Tup s' . _recLoop $ y')
+                in  (y', J_ $ T2B s' (_recLoop y'))
 
     runLearnStoch Rec{..} g p x msy = case knownMayb @(LStateMaybe l) of
         N_   -> do
@@ -366,7 +367,7 @@ instance ( Learn ab c l
                   <$> runLearnStoch _recLearn g p
                         (isoVar2 _recJoin _recSplit x (sy ^^. t2_2))
                         (J_ (sy ^^. t2_1))
-          pure (y', J_ . isoVar2 T2 t2Tup s' . _recLoop $ y')
+          pure (y', J_ $ T2B s' (_recLoop y'))
 
 -- | Give a stateless model a "dummy" state, the unit 'T0'.  For now,
 -- useful for using with combinators like 'DeState' that require state.

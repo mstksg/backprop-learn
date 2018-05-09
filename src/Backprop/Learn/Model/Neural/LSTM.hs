@@ -74,6 +74,7 @@ instance (KnownNat i, KnownNat o) => Metric Double (LSTMp i o)
 instance (KnownNat i, KnownNat o, Ref m (LSTMp i o) v) => AdditiveInPlace m v (LSTMp i o)
 instance (KnownNat i, KnownNat o, Ref m (LSTMp i o) v) => ScalingInPlace m v Double (LSTMp i o)
 instance (KnownNat i, KnownNat o) => Bi.Binary (LSTMp i o)
+instance (KnownNat i, KnownNat o) => Backprop (LSTMp i o)
 
 -- | Forget biases initialized to 1
 instance (KnownNat i, KnownNat o) => Initialize (LSTMp i o) where
@@ -183,6 +184,7 @@ instance (KnownNat i, KnownNat o) => Metric Double (GRUp i o)
 instance (KnownNat i, KnownNat o, Ref m (GRUp i o) v) => AdditiveInPlace m v (GRUp i o)
 instance (KnownNat i, KnownNat o, Ref m (GRUp i o) v) => ScalingInPlace m v Double (GRUp i o)
 instance (KnownNat i, KnownNat o) => Bi.Binary (GRUp i o)
+instance (KnownNat i, KnownNat o) => Backprop (GRUp i o)
 
 instance (KnownNat i, KnownNat o) => Initialize (GRUp i o) where
     initialize d g = GRUp <$> initialize d g

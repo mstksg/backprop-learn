@@ -51,15 +51,16 @@ import           Data.Type.Equality
 import           Data.Type.Length
 import           Data.Type.Mayb                        as Mayb
 import           Data.Type.NonEmpty
+import           Data.Type.Tuple hiding                (T2(..), T3(..))
 import           Data.Typeable
 import           GHC.TypeNats
 import           Numeric.Backprop
-import           Numeric.Backprop.Tuple
 import           Numeric.LinearAlgebra.Static.Backprop
 import           Prelude hiding                        ((.), id)
 import           Type.Class.Known
 import           Type.Class.Witness
 import           Type.Family.List                      as List
+import qualified Data.Type.Tuple                       as T
 import qualified Data.Vector.Sized                     as SV
 import qualified System.Random.MWC                     as MWC
 
@@ -74,8 +75,8 @@ data Chain :: [Type] -> Type -> Type -> Type where
   deriving (Typeable)
 infixr 5 :~>
 
-instance ( ListC (Num List.<$> LParams ls)
-         , ListC (Num List.<$> LStates ls)
+instance ( ListC (Backprop List.<$> LParams ls)
+         , ListC (Backprop List.<$> LStates ls)
          )
       => Learn a b (Chain ls a b) where
     type LParamMaybe (Chain ls a b) = NETup Mayb.<$> ToNonEmpty (LParams ls)
@@ -85,7 +86,7 @@ instance ( ListC (Num List.<$> LParams ls)
     runLearnStoch = runChainLearnStoch
 
 runChainLearn
-    :: (Reifies s W, ListC (Num List.<$> LParams ls), ListC (Num List.<$> LStates ls))
+    :: (Reifies s W, ListC (Backprop List.<$> LParams ls), ListC (Backprop List.<$> LStates ls))
     => Chain ls a b
     -> Mayb (BVar s) (NETup Mayb.<$> ToNonEmpty (LParams ls))
     -> BVar s a
@@ -154,7 +155,11 @@ runChainLearn = \case
 
 
 runChainLearnStoch
-    :: (Reifies s W, ListC (Num List.<$> LParams ls), ListC (Num List.<$> LStates ls), PrimMonad m)
+    :: ( Reifies s W
+       , ListC (Backprop List.<$> LParams ls)
+       , ListC (Backprop List.<$> LStates ls)
+       , PrimMonad m
+       )
     => Chain ls a b
     -> MWC.Gen (PrimState m)
     -> Mayb (BVar s) (NETup Mayb.<$> ToNonEmpty (LParams ls))
@@ -333,13 +338,12 @@ instance Category (LearnFunc p s) where
 -- | Compose two 'LearnFunc' on lists.
 (.~)
     :: forall ps qs ss ts a b c.
-     ( ListC (Num List.<$> ps)
-     , ListC (Num List.<$> qs)
-     , ListC (Num List.<$> ss)
-     , ListC (Num List.<$> ts)
-     , ListC (Num List.<$> (ss ++ ts))
+     ( ListC (Backprop List.<$> ps)
+     , ListC (Backprop List.<$> qs)
+     , ListC (Backprop List.<$> ss)
+     , ListC (Backprop List.<$> ts)
+     , ListC (Backprop List.<$> (ss ++ ts))
      , Known Length ps
-     , Known Length qs
      , Known Length ss
      , Known Length ts
      )
@@ -376,7 +380,7 @@ nilLF = id
 
 -- | 'LearnFunc' with singleton lists; meant to be used with '.~'
 onlyLF
-    :: forall p s a b. (KnownMayb p, MaybeC Num p, KnownMayb s, MaybeC Num s)
+    :: forall p s a b. (KnownMayb p, MaybeC Backprop p, KnownMayb s, MaybeC Backprop s)
     => LearnFunc p s a b
     -> LearnFunc ('Just (T (MaybeToList p))) ('Just (T (MaybeToList s))) a b
 onlyLF f = LF
@@ -427,16 +431,16 @@ instance ( Learn a b l
          , KnownMayb (LParamMaybe m)
          , KnownMayb (LStateMaybe l)
          , KnownMayb (LStateMaybe m)
-         , MaybeC Num (LParamMaybe l)
-         , MaybeC Num (LParamMaybe m)
-         , MaybeC Num (LStateMaybe l)
-         , MaybeC Num (LStateMaybe m)
+         , MaybeC Backprop (LParamMaybe l)
+         , MaybeC Backprop (LParamMaybe m)
+         , MaybeC Backprop (LStateMaybe l)
+         , MaybeC Backprop (LStateMaybe m)
          )
       => Learn a c (l :.~ m) where
     type LParamMaybe (l :.~ m) = TupMaybe (LParamMaybe l) (LParamMaybe m)
     type LStateMaybe (l :.~ m) = TupMaybe (LStateMaybe l) (LStateMaybe m)
 
-    runLearn (l :.~ m) pq x st = (z, tupMaybe (isoVar2 T2 t2Tup) s' t')
+    runLearn (l :.~ m) pq x st = (z, tupMaybe T2B s' t')
       where
         (p, q) = splitTupMaybe @_ @(LParamMaybe l) @(LParamMaybe m)
                   (\v -> (v ^^. t2_1, v ^^. t2_2))
@@ -450,7 +454,7 @@ instance ( Learn a b l
     runLearnStoch (l :.~ m) g pq x st = do
         (y, s') <- runLearnStoch l g p x s
         (z, t') <- runLearnStoch m g q y t
-        pure (z, tupMaybe (isoVar2 T2 t2Tup) s' t')
+        pure (z, tupMaybe T2B s' t')
       where
         (p, q) = splitTupMaybe @_ @(LParamMaybe l) @(LParamMaybe m)
                   (\v -> (v ^^. t2_1, v ^^. t2_2))
@@ -571,13 +575,14 @@ data FeedbackTrace :: Nat -> Type -> Type -> Type -> Type where
 feedbackTraceId :: l -> FeedbackTrace n a a l
 feedbackTraceId = FBT id
 
-instance (Learn a b l, KnownNat n, Num b) => Learn a (SV.Vector n b) (FeedbackTrace n a b l) where
+instance (Learn a b l, KnownNat n, Backprop b)
+      => Learn a (ABP (SV.Vector n) b) (FeedbackTrace n a b l) where
     type LParamMaybe (FeedbackTrace n a b l) = LParamMaybe l
     type LStateMaybe (FeedbackTrace n a b l) = LStateMaybe l
 
     runLearn (FBT f l) p x0 =
           second snd
-        . runState (collectVar <$> SV.replicateM (state go))
+        . runState (collectVar . ABP <$> SV.replicateM (state go))
         . (x0,)
       where
         go (x, s) = (y, (f y, s'))
@@ -586,7 +591,7 @@ instance (Learn a b l, KnownNat n, Num b) => Learn a (SV.Vector n b) (FeedbackTr
 
     runLearnStoch (FBT f l) g p x0 =
           (fmap . second) snd
-        . runStateT (collectVar <$> SV.replicateM (StateT go))
+        . runStateT (collectVar . ABP <$> SV.replicateM (StateT go))
         . (x0,)
       where
         go (x, s) = do
@@ -605,19 +610,19 @@ instance ( Learn a b l
          , KnownMayb (LParamMaybe m)
          , KnownMayb (LStateMaybe l)
          , KnownMayb (LStateMaybe m)
-         , MaybeC Num (LParamMaybe l)
-         , MaybeC Num (LParamMaybe m)
-         , MaybeC Num (LStateMaybe l)
-         , MaybeC Num (LStateMaybe m)
-         , Num b
-         , Num c
+         , MaybeC Backprop (LParamMaybe l)
+         , MaybeC Backprop (LParamMaybe m)
+         , MaybeC Backprop (LStateMaybe l)
+         , MaybeC Backprop (LStateMaybe m)
+         , Backprop b
+         , Backprop c
          )
-      => Learn a (T2 b c) (l :&&& m) where
+      => Learn a (T.T2 b c) (l :&&& m) where
     type LParamMaybe (l :&&& m) = TupMaybe (LParamMaybe l) (LParamMaybe m)
     type LStateMaybe (l :&&& m) = TupMaybe (LStateMaybe l) (LStateMaybe m)
 
-    runLearn (l :&&& m) pq x st = ( isoVar2 T2 t2Tup y z
-                                  , tupMaybe (isoVar2 T2 t2Tup) s' t'
+    runLearn (l :&&& m) pq x st = ( T2B y z
+                                  , tupMaybe T2B s' t'
                                   )
       where
         (p, q) = splitTupMaybe @_ @(LParamMaybe l) @(LParamMaybe m)
@@ -632,8 +637,8 @@ instance ( Learn a b l
     runLearnStoch (l :&&& m) g pq x st = do
         (y, s') <- runLearnStoch l g p x s
         (z, t') <- runLearnStoch m g q x t
-        pure ( isoVar2 T2 t2Tup y z
-             , tupMaybe (isoVar2 T2 t2Tup) s' t'
+        pure ( T2B y z
+             , tupMaybe T2B s' t'
              )
       where
         (p, q) = splitTupMaybe @_ @(LParamMaybe l) @(LParamMaybe m)

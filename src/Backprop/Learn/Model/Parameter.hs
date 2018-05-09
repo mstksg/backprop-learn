@@ -78,7 +78,8 @@ data DeParamAt :: Type -> Type -> Type -> Type -> Type where
 dpaDeterm :: (pq -> (p, q)) -> (p -> q -> pq) -> q -> l -> DeParamAt pq p q l
 dpaDeterm s j q = DPA s j q (const (pure q))
 
-instance (Learn a b l, LParamMaybe l ~ 'Just pq, Num pq, Num p, Num q) => Learn a b (DeParamAt pq p q l) where
+instance (Learn a b l, LParamMaybe l ~ 'Just pq, Backprop pq, Backprop p, Backprop q)
+        => Learn a b (DeParamAt pq p q l) where
     type LParamMaybe (DeParamAt pq p q l) = 'Just p
     type LStateMaybe (DeParamAt pq p q l) = LStateMaybe l
 

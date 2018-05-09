@@ -27,7 +27,7 @@ ghc-options:
 # - -O0
 # - -fprint-explicit-kinds
 dependencies:
-- backprop >= 0.1.5.1
+- backprop >= 0.2.1
 - base >=4.7 && <5
 - binary
 - bytestring
@@ -35,11 +35,12 @@ dependencies:
 - containers
 - deepseq
 - finite-typelits
+- foldl >= 1.4
 - ghc-typelits-extra
 - ghc-typelits-knownnat
 - ghc-typelits-natnormalise
 - hmatrix
-- hmatrix-backprop >= 0.1.2
+- hmatrix-backprop >= 0.1.2.1
 - hmatrix-vector-sized
 - microlens
 - mwc-random
@@ -47,6 +48,7 @@ dependencies:
 - one-liner-instances
 - opto
 - primitive
+- profunctors
 - statistics
 - transformers
 - type-combinators

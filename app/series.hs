@@ -57,6 +57,8 @@ data Mode = CSimulate (Maybe Int)
                           , Show p
                           , Initialize p
                           , Initialize s
+                          , Backprop p
+                          , Backprop s
                           )
                           => CLearn (Model l)
 

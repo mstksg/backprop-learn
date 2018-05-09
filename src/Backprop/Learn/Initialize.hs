@@ -24,9 +24,9 @@ import           Control.Monad.Primitive
 import           Data.Complex
 import           Data.Type.Length
 import           Data.Type.NonEmpty
+import           Data.Type.Tuple
 import           GHC.TypeNats
 import           Generics.OneLiner
-import           Numeric.Backprop.Tuple
 import           Numeric.LinearAlgebra.Static.Vector
 import           Statistics.Distribution
 import           Statistics.Distribution.Normal

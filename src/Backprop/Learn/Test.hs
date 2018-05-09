@@ -24,14 +24,15 @@ module Backprop.Learn.Test (
 
 import           Backprop.Learn.Loss
 import           Backprop.Learn.Model
-import           Control.Applicative
 import           Control.Monad.Primitive
+import           Data.Bifunctor
+import           Data.Bitraversable
 import           Data.Function
+import           Data.Profunctor
 import           Data.Proxy
-import           Data.Semigroup
 import           GHC.TypeNats
 import           Numeric.Backprop
-import           Numeric.Backprop.Tuple
+import qualified Control.Foldl                as L
 import qualified Numeric.LinearAlgebra        as HU
 import qualified Numeric.LinearAlgebra.Static as H
 import qualified System.Random.MWC            as MWC
@@ -105,18 +106,33 @@ testLearnStoch
     -> m Double
 testLearnStoch t l g mp x y = t y <$> runLearnStochStateless_ l g mp x
 
+cov :: Fractional a => L.Fold (a, a) a
+cov = do
+    x  <- lmap fst           L.sum
+    y  <- lmap snd           L.sum
+    xy <- lmap (uncurry (*)) L.sum
+    n  <- fromIntegral <$> L.length
+    pure (xy / n - (x * y) / n / n)
+
+corr :: Floating a => L.Fold (a, a) a
+corr = do
+    x  <- lmap fst           L.sum
+    x2 <- lmap ((**2) . fst) L.sum
+    y  <- lmap snd           L.sum
+    y2 <- lmap ((**2) . snd) L.sum
+    xy <- lmap (uncurry (*)) L.sum
+    n  <- fromIntegral <$> L.length
+    pure $ (xy / n - (x * y) / n / n)
+         / sqrt ( x2 / n - (x / n)**2 )
+         / sqrt ( y2 / n - (y / n)**2 )
+
 testLearnCov
     :: (Learn a b l, NoState l, Foldable t, Fractional b)
     => l
     -> LParam_ I l
     -> t (a, b)
     -> b
-testLearnCov l p = process . getSum . foldMap go
-  where
-    process (T3 (T2 x y) xy n) = xy / n - (x * y) / n / n
-    go (x, y) = Sum $ T3 (T2 r y) (r * y) 1
-      where
-        r  = runLearnStateless_ l p x
+testLearnCov l p = L.fold $ (lmap . first) (runLearnStateless_ l p) cov
 
 testLearnCorr
     :: (Learn a b l, NoState l, Foldable t, Floating b)
@@ -124,14 +140,7 @@ testLearnCorr
     -> LParam_ I l
     -> t (a, b)
     -> b
-testLearnCorr l p = process . getSum . foldMap go
-  where
-    process (T3 (T2 (T2 x x2) (T2 y y2)) xy n) = (xy / n - (x * y) / n / n)
-            / sqrt ( x2 / n - (x / n)**2 )
-            / sqrt ( y2 / n - (y / n)**2 )
-    go (x, y) = Sum $ T3 (T2 (T2 r (r**2)) (T2 y (y**2))) (r * y) 1
-      where
-        r  = runLearnStateless_ l p x
+testLearnCorr l p = L.fold $ (lmap . first) (runLearnStateless_ l p) corr
 
 testLearnAll
     :: (Learn a b l, NoState l, Foldable t)
@@ -140,17 +149,14 @@ testLearnAll
     -> LParam_ I l
     -> t (a, b)
     -> Double
-testLearnAll t l p = uncurryT2 (/) . getSum
-                   . foldMap (\(x,y) -> Sum (T2 (f x y) 1))
-  where
-    f = testLearn t l p
+testLearnAll t l p = L.fold $ lmap (uncurry (testLearn t l p)) L.mean
 
-newtype M m a = M { getM :: m a }
-instance (Semigroup a, Applicative m) => Semigroup (M m a) where
-    M x <> M y = M $ liftA2 (<>) x y
-instance (Monoid a, Applicative m) => Monoid (M m a) where
-    mappend = (<>)
-    mempty = M (pure mempty)
+-- newtype M m a = M { getM :: m a }
+-- instance (Semigroup a, Applicative m) => Semigroup (M m a) where
+--     M x <> M y = M $ liftA2 (<>) x y
+-- instance (Monoid a, Applicative m) => Monoid (M m a) where
+--     mappend = (<>)
+--     mempty = M (pure mempty)
 
 testLearnStochAll
     :: (Learn a b l, NoState l, PrimMonad m, Foldable t)
@@ -160,10 +166,8 @@ testLearnStochAll
     -> LParam_ I l
     -> t (a, b)
     -> m Double
-testLearnStochAll t l g p = fmap (uncurryT2 (/) . getSum) . getM
-                          . foldMap (\(x,y) -> M $ Sum . (`T2` 1) <$> f x y)
-  where
-    f = testLearnStoch t l g p
+testLearnStochAll t l g p = L.foldM $ L.premapM (uncurry (testLearnStoch t l g p))
+                                      (L.generalize L.mean)
 
 testLearnStochCov
     :: (Learn a b l, NoState l, PrimMonad m, Foldable t, Fractional b)
@@ -172,12 +176,9 @@ testLearnStochCov
     -> LParam_ I l
     -> t (a, b)
     -> m b
-testLearnStochCov l g p = fmap (process . getSum) . getM . foldMap (M . go)
-  where
-    process (T3 (T2 x y) xy n) = xy / n - (x * y) / n / n
-    go (x, y) = do
-        r <- runLearnStochStateless_ l g p x
-        pure (Sum $ T3 (T2 r y) (r * y) 1)
+testLearnStochCov l g p = L.foldM $ (L.premapM . flip bitraverse pure)
+                                      (runLearnStochStateless_ l g p)
+                                      (L.generalize cov)
 
 testLearnStochCorr
     :: (Learn a b l, NoState l, PrimMonad m, Foldable t, Floating b)
@@ -186,11 +187,6 @@ testLearnStochCorr
     -> LParam_ I l
     -> t (a, b)
     -> m b
-testLearnStochCorr l g p = fmap (process . getSum) . getM . foldMap (M . go)
-  where
-    process (T3 (T2 (T2 x x2) (T2 y y2)) xy n) = (xy / n - (x * y) / n / n)
-            / sqrt ( x2 / n - (x / n)**2 )
-            / sqrt ( y2 / n - (y / n)**2 )
-    go (x, y) = do
-        r  <- runLearnStochStateless_ l g p x
-        pure (Sum $ T3 (T2 (T2 r (r**2)) (T2 y (y**2))) (r * y) 1)
+testLearnStochCorr l g p = L.foldM $ (L.premapM . flip bitraverse pure)
+                                       (runLearnStochStateless_ l g p)
+                                       (L.generalize corr)

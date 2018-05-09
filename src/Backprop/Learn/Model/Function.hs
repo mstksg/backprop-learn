@@ -68,14 +68,15 @@ import           Data.Foldable
 import           Data.Proxy
 import           Data.Type.Length
 import           Data.Type.Mayb hiding                        (type (<$>))
+import           Data.Type.Tuple hiding                       (T2(..), T3(..))
 import           Data.Typeable
 import           GHC.TypeNats
 import           Numeric.Backprop
-import           Numeric.Backprop.Tuple
 import           Numeric.LinearAlgebra.Static.Backprop hiding (tr)
 import           Prelude hiding                               ((.), id)
 import           Type.Class.Known
 import           Type.Family.List
+import qualified Data.Type.Tuple                              as T
 import qualified Data.Vector.Sized                            as SV
 import qualified Data.Vector.Storable.Sized                   as SVS
 import qualified Numeric.LinearAlgebra                        as HU
@@ -160,7 +161,7 @@ learnParam l = PF (runLearnStateless l)
 
 -- | 'ParamFuncP' taking a singleton list; meant to be used with '.-'
 onlyPF
-    :: forall p a b. (KnownMayb p, MaybeC Num p)
+    :: forall p a b. (KnownMayb p, MaybeC Backprop p)
     => ParamFunc p a b
     -> ParamFuncP (T (MaybeToList p)) a b
 onlyPF f = PFP $ \ps -> case knownMayb @p of
@@ -170,7 +171,7 @@ onlyPF f = PFP $ \ps -> case knownMayb @p of
 
 -- | Compose two 'ParamFuncP's on lists.
 (.-)
-    :: forall ps qs a b c. (ListC (Num <$> ps), ListC (Num <$> qs), Known Length ps, Known Length qs)
+    :: forall ps qs a b c. (ListC (Backprop <$> ps), ListC (Backprop <$> qs), Known Length ps)
     => ParamFuncP (T ps) b c
     -> ParamFuncP (T qs) a b
     -> ParamFuncP (T (ps ++ qs)) a c
@@ -206,7 +207,7 @@ rmapPF = dimapPF id
 
 -- | Compose two 'ParamFunc's sequentially
 compPF
-    :: forall p q a b c. (MaybeC Num p, MaybeC Num q, KnownMayb p, KnownMayb q)
+    :: forall p q a b c. (MaybeC Backprop p, MaybeC Backprop q, KnownMayb p, KnownMayb q)
     => ParamFunc p a b
     -> ParamFunc q b c
     -> ParamFunc (TupMaybe p q) a c
@@ -217,15 +218,24 @@ compPF f g = PF $ \pq ->
 
 -- | Compose two 'ParamFunc's in parallel
 parPF
-    :: forall p q a b c d. (MaybeC Num p, MaybeC Num q, KnownMayb p, KnownMayb q, Num a, Num b, Num c, Num d)
+    :: forall p q a b c d.
+     ( MaybeC Backprop p
+     , MaybeC Backprop q
+     , KnownMayb p
+     , KnownMayb q
+     , Backprop a
+     , Backprop b
+     , Backprop c
+     , Backprop d
+     )
     => ParamFunc p a c
     -> ParamFunc q b d
-    -> ParamFunc (TupMaybe p q) (T2 a b) (T2 c d)
+    -> ParamFunc (TupMaybe p q) (T.T2 a b) (T.T2 c d)
 parPF f g = PF $ \pq xy ->
     let (p, q) = splitTupMaybe @_ @p @q
             (\pq' -> (pq' ^^. t2_1, pq' ^^. t2_2)) pq
-    in  isoVar2 T2 t2Tup (runParamFunc f p (xy ^^. t2_1))
-                         (runParamFunc g q (xy ^^. t2_2))
+    in  T2B (runParamFunc f p (xy ^^. t2_1))
+            (runParamFunc g q (xy ^^. t2_2))
 
 -- TODO: replace all of these with manual ops?
 
@@ -401,7 +411,7 @@ sreLU tl al tr ar x
 -- with 'PFP'.
 sreLUPFP
     :: (KnownNat n, Reifies s W)
-    => BVar s (T2 (T2 Double Double) (T2 Double Double))
+    => BVar s (T.T2 (T.T2 Double Double) (T.T2 Double Double))
     -> BVar s (R n)
     -> BVar s (R n)
 sreLUPFP taltar = vmap $ sreLU (tal ^^. t2_1) (tal ^^. t2_2)
@@ -447,7 +457,7 @@ apl as bs x = vmap' (max 0) x
 -- | 'apl' uncurried, to be directly usable with 'PFP'.
 aplPFP
     :: (KnownNat n, KnownNat m, Reifies s W)
-    => BVar s (T2 (L n m) (L n m))
+    => BVar s (T.T2 (L n m) (L n m))
     -> BVar s (R m)
     -> BVar s (R m)
 aplPFP ab = apl (ab ^^. t2_1) (ab ^^. t2_2)

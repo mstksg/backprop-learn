@@ -15,7 +15,7 @@
 # resolver:
 #  name: custom-snapshot
 #  location: "./custom-snapshot.yaml"
-resolver: nightly-2018-03-29
+resolver: nightly-2018-05-08
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -43,7 +43,7 @@ packages:
   extra-dep: true
 - location:
     git: https://github.com/mstksg/opto.git
-    commit: 815f998136f131aae01c9a918b0c5024de18bca4
+    commit: b5d2639ded249abacda10e66b8a3d1261d06ebea
   extra-dep: true
 - location:
     git: git@github.com:haskell/vector.git
@@ -53,7 +53,7 @@ packages:
 #   extra-dep: true
 # - location:
 #     git: https://github.com/mstksg/backprop.git
-#     commit: 070e4cbcec2a706bd70a0841cdb2079c44f2d452
+#     commit: e36bb0e82e93af044b5f32e0ec1c2f745d261eb4
 #   extra-dep: true
 # - location:
 #     git: https://github.com/mstksg/hmatrix-backprop.git
@@ -71,11 +71,11 @@ packages:
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps:
-- backprop-0.1.5.1
+- backprop-0.2.1.0
+- hmatrix-backprop-0.1.2.1
 # - type-combinators-0.2.4.3
 # - mnist-idx-0.1.2.6
 # - finite-typelits-0.1.2.0
-- hmatrix-backprop-0.1.2.0
 
 # Override default flag values for local packages and extra-deps
 flags: {}

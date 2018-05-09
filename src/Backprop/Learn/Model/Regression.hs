@@ -51,7 +51,6 @@ import           GHC.TypeLits.Extra
 import           GHC.TypeNats
 import           Lens.Micro
 import           Numeric.Backprop
-import           Numeric.Backprop.Tuple
 import           Numeric.LinearAlgebra.Static.Backprop
 import           Numeric.LinearAlgebra.Static.Vector
 import           Numeric.OneLiner
@@ -60,6 +59,7 @@ import           Numeric.Opto.Update hiding            ((<.>))
 import           Statistics.Distribution
 import           Unsafe.Coerce
 import qualified Data.Binary                           as Bi
+import qualified Data.Type.Tuple                       as T
 import qualified Data.Vector.Generic.Sized             as SVG
 import qualified Data.Vector.Sized                     as SV
 import qualified Data.Vector.Storable.Sized            as SVS
@@ -99,6 +99,7 @@ instance (KnownNat i, KnownNat o) => Metric Double (LRp i o)
 instance (KnownNat i, KnownNat o, Ref m (LRp i o) v) => AdditiveInPlace m v (LRp i o)
 instance (KnownNat i, KnownNat o, Ref m (LRp i o) v) => ScalingInPlace m v Double (LRp i o)
 instance (KnownNat i, KnownNat o) => Bi.Binary (LRp i o)
+instance (KnownNat i, KnownNat o) => Backprop (LRp i o)
 
 lrBeta :: Lens (LRp i o) (LRp i' o) (L o i) (L o i')
 lrBeta f lrp = (\w -> lrp { _lrBeta = w }) <$> f (_lrBeta lrp)
@@ -233,8 +234,8 @@ data ARIMA :: Nat -> Nat -> Nat -> Type where
 --     type 'LParamMaybe' (ARIMAUnroll p q) = 'Just (T2 (ARIMAp p q) (ARIMAs p q))
 --     type 'LStateMaybe' (ARIMAUnroll p q) = 'Nothing
 -- @
-type ARIMAUnroll p d q = DeParamAt (T2 (ARIMAp p q) (ARIMAs p d q))
-                                   (T2 (ARIMAp p q) (T2 Double (R (p + d))))
+type ARIMAUnroll p d q = DeParamAt (T.T2 (ARIMAp p q) (ARIMAs p d q))
+                                   (T.T2 (ARIMAp p q) (T.T2 Double (R (p + d))))
                                    (R q)
                                    (UnrollTrainState (Max (p + d) q) (ARIMA p d q))
 
@@ -247,21 +248,21 @@ type ARIMAUnroll p d q = DeParamAt (T2 (ARIMAp p q) (ARIMAs p d q))
 --     type 'LParamMaybe' (ARIMAUnrollFinal p q) = 'Just (T2 (ARIMAp p q) (ARIMAs p q))
 --     type 'LStateMaybe' (ARIMAUnrollFinal p q) = 'Nothing
 -- @
-type ARIMAUnrollFinal p d q = DeParamAt (T2 (ARIMAp p q) (ARIMAs p d q))
-                                        (T2 (ARIMAp p q) (T2 Double (R (p + d))))
+type ARIMAUnrollFinal p d q = DeParamAt (T.T2 (ARIMAp p q) (ARIMAs p d q))
+                                        (T.T2 (ARIMAp p q) (T.T2 Double (R (p + d))))
                                         (R q)
                                         (UnrollFinalTrainState (Max (p + d) q) (ARIMA p d q))
 
 splitHist
-    :: T2 (ARIMAp p q) (ARIMAs p d q)
-    -> (T2 (ARIMAp p q) (T2 Double (R (p + d))), R q)
-splitHist (T2 p ARIMAs{..}) = (T2 p (T2 _arimaYPred _arimaYHist), _arimaEHist)
+    :: T.T2 (ARIMAp p q) (ARIMAs p d q)
+    -> (T.T2 (ARIMAp p q) (T.T2 Double (R (p + d))), R q)
+splitHist (T.T2 p ARIMAs{..}) = (T.T2 p (T.T2 _arimaYPred _arimaYHist), _arimaEHist)
 
 joinHist
-    :: T2 (ARIMAp p q) (T2 Double (R (p + d)))
+    :: T.T2 (ARIMAp p q) (T.T2 Double (R (p + d)))
     -> R q
-    -> T2 (ARIMAp p q) (ARIMAs p d q)
-joinHist (T2 p (T2 _arimaYPred _arimaYHist)) _arimaEHist = T2 p ARIMAs{..}
+    -> T.T2 (ARIMAp p q) (ARIMAs p d q)
+joinHist (T.T2 p (T.T2 _arimaYPred _arimaYHist)) _arimaEHist = T.T2 p ARIMAs{..}
 
 -- | Constructor for 'ARIMAUnroll'
 arimaUnroll
@@ -453,6 +454,9 @@ instance (KnownNat p, KnownNat d, KnownNat q) => Initialize (ARIMAs p d q)
 
 instance (KnownNat p, KnownNat q) => Bi.Binary (ARIMAp p q)
 instance (KnownNat p, KnownNat d, KnownNat q) => Bi.Binary (ARIMAs p d q)
+
+instance (KnownNat p, KnownNat q) => Backprop (ARIMAp p q)
+instance (KnownNat p, KnownNat d, KnownNat q) => Backprop (ARIMAs p d q)
 
 arimaPhi :: Lens (ARIMAp p q) (ARIMAp p' q) (R p) (R p')
 arimaPhi f a = (\x' -> a { _arimaPhi = x' } ) <$> f (_arimaPhi a)

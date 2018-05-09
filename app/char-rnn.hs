@@ -24,7 +24,6 @@ import           Data.Proxy
 import           Data.Time
 import           Data.Type.Equality
 import           GHC.TypeNats
-import           Numeric.Backprop.Tuple
 import           Numeric.LinearAlgebra.Static.Backprop
 import           Numeric.LinearAlgebra.Static.Vector
 import           Numeric.Opto
@@ -34,6 +33,7 @@ import qualified Conduit                               as C
 import qualified Data.Conduit.Combinators              as C
 import qualified Data.Set                              as S
 import qualified Data.Text                             as T
+import qualified Data.Type.Tuple                       as T
 import qualified Data.Vector.Storable.Sized            as SVS
 import qualified System.Random.MWC                     as MWC
 import qualified System.Random.MWC.Distributions       as MWC
@@ -84,7 +84,7 @@ main = MWC.withSystemRandom @IO $ \g -> do
           t1 <- liftIO getCurrentTime
           case mp of
             Nothing -> liftIO $ putStrLn "Done!"
-            Just p@(T2 p' s') -> do
+            Just p@(T.T2 p' s') -> do
               chnk <- lift . state $ (,[])
               liftIO $ do
                 printf "Trained on %d points in %s.\n"

@@ -77,7 +77,7 @@ conseq n = void . runMaybeT $ do
       go ys
 
 conduitLearn
-    :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), Monad m)
+    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), Monad m)
     => l
     -> LParam_ I l
     -> LState_ I l
@@ -94,7 +94,7 @@ conduitLearn l p = go
           go s'
 
 conduitLearnStoch
-    :: (Learn a b l, Num b, MaybeC Num (LStateMaybe l), PrimMonad m)
+    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), PrimMonad m)
     => l
     -> MWC.Gen (PrimState m)
     -> LParam_ I l

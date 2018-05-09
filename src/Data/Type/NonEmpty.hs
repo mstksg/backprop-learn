@@ -24,15 +24,16 @@ module Data.Type.NonEmpty (
 
 import           Control.DeepSeq
 import           Data.Kind
-import           Data.List.NonEmpty     (NonEmpty(..))
+import           Data.List.NonEmpty  (NonEmpty(..))
 import           Data.Type.Length
+import           Data.Type.Tuple
 import           Lens.Micro
-import           Numeric.Backprop.Tuple
+import           Numeric.Backprop    (Backprop(..))
 import           Numeric.Opto.Ref
 import           Numeric.Opto.Update
 import           Type.Class.Known
 import           Type.Family.List
-import qualified Data.Binary            as Bi
+import qualified Data.Binary         as Bi
 
 data NETup :: NonEmpty Type -> Type where
     NET :: !a -> !(T as) -> NETup (a ':| as)
@@ -100,6 +101,11 @@ instance (Additive a, Additive (T as), Ref m (NETup (a ':| as)) v)
         => AdditiveInPlace m v (NETup (a ':| as))
 instance (Scaling s a, Scaling s (T as), Ref m (NETup (a ':| as)) v)
         => ScalingInPlace m v s (NETup (a ':| as))
+
+instance (Backprop a, ListC (Backprop <$> as)) => Backprop (NETup (a ':| as)) where
+    zero (NET x xs) = NET (zero x) (zero xs)
+    add (NET x xs) (NET y ys) = NET (add x y) (add xs ys)
+    one (NET x xs) = NET (one x) (one xs)
 
 instance (Bi.Binary a, ListC (Bi.Binary <$> as), Known Length as) => Bi.Binary (NETup (a ':| as)) where
     get = NET <$> Bi.get
