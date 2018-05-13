@@ -11,13 +11,16 @@ module Backprop.Learn.Model.Types (
     -- * Model type
     ModelFunc, ModelFuncStoch
   , Model(..)
+  , modelD
     -- * Specialized Models
     -- ** Stateless
   , ModelFuncStateless, ModelFuncStochStateless
   , ModelStateless, pattern ModelStateless, runLearnStateless, runLearnStochStateless
+  , modelStatelessD
     -- ** Stateless and Parameterless
   , BFunc, BFuncStoch
   , Func, pattern Func, runFunc, runFuncStoch
+  , funcD
   ) where
 
 import           Control.Monad.Primitive
@@ -44,6 +47,12 @@ data Model :: Maybe Type -> Maybe Type -> Type -> Type -> Type where
     Model :: { runLearn      :: ModelFunc      p s a b
              , runLearnStoch :: ModelFuncStoch p s a b
              } -> Model p s a b
+
+-- | Construct a deterministic model, with no stochastic component.
+modelD :: ModelFunc p s a b -> Model p s a b
+modelD f = Model { runLearn      = f
+                 , runLearnStoch = \_ p x -> pure . f p x
+                 }
 
 type ModelFuncStateless p a b = forall z. Reifies z W
     => Mayb (BVar z) p
@@ -77,6 +86,14 @@ pattern ModelStateless { runLearnStateless, runLearnStochStateless } <-
       , runLearnStoch = \g p x s -> (, s) <$> ls g p x
       }
 
+-- | Construct a deterministic stateless model, with no stochastic
+-- component.
+modelStatelessD :: ModelFuncStateless p a b -> ModelStateless p a b
+modelStatelessD f = ModelStateless
+    { runLearnStateless      = f
+    , runLearnStochStateless = \_ p -> pure . f p
+    }
+
 _runLearnStateless :: Model p 'Nothing a b -> MFS p a b
 _runLearnStateless md = MFS $ \p x -> fst $ runLearn md p x N_
 
@@ -107,6 +124,13 @@ pattern Func { runFunc, runFuncStoch } <-
       { runLearnStateless      = const r
       , runLearnStochStateless = const . rs
       }
+
+-- | Construct an deterministic unparameterized stateless model, with no
+-- stochastic component.
+funcD :: BFunc a b -> Func a b
+funcD f = Func { runFunc      = f
+               , runFuncStoch = const (pure . f)
+               }
 
 _runFunc :: Model 'Nothing 'Nothing a b -> BF a b
 _runFunc md = BF $ runLearnStateless md N_
