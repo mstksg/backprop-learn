@@ -59,165 +59,48 @@ dependencies:
 library:
   source-dirs: src
 
-_exec: &exec
-  source-dirs: app
-  ghc-options:
-  - -threaded
-  - -rtsopts
-  - -with-rtsopts=-N
-  - -O2
-  - -Wall
-
-executables:
-  backprop-learn-mnist:
-    <<: *exec
-    main: mnist.hs
-    dependencies:
-    - backprop-learn
-    - data-default
-    - filepath
-    - mnist-idx
-    - time
-  backprop-learn-series:
-    <<: *exec
-    main: series.hs
-    dependencies:
-    - backprop-learn
-    - data-default
-    - filepath
-    - optparse-applicative
-    - time
-  backprop-learn-char-rnn:
-    <<: *exec
-    main: char-rnn.hs
-    dependencies:
-    - backprop-learn
-    - data-default
-    - time
-    - text
-  backprop-learn-word2vec:
-    <<: *exec
-    main: word2vec.hs
-    dependencies:
-    - backprop-learn
-    - data-default
-    - time
-    - text
-
-
-# dependencies:
-# - backprop
-# - data-default
-# - deepseq
-# - finite-typelits
-# - mwc-random
-# - primitive
-# - singletons
-# - split
-# - transformers
-# - type-combinators
-# - vector
-# - vector-sized
-# library:
-#   source-dirs: src
-#   ghc-options: -Wall
-#   exposed-modules:
-#   - Learn.Neural
-#   - Learn.Neural.Layer
-#   - Learn.Neural.Layer.Applying
-#   - Learn.Neural.Layer.Compose
-#   - Learn.Neural.Layer.FullyConnected
-#   - Learn.Neural.Layer.Identity
-#   - Learn.Neural.Layer.Mapping
-#   - Learn.Neural.Layer.Recurrent.FullyConnected
-#   - Learn.Neural.Layer.Recurrent.LSTM
-#   - Learn.Neural.Loss
-#   - Learn.Neural.Network
-#   - Learn.Neural.Network.Dropout
-#   - Learn.Neural.Test
-#   - Learn.Neural.Train
-#   - Numeric.BLAS
-#   - Numeric.BLAS.FVector
-#   - Numeric.BLAS.HMatrix
-#   - Numeric.BLAS.NVector
-#   - Numeric.Tensor
-#   dependencies:
-#   - base >=4.7 && <5
-#   - ad
-#   - foldl
-#   - generics-lift
-#   - generics-sop
-#   - hmatrix >=0.18
-#   - mono-traversable
-#   - profunctors
-#   - reflection
-#   - statistics
-#   - microlens
-#   - type-combinators-singletons
+# _exec: &exec
+#   source-dirs: app
+#   ghc-options:
+#   - -threaded
+#   - -rtsopts
+#   - -with-rtsopts=-N
+#   - -O2
+#   - -Wall
 
 # executables:
 #   backprop-learn-mnist:
-#     main: MNIST.hs
-#     source-dirs: app
-#     ghc-options:
-#     - -threaded
-#     - -rtsopts
-#     - -with-rtsopts=-N
-#     - -O2
-#     - -Wall
+#     <<: *exec
+#     main: mnist.hs
 #     dependencies:
-#     - base
 #     - backprop-learn
-#     - bifunctors
-#     - hmatrix
+#     - data-default
+#     - filepath
 #     - mnist-idx
 #     - time
-#   backprop-learn-language:
-#     main: Language.hs
-#     source-dirs: app
-#     ghc-options:
-#     - -threaded
-#     - -rtsopts
-#     - -with-rtsopts=-N
-#     - -O2
-#     - -Wall
+#   backprop-learn-series:
+#     <<: *exec
+#     main: series.hs
 #     dependencies:
-#     - base
 #     - backprop-learn
+#     - data-default
+#     - filepath
+#     - optparse-applicative
 #     - time
-#     - vector-algorithms
-#   backprop-learn-letter2vec:
-#     main: Letter2Vec.hs
-#     source-dirs: app
-#     ghc-options:
-#     - -threaded
-#     - -rtsopts
-#     - -with-rtsopts=-N
-#     - -O2
-#     - -Wall
+#   backprop-learn-char-rnn:
+#     <<: *exec
+#     main: char-rnn.hs
 #     dependencies:
-#     - base
 #     - backprop-learn
+#     - data-default
 #     - time
-#     - vector-algorithms
-
-# benchmarks:
-#   backprop-mnist-bench:
-#     main: MNISTBench.hs
-#     source-dirs: bench
-#     ghc-options:
-#     - -threaded
-#     - -rtsopts
-#     - -with-rtsopts=-N
-#     - -O2
+#     - text
+#   backprop-learn-word2vec:
+#     <<: *exec
+#     main: word2vec.hs
 #     dependencies:
-#     - backprop
-#     - bifunctors
-#     - criterion
-#     - directory
-#     - hmatrix >=0.18
-#     - lens
-#     - mnist-idx
-#     - mwc-random
+#     - backprop-learn
+#     - data-default
 #     - time
+#     - text
 
