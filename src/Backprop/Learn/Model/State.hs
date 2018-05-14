@@ -20,9 +20,7 @@ module Backprop.Learn.Model.State (
   -- * To and from statelessness
     trainState, deState, deStateD, dummyState
   -- * Manipulate model states
-  , unroll, unrollFinal
-  -- * Make models recurrent
-  , recurrent
+  , unroll, unrollFinal, recurrent
   ) where
 
 import           Backprop.Learn.Model.Types
@@ -125,6 +123,8 @@ unroll f = Model
 -- Turns a stateful model into one that runs the model repeatedly on
 -- multiple inputs sequentially and outputs the final result after seeing
 -- all items.
+--
+-- Note will be partial if given an empty sequence.
 unrollFinal
     :: (Traversable t, Backprop a)
     => Model p s    a  b
@@ -132,7 +132,7 @@ unrollFinal
 unrollFinal f = Model
     { runLearn      = \  p xs s0 ->
           foldl' (\(_, s) x -> runLearn f p x s)
-                 (undefined, s0)
+                 (undefined, s0)        -- TODO: error
                  (sequenceVar xs)
     , runLearnStoch = \g p xs s0 ->
           foldlM (\(_, s) x -> runLearnStoch f g p x s)
