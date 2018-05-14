@@ -23,10 +23,12 @@ module Backprop.Learn.Model.Types (
   , funcD
   ) where
 
+import           Control.Category
 import           Control.Monad.Primitive
 import           Data.Kind
 import           Data.Type.Mayb
 import           Numeric.Backprop
+import           Prelude hiding          ((.), id)
 import qualified System.Random.MWC       as MWC
 
 type ModelFunc p s a b = forall z. Reifies z W
@@ -137,3 +139,14 @@ _runFunc md = BF $ runLearnStateless md N_
 
 _runFuncStoch :: Model 'Nothing 'Nothing a b -> BFS a b
 _runFuncStoch md = BFS $ flip (runLearnStochStateless md) N_
+
+-- | Share parameter and sequence state
+instance Category (Model p s) where
+    id    = modelD $ \_ x s -> (x, s)
+    f . g = Model
+      { runLearn      = \p x s0 -> let (y, s1) = runLearn g p x s0
+                                   in  runLearn f p y s1
+      , runLearnStoch = \gen p x s0 -> do
+          (y, s1) <- runLearnStoch g gen p x s0
+          runLearnStoch f gen p y s1
+      }
