@@ -38,12 +38,11 @@ import           Data.Type.Combinator
 import           Data.Type.Product
 import           Data.Type.Tuple
 import           Numeric.Backprop
-import           Numeric.Backprop.Class
 import           Type.Class.Higher
 import           Type.Class.Known
 import           Type.Class.Witness
-import           Type.Family.Maybe      (type (<$>))
-import qualified GHC.TypeLits           as TL
+import           Type.Family.Maybe    (type (<$>))
+import qualified GHC.TypeLits         as TL
 
 type family MaybeC (c :: k -> Constraint) (m :: Maybe k) :: Constraint where
     MaybeC c ('Just a) = c a
