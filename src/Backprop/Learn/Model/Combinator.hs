@@ -27,7 +27,7 @@ module Backprop.Learn.Model.Combinator (
     -- * Tuple-based Composition
     (~>), (<~)
     -- * List-based Composition
-  , LModel, (#~), nilLM, liftLM
+  , LModel, (#++), nilLM, liftLM
     -- * Misc
   , feedback, feedbackTrace
   ) where
@@ -80,6 +80,7 @@ f <~ g = Model
         (z, s') <- runLearnStoch f gen p y s
         pure (z, tupMaybe T2B s' t')
     }
+infixr 8 <~
 
 -- | Compose two 'Model's one after the other, in reverse composition order
 (~>)
@@ -97,14 +98,36 @@ f <~ g = Model
     -> Model           p              s    b c
     -> Model (TupMaybe p q) (TupMaybe s t) a c
 f ~> g = g <~ f
+infixr 8 ~>
 
 
 -- | 'Model' where parameters and states are heterogeneous lists ('T'),
 -- making for more seamless composition.
 type LModel ps ss a b = Model ('Just (T ps)) ('Just (T ss)) a b
 
+-- | 'Cons' a model to the end of a chain of 'LModel' compositions.  Can be
+-- used with 'nilLM'.
+--
+--
+(#:)
+    :: forall p ps s ss a b c.
+     ( MaybeC Backprop p
+     , ListC (Backprop List.<$> ps)
+     , MaybeC Backprop s
+     , ListC (Backprop List.<$> ss)
+     -- , ListC (Backprop List.<$> (ss ++ ts))
+     -- , Known Length ps
+     -- , Known Length ss
+     -- , Known Length ts
+     )
+    => Model         p                           s        b c
+    -> LModel                   ps                    ss  a b
+    -> LModel (MaybeToList p ++ ps) (MaybeToList s ++ ss) a c
+f #: fs = Model {}
+infixr 5 #:
+
 -- | Compose two 'LModel's
-(#~)
+(#++)
     :: forall ps qs ss ts a b c.
      ( ListC (Backprop List.<$> ps)
      , ListC (Backprop List.<$> qs)
@@ -118,7 +141,7 @@ type LModel ps ss a b = Model ('Just (T ps)) ('Just (T ss)) a b
     => LModel  ps         ss        b c
     -> LModel        qs         ts  a b
     -> LModel (ps ++ qs) (ss ++ ts) a c
-f #~ g = Model
+f #++ g = Model
     { runLearn  = \(J_ psqs) x (J_ ssts) -> appendLength @ss @ts known known //
         let (y, J_ ts) = runLearn g (J_ (psqs ^^. tDrop @ps @qs known))
                                     x
@@ -142,6 +165,7 @@ f #~ g = Model
                                ss ts
               )
     }
+infixr 5 #++
 
 appendLength
     :: Length as
@@ -150,7 +174,7 @@ appendLength
 appendLength LZ     = id
 appendLength (LS l) = LS . appendLength l
 
--- | Identity of '#~'
+-- | Identity of '#++'
 nilLM :: Model ('Just (T '[])) ('Just (T '[])) a a
 nilLM = id
 

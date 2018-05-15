@@ -1,10 +1,13 @@
+{-# LANGUAGE AllowAmbiguousTypes                      #-}
 {-# LANGUAGE DataKinds                                #-}
 {-# LANGUAGE FlexibleContexts                         #-}
 {-# LANGUAGE GADTs                                    #-}
+{-# LANGUAGE PartialTypeSignatures                    #-}
 {-# LANGUAGE ScopedTypeVariables                      #-}
 {-# LANGUAGE TupleSections                            #-}
 {-# LANGUAGE TypeApplications                         #-}
 {-# LANGUAGE TypeOperators                            #-}
+{-# OPTIONS_GHC -fno-warn-partial-type-signatures     #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise       #-}
 
@@ -34,25 +37,20 @@ import qualified Data.Conduit.Combinators              as C
 import qualified Data.Set                              as S
 import qualified Data.Text                             as T
 import qualified Data.Type.Tuple                       as T
+import qualified Data.Vector.Sized                     as SV
 import qualified Data.Vector.Storable.Sized            as SVS
 import qualified System.Random.MWC                     as MWC
 import qualified System.Random.MWC.Distributions       as MWC
 
-type CharRNN n h1 h2 = Chain '[ LSTM n h1
-                              , DO h1
-                              , LSTM h1 h2
-                              , DO h2
-                              , FCA h2 n
-                              ]
-                         (R n) (R n)
-
-charRNN :: (KnownNat n, KnownNat h1, KnownNat h2) => CharRNN n h1 h2
-charRNN = LSTM
-      :~> DO 0.25
-      :~> LSTM
-      :~> DO 0.25
-      :~> FCA softMax
-      :~> CNil
+-- | TODO: replace with 'LModel'
+charRNN
+    :: forall n h1 h2. (KnownNat n, KnownNat h1, KnownNat h2)
+    => Model _ _ (R n) (R n)
+charRNN = fca softMax
+       <~ dropout @h2 0.25
+       <~ lstm
+       <~ dropout @h1 0.25
+       <~ lstm
 
 oneHotChar
     :: KnownNat n
@@ -72,9 +70,9 @@ main = MWC.withSystemRandom @IO $ \g -> do
     printf "%d characters found.\n" (natVal (Proxy @n))
 
     let model0 = charRNN @n @100 @50
-        model  = UnrollFinalTrainState @_ @15 model0
+        model  = trainState . unrollFinal @(SV.Vector 15) $ model0
 
-    p0 <- initParamNormal [model] 0.2 g
+    p0 <- initParamNormal model 0.2 g
 
     let report n b = do
           liftIO $ printf "(Batch %d)\n" (b :: Int)
@@ -90,13 +88,13 @@ main = MWC.withSystemRandom @IO $ \g -> do
                 printf "Trained on %d points in %s.\n"
                   (length chnk)
                   (show (t1 `diffUTCTime` t0))
-                let trainScore = testLearnAll maxIxTest model (J_I p) chnk
+                let trainScore = testModelAll maxIxTest model (J_I p) chnk
                 printf "Training error:   %.3f%%\n" ((1 - trainScore) * 100)
 
                 forM_ (take 15 chnk) $ \(x,y) -> do
-                  let primed = primeLearn model0 (J_I p') x (J_I s')
+                  let primed = primeModel model0 (J_I p') x (J_I s')
                   testOut <- fmap reverse . flip execStateT [] $
-                      iterateLearnM ( fmap (oneHotR . fromIntegral)
+                      iterateModelM ( fmap (oneHotR . fromIntegral)
                                     . (>>= \r -> r <$ modify (r:))    -- trace
                                     . (`MWC.categorical` g)
                                     . SVS.fromSized
@@ -122,7 +120,7 @@ main = MWC.withSystemRandom @IO $ \g -> do
             (RO' Nothing Nothing)
             p0
             (adam @_ @(MutVar _ _) def
-               (learnGradStoch crossEntropy noReg model g)
+               (modelGradStoch crossEntropy noReg model g)
             )
        .| report 2500 0
        .| C.sinkNull

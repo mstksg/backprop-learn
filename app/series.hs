@@ -1,16 +1,20 @@
 {-# LANGUAGE ApplicativeDo                            #-}
 {-# LANGUAGE DataKinds                                #-}
+{-# LANGUAGE EmptyCase                                #-}
 {-# LANGUAGE FlexibleContexts                         #-}
 {-# LANGUAGE GADTs                                    #-}
 {-# LANGUAGE KindSignatures                           #-}
 {-# LANGUAGE LambdaCase                               #-}
+{-# LANGUAGE PartialTypeSignatures                    #-}
 {-# LANGUAGE RankNTypes                               #-}
 {-# LANGUAGE RecordWildCards                          #-}
 {-# LANGUAGE ScopedTypeVariables                      #-}
 {-# LANGUAGE TupleSections                            #-}
 {-# LANGUAGE TypeApplications                         #-}
+{-# LANGUAGE TypeInType                               #-}
 {-# LANGUAGE TypeOperators                            #-}
 {-# LANGUAGE ViewPatterns                             #-}
+{-# OPTIONS_GHC -fno-warn-partial-type-signatures     #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Extra.Solver    #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
@@ -29,6 +33,8 @@ import           Data.Default
 import           Data.Kind
 import           Data.Primitive.MutVar
 import           Data.Proxy
+import           Data.Singletons
+import           Data.Singletons.TypeLits
 import           Data.Time
 import           Data.Type.Equality
 import           GHC.TypeLits.Compare
@@ -41,60 +47,57 @@ import           Statistics.Distribution
 import           Statistics.Distribution.Normal
 import           Text.Printf
 import qualified Data.Conduit.Combinators                     as C
+import qualified Data.Type.Tuple                              as T
+import qualified Data.Vector.Sized                            as SV
 import qualified System.Random.MWC                            as MWC
 
 data Mode = CSimulate (Maybe Int)
-          | forall l s p. ( Learn Double Double l
-                          , LStateMaybe l ~ 'Just s
-                          , LParamMaybe l ~ 'Just p
-                          , Floating s
-                          , Floating p
-                          , NFData s
-                          , NFData p
-                          , Metric Double s
-                          , Metric Double p
-                          , Show s
-                          , Show p
-                          , Initialize p
-                          , Initialize s
-                          , Backprop p
-                          , Backprop s
-                          )
-                          => CLearn (Model l)
+          | forall s p. ( Floating s
+                        , Floating p
+                        , NFData s
+                        , NFData p
+                        , Metric Double s
+                        , Metric Double p
+                        , Show s
+                        , Show p
+                        , Initialize p
+                        , Initialize s
+                        , Backprop p
+                        , Backprop s
+                        )
+                        => CLearn (ModelPick p s)
 
-data Model :: Type -> Type where
-    MARIMA :: (KnownNat p, KnownNat d, KnownNat q)
-           => Model (ARIMA p d q)
-    MFCRNN :: KnownNat h
-           => Model (Dimap (R 1) (R 1) Double Double (FCRA h 1 h :.~ FC h 1))
-    MLSTM  :: KnownNat h
-           => Model (Dimap (R 1) (R 1) Double Double (LSTM 1 h :.~ FC h 1))
-    MGRU   :: KnownNat h
-           => Model (Dimap (R 1) (R 1) Double Double (GRU 1 h :.~ FC h 1))
+data ModelPick :: Type -> Type -> Type where
+    MARIMA :: Sing p -> Sing d -> Sing q
+           -> ModelPick (ARIMAp p q) (ARIMAs p d q)
+    MFCRNN :: Sing h
+           -> ModelPick (T.T2 (LRp h 1) (LRp (1 + h) h)) (R h)
+    MLSTM  :: Sing h
+           -> ModelPick (T.T2 (LRp h 1) (LSTMp 1 h))     (T.T2 (R h) (R h))
+    MGRU   :: Sing h
+           -> ModelPick (T.T2 (LRp h 1) (GRUp 1 h))      (R h)
 
 data Process = PSin
 
-modelLearn :: Model t -> t
+modelLearn :: ModelPick p s -> Model ('Just p) ('Just s) Double Double
 modelLearn = \case
-    MARIMA -> ARIMA
-      { _arimaGenYHist = genContVar $ normalDistr 0 0.5
-      , _arimaGenEHist = genContVar $ normalDistr 0 0.5
-      }
-    MFCRNN -> DM
-      { _dmPre   = konst
-      , _dmPost  = sumElements
-      , _dmLearn = FCRA logistic logistic :.~ FC
-      }
-    MLSTM -> DM
-      { _dmPre   = konst
-      , _dmPost  = sumElements
-      , _dmLearn = LSTM :.~ FC
-      }
-    MGRU  -> DM
-      { _dmPre   = konst
-      , _dmPost  = sumElements
-      , _dmLearn = GRU :.~ FC
-      }
+    MARIMA (SNat :: Sing pp) (SNat :: Sing d) (SNat :: Sing q) ->
+              arima @pp @d @q
+    MFCRNN (SNat :: Sing h) ->
+              funcD sumElements
+           <~ fc
+           <~ fcra logistic logistic
+           <~ funcD konst
+    MLSTM  (SNat :: Sing h) ->
+              funcD sumElements
+           <~ fc
+           <~ lstm
+           <~ funcD konst
+    MGRU   (SNat :: Sing h) ->
+              funcD sumElements
+           <~ fc
+           <~ gru
+           <~ funcD konst
 
 data Options = O { oMode     :: Mode
                  , oProcess  :: Process
@@ -145,8 +148,8 @@ main = MWC.withSystemRandom @IO $ \g -> do
                   .| C.sinkNull
 
       CLearn (modelLearn->model) -> do
-        let unrolled = UnrollFinalTrainState @_ @n model
-        p0 <- initParamNormal [unrolled] 0.2 g
+        let unrolled = trainState . unrollFinal @(SV.Vector n) $ model
+        p0 <- initParamNormal unrolled 0.2 g
 
         let report n b = do
               liftIO $ printf "(Batch %d)\n" (b :: Int)
@@ -162,7 +165,7 @@ main = MWC.withSystemRandom @IO $ \g -> do
                     printf "Trained on %d points in %s.\n"
                       (length chnk)
                       (show (t1 `diffUTCTime` t0))
-                    let trainScore = testLearnAll absErrorTest unrolled (J_I p) chnk
+                    let trainScore = testModelAll absErrorTest unrolled (J_I p) chnk
                     printf "Training error:   %.8f\n" trainScore
                   report n (b + 1)
 
@@ -176,7 +179,7 @@ main = MWC.withSystemRandom @IO $ \g -> do
                 (RO' Nothing Nothing)
                 p0
                 (adam @_ @(MutVar _ _) def
-                   (learnGrad squaredError noReg unrolled)
+                   (modelGrad squaredError noReg unrolled)
                 )
            .| report oInterval 0
            .| C.sinkNull
@@ -241,11 +244,10 @@ parseOpt = O <$> subparser ( command "simulate" (info (parseSim   <**> helper) (
         q <- argument auto ( help "MA(q): Moving average lookback"
                           <> metavar "INT"
                            )
-        pure $ case (someNatVal p, someNatVal d, someNatVal q) of
-          ( SomeNat (Proxy :: Proxy p)
-            , SomeNat (Proxy :: Proxy d)
-            , SomeNat (Proxy :: Proxy q)
-            ) -> CLearn (MARIMA @p @d @q)
+        pure $ withSomeSing @Nat p $ \sp@SNat ->
+          withSomeSing @Nat d $ \sd@SNat ->
+          withSomeSing @Nat q $ \sq@SNat ->
+            CLearn (MARIMA sp sd sq)
     parseFCRNN :: Parser Mode
     parseFCRNN = do
         h <- argument auto ( help "Hidden layer size"
@@ -253,8 +255,8 @@ parseOpt = O <$> subparser ( command "simulate" (info (parseSim   <**> helper) (
                           <> showDefault
                           <> value 10
                            )
-        pure $ case someNatVal h of
-          SomeNat (Proxy :: Proxy h) -> CLearn (MFCRNN @h)
+        pure $ withSomeSing @Nat h $ \sh@SNat ->
+          CLearn (MFCRNN sh)
     parseLSTM :: Parser Mode
     parseLSTM = do
         h <- argument auto ( help "Hidden layer size"
@@ -262,8 +264,8 @@ parseOpt = O <$> subparser ( command "simulate" (info (parseSim   <**> helper) (
                           <> showDefault
                           <> value 10
                            )
-        pure $ case someNatVal h of
-          SomeNat (Proxy :: Proxy h) -> CLearn (MLSTM @h)
+        pure $ withSomeSing @Nat h $ \sh@SNat ->
+          CLearn (MLSTM sh)
     parseGRU :: Parser Mode
     parseGRU = do
         h <- argument auto ( help "Hidden layer size"
@@ -271,8 +273,8 @@ parseOpt = O <$> subparser ( command "simulate" (info (parseSim   <**> helper) (
                           <> showDefault
                           <> value 10
                            )
-        pure $ case someNatVal h of
-          SomeNat (Proxy :: Proxy h) -> CLearn (MGRU @h)
+        pure $ withSomeSing @Nat h $ \sh@SNat ->
+          CLearn (MGRU sh)
 
 showProcess :: Process -> String
 showProcess PSin = "sin"

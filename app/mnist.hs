@@ -1,13 +1,15 @@
-{-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TupleSections         #-}
-{-# LANGUAGE TypeApplications      #-}
-{-# LANGUAGE TypeOperators         #-}
-{-# LANGUAGE TypeSynonymInstances  #-}
-{-# LANGUAGE UndecidableInstances  #-}
-{-# OPTIONS_GHC -fno-warn-orphans  #-}
+{-# LANGUAGE DataKinds                            #-}
+{-# LANGUAGE FlexibleContexts                     #-}
+{-# LANGUAGE FlexibleInstances                    #-}
+{-# LANGUAGE MultiParamTypeClasses                #-}
+{-# LANGUAGE PartialTypeSignatures                #-}
+{-# LANGUAGE TupleSections                        #-}
+{-# LANGUAGE TypeApplications                     #-}
+{-# LANGUAGE TypeOperators                        #-}
+{-# LANGUAGE TypeSynonymInstances                 #-}
+{-# LANGUAGE UndecidableInstances                 #-}
+{-# OPTIONS_GHC -fno-warn-orphans                 #-}
+{-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 
 import           Backprop.Learn
 import           Control.DeepSeq
@@ -36,12 +38,13 @@ import qualified Numeric.LinearAlgebra                 as HM
 import qualified Numeric.LinearAlgebra.Static          as H
 import qualified System.Random.MWC                     as MWC
 
-type MNISTNet = FCA 784 300 :.~ DO 300 :.~ FCA 300 10
-
-mnistNet :: MNISTNet
-mnistNet = FCA logistic
-       :.~ DO 0.25
-       :.~ FCA softMax
+mnistNet :: Model _ _ (R 784) (R 10)
+mnistNet = fca     @300 softMax
+        <~ dropout      0.25
+        <~ fca     @784 logistic
+-- mnistNet = FCA logistic
+--        :.~ DO 0.25
+--        :.~ FCA softMax
 
 main :: IO ()
 main = MWC.withSystemRandom $ \g -> do
@@ -51,7 +54,7 @@ main = MWC.withSystemRandom $ \g -> do
     Just test  <- loadMNIST (datadir </> "t10k-images-idx3-ubyte")
                             (datadir </> "t10k-labels-idx1-ubyte")
     putStrLn "Loaded data."
-    net0 <- initParamNormal [mnistNet] 0.2 g
+    net0 <- initParamNormal mnistNet 0.2 g
 
     let report n b = do
           liftIO $ printf "(Batch %d)\n" (b :: Int)
@@ -67,8 +70,8 @@ main = MWC.withSystemRandom $ \g -> do
                 printf "Trained on %d points in %s.\n"
                   (length chnk)
                   (show (t1 `diffUTCTime` t0))
-                let trainScore = testLearnAll maxIxTest mnistNet (J_I net) chnk
-                    testScore  = testLearnAll maxIxTest mnistNet (J_I net) test
+                let trainScore = testModelAll maxIxTest mnistNet (J_I net) chnk
+                    testScore  = testModelAll maxIxTest mnistNet (J_I net) test
                 printf "Training error:   %.2f%%\n" ((1 - trainScore) * 100)
                 printf "Validation error: %.2f%%\n" ((1 - testScore ) * 100)
 
@@ -81,8 +84,8 @@ main = MWC.withSystemRandom $ \g -> do
        .| runOptoConduit_
             (RO' Nothing Nothing)
             net0
-            (adam @_ @(MutVar _ (LParam MNISTNet)) def
-              (learnGradStoch crossEntropy noReg mnistNet g)
+            (adam @_ @(MutVar _ _) def
+              (modelGradStoch crossEntropy noReg mnistNet g)
             )
        .| mapM_ (report 2500) [0..]
        .| C.sinkNull
