@@ -353,6 +353,418 @@ instance forall k (m :: GHC.Base.Maybe k) (f :: k -> *). (Type.Class.Known.Known
 instance forall k (f :: k -> *). Type.Class.Known.Known (Data.Type.Mayb.Mayb f) 'GHC.Base.Nothing
 instance forall a1 (f :: a1 -> *) (a2 :: a1). Type.Class.Known.Known f a2 => Type.Class.Known.Known (Data.Type.Mayb.Mayb f) ('GHC.Base.Just a2)
 instance Type.Class.Higher.Functor1 Data.Type.Mayb.Mayb
+instance forall k (f :: k -> *) (a :: GHC.Base.Maybe k). Data.Type.Mayb.MaybeC Numeric.Backprop.Class.Backprop (f Type.Family.Maybe.<$> a) => Numeric.Backprop.Class.Backprop (Data.Type.Mayb.Mayb f a)
+
+module Backprop.Learn.Model.Types
+type ModelFunc p s a b = forall z. Reifies z W => Mayb (BVar z) p -> BVar z a -> Mayb (BVar z) s -> (BVar z b, Mayb (BVar z) s)
+type ModelFuncStoch p s a b = forall m z. (PrimMonad m, Reifies z W) => Gen (PrimState m) -> Mayb (BVar z) p -> BVar z a -> Mayb (BVar z) s -> m (BVar z b, Mayb (BVar z) s)
+
+-- | General parameterized model with potential state
+data Model :: Maybe Type -> Maybe Type -> Type -> Type -> Type
+[Model] :: {runLearn :: ModelFunc p s a b, runLearnStoch :: ModelFuncStoch p s a b} -> Model p s a b
+
+-- | Construct a deterministic model, with no stochastic component.
+modelD :: ModelFunc p s a b -> Model p s a b
+type ModelFuncStateless p a b = forall z. Reifies z W => Mayb (BVar z) p -> BVar z a -> BVar z b
+type ModelFuncStochStateless p a b = forall m z. (PrimMonad m, Reifies z W) => Gen (PrimState m) -> Mayb (BVar z) p -> BVar z a -> m (BVar z b)
+
+-- | Parameterized model with no state
+type ModelStateless p = Model p  'Nothing
+
+-- | Construct a <a>ModelStateless</a>.
+runLearnStateless :: () => ModelStateless p a b -> forall z. Reifies z W => Mayb BVar z p -> BVar z a -> BVar z b
+runLearnStochStateless :: () => ModelStateless p a b -> forall (m :: * -> *) z. (PrimMonad m, Reifies z W) => Gen PrimState m -> Mayb BVar z p -> BVar z a -> m BVar z b
+
+-- | Construct a deterministic stateless model, with no stochastic
+--   component.
+modelStatelessD :: ModelFuncStateless p a b -> ModelStateless p a b
+type BFunc a b = forall z. Reifies z W => BVar z a -> BVar z b
+type BFuncStoch a b = forall m z. (PrimMonad m, Reifies z W) => Gen (PrimState m) -> BVar z a -> m (BVar z b)
+type Func = Model  'Nothing  'Nothing
+
+-- | Unparameterized model with no state
+runFunc :: () => Func a b -> forall z. Reifies z W => BVar z a -> BVar z b
+runFuncStoch :: () => Func a b -> forall (m :: * -> *) z. (PrimMonad m, Reifies z W) => Gen PrimState m -> BVar z a -> m BVar z b
+
+-- | Construct an deterministic unparameterized stateless model, with no
+--   stochastic component.
+funcD :: BFunc a b -> Func a b
+data Mayb :: (k -> Type) -> Maybe k -> Type
+[N_] :: Mayb f  'Nothing
+[J_] :: !(f a) -> Mayb f ( 'Just a)
+fromJ_ :: Mayb f ( 'Just a) -> f a
+type KnownMayb = Known (Mayb P)
+knownMayb :: KnownMayb p => Mayb P p
+newtype I a
+I :: a -> I a
+[getI] :: I a -> a
+
+-- | Helper type family for HKD data types. See
+--   <a>http://reasonablypolymorphic.com/blog/higher-kinded-data</a>
+instance Control.Category.Category (Backprop.Learn.Model.Types.Model p s)
+
+module Backprop.Learn.Model.Parameter
+
+-- | Fix a part of a parameter as constant, preventing backpropagation
+--   through it and not training it.
+--   
+--   Treats a <tt>pq</tt> parameter as essentialyl a <tt>(p, q)</tt>,
+--   witnessed through the split and join functions.
+--   
+--   Takes the fixed value of <tt>q</tt>, as well as a stochastic mode
+--   version with fixed distribution.
+deParam :: forall p q pq s a b. (Backprop p, Backprop q, Backprop pq) => (pq -> (p, q)) -> (p -> q -> pq) -> q -> (forall m. (PrimMonad m) => Gen (PrimState m) -> m q) -> Model ( 'Just pq) s a b -> Model ( 'Just p) s a b
+
+-- | <a>deParam</a>, but with no special stochastic mode version.
+deParamD :: (Backprop p, Backprop q, Backprop pq) => (pq -> (p, q)) -> (p -> q -> pq) -> q -> Model ( 'Just pq) s a b -> Model ( 'Just p) s a b
+
+-- | Pre-applies a function to a parameter before a model sees it.
+--   Essentially something like <tt>lmap</tt> for parameters.
+--   
+--   Takes a determinstic function and also a stochastic function for
+--   stochastic mode.
+reParam :: (forall z. Reifies z W => Mayb (BVar z) q -> Mayb (BVar z) p) -> (forall m z. (PrimMonad m, Reifies z W) => Gen (PrimState m) -> Mayb (BVar z) q -> m (Mayb (BVar z) p)) -> Model p s a b -> Model q s a b
+
+-- | <a>reParam</a>, but with no special stochastic mode function.
+reParamD :: (forall z. Reifies z W => Mayb (BVar z) q -> Mayb (BVar z) p) -> Model p s a b -> Model q s a b
+
+-- | Give an unparameterized model a "dummy" parameter.
+dummyParam :: Model  'Nothing s a b -> Model p s a b
+
+module Backprop.Learn.Model.State
+
+-- | Make a model stateless by converting the state to a trained parameter,
+--   and dropping the modified state from the result.
+--   
+--   One of the ways to make a model stateless for training purposes.
+--   Useful when used after <tt>Unroll</tt>. See <tt>DeState</tt>, as well.
+--   
+--   Its parameters are:
+--   
+--   <ul>
+--   <li>If the input has no parameters, just the initial state.</li>
+--   <li>If the input has a parameter, a <a>T2</a> of that parameter and
+--   initial state.</li>
+--   </ul>
+trainState :: forall p s a b. (KnownMayb p, KnownMayb s, MaybeC Backprop p, MaybeC Backprop s) => Model p s a b -> Model (TupMaybe p s)  'Nothing a b
+
+-- | Make a model stateless by pre-applying a fixed state (or a stochastic
+--   one with fixed stribution) and dropping the modified state from the
+--   result.
+--   
+--   One of the ways to make a model stateless for training purposes.
+--   Useful when used after <tt>Unroll</tt>. See <tt>TrainState</tt>, as
+--   well.
+deState :: s -> (forall m. PrimMonad m => Gen (PrimState m) -> m s) -> Model p ( 'Just s) a b -> Model p  'Nothing a b
+
+-- | <a>deState</a>, except the state is always the same even in stochastic
+--   mode.
+deStateD :: s -> Model p ( 'Just s) a b -> Model p  'Nothing a b
+
+-- | <a>deState</a> with a constant state of 0.
+zeroState :: Num s => Model p ( 'Just s) a b -> Model p  'Nothing a b
+
+-- | Give a stateless model a "dummy" state. For now, useful for using with
+--   combinators like <a>deState</a> that require state. However,
+--   <a>deState</a> could also be made more lenient (to accept non stateful
+--   models) in the future.
+dummyState :: Model p  'Nothing a b -> Model p ( 'Just s) a b
+
+-- | Unroll a (usually) stateful model into one taking a vector of
+--   sequential inputs.
+--   
+--   Basically applies the model to every item of input and returns all of
+--   the results, but propagating the state between every step.
+--   
+--   Useful when used before <a>trainState</a> or <a>deState</a>. See
+--   <tt>unrollTrainState</tt> and <tt>unrollDeState</tt>.
+--   
+--   Compare to <tt>feedbackTrace</tt>, which, instead of receiving a
+--   vector of sequential inputs, receives a single input and uses its
+--   output as the next input.
+unroll :: (Traversable t, Backprop a, Backprop b, Backprop (t b)) => Model p s a b -> Model p s (t a) (t b)
+
+-- | Version of <a>unroll</a> that only keeps the "final" result, dropping
+--   all of the intermediate results.
+--   
+--   Turns a stateful model into one that runs the model repeatedly on
+--   multiple inputs sequentially and outputs the final result after seeing
+--   all items.
+--   
+--   Note will be partial if given an empty sequence.
+unrollFinal :: (Traversable t, Backprop a) => Model p s a b -> Model p s (t a) b
+
+-- | Fix a part of a parameter of a model to be (a function of) the
+--   <i>previous</i> ouput of the model itself.
+--   
+--   Essentially, takes a &lt;math&gt; into a <i>stateful</i> &lt;math&gt;,
+--   where the Y is given by a function of the <i>previous output</i> of
+--   the model.
+--   
+--   Essentially makes a model "recurrent": it receives its previous output
+--   as input.
+--   
+--   See <tt>fcr</tt> for an application.
+recurrent :: forall p s ab a b c. (KnownMayb s, MaybeC Backprop s, Backprop ab, Backprop a, Backprop b) => (ab -> (a, b)) -> (a -> b -> ab) -> BFunc c b -> Model p s ab c -> Model p (TupMaybe s ( 'Just b)) a c
+
+module Backprop.Learn.Model.Function
+
+-- | Binary step / heaviside step
+--   
+--   To use with vectors (<a>R</a>), use <a>vmap'</a>.
+--   
+--   &lt;math&gt;
+step :: (Ord a, Num a) => a -> a
+
+-- | Logistic function
+--   
+--   &lt;math&gt;
+logistic :: Floating a => a -> a
+
+-- | Softsign activation function
+--   
+--   &lt;math&gt;
+softsign :: Fractional a => a -> a
+
+-- | Rectified linear unit.
+--   
+--   To use with vectors (<a>R</a>), use <a>vmap'</a>.
+--   
+--   &lt;math&gt;
+--   
+--   <pre>
+--   <a>reLU</a> = <a>preLU</a> 0
+--   </pre>
+reLU :: (Num a, Ord a) => a -> a
+
+-- | SoftPlus
+--   
+--   &lt;math&gt;
+softPlus :: Floating a => a -> a
+
+-- | Bent identity
+--   
+--   &lt;math&gt;
+bentIdentity :: Floating a => a -> a
+
+-- | Sigmoid-weighted linear unit. Multiply <a>logistic</a> by its input.
+--   
+--   &lt;math&gt;
+siLU :: Floating a => a -> a
+
+-- | SoftExponential
+--   
+--   To use with vectors (<a>R</a>), use <a>vmap'</a>.
+--   
+--   &lt;math&gt;
+softExponential :: (Floating a, Ord a) => a -> a -> a
+
+-- | Sinc
+--   
+--   &lt;math&gt;
+sinc :: (Floating a, Eq a) => a -> a
+
+-- | Gaussian
+--   
+--   &lt;math&gt;
+gaussian :: Floating a => a -> a
+tanh :: Floating a => a -> a
+atan :: Floating a => a -> a
+sin :: Floating a => a -> a
+
+-- | Note: if possible, use the potentially much more performant
+--   <a>vmap'</a>.
+vmap :: (Reifies s W, KnownNat n) => BVar s ℝ -> BVar s ℝ -> BVar s R n -> BVar s R n
+
+-- | <a>vmap</a>, but potentially more performant. Only usable if the
+--   mapped function does not depend on any external <a>BVar</a>s.
+vmap' :: (Reifies s W, Num vec n, Storable field, Sized field vec n Vector) => forall s'. Reifies s' W => BVar s' field -> BVar s' field -> BVar s vec n -> BVar s vec n
+
+-- | Usable with functions like <a>*</a>, <a>isru</a>, etc. to turn them
+--   into a form usable with <tt>PFP</tt>:
+--   
+--   <pre>
+--   <a>liftUniform</a> (<a>*</a>)  :: <a>BVar</a> s <a>Double</a> -&gt; BVar s (<a>R</a> n) -&gt; BVar s (R n)
+--   liftUniform <a>isru</a> :: BVar s Double -&gt; BVar s (R n) -&gt; BVar s (R n)
+--   </pre>
+--   
+--   Basically turns a parmaeterized function on individual elements of
+--   into one that shares the same parameter across all elements of the
+--   vector.
+liftUniform :: (Reifies s W, KnownNat n) => (BVar s (R n) -> r) -> BVar s Double -> r
+
+-- | Inverse square root unit
+--   
+--   &lt;math&gt;
+--   
+--   See <a>liftUniform</a> to make this compatible with <tt>PFP</tt>.
+--   
+--   You can also just use this after partially applying it, to fix the
+--   parameter (and not have it trained).
+isru :: Floating a => a -> a -> a
+
+-- | Parametric rectified linear unit
+--   
+--   To use with vectors (<a>R</a>), use <a>vmap'</a>.
+--   
+--   If scaling parameter is a fixed (and not learned) parameter, this is
+--   typically called a leaky recitified linear unit (typically with α =
+--   0.01).
+--   
+--   To use as a learned parameter:
+--   
+--   <pre>
+--   <a>vmap</a> . <a>preLU</a> :: <a>BVar</a> s Double -&gt; <a>BVar</a> s (<a>R</a> n) -&gt; BVar s (R n)
+--   </pre>
+--   
+--   This can be give directly to <tt>PFP</tt>.
+--   
+--   To fix the paramater ("leaky"), just partially apply a parameter:
+--   
+--   <pre>
+--   <a>preLU</a> 0.01           :: <a>BVar</a> s (<a>R</a> n) -&gt; BVar s (R n)
+--   preLU (<a>realToFrac</a> α) :: BVar s (R n) -&gt; BVar s (R n)
+--   </pre>
+--   
+--   See also <tt>rreLU</tt>.
+--   
+--   &lt;math&gt;
+preLU :: (Num a, Ord a) => a -> a -> a
+
+-- | S-shaped rectified linear activiation unit
+--   
+--   See <a>sreLUPFP</a> for an uncurried and uniformly lifted version
+--   usable with <tt>PFP</tt>.
+--   
+--   &lt;math&gt;
+sreLU :: (Num a, Ord a) => a -> a -> a -> a -> a -> a
+
+-- | An uncurried and uniformly lifted version of <a>sreLU</a> directly
+--   usable with <tt>PFP</tt>.
+sreLUPFP :: (KnownNat n, Reifies s W) => BVar s (T2 (T2 Double Double) (T2 Double Double)) -> BVar s (R n) -> BVar s (R n)
+
+-- | Exponential linear unit
+--   
+--   To use with vectors (<a>R</a>), use <a>vmap'</a>.
+--   
+--   To use as a learned parameter:
+--   
+--   <pre>
+--   <a>vmap</a> . <a>eLU</a> :: <a>BVar</a> s Double -&gt; <a>BVar</a> s (<a>R</a> n) -&gt; BVar s (R n)
+--   </pre>
+--   
+--   This can be give directly to <tt>PFP</tt>.
+--   
+--   To fix the paramater, just partially apply a parameter:
+--   
+--   <pre>
+--   <a>vmap'</a> (<a>eLU</a> 0.01) :: <a>BVar</a> s (<a>R</a> n) -&gt; BVar s (R n)
+--   </pre>
+--   
+--   &lt;math&gt;
+eLU :: (Floating a, Ord a) => a -> a -> a
+
+-- | Inverse square root linear unit
+--   
+--   To use with vectors (<a>R</a>), use <a>vmap'</a>.
+--   
+--   &lt;math&gt;
+isrLU :: (Floating a, Ord a) => a -> a -> a
+
+-- | Adaptive piecewise linear activation unit
+--   
+--   See <a>aplPFP</a> for an uncurried version usable with <tt>PFP</tt>.
+--   
+--   &lt;math&gt;
+apl :: (KnownNat n, KnownNat m, Reifies s W) => BVar s (L n m) -> BVar s (L n m) -> BVar s (R m) -> BVar s (R m)
+
+-- | <a>apl</a> uncurried, to be directly usable with <tt>PFP</tt>.
+aplPFP :: (KnownNat n, KnownNat m, Reifies s W) => BVar s (T2 (L n m) (L n m)) -> BVar s (R m) -> BVar s (R m)
+
+-- | Softmax normalizer
+softMax :: (KnownNat i, Reifies s W) => BVar s (R i) -> BVar s (R i)
+
+-- | Maximum of vector.
+--   
+--   Compare to <a>norm_InfV</a>, which gives the maximum absolute value.
+maxout :: (KnownNat n, Reifies s W) => BVar s (R n) -> BVar s Double
+
+-- | Keep only the top <tt>k</tt> values, and zero out all of the rest.
+--   
+--   Useful for postcomposing in between layers (with a logistic function
+--   before) to encourage the number of "activated" neurons is kept to be
+--   around <tt>k</tt>. Used in k-Sprase autoencoders (see
+--   <tt>KAutoencoder</tt>).
+--   
+--   
+--   <a>http://www.ericlwilkinson.com/blog/2014/11/19/deep-learning-sparse-autoencoders</a>
+kSparse :: forall n s. (Reifies s W, KnownNat n) => Int -> BVar s (R n) -> BVar s (R n)
+
+module Backprop.Learn.Model.Stochastic
+
+-- | Dropout layer. Parameterized by dropout percentage (should be between
+--   0 and 1).
+--   
+--   0 corresponds to no dropout, 1 corresponds to complete dropout of all
+--   nodes every time.
+dropout :: KnownNat n => Double -> Model  'Nothing  'Nothing (R n) (R n)
+
+-- | Random leaky rectified linear unit
+rreLU :: (ContGen d, Mean d, KnownNat n) => d -> Model  'Nothing  'Nothing (R n) (R n)
+
+-- | Inject random noise. Usually used between neural network layers, or at
+--   the very beginning to pre-process input.
+--   
+--   In non-stochastic mode, this adds the mean of the distribution.
+injectNoise :: (ContGen d, Mean d, Fractional a) => d -> Model  'Nothing  'Nothing a a
+
+-- | Multply by random noise. Can be used to implement dropout-like
+--   behavior.
+--   
+--   In non-stochastic mode, this scales by the mean of the distribution.
+applyNoise :: (ContGen d, Mean d, Fractional a) => d -> Model  'Nothing  'Nothing a a
+
+-- | <a>injectNoise</a> lifted to <a>R</a>
+injectNoiseR :: (ContGen d, Mean d, KnownNat n) => d -> Model  'Nothing  'Nothing (R n) (R n)
+
+-- | <a>applyNoise</a> lifted to <a>R</a>
+applyNoiseR :: (ContGen d, Mean d, KnownNat n) => d -> Model  'Nothing  'Nothing (R n) (R n)
+
+module Backprop.Learn.Model.Combinator
+
+-- | Compose two <a>Model</a>s one after the other, in reverse composition
+--   order
+(~>) :: forall p q s t a b c. (KnownMayb p, KnownMayb q, KnownMayb s, KnownMayb t, MaybeC Backprop p, MaybeC Backprop q, MaybeC Backprop s, MaybeC Backprop t) => Model q t a b -> Model p s b c -> Model (TupMaybe p q) (TupMaybe s t) a c
+infixr 8 ~>
+
+-- | Compose two <a>Model</a>s one after the other.
+(<~) :: forall p q s t a b c. (KnownMayb p, KnownMayb q, KnownMayb s, KnownMayb t, MaybeC Backprop p, MaybeC Backprop q, MaybeC Backprop s, MaybeC Backprop t) => Model p s b c -> Model q t a b -> Model (TupMaybe p q) (TupMaybe s t) a c
+infixr 8 <~
+
+-- | <a>Model</a> where parameters and states are heterogeneous lists
+--   (<a>T</a>), making for more seamless composition.
+type LModel ps ss a b = Model ( 'Just (T ps)) ( 'Just (T ss)) a b
+
+-- | Compose two <a>LModel</a>s
+(#++) :: forall ps qs ss ts a b c. (ListC (Backprop <$> ps), ListC (Backprop <$> qs), ListC (Backprop <$> ss), ListC (Backprop <$> ts), ListC (Backprop <$> (ss ++ ts)), Known Length ps, Known Length ss, Known Length ts) => LModel ps ss b c -> LModel qs ts a b -> LModel (ps ++ qs) (ss ++ ts) a c
+infixr 5 #++
+
+-- | Identity of <a>#++</a>
+nilLM :: Model ( 'Just (T '[])) ( 'Just (T '[])) a a
+
+-- | Lift a normal <a>Model</a> to a <a>LModel</a> with a singleton list
+--   parameter/state if '<a>Just</a>, or an empty list if '<a>Nothing</a>.
+--   Essentially prepares a model to be used with <tt>#~</tt> and
+--   <a>nilLM</a>.
+liftLM :: forall p s a b. (KnownMayb p, MaybeC Backprop p, KnownMayb s, MaybeC Backprop s) => Model p s a b -> LModel (MaybeToList p) (MaybeToList s) a b
+
+-- | Return a model that loops a model ("feed") repeatedly onto itself,
+--   with a model to provide the back loop.
+feedback :: forall p q s t a b. (KnownMayb p, KnownMayb q, KnownMayb s, KnownMayb t, MaybeC Backprop p, MaybeC Backprop q, MaybeC Backprop s, MaybeC Backprop t) => Int -> Model p s a b -> Model q t b a -> Model (TupMaybe p q) (TupMaybe s t) a b
+
+-- | <a>feedback</a>, but tracing and observing all of the intermediate
+--   values.
+feedbackTrace :: forall n p q s t a b. (KnownMayb p, KnownMayb q, KnownMayb s, KnownMayb t, MaybeC Backprop p, MaybeC Backprop q, MaybeC Backprop s, MaybeC Backprop t, KnownNat n, Backprop b) => Model p s a b -> Model q t b a -> Model (TupMaybe p q) (TupMaybe s t) a (ABP (Vector n) b)
 
 module Backprop.Learn.Loss
 type Loss a = forall s. Reifies s W => a -> BVar s a -> BVar s Double
@@ -429,804 +841,17 @@ instance GHC.TypeNats.KnownNat n => Backprop.Learn.Initialize.Initialize (Intern
 instance (GHC.TypeNats.KnownNat n, GHC.TypeNats.KnownNat m) => Backprop.Learn.Initialize.Initialize (Internal.Static.L n m)
 instance (GHC.TypeNats.KnownNat n, GHC.TypeNats.KnownNat m) => Backprop.Learn.Initialize.Initialize (Internal.Static.M n m)
 
-module Backprop.Learn.Model.Class
-
--- | Class for models that can be trained using gradient descent
---   
---   An instance <tt>l</tt> of <tt><a>Learn</a> a b</tt> is parameterized
---   by <tt>p</tt>, takes <tt>a</tt> as input, and returns <tt>b</tt> as
---   outputs. <tt>l</tt> can be thought of as a value containing the
---   <i>hyperparmaeters</i> of the model.
-class Learn a b l | l -> a b where {
-    type family LParamMaybe l :: Maybe Type;
-    type family LStateMaybe l :: Maybe Type;
-    type LParamMaybe l =  'Nothing;
-    type LStateMaybe l =  'Nothing;
-}
-
--- | Run the model itself, deterministically.
---   
---   If your model has no state, you can define this conveniently using
---   <a>stateless</a>.
-runLearn :: (Learn a b l, Reifies s W) => l -> LParam_ (BVar s) l -> BVar s a -> LState_ (BVar s) l -> (BVar s b, LState_ (BVar s) l)
-
--- | Run a model in stochastic mode.
---   
---   If model is inherently non-stochastic, a default implementation is
---   given in terms of <a>runLearn</a>.
---   
---   If your model has no state, you can define this conveniently using
---   <tt>statelessStoch</tt>.
-runLearnStoch :: (Learn a b l, Reifies s W, PrimMonad m) => l -> Gen (PrimState m) -> LParam_ (BVar s) l -> BVar s a -> LState_ (BVar s) l -> m (BVar s b, LState_ (BVar s) l)
-
--- | The trainable parameter type of a model. Will be a compile-time error
---   if the model has no trainable parameters.
-type LParam l = FromJust ( 'ShowType l :<>:  'Text " has no trainable parameters") (LParamMaybe l)
-
--- | The state type of a model. Will be a compile-time error if the model
---   has no state.
-type LState l = FromJust ( 'ShowType l :<>:  'Text " has no trainable parameters") (LStateMaybe l)
-
--- | List of parameters of <a>Learn</a> instances
-
--- | List of states of <a>Learn</a> instances
-
--- | Constraint specifying that a given model has no trainabale parameters.
-type NoParam l = LParamMaybe l ~  'Nothing
-
--- | Constraint specifying that a given model has no state.
-type NoState l = LStateMaybe l ~  'Nothing
-
--- | Is <a>N_</a> if there is <tt>l</tt> has no trainable parameters;
---   otherwise is <a>J_</a> with <tt>f p</tt>, for trainable parameter type
---   <tt>p</tt>.
-type LParam_ f l = Mayb f (LParamMaybe l)
-
--- | Is <a>N_</a> if there is <tt>l</tt> has no state; otherwise is
---   <a>J_</a> with <tt>f s</tt>, for state type <tt>s</tt>.
-type LState_ f l = Mayb f (LStateMaybe l)
-
--- | Useful for defining <a>runLearn</a> if your model has no state.
-stateless :: (a -> b) -> (a -> s -> (b, s))
-
--- | Useful for defining <a>runLearnStoch</a> if your model has no state.
-statelessM :: Functor m => (a -> m b) -> (a -> s -> m (b, s))
-runLearnStateless :: (Learn a b l, Reifies s W, NoState l) => l -> LParam_ (BVar s) l -> BVar s a -> BVar s b
-runLearnStochStateless :: (Learn a b l, Reifies s W, NoState l, PrimMonad m) => l -> Gen (PrimState m) -> LParam_ (BVar s) l -> BVar s a -> m (BVar s b)
-data Mayb :: (k -> Type) -> Maybe k -> Type
-[N_] :: Mayb f  'Nothing
-[J_] :: !(f a) -> Mayb f ( 'Just a)
-fromJ_ :: Mayb f ( 'Just a) -> f a
-type KnownMayb = Known (Mayb P)
-knownMayb :: KnownMayb p => Mayb P p
-newtype I a
-I :: a -> I a
-[getI] :: I a -> a
-
--- | Existential wrapper for learnable model, representing a trainable
---   function from <tt>a</tt> to <tt>b</tt>.
-data SomeLearn :: Type -> Type -> Type
-[SL] :: (Learn a b l, Typeable l, KnownMayb (LParamMaybe l), KnownMayb (LStateMaybe l), MaybeC Floating (LParamMaybe l), MaybeC Floating (LStateMaybe l), MaybeC (Metric Double) (LParamMaybe l), MaybeC (Metric Double) (LStateMaybe l), MaybeC NFData (LParamMaybe l), MaybeC NFData (LStateMaybe l), MaybeC Initialize (LParamMaybe l), MaybeC Initialize (LStateMaybe l)) => l -> SomeLearn a b
-
-module Backprop.Learn.Model.State
-
--- | Make a model stateless by converting the state to a trained parameter,
---   and dropping the modified state from the result.
---   
---   One of the ways to make a model stateless for training purposes.
---   Useful when used after <a>Unroll</a>. See <a>DeState</a>, as well.
---   
---   Its parameters are:
---   
---   <ul>
---   <li>If <tt>l</tt> has no parameters, just the initial state.</li>
---   <li>If <tt>l</tt> has parameters, a <a>T2</a> of the parameter and
---   initial state.</li>
---   </ul>
-newtype TrainState :: Type -> Type
-[TrainState] :: {getTrainState :: l} -> TrainState l
-
--- | Make a model stateless by pre-applying a fixed state (or a stochastic
---   one with fixed stribution) and dropping the modified state from the
---   result.
---   
---   One of the ways to make a model stateless for training purposes.
---   Useful when used after <a>Unroll</a>. See <a>TrainState</a>, as well.
-data DeState :: Type -> Type -> Type
-[DS] :: {_dsInitState :: s, _dsInitStateStoch :: forall m. PrimMonad m => Gen (PrimState m) -> m s, _dsLearn :: l} -> DeState s l
-
--- | Create a <a>DeState</a> from a deterministic, non-stochastic
---   initialization function.
-dsDeterm :: s -> l -> DeState s l
-
--- | Unroll a (usually) stateful model into one taking a vector of
---   sequential inputs.
---   
---   Basically applies the model to every item of input and returns all of
---   the results, but propagating the state between every step.
---   
---   Useful when used before <a>TrainState</a> or <a>DeState</a>. See
---   <a>UnrollTrainState</a> and <a>UnrollDeState</a>.
---   
---   Compare to <tt>FeedbackTrace</tt>, which, instead of receiving a
---   vector of sequential inputs, receives a single input and uses its
---   output as the next input.
-newtype Unroll :: Nat -> Type -> Type
-[Unroll] :: {getUnroll :: l} -> Unroll n l
-
--- | Unroll a stateful model into a stateless one taking a vector of
---   sequential inputs and treat the initial state as a trained parameter.
---   
---   <pre>
---   instance <a>Learn</a> a b l
---       =&gt; <a>Learn</a> (<a>Vector</a> n a) (<a>Vector</a> n b) (<a>UnrollTrainState</a> n l)
---   
---       type <a>LParamMaybe</a> (<a>UnrollDeState</a> n l) = <a>TupMaybe</a> (<a>LParamMaybe</a> l) (<a>LStateMaybe</a> l)
---       type <a>LStateMaybe</a> (<a>UnrollDeState</a> n l) = '<a>Nothing</a>
---   </pre>
-type UnrollTrainState n l = TrainState (Unroll n l)
-
--- | Constructor and pattern for <a>UnrollTrainState</a>
-getUnrollTrainState :: () => UnrollTrainState n l -> l
-
--- | Unroll a stateful model into a stateless one taking a vector of
---   sequential inputs and fix the initial state.
---   
---   <pre>
---   instance <a>Learn</a> a b l
---       =&gt; <a>Learn</a> (<a>Vector</a> n a) (<a>Vector</a> n b) (<a>UnrollDeState</a> n l)
---   
---       type <a>LParamMaybe</a> (<a>UnrollDeState</a> n l) = <a>LParamMaybe</a> l
---       type <a>LStateMaybe</a> (<a>UnrollDeState</a> n l) = '<a>Nothing</a>
---   </pre>
-type UnrollDeState n l = DeState (LState l) (Unroll n l)
-
--- | Constructor and pattern for <a>UnrollDeState</a>
-_udsInitState :: () => UnrollDeState n l -> LState l
-_udsInitStateStoch :: () => UnrollDeState n l -> forall (m :: * -> *). PrimMonad m => Gen PrimState m -> m LState l
-_udsLearn :: () => UnrollDeState n l -> l
-
--- | Version of <a>Unroll</a> that only keeps the "final" result, dropping
---   all of the intermediate results.
---   
---   Turns a stateful model into one that runs the model repeatedly on
---   multiple inputs sequentially and outputs the final result after seeing
---   all items.
-newtype UnrollFinal :: Nat -> Type -> Type
-[UnrollFinal] :: {getUnrollFinal :: l} -> UnrollFinal n l
-
--- | Unroll a stateful model into a stateless one taking a vector of
---   sequential inputs and outputting the result after seeing all of them,
---   and treat the initial state as a trained parameter.
---   
---   <pre>
---   instance <a>Learn</a> a b l
---       =&gt; <a>Learn</a> (<a>Vector</a> n a) (<a>Vector</a> n b) (<a>UnrollFinalTrainState</a> n l)
---   
---       type <a>LParamMaybe</a> (<a>UnrollFinalDeState</a> n l) = <a>TupMaybe</a> (<a>LParamMaybe</a> l) (<a>LStateMaybe</a> l)
---       type <a>LStateMaybe</a> (<a>UnrollFinalDeState</a> n l) = '<a>Nothing</a>
---   </pre>
-type UnrollFinalTrainState n l = TrainState (UnrollFinal n l)
-
--- | Constructor and pattern for <a>UnrollFinalTrainState</a>
-getUnrollFinalTrainState :: () => UnrollFinalTrainState n l -> l
-
--- | UnrollFinal a stateful model into a stateless one taking a vector of
---   sequential inputs and outputting the final result after seeing all of
---   them, and fix the initial state.
---   
---   <pre>
---   instance <a>Learn</a> a b l
---       =&gt; <a>Learn</a> (<a>Vector</a> n a) (<a>Vector</a> n b) (<a>UnrollFinalDeState</a> n l)
---   
---       type <a>LParamMaybe</a> (<a>UnrollFinalDeState</a> n l) = <a>LParamMaybe</a> l
---       type <a>LStateMaybe</a> (<a>UnrollFinalDeState</a> n l) = '<a>Nothing</a>
---   </pre>
-type UnrollFinalDeState n l = DeState (LState l) (UnrollFinal n l)
-
--- | Constructor and pattern for <a>UnrollFinalDeState</a>
-_ufdsInitState :: () => UnrollFinalDeState n l -> LState l
-_ufdsInitStateStoch :: () => UnrollFinalDeState n l -> forall (m :: * -> *). PrimMonad m => Gen PrimState m -> m LState l
-_ufdsLearn :: () => UnrollFinalDeState n l -> l
-
--- | Transform the state of a model by providing functions to pre-apply and
---   post-apply before and after the original model sees the state.
---   
---   I don't really know why you would ever want to do this, but it was fun
---   to write.
---   
---   <tt><a>ReState</a> p '()'</tt> is essentially <a>DeState</a>.
-data ReState :: Type -> Type -> Type -> Type
-[RS] :: {_rsTo :: forall q. Reifies q W => BVar q s -> BVar q t, _rsFrom :: forall q. Reifies q W => BVar q t -> BVar q s, _rsFromStoch :: forall m q. (PrimMonad m, Reifies q W) => Gen (PrimState m) -> BVar q t -> m (BVar q s), _rsLearn :: l} -> ReState s t l
-
--- | Create a <a>ReState</a> from a deterministic, non-stochastic
---   transformation function.
-rsDeterm :: (forall q. Reifies q W => BVar q s -> BVar q t) -> (forall q. Reifies q W => BVar q t -> BVar q s) -> l -> ReState s t l
-
--- | Fix a part of a parameter of a model to be (a function of) the
---   <i>previous</i> ouput of the model itself.
---   
---   Essentially, takes a &lt;math&gt; into a <i>stateful</i> &lt;math&gt;,
---   where the Y is given by a function of the <i>previous output</i> of
---   the model.
---   
---   Essentially makes a model "recurrent": it receives its previous output
---   as input.
---   
---   A <tt><a>Recurrent</a> ab a b c</tt> takes a model from <tt>ab</tt> to
---   <tt>c</tt> and turns it into a model from <tt>a</tt> to <tt>c</tt>,
---   with extra state <tt>b</tt> generated as a function of the previous
---   input.
---   
---   <pre>
---   instance <a>Learn</a> ab c l =&gt; Learn a c (<a>Recurrent</a> ab a b c l) where
---   
---       type <a>LParamMaybe</a> (Recurrent ab a b c l) = <a>LParamMaybe</a> l
---       type <a>LStateMaybe</a> (Recurrent ab a b c l) = <a>TupMaybe</a> (<a>LStateMaybe</a> l) ('<a>Just</a> b)
---   </pre>
---   
---   See <tt>FCR</tt> for an application.
-data Recurrent :: Type -> Type -> Type -> Type -> Type -> Type
-[Rec] :: {_recSplit :: ab -> (a, b), _recJoin :: a -> b -> ab, _recLoop :: forall s. Reifies s W => BVar s c -> BVar s b, _recLearn :: l} -> Recurrent ab a b c l
-
--- | Give a stateless model a "dummy" state, the unit <a>T0</a>. For now,
---   useful for using with combinators like <a>DeState</a> that require
---   state. However, <a>DeState</a> could also be made more lenient (to
---   accept non stateful models) in the future.
---   
---   <pre>
---   instance (<a>Learn</a> a b l, <a>NoState</a> l) =&gt; Learn a b (<a>DummyState</a> a b l) where
---       type <a>LParamMaybe</a> (<a>DummyState</a> a b l) = <a>LParamMaybe</a> l
---       type <a>LStateMaybe</a> (<a>DummyState</a> a b l) = '<a>Just</a> <a>T0</a>
---   </pre>
-type DummyState a b l = Recurrent a a T0 b l
-
--- | Construct a <a>DummyState</a>
-getDummyState :: () => DummyState a b l -> Learn a b l -> NoState l -> l
-instance (Backprop.Learn.Model.Class.Learn ab c l, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LStateMaybe l), Numeric.Backprop.Class.Backprop a, Numeric.Backprop.Class.Backprop b, Numeric.Backprop.Class.Backprop ab, Data.Type.Mayb.MaybeC Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Class.LStateMaybe l)) => Backprop.Learn.Model.Class.Learn a c (Backprop.Learn.Model.State.Recurrent ab a b c l)
-instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.LStateMaybe l ~ 'GHC.Base.Just s) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.State.ReState s t l)
-instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.LStateMaybe l ~ 'GHC.Base.Just s) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.State.DeState s l)
-instance (Backprop.Learn.Model.Class.Learn a b l, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LParamMaybe l), Data.Type.Mayb.MaybeC Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Class.LParamMaybe l), Backprop.Learn.Model.Class.LStateMaybe l ~ 'GHC.Base.Just s, Numeric.Backprop.Class.Backprop s) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.State.TrainState l)
-instance (Backprop.Learn.Model.Class.Learn a b l, Numeric.Backprop.Class.Backprop a, 1 GHC.TypeNats.<= n) => Backprop.Learn.Model.Class.Learn (Data.Vector.Sized.Vector n a) b (Backprop.Learn.Model.State.UnrollFinal n l)
-instance (Backprop.Learn.Model.Class.Learn a b l, GHC.TypeNats.KnownNat n, Numeric.Backprop.Class.Backprop a, Numeric.Backprop.Class.Backprop b) => Backprop.Learn.Model.Class.Learn (Numeric.Backprop.Class.ABP (Data.Vector.Sized.Vector n) a) (Numeric.Backprop.Class.ABP (Data.Vector.Sized.Vector n) b) (Backprop.Learn.Model.State.Unroll n l)
-
-module Backprop.Learn.Model.Parameter
-
--- | Convert a model with trainabile parameters into a model without any
---   trainable parameters.
---   
---   The parameters are instead fixed (or stochastic, with a fixed
---   distribution), and the model is treated as an untrainable function.
---   
---   <a>DeParam</a> is essentially <a>DeParamAt</a>, with <a>id</a> as the
---   lens.
-data DeParam :: Type -> Type -> Type
-[DP] :: {_dpParam :: p, _dpParamStoch :: forall m. PrimMonad m => Gen (PrimState m) -> m p, _dpLearn :: l} -> DeParam p l
-
--- | Create a <a>DeParam</a> from a deterministic, non-stochastic
---   parameter.
-dpDeterm :: p -> l -> DeParam p l
-
--- | Wrapping a mode with <tt><a>DeParamAt</a> pq p q</tt> says that the
---   mode's parameter <tt>pq</tt> can be split into <tt>p</tt> and
---   <tt>q</tt>, and fixes <tt>q</tt> to a given fixed (or stochastic with
---   a fixed distribution) value. The model now effectively has parameter
---   <tt>p</tt> only, and the <tt>q</tt> part will not be backpropagated.
---   
---   <a>DeParam</a> is essentially <a>DeParamAt</a> where <tt>p</tt> is
---   '()' or <tt>T0</tt>.
-data DeParamAt :: Type -> Type -> Type -> Type -> Type
-[DPA] :: {_dpaSplit :: pq -> (p, q), _dpaJoin :: p -> q -> pq, _dpaParam :: q, _dpaParamStoch :: forall m. PrimMonad m => Gen (PrimState m) -> m q, _dpaLearn :: l} -> DeParamAt pq p q l
-
--- | Create a <a>DeParamAt</a> from a deterministic, non-stochastic fixed
---   value as a part of the parameter.
-dpaDeterm :: (pq -> (p, q)) -> (p -> q -> pq) -> q -> l -> DeParamAt pq p q l
-
--- | Pre-apply a function to the parameter before the original model sees
---   it. A <tt><a>ReParam</a> p q</tt> turns a model taking <tt>p</tt> into
---   a model taking <tt>q</tt>.
---   
---   Note that a <tt><a>ReParam</a> p '<a>Nothing</a></tt> is essentially
---   the same as a <tt><a>DeParam</a> p</tt>, and one could implement
---   <tt><a>DeParamAt</a> p q</tt> in terms of <tt><a>ReParam</a> p
---   ('<a>Just</a> q)</tt>.
-data ReParam :: Type -> Maybe Type -> Type -> Type
-
--- | Create a <a>ReParam</a> from a deterministic, non-stochastic
---   transformation function.
-rpDeterm :: (forall s. Reifies s W => Mayb (BVar s) q -> BVar s p) -> l -> ReParam p q l
-instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.LParamMaybe l ~ 'GHC.Base.Just p) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Parameter.ReParam p q l)
-instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.LParamMaybe l ~ 'GHC.Base.Just pq, Numeric.Backprop.Class.Backprop pq, Numeric.Backprop.Class.Backprop p, Numeric.Backprop.Class.Backprop q) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Parameter.DeParamAt pq p q l)
-instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.LParamMaybe l ~ 'GHC.Base.Just p) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Parameter.DeParam p l)
-
-module Backprop.Learn.Model.Function
-
--- | A <tt><a>ParamFunc</a> p a b</tt> is a parameterized function from
---   <tt>a</tt> to <tt>b</tt>, potentially with trainable parameter
---   <tt>p</tt>.
---   
---   A utility wrapper for a deterministic and stateless model.
-newtype ParamFunc p a b
-PF :: forall s. Reifies s W => Mayb (BVar s) p -> BVar s a -> BVar s b -> ParamFunc p a b
-[runParamFunc] :: ParamFunc p a b -> forall s. Reifies s W => Mayb (BVar s) p -> BVar s a -> BVar s b
-
--- | Convenient type synonym for a <a>ParamFunc</a> with parameters.
---   
---   Mostly made to be easy to construct/deconstruct with <a>PFP</a> and
---   <a>runParamFuncP</a>.
-type ParamFuncP p = ParamFunc ( 'Just p)
-runParamFuncP :: () => ParamFuncP p a b -> forall s. Reifies s W => BVar s p -> BVar s a -> BVar s b
-
--- | An unparameterized function. Has a <a>Category</a> instance.
---   
---   A <tt><a>FixedFunc</a> a b</tt> essentially the same as a:
---   
---   <pre>
---   forall s. <a>Reifies</a> s <a>W</a> =&gt; <a>BVar</a> s a -&gt; <a>BVar</a> s b
---   </pre>
---   
---   And the <a>FF</a> pattern (and <a>runFixedFunc</a> extractor) witness
---   this.
---   
---   It is usually better to just use the functions directly, with
---   combinators like <tt>Dimap</tt>, <tt>LMap</tt>, <tt>RMap</tt>,
---   <a>dimapPF</a>, <a>lmapPF</a>, <a>rmapPF</a>, etc. This is just
---   provided to let you work nicely with <a>ParamFunc</a> combinators.
-type FixedFunc = ParamFunc  'Nothing
-
--- | <a>FF</a> and <a>runFixedFunc</a> witness the fact that a
---   <tt><a>FixedFunc</a> a b</tt> is just a function from <tt><a>BVar</a>
---   s a</tt> to <tt><a>BVar</a> s b</tt>.
-runFixedFunc :: () => FixedFunc a b -> forall s. Reifies s W => BVar s a -> BVar s b
-
--- | Utility function to make a <a>ParamFunc</a> that maps a parameterized
---   function over every item in the <a>R</a>. The parameter is shared
---   across the entire map, and trained.
-paramMap :: KnownNat i => (forall s. Reifies s W => Mayb (BVar s) p -> BVar s Double -> BVar s Double) -> ParamFunc p (R i) (R i)
-
--- | Create a <a>ParamFunc</a> from any instance of <a>Learn</a> that does
---   not have state.
-learnParam :: forall l a b. (Learn a b l, NoState l) => l -> ParamFunc (LParamMaybe l) a b
-
--- | Identity model, useful for using with other combinators.
-idLearn :: FixedFunc a a
-
--- | Pre- and post-compose a <a>ParamFunc</a>
-dimapPF :: (forall s. Reifies s W => BVar s a -> BVar s b) -> (forall s. Reifies s W => BVar s c -> BVar s d) -> ParamFunc p b c -> ParamFunc p a d
-
--- | Precompose a <a>ParamFunc</a>
-lmapPF :: (forall s. Reifies s W => BVar s a -> BVar s b) -> ParamFunc p b c -> ParamFunc p a c
-
--- | Postcompose a <a>ParamFunc</a>
-rmapPF :: (forall s. Reifies s W => BVar s b -> BVar s c) -> ParamFunc p a b -> ParamFunc p a c
-
--- | Compose two <a>ParamFunc</a>s sequentially
-compPF :: forall p q a b c. (MaybeC Backprop p, MaybeC Backprop q, KnownMayb p, KnownMayb q) => ParamFunc p a b -> ParamFunc q b c -> ParamFunc (TupMaybe p q) a c
-
--- | Compose two <a>ParamFunc</a>s in parallel
-parPF :: forall p q a b c d. (MaybeC Backprop p, MaybeC Backprop q, KnownMayb p, KnownMayb q, Backprop a, Backprop b, Backprop c, Backprop d) => ParamFunc p a c -> ParamFunc q b d -> ParamFunc (TupMaybe p q) (T2 a b) (T2 c d)
-
--- | Compose two <a>ParamFuncP</a>s on lists.
-(.-) :: forall ps qs a b c. (ListC (Backprop <$> ps), ListC (Backprop <$> qs), Known Length ps) => ParamFuncP (T ps) b c -> ParamFuncP (T qs) a b -> ParamFuncP (T (ps ++ qs)) a c
-infixr 9 .-
-
--- | The identity of <a>.-</a>
-nilPF :: ParamFuncP (T '[]) a a
-
--- | <a>ParamFuncP</a> taking a singleton list; meant to be used with
---   <a>.-</a>
-onlyPF :: forall p a b. (KnownMayb p, MaybeC Backprop p) => ParamFunc p a b -> ParamFuncP (T (MaybeToList p)) a b
-
--- | Binary step / heaviside step
---   
---   To use with vectors (<a>R</a>), use <a>vmap'</a>.
---   
---   &lt;math&gt;
-step :: (Ord a, Num a) => a -> a
-
--- | Logistic function
---   
---   &lt;math&gt;
-logistic :: Floating a => a -> a
-
--- | Softsign activation function
---   
---   &lt;math&gt;
-softsign :: Fractional a => a -> a
-
--- | Rectified linear unit.
---   
---   To use with vectors (<a>R</a>), use <a>vmap'</a>.
---   
---   &lt;math&gt;
---   
---   <pre>
---   <a>reLU</a> = <a>preLU</a> 0
---   </pre>
-reLU :: (Num a, Ord a) => a -> a
-
--- | SoftPlus
---   
---   &lt;math&gt;
-softPlus :: Floating a => a -> a
-
--- | Bent identity
---   
---   &lt;math&gt;
-bentIdentity :: Floating a => a -> a
-
--- | Sigmoid-weighted linear unit. Multiply <a>logistic</a> by its input.
---   
---   &lt;math&gt;
-siLU :: Floating a => a -> a
-
--- | SoftExponential
---   
---   To use with vectors (<a>R</a>), use <a>vmap'</a>.
---   
---   &lt;math&gt;
-softExponential :: (Floating a, Ord a) => a -> a -> a
-
--- | Sinc
---   
---   &lt;math&gt;
-sinc :: (Floating a, Eq a) => a -> a
-
--- | Gaussian
---   
---   &lt;math&gt;
-gaussian :: Floating a => a -> a
-tanh :: Floating a => a -> a
-atan :: Floating a => a -> a
-sin :: Floating a => a -> a
-
--- | Note: if possible, use the potentially much more performant
---   <a>vmap'</a>.
-vmap :: (Reifies s W, KnownNat n) => BVar s ℝ -> BVar s ℝ -> BVar s R n -> BVar s R n
-
--- | <a>vmap</a>, but potentially more performant. Only usable if the
---   mapped function does not depend on any external <a>BVar</a>s.
-vmap' :: (Reifies s W, Num vec n, Storable field, Sized field vec n Vector) => forall s'. Reifies s' W => BVar s' field -> BVar s' field -> BVar s vec n -> BVar s vec n
-
--- | Usable with functions like <a>*</a>, <a>isru</a>, etc. to turn them
---   into a form usable with <a>PFP</a>:
---   
---   <pre>
---   <a>liftUniform</a> (<a>*</a>)  :: <a>BVar</a> s <a>Double</a> -&gt; BVar s (<a>R</a> n) -&gt; BVar s (R n)
---   liftUniform <a>isru</a> :: BVar s Double -&gt; BVar s (R n) -&gt; BVar s (R n)
---   </pre>
---   
---   Basically turns a parmaeterized function on individual elements of
---   into one that shares the same parameter across all elements of the
---   vector.
-liftUniform :: (Reifies s W, KnownNat n) => (BVar s (R n) -> r) -> BVar s Double -> r
-
--- | Inverse square root unit
---   
---   &lt;math&gt;
---   
---   See <a>liftUniform</a> to make this compatible with <a>PFP</a>.
---   
---   You can also just use this after partially applying it, to fix the
---   parameter (and not have it trained).
-isru :: Floating a => a -> a -> a
-
--- | Parametric rectified linear unit
---   
---   To use with vectors (<a>R</a>), use <a>vmap'</a>.
---   
---   If scaling parameter is a fixed (and not learned) parameter, this is
---   typically called a leaky recitified linear unit (typically with α =
---   0.01).
---   
---   To use as a learned parameter:
---   
---   <pre>
---   <a>vmap</a> . <a>preLU</a> :: <a>BVar</a> s Double -&gt; <a>BVar</a> s (<a>R</a> n) -&gt; BVar s (R n)
---   </pre>
---   
---   This can be give directly to <a>PFP</a>.
---   
---   To fix the paramater ("leaky"), just partially apply a parameter:
---   
---   <pre>
---   <a>preLU</a> 0.01           :: <a>BVar</a> s (<a>R</a> n) -&gt; BVar s (R n)
---   preLU (<a>realToFrac</a> α) :: BVar s (R n) -&gt; BVar s (R n)
---   </pre>
---   
---   See also <tt>rreLU</tt>.
---   
---   &lt;math&gt;
-preLU :: (Num a, Ord a) => a -> a -> a
-
--- | S-shaped rectified linear activiation unit
---   
---   See <a>sreLUPFP</a> for an uncurried and uniformly lifted version
---   usable with <a>PFP</a>.
---   
---   &lt;math&gt;
-sreLU :: (Num a, Ord a) => a -> a -> a -> a -> a -> a
-
--- | An uncurried and uniformly lifted version of <a>sreLU</a> directly
---   usable with <a>PFP</a>.
-sreLUPFP :: (KnownNat n, Reifies s W) => BVar s (T2 (T2 Double Double) (T2 Double Double)) -> BVar s (R n) -> BVar s (R n)
-
--- | Exponential linear unit
---   
---   To use with vectors (<a>R</a>), use <a>vmap'</a>.
---   
---   To use as a learned parameter:
---   
---   <pre>
---   <a>vmap</a> . <a>eLU</a> :: <a>BVar</a> s Double -&gt; <a>BVar</a> s (<a>R</a> n) -&gt; BVar s (R n)
---   </pre>
---   
---   This can be give directly to <a>PFP</a>.
---   
---   To fix the paramater, just partially apply a parameter:
---   
---   <pre>
---   <a>vmap'</a> (<a>eLU</a> 0.01) :: <a>BVar</a> s (<a>R</a> n) -&gt; BVar s (R n)
---   </pre>
---   
---   &lt;math&gt;
-eLU :: (Floating a, Ord a) => a -> a -> a
-
--- | Inverse square root linear unit
---   
---   To use with vectors (<a>R</a>), use <a>vmap'</a>.
---   
---   &lt;math&gt;
-isrLU :: (Floating a, Ord a) => a -> a -> a
-
--- | Adaptive piecewise linear activation unit
---   
---   See <a>aplPFP</a> for an uncurried version usable with <a>PFP</a>.
---   
---   &lt;math&gt;
-apl :: (KnownNat n, KnownNat m, Reifies s W) => BVar s (L n m) -> BVar s (L n m) -> BVar s (R m) -> BVar s (R m)
-
--- | <a>apl</a> uncurried, to be directly usable with <a>PFP</a>.
-aplPFP :: (KnownNat n, KnownNat m, Reifies s W) => BVar s (T2 (L n m) (L n m)) -> BVar s (R m) -> BVar s (R m)
-
--- | Softmax normalizer
-softMax :: (KnownNat i, Reifies s W) => BVar s (R i) -> BVar s (R i)
-
--- | Maximum of vector.
---   
---   Compare to <a>norm_InfV</a>, which gives the maximum absolute value.
-maxout :: (KnownNat n, Reifies s W) => BVar s (R n) -> BVar s Double
-
--- | Keep only the top <tt>k</tt> values, and zero out all of the rest.
---   
---   Useful for postcomposing in between layers (with a logistic function
---   before) to encourage the number of "activated" neurons is kept to be
---   around <tt>k</tt>. Used in k-Sprase autoencoders (see
---   <tt>KAutoencoder</tt>).
---   
---   
---   <a>http://www.ericlwilkinson.com/blog/2014/11/19/deep-learning-sparse-autoencoders</a>
-kSparse :: forall n s. (Reifies s W, KnownNat n) => Int -> BVar s (R n) -> BVar s (R n)
-instance (GHC.Num.Num a, GHC.Num.Num b, Data.Type.Mayb.MaybeC GHC.Num.Num p, Data.Type.Mayb.KnownMayb p) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Function.ParamFunc p a b)
-instance Control.Category.Category (Backprop.Learn.Model.Function.ParamFunc p)
-
-module Backprop.Learn.Model.Stochastic
-
--- | Dropout layer. Parameterized by dropout percentage (should be between
---   0 and 1).
---   
---   0 corresponds to no dropout, 1 corresponds to complete dropout of all
---   nodes every time.
-newtype DO (n :: Nat)
-DO :: Double -> DO
-[_doRate] :: DO -> Double
-
--- | Represents a random-valued function, with a possible trainable
---   parameter.
---   
---   Requires both a "deterministic" and a "stochastic" mode. The
---   deterministic mode ideally should approximate some mean of the
---   stochastic mode.
-data StochFunc :: Maybe Type -> Type -> Type -> Type
-[SF] :: {_sfRunDeterm :: forall s. Reifies s W => Mayb (BVar s) p -> BVar s a -> BVar s b, _sfRunStoch :: forall m s. (PrimMonad m, Reifies s W) => Gen (PrimState m) -> Mayb (BVar s) p -> BVar s a -> m (BVar s b)} -> StochFunc p a b
-
--- | Convenient alias for a <a>StochFunc</a> (random-valued function with
---   both deterministic and stochastic modes) with no trained parameters.
-type FixedStochFunc = StochFunc  'Nothing
-
--- | Construct a <a>FixedStochFunc</a>
-_fsfRunDeterm :: () => FixedStochFunc a b -> forall s. Reifies s W => BVar s a -> BVar s b
-_fsfRunStoch :: () => FixedStochFunc a b -> forall (m :: * -> *) s. (PrimMonad m, Reifies s W) => Gen PrimState m -> BVar s a -> m BVar s b
-
--- | Random leaky rectified linear unit
-rreLU :: (ContGen d, Mean d, KnownNat n) => d -> FixedStochFunc (R n) (R n)
-
--- | Inject random noise. Usually used between neural network layers, or at
---   the very beginning to pre-process input.
---   
---   In non-stochastic mode, this adds the mean of the distribution.
-injectNoise :: (ContGen d, Mean d, Fractional a) => d -> FixedStochFunc a a
-
--- | Multply by random noise. Can be used to implement dropout-like
---   behavior.
---   
---   In non-stochastic mode, this scales by the mean of the distribution.
-applyNoise :: (ContGen d, Mean d, Fractional a) => d -> FixedStochFunc a a
-
--- | <a>injectNoise</a> lifted to <a>R</a>
-injectNoiseR :: (ContGen d, Mean d, KnownNat n) => d -> FixedStochFunc (R n) (R n)
-
--- | <a>applyNoise</a> lifted to <a>R</a>
-applyNoiseR :: (ContGen d, Mean d, KnownNat n) => d -> FixedStochFunc (R n) (R n)
-instance Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Stochastic.StochFunc p a b)
-instance GHC.TypeNats.KnownNat n => Backprop.Learn.Model.Class.Learn (Internal.Static.R n) (Internal.Static.R n) (Backprop.Learn.Model.Stochastic.DO n)
-
-module Backprop.Learn.Model.Combinator
-
--- | Chain components linearly, retaining the ability to deconstruct at a
---   later time.
-data Chain :: [Type] -> Type -> Type -> Type
-[CNil] :: Chain '[] a a
-[:~>] :: (Learn a b l, KnownMayb (LParamMaybe l), KnownMayb (LStateMaybe l)) => l -> Chain ls b c -> Chain (l : ls) a c
-
--- | Appending <a>Chain</a>
-(~++) :: forall ls ms a b c. () => Chain ls a b -> Chain ms b c -> Chain (ls ++ ms) a c
-chainParamLength :: Chain ls a b -> Length (LParams ls)
-chainStateLength :: Chain ls a b -> Length (LStates ls)
-
--- | Data type representing trainable models.
---   
---   Useful for performant composition, but you lose the ability to
---   decompose parts.
-data LearnFunc :: Maybe Type -> Maybe Type -> Type -> Type -> Type
-[LF] :: {_lfRunLearn :: forall q. Reifies q W => Mayb (BVar q) p -> BVar q a -> Mayb (BVar q) s -> (BVar q b, Mayb (BVar q) s), _lfRunLearnStoch :: forall m q. (PrimMonad m, Reifies q W) => Gen (PrimState m) -> Mayb (BVar q) p -> BVar q a -> Mayb (BVar q) s -> m (BVar q b, Mayb (BVar q) s)} -> LearnFunc p s a b
-learnFunc :: Learn a b l => l -> LearnFunc (LParamMaybe l) (LStateMaybe l) a b
-
--- | Pre-compose a pure parameterless function to a model.
---   
---   An <tt><a>LMap</a> b a</tt> takes a model from <tt>b</tt> and turns it
---   into a model from <tt>a</tt>.
-data LMap :: Type -> Type -> Type -> Type
-[LM] :: {_lmPre :: forall s. Reifies s W => BVar s a -> BVar s b, _lmLearn :: l} -> LMap b a l
-
--- | Post-compose a pure parameterless function to a model.
---   
---   An <tt><tt>Rmap</tt> b c</tt> takes a model returning <tt>b</tt> and
---   turns it into a model returning <tt>c</tt>.
-data RMap :: Type -> Type -> Type -> Type
-[RM] :: {_rmPost :: forall s. Reifies s W => BVar s b -> BVar s c, _rmLearn :: l} -> RMap b c l
-
--- | Pre- and post-compose pure parameterless functions to a model.
---   
---   A <tt><a>Dimap</a> b c a d</tt> takes a model from <tt>b</tt> to
---   <tt>c</tt> and turns it into a model from <tt>a</tt> to <tt>d</tt>.
---   
---   <pre>
---   instance <a>Learn</a> b c =&gt; Learn a d (<a>Dimap</a> b c a d l) where
---       type <a>LParamMaybe</a> (Dimap b c a d l) = LParamMaybe l
---       type <a>LStateMaybe</a> (Dimap b c a d l) = LStateMaybe l
---   </pre>
-type Dimap b c a d l = RMap c d (LMap b a l)
-
--- | Constructor for <a>Dimap</a>
-_dmPre :: () => Dimap b c a d l -> forall s. Reifies s W => BVar s a -> BVar s b
-_dmPost :: () => Dimap b c a d l -> forall s. Reifies s W => BVar s c -> BVar s d
-_dmLearn :: () => Dimap b c a d l -> l
-
--- | Compose two <a>LearnFunc</a> on lists.
-(.~) :: forall ps qs ss ts a b c. (ListC (Backprop <$> ps), ListC (Backprop <$> qs), ListC (Backprop <$> ss), ListC (Backprop <$> ts), ListC (Backprop <$> (ss ++ ts)), Known Length ps, Known Length ss, Known Length ts) => LearnFunc ( 'Just (T ps)) ( 'Just (T ss)) b c -> LearnFunc ( 'Just (T qs)) ( 'Just (T ts)) a b -> LearnFunc ( 'Just (T (ps ++ qs))) ( 'Just (T (ss ++ ts))) a c
-
--- | Identity of <a>.~</a>
-nilLF :: LearnFunc ( 'Just (T '[])) ( 'Just (T '[])) a a
-
--- | <a>LearnFunc</a> with singleton lists; meant to be used with <a>.~</a>
-onlyLF :: forall p s a b. (KnownMayb p, MaybeC Backprop p, KnownMayb s, MaybeC Backprop s) => LearnFunc p s a b -> LearnFunc ( 'Just (T (MaybeToList p))) ( 'Just (T (MaybeToList s))) a b
-
--- | Compose two layers sequentially
---   
---   Note that this composes in the opposite order of <a>.</a> and
---   <tt>:.:</tt>, for consistency with the rest of the library.
---   
---   The basic autoencoder is simply <tt>l <a>:.~</a> m</tt>, where
---   <tt><a>Learn</a> a b l</tt> and <tt><a>Learn</a> b a m</tt>. However,
---   for sparse autoencoder, look at <tt>Autoencoder</tt>.
-data (:.~) :: Type -> Type -> Type
-[:.~] :: l -> m -> l :.~ m
-
--- | <a>Fork</a>/"Fan out" two models from the same input. Useful for
-data (:&&&) :: Type -> Type -> Type
-[:&&&] :: l -> m -> l :&&& m
-
--- | K-sparse autoencoder. A normal autoencoder is simply <tt>l <a>:.~</a>
---   m</tt>; however a k-sparse autoencoder attempts to ensure that the
---   encoding has about <tt>k</tt> active components for every input.
---   
---   
---   <a>http://www.ericlwilkinson.com/blog/2014/11/19/deep-learning-sparse-autoencoders</a>
---   
---   <pre>
---   instance (<a>Learn</a> a (<a>R</a> n) l, Learn (R n) a m) =&gt; Learn a a (<a>KAutoencoder</a> n l m) where
---       type <a>LParamMaybe</a> (<a>KAutoencoder</a> n l m) = <a>TupMaybe</a> (LParamMaybe l) (LParamMaybe m)
---       type <a>LStateMaybe</a> (<a>KAutoencoder</a> n l m) = <a>TupMaybe</a> (LStateMaybe l) (LStateMaybe m)
---   </pre>
---   
---   To "encode" after training this, get the encoder with
---   <a>kaeEncoder</a>.
-type KAutoencoder n l m = RMap (R n) (R n) l :.~ m
-
--- | Construct a <a>KAutoencoder</a>.
---   
---   Note that this only has a <a>Learn</a> instance of <tt>l</tt> outputs
---   <tt><a>R</a> n</tt> and <tt>m</tt> takes <tt><a>R</a> n</tt>. Also,
---   for this to be an actual autoencoder, the input of <tt>l</tt> has to
---   be the same as the output of <tt>m</tt>.
-kAutoencoder :: KnownNat n => l -> m -> Int -> KAutoencoder n l m
-kaeEncoder :: KAutoencoder n l m -> l
-kaeDecoder :: KAutoencoder n l m -> m
-
--- | Take a model and turn it into a model that runs its output into itself
---   several times, returning the final result. Parameterized by the number
---   of repeats, and the function to process the output to become the next
---   input.
---   
---   I don't know why anyone would ever want this.
---   
---   See <a>FeedbackTrace</a> if you want to observe all of the
---   intermediate outputs.
-data Feedback :: Type -> Type -> Type -> Type
-[FB] :: {_fbTimes :: Int, _fbFeed :: forall s. Reifies s W => BVar s b -> BVar s a, _fbLearn :: l} -> Feedback a b l
-
--- | Construct a <a>Feedback</a> from an endofunction (a function that
---   returns a value fo the same type as its input) by simply providing the
---   output directly as the next intput.
-feedbackId :: Int -> l -> Feedback a a l
-
--- | Take a model and turn it into a model that runs its output into itself
---   several times, and returns all of the intermediate outputs.
---   Parameterized by the function to process the output to become the next
---   input.
---   
---   See <a>Feedback</a> if you only need the final result.
---   
---   Compare also to <tt>Unroll</tt>.
-data FeedbackTrace :: Nat -> Type -> Type -> Type -> Type
-[FBT] :: {_fbtFeed :: forall s. Reifies s W => BVar s b -> BVar s a, _fbtLearn :: l} -> FeedbackTrace n a b l
-
--- | Construct a <a>FeedbackTrace</a> from an endofunction (a function that
---   returns a value fo the same type as its input) by simply providing the
---   output directly as the next intput.
-feedbackTraceId :: l -> FeedbackTrace n a a l
-instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.Learn a c m, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LParamMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LParamMaybe m), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LStateMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LStateMaybe m), Data.Type.Mayb.MaybeC Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Class.LParamMaybe l), Data.Type.Mayb.MaybeC Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Class.LParamMaybe m), Data.Type.Mayb.MaybeC Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Class.LStateMaybe l), Data.Type.Mayb.MaybeC Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Class.LStateMaybe m), Numeric.Backprop.Class.Backprop b, Numeric.Backprop.Class.Backprop c) => Backprop.Learn.Model.Class.Learn a (Data.Type.Tuple.T2 b c) (l Backprop.Learn.Model.Combinator.:&&& m)
-instance (Backprop.Learn.Model.Class.Learn a b l, GHC.TypeNats.KnownNat n, Numeric.Backprop.Class.Backprop b) => Backprop.Learn.Model.Class.Learn a (Numeric.Backprop.Class.ABP (Data.Vector.Sized.Vector n) b) (Backprop.Learn.Model.Combinator.FeedbackTrace n a b l)
-instance Backprop.Learn.Model.Class.Learn a b l => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Combinator.Feedback a b l)
-instance Backprop.Learn.Model.Class.Learn a b l => Backprop.Learn.Model.Class.Learn a c (Backprop.Learn.Model.Combinator.RMap b c l)
-instance Backprop.Learn.Model.Class.Learn b c l => Backprop.Learn.Model.Class.Learn a c (Backprop.Learn.Model.Combinator.LMap b a l)
-instance (Backprop.Learn.Model.Class.Learn a b l, Backprop.Learn.Model.Class.Learn b c m, Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LParamMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LParamMaybe m), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LStateMaybe l), Data.Type.Mayb.KnownMayb (Backprop.Learn.Model.Class.LStateMaybe m), Data.Type.Mayb.MaybeC Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Class.LParamMaybe l), Data.Type.Mayb.MaybeC Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Class.LParamMaybe m), Data.Type.Mayb.MaybeC Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Class.LStateMaybe l), Data.Type.Mayb.MaybeC Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Class.LStateMaybe m)) => Backprop.Learn.Model.Class.Learn a c (l Backprop.Learn.Model.Combinator.:.~ m)
-instance Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Combinator.LearnFunc p s a b)
-instance Control.Category.Category (Backprop.Learn.Model.Combinator.LearnFunc p s)
-instance (Type.Family.List.ListC (Numeric.Backprop.Class.Backprop Type.Family.List.<$> Backprop.Learn.Model.Class.LParams ls), Type.Family.List.ListC (Numeric.Backprop.Class.Backprop Type.Family.List.<$> Backprop.Learn.Model.Class.LStates ls)) => Backprop.Learn.Model.Class.Learn a b (Backprop.Learn.Model.Combinator.Chain ls a b)
-
 module Backprop.Learn.Model.Regression
-
--- | Multivariate linear regression, from an i-vector to an o-vector.
-data LinReg (i :: Nat) (o :: Nat)
-LinReg :: LinReg
-
--- | Mutivariate Logistic regression, from an i-vector to an o-vector.
---   
---   Essentially a linear regression postcomposed with the logistic
---   function.
-type LogReg i o = RMap (R o) (R o) (LinReg i o)
-
--- | Constructor for a <a>LogReg</a>
+linReg :: (KnownNat i, KnownNat o) => Model ( 'Just (LRp i o))  'Nothing (R i) (R o)
+logReg :: (KnownNat i, KnownNat o) => Model ( 'Just (LRp i o))  'Nothing (R i) (R o)
 
 -- | Linear Regression parameter
 data LRp i o
 LRp :: !(R o) -> !(L o i) -> LRp i o
 [_lrAlpha] :: LRp i o -> !(R o)
 [_lrBeta] :: LRp i o -> !(L o i)
-lrBeta :: Lens (LRp i o) (LRp i' o) (L o i) (L o i')
-lrAlpha :: Lens' (LRp i o) (R o)
+lrAlpha :: forall i_a1az6 o_a1az7. Lens' (LRp i_a1az6 o_a1az7) (R o_a1az7)
+lrBeta :: forall i_a1az6 o_a1az7 i_a1aN5. Lens (LRp i_a1az6 o_a1az7) (LRp i_a1aN5 o_a1az7) (L o_a1az7 i_a1az6) (L o_a1az7 i_a1aN5)
 runLRp :: (KnownNat i, KnownNat o, Reifies s W) => BVar s (LRp i o) -> BVar s (R i) -> BVar s (R o)
 
 -- | Adjust an <a>LRp</a> to take extra inputs, initialized randomly.
@@ -1245,103 +870,52 @@ reshapeInput :: KnownNat i => Vector i' (Finite i) -> LRp i o -> LRp i' o
 
 -- | Premute (or remove) outputs
 reshapeOutput :: KnownNat o => Vector o' (Finite o) -> LRp i o -> LRp i o'
+arima :: forall p d q. (KnownNat p, KnownNat d, KnownNat q) => Model ( 'Just (ARIMAp p q)) ( 'Just (ARIMAs p d q)) Double Double
+autoregressive :: KnownNat p => Model ( 'Just (ARIMAp p 0)) ( 'Just (ARIMAs p 0 0)) Double Double
+movingAverage :: KnownNat q => Model ( 'Just (ARIMAp 0 q)) ( 'Just (ARIMAs 0 0 q)) Double Double
+arma :: (KnownNat p, KnownNat q) => Model ( 'Just (ARIMAp p q)) ( 'Just (ARIMAs p 0 q)) Double Double
 
--- | Auto-regressive integrated moving average model.
---   
---   ARIMA(p,d,q) is an ARIMA model with p autoregressive history terms on
---   the d-th order differenced history and q error (innovation) history
---   terms.
---   
---   It is a <tt><a>Learn</a> Double Double</tt> instance, and is meant to
---   predict the "next step" of a time sequence.
---   
---   In this state, it is a runnable stateful model. To train, use with
---   <a>ARIMAUnroll</a> to unroll and fix the initial state.
-data ARIMA :: Nat -> Nat -> Nat -> Type
-[ARIMA] :: {_arimaGenYHist :: forall m. PrimMonad m => Gen (PrimState m) -> m Double, _arimaGenEHist :: forall m. PrimMonad m => Gen (PrimState m) -> m Double} -> ARIMA p d q
-
--- | <a>ARIMA</a> parmaeters
+-- | <tt>ARIMA</tt> parmaeters
 data ARIMAp :: Nat -> Nat -> Type
 [ARIMAp] :: {_arimaPhi :: !(R p), _arimaTheta :: !(R q), _arimaConstant :: !Double} -> ARIMAp p q
 
--- | <a>ARIMA</a> state
+-- | <tt>ARIMA</tt> state
 data ARIMAs :: Nat -> Nat -> Nat -> Type
 [ARIMAs] :: {_arimaYPred :: !Double, _arimaYHist :: !(R (p + d)), _arimaEHist :: !(R q)} -> ARIMAs p d q
-
--- | The "unrolled" and "destated" <a>ARIMA</a> model, which takes a vector
---   of sequential inputs and outputs a vector of the model's expected next
---   steps.
---   
---   Useful for actually training <a>ARIMA</a> using gradient descent.
---   
---   This <i>fixes</i> the initial error history to be zero (or a fixed
---   stochastic sample), and treats the initial output history to be a
---   /learned parameter/.
---   
---   <pre>
---   instance <a>Learn</a> (<a>Vector</a> n <a>Double</a>) (SV.Vector n Double) (<a>ARIMAUnroll</a> p q) where
---       -- | Initial state is a parameter, but initial error history is fixed
---       type <a>LParamMaybe</a> (ARIMAUnroll p q) = 'Just (T2 (ARIMAp p q) (ARIMAs p q))
---       type <a>LStateMaybe</a> (ARIMAUnroll p q) = 'Nothing
---   </pre>
-type ARIMAUnroll p d q = DeParamAt (T2 (ARIMAp p q) (ARIMAs p d q)) (T2 (ARIMAp p q) (T2 Double (R (p + d)))) (R q) (UnrollTrainState (Max (p + d) q) (ARIMA p d q))
-
--- | Constructor for <a>ARIMAUnroll</a>
-arimaUnroll :: KnownNat q => ARIMA p d q -> ARIMAUnroll p d q
-
--- | <a>ARIMAUnroll</a>, but only looking at the final output after running
---   the model on all inputs.
---   
---   <pre>
---   instance <a>Learn</a> (<a>Vector</a> n <a>Double</a>) Double (<a>ARIMAUnrollFinal</a> p q) where
---       -- | Initial state is a parameter, but initial error history is fixed
---       type <a>LParamMaybe</a> (ARIMAUnrollFinal p q) = 'Just (T2 (ARIMAp p q) (ARIMAs p q))
---       type <a>LStateMaybe</a> (ARIMAUnrollFinal p q) = 'Nothing
---   </pre>
-type ARIMAUnrollFinal p d q = DeParamAt (T2 (ARIMAp p q) (ARIMAs p d q)) (T2 (ARIMAp p q) (T2 Double (R (p + d)))) (R q) (UnrollFinalTrainState (Max (p + d) q) (ARIMA p d q))
-
--- | Constructor for <a>ARIMAUnrollFinal</a>
-arimaUnrollFinal :: KnownNat q => ARIMA p d q -> ARIMAUnrollFinal p d q
-
--- | Autoregressive model
-type AR p = ARIMA p 0 0
-
--- | Moving average model
-type MA = ARIMA 0 0
-
--- | Autoregressive Moving average model
-type ARMA p = ARIMA p 0
+arimaPhi :: forall a_a1aSV b_a1aSW a_a1bf5. Lens (ARIMAp a_a1aSV b_a1aSW) (ARIMAp a_a1bf5 b_a1aSW) (R a_a1aSV) (R a_a1bf5)
+arimaTheta :: forall a_a1aSV b_a1aSW b_a1bf6. Lens (ARIMAp a_a1aSV b_a1aSW) (ARIMAp a_a1aSV b_a1bf6) (R b_a1aSW) (R b_a1bf6)
+arimaConstant :: forall a_a1aSV b_a1aSW. Lens' (ARIMAp a_a1aSV b_a1aSW) Double
+arimaYPred :: forall a_a1bfZ b_a1bg0 c_a1bg1. Lens' (ARIMAs a_a1bfZ b_a1bg0 c_a1bg1) Double
+arimaYHist :: forall a_a1bfZ b_a1bg0 c_a1bg1 a_a1bmC b_a1bmD. Lens (ARIMAs a_a1bfZ b_a1bg0 c_a1bg1) (ARIMAs a_a1bmC b_a1bmD c_a1bg1) (R ((+) a_a1bfZ b_a1bg0)) (R ((+) a_a1bmC b_a1bmD))
+arimaEHist :: forall a_a1bfZ b_a1bg0 c_a1bg1 c_a1bmB. Lens (ARIMAs a_a1bfZ b_a1bg0 c_a1bg1) (ARIMAs a_a1bfZ b_a1bg0 c_a1bmB) (R c_a1bg1) (R c_a1bmB)
+instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARIMAp p q)
+instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARIMAs p d q)
+instance GHC.Num.Num (Backprop.Learn.Model.Regression.ARIMAp p q)
+instance GHC.Num.Num (Backprop.Learn.Model.Regression.ARIMAs p d q)
+instance GHC.Real.Fractional (Backprop.Learn.Model.Regression.ARIMAp p q)
+instance GHC.Real.Fractional (Backprop.Learn.Model.Regression.ARIMAs p d q)
+instance GHC.Float.Floating (Backprop.Learn.Model.Regression.ARIMAp p q)
+instance GHC.Float.Floating (Backprop.Learn.Model.Regression.ARIMAs p d q)
+instance Numeric.Opto.Update.Additive (Backprop.Learn.Model.Regression.ARIMAp p q)
+instance Numeric.Opto.Update.Additive (Backprop.Learn.Model.Regression.ARIMAs p d q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Numeric.Opto.Update.Scaling GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAp p q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q) => Numeric.Opto.Update.Scaling GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAs p d q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAp p q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q) => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAs p d q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARIMAp p q) v) => Numeric.Opto.Update.AdditiveInPlace m v (Backprop.Learn.Model.Regression.ARIMAp p q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARIMAs p d q) v) => Numeric.Opto.Update.AdditiveInPlace m v (Backprop.Learn.Model.Regression.ARIMAs p d q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARIMAp p q) v) => Numeric.Opto.Update.ScalingInPlace m v GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAp p q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARIMAs p d q) v) => Numeric.Opto.Update.ScalingInPlace m v GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAs p d q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Backprop.Learn.Initialize.Initialize (Backprop.Learn.Model.Regression.ARIMAp p q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q) => Backprop.Learn.Initialize.Initialize (Backprop.Learn.Model.Regression.ARIMAs p d q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Data.Binary.Class.Binary (Backprop.Learn.Model.Regression.ARIMAp p q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q) => Data.Binary.Class.Binary (Backprop.Learn.Model.Regression.ARIMAs p d q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Regression.ARIMAp p q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q) => Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Regression.ARIMAs p d q)
 instance (GHC.TypeNats.KnownNat a, GHC.TypeNats.KnownNat b, GHC.TypeNats.KnownNat c) => GHC.Show.Show (Backprop.Learn.Model.Regression.ARIMAs a b c)
 instance GHC.Generics.Generic (Backprop.Learn.Model.Regression.ARIMAs a b c)
 instance (GHC.TypeNats.KnownNat a, GHC.TypeNats.KnownNat b) => GHC.Show.Show (Backprop.Learn.Model.Regression.ARIMAp a b)
 instance GHC.Generics.Generic (Backprop.Learn.Model.Regression.ARIMAp a b)
-instance (GHC.TypeNats.KnownNat o, GHC.TypeNats.KnownNat i) => GHC.Show.Show (Backprop.Learn.Model.Regression.LRp i o)
-instance GHC.Generics.Generic (Backprop.Learn.Model.Regression.LRp i o)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q) => Backprop.Learn.Model.Class.Learn GHC.Types.Double GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMA p d q)
-instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARIMAs p d q)
-instance GHC.Num.Num (Backprop.Learn.Model.Regression.ARIMAs p d q)
-instance GHC.Real.Fractional (Backprop.Learn.Model.Regression.ARIMAs p d q)
-instance GHC.Float.Floating (Backprop.Learn.Model.Regression.ARIMAs p d q)
-instance Numeric.Opto.Update.Additive (Backprop.Learn.Model.Regression.ARIMAs p d q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q) => Numeric.Opto.Update.Scaling GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAs p d q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q) => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAs p d q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARIMAs p d q) v) => Numeric.Opto.Update.AdditiveInPlace m v (Backprop.Learn.Model.Regression.ARIMAs p d q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARIMAs p d q) v) => Numeric.Opto.Update.ScalingInPlace m v GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAs p d q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q) => Backprop.Learn.Initialize.Initialize (Backprop.Learn.Model.Regression.ARIMAs p d q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q) => Data.Binary.Class.Binary (Backprop.Learn.Model.Regression.ARIMAs p d q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q) => Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Regression.ARIMAs p d q)
-instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARIMAp p q)
-instance GHC.Num.Num (Backprop.Learn.Model.Regression.ARIMAp p q)
-instance GHC.Real.Fractional (Backprop.Learn.Model.Regression.ARIMAp p q)
-instance GHC.Float.Floating (Backprop.Learn.Model.Regression.ARIMAp p q)
-instance Numeric.Opto.Update.Additive (Backprop.Learn.Model.Regression.ARIMAp p q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Numeric.Opto.Update.Scaling GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAp p q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAp p q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARIMAp p q) v) => Numeric.Opto.Update.AdditiveInPlace m v (Backprop.Learn.Model.Regression.ARIMAp p q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Ref m (Backprop.Learn.Model.Regression.ARIMAp p q) v) => Numeric.Opto.Update.ScalingInPlace m v GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAp p q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Backprop.Learn.Initialize.Initialize (Backprop.Learn.Model.Regression.ARIMAp p q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Data.Binary.Class.Binary (Backprop.Learn.Model.Regression.ARIMAp p q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Regression.ARIMAp p q)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.LRp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Initialize.Initialize (Backprop.Learn.Model.Regression.LRp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Additive (Backprop.Learn.Model.Regression.LRp i o)
@@ -1354,138 +928,81 @@ instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Backprop.
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Model.Regression.LRp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Real.Fractional (Backprop.Learn.Model.Regression.LRp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Float.Floating (Backprop.Learn.Model.Regression.LRp i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Model.Class.Learn (Internal.Static.R i) (Internal.Static.R o) (Backprop.Learn.Model.Regression.LinReg i o)
+instance (GHC.TypeNats.KnownNat o, GHC.TypeNats.KnownNat i) => GHC.Show.Show (Backprop.Learn.Model.Regression.LRp i o)
+instance GHC.Generics.Generic (Backprop.Learn.Model.Regression.LRp i o)
 
 module Backprop.Learn.Model.Neural
+
+-- | Parameters for fully connected feed-forward layer with bias.
+type FCp = LRp
 
 -- | Fully connected feed-forward layer with bias. Parameterized by its
 --   initialization distribution.
 --   
 --   Note that this has no activation function; to use as a model with
 --   activation function, chain it with an activation function using
---   <a>RMap</a>, <a>:.~</a>, etc.; see <a>FCA</a> for a convenient type
---   synonym and constructor.
+--   <tt>RMap</tt>, <tt>:.~</tt>, etc.; see <tt>FCA</tt> for a convenient
+--   type synonym and constructor.
 --   
 --   Without any activation function, this is essentially a multivariate
 --   linear regression.
 --   
 --   With the logistic function as an activation function, this is
---   essentially multivariate logistic regression. (See <tt>Logistic</tt>)
-type FC i o = LinReg i o
-type FCp = LRp
-fcBias :: Lens' (FCp i o) (R o)
-fcWeights :: Lens (FCp i o) (FCp i' o) (L o i) (L o i')
+--   essentially multivariate logistic regression. (See <a>logReg</a>)
+fc :: (KnownNat i, KnownNat o) => Model ( 'Just (FCp i o))  'Nothing (R i) (R o)
 
--- | Convenient synonym for an <a>FC</a> post-composed with a simple
+-- | Convenient synonym for an <tt>fC</tt> post-composed with a simple
 --   parameterless activation function.
-type FCA i o = RMap (R o) (R o) (FC i o)
-
--- | Construct an <a>FCA</a> using a generating function and activation
---   function.
---   
---   Some common ones include <tt>logistic</tt> and <tt><a>vmap</a>
---   <tt>reLU</tt></tt>.
-_fcaActivation :: () => FCA i o -> forall s. Reifies s W => BVar s R o -> BVar s R o
+fca :: (KnownNat i, KnownNat o) => (forall z. Reifies z W => BVar z (R o) -> BVar z (R o)) -> Model ( 'Just (FCp i o))  'Nothing (R i) (R o)
+fcWeights :: Lens (FCp i o) (FCp i' o) (L o i) (L o i')
+fcBias :: Lens' (FCp i o) (R o)
 
 -- | Fully connected recurrent layer with bias.
---   
---   Parameterized by its initialization distributions, and also the
---   function to compute the new state from previous input.
---   
---   <pre>
---   instance <tt>Learn</tt> (<a>R</a> i) (R o) (<a>FCR</a> h i o) where
---       type <tt>LParamMaybe</tt> (FCR h i o) = '<a>Just</a> (<a>FCRp</a> h i o)
---       type <tt>LStateMaybe</tt> (FCR h i o) = 'Just (R h)
---   </pre>
-type FCR h i o = Recurrent (R (i + h)) (R i) (R h) (R o) (FC (i + h) o)
+fcr :: (KnownNat i, KnownNat o, KnownNat s) => (forall z. Reifies z W => BVar z (R o) -> BVar z (R s)) -> Model ( 'Just (FCRp s i o)) ( 'Just (R s)) (R i) (R o)
 
--- | Construct an <a>FCR</a>
-type FCRp h i o = FCp (i + h) o
-fcrBias :: Lens' (FCRp h i o) (R o)
-fcrInputWeights :: (KnownNat h, KnownNat i, KnownNat i', KnownNat o) => Lens (FCRp h i o) (FCRp h i' o) (L o i) (L o i')
-fcrStateWeights :: (KnownNat h, KnownNat h', KnownNat i, KnownNat o) => Lens (FCRp h i o) (FCRp h' i o) (L o h) (L o h')
-
--- | Convenient synonym for an <a>FCR</a> post-composed with a simple
+-- | Convenient synonym for an <a>fcr</a> post-composed with a simple
 --   parameterless activation function.
-type FCRA h i o = RMap (R o) (R o) (FCR h i o)
+fcra :: (KnownNat i, KnownNat o, KnownNat s) => (forall z. Reifies z W => BVar z (R o) -> BVar z (R o)) -> (forall z. Reifies z W => BVar z (R o) -> BVar z (R s)) -> Model ( 'Just (FCRp s i o)) ( 'Just (R s)) (R i) (R o)
 
--- | Construct an <a>FCRA</a> using a generating function and activation
---   function.
---   
---   Some common ones include <tt>logistic</tt> and <tt><a>vmap</a>
---   <tt>reLU</tt></tt>.
-_fcraStore :: () => FCRA h i o -> forall s. (Reifies s W, KnownNat h, KnownNat i) => BVar s R o -> BVar s R h
-_fcraActivation :: () => FCRA h i o -> forall s. (Reifies s W, KnownNat h, KnownNat i) => BVar s R o -> BVar s R o
+-- | Parameter for fully connected recurrent layer.
+type FCRp s i o = FCp (i + s) o
+fcrBias :: Lens' (FCRp s i o) (R o)
+fcrInputWeights :: (KnownNat s, KnownNat i, KnownNat i', KnownNat o) => Lens (FCRp s i o) (FCRp s i' o) (L o i) (L o i')
+fcrStateWeights :: (KnownNat s, KnownNat s', KnownNat i, KnownNat o) => Lens (FCRp s i o) (FCRp s' i o) (L o s) (L o s')
 
 module Backprop.Learn.Model.Neural.LSTM
 
 -- | Long-term short-term memory layer
 --   
 --   <a>http://colah.github.io/posts/2015-08-Understanding-LSTMs/</a>
---   
---   <pre>
---   instance <a>Learn</a> (<a>R</a> i) (R o) (<a>LSTM</a> i o) where
---       type <a>LParamMaybe</a> (LSTM i o) = '<a>Just</a> (<a>LSTMp</a> i o)
---       type <a>LStateMaybe</a> (LSTM i o) = 'Just (<a>T2</a> (R o) (R o))     -- cell state, hidden state
---   </pre>
-type LSTM i o = Recurrent (R (i + o)) (R i) (R o) (R o) (LSTM' i o)
+lstm :: (KnownNat i, KnownNat o) => Model ( 'Just (LSTMp i o)) ( 'Just (T2 (R o) (R o))) (R i) (R o)
 
--- | Construct an <a>LSTM</a>
-
--- | <a>LSTM</a> layer parmateters
+-- | <tt>LSTM</tt> layer parmateters
 data LSTMp (i :: Nat) (o :: Nat)
 LSTMp :: !(FCp (i + o) o) -> !(FCp (i + o) o) -> !(FCp (i + o) o) -> !(FCp (i + o) o) -> LSTMp
 [_lstmForget] :: LSTMp -> !(FCp (i + o) o)
 [_lstmInput] :: LSTMp -> !(FCp (i + o) o)
 [_lstmUpdate] :: LSTMp -> !(FCp (i + o) o)
 [_lstmOutput] :: LSTMp -> !(FCp (i + o) o)
-lstmForget :: Lens' (LSTMp i o) (FCp (i + o) o)
-lstmInput :: Lens' (LSTMp i o) (FCp (i + o) o)
-lstmUpdate :: Lens' (LSTMp i o) (FCp (i + o) o)
-lstmOutput :: Lens' (LSTMp i o) (FCp (i + o) o)
-
--- | <a>Base</a> for <a>LSTM</a>. An <a>LSTM</a> is just an <a>LSTM'</a>
---   where the second half of the input vector is the previous output.
---   
---   This is mostly an implementation detail. It is recommended that you
---   use <a>LSTM</a> and its constructor, instead of directly using this.
-data LSTM' (i :: Nat) (o :: Nat)
-LSTM' :: LSTM'
+lstmForget :: forall i_a1Bwr o_a1Bws. Lens' (LSTMp i_a1Bwr o_a1Bws) (FCp ((+) i_a1Bwr o_a1Bws) o_a1Bws)
+lstmInput :: forall i_a1Bwr o_a1Bws. Lens' (LSTMp i_a1Bwr o_a1Bws) (FCp ((+) i_a1Bwr o_a1Bws) o_a1Bws)
+lstmUpdate :: forall i_a1Bwr o_a1Bws. Lens' (LSTMp i_a1Bwr o_a1Bws) (FCp ((+) i_a1Bwr o_a1Bws) o_a1Bws)
+lstmOutput :: forall i_a1Bwr o_a1Bws. Lens' (LSTMp i_a1Bwr o_a1Bws) (FCp ((+) i_a1Bwr o_a1Bws) o_a1Bws)
 
 -- | Gated Recurrent Unit
 --   
 --   <a>http://colah.github.io/posts/2015-08-Understanding-LSTMs/</a>
---   
---   <pre>
---   instance <a>Learn</a> (<a>R</a> i) (R o) (<a>GRU</a> i o) where
---       type <a>LParamMaybe</a> (GRU i o) = '<a>Just</a> (<a>GRUp</a> i o)
---       type <a>LStateMaybe</a> (GRU i o) = 'Just (R o)
---   </pre>
-type GRU i o = Recurrent (R (i + o)) (R i) (R o) (R o) (GRU' i o)
+gru :: (KnownNat i, KnownNat o) => Model ( 'Just (GRUp i o)) ( 'Just (R o)) (R i) (R o)
 
--- | Construct an <a>GRU</a>
-
--- | <a>GRU</a> layer parmateters
+-- | <tt>GRU</tt> layer parmateters
 data GRUp (i :: Nat) (o :: Nat)
 GRUp :: !(FCp (i + o) o) -> !(FCp (i + o) o) -> !(FCp (i + o) o) -> GRUp
 [_gruMemory] :: GRUp -> !(FCp (i + o) o)
 [_gruUpdate] :: GRUp -> !(FCp (i + o) o)
 [_gruOutput] :: GRUp -> !(FCp (i + o) o)
-gruMemory :: Lens' (GRUp i o) (FCp (i + o) o)
-gruUpdate :: Lens' (GRUp i o) (FCp (i + o) o)
-gruOutput :: Lens' (GRUp i o) (FCp (i + o) o)
-
--- | <a>Base</a> for <a>GRU</a>. An <a>GRU</a> is just an <a>GRU'</a> where
---   the second half of the input vector is the previous output.
---   
---   This is mostly an implementation detail. It is recommended that you
---   use <a>GRU</a> and its constructor, instead of directly using this.
-data GRU' (i :: Nat) (o :: Nat)
-GRU' :: GRU'
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Show.Show (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
-instance GHC.Generics.Generic (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Show.Show (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
-instance GHC.Generics.Generic (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
+gruMemory :: forall i_a1BCX o_a1BCY. Lens' (GRUp i_a1BCX o_a1BCY) (FCp ((+) i_a1BCX o_a1BCY) o_a1BCY)
+gruUpdate :: forall i_a1BCX o_a1BCY. Lens' (GRUp i_a1BCX o_a1BCY) (FCp ((+) i_a1BCX o_a1BCY) o_a1BCY)
+gruOutput :: forall i_a1BCX o_a1BCY. Lens' (GRUp i_a1BCX o_a1BCY) (FCp ((+) i_a1BCX o_a1BCY) o_a1BCY)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Additive (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Scaling GHC.Types.Double (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
@@ -1498,7 +1015,8 @@ instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.In
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Real.Fractional (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Float.Floating (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, GHC.TypeNats.KnownNat io, io ~ (i GHC.TypeNats.+ o)) => Backprop.Learn.Model.Class.Learn (Internal.Static.R io) (Internal.Static.R o) (Backprop.Learn.Model.Neural.LSTM.GRU' i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Show.Show (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
+instance GHC.Generics.Generic (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Additive (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Scaling GHC.Types.Double (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
@@ -1511,7 +1029,8 @@ instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.In
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Real.Fractional (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Float.Floating (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, GHC.TypeNats.KnownNat io, io ~ (i GHC.TypeNats.+ o)) => Backprop.Learn.Model.Class.Learn (Internal.Static.R io) (Internal.Static.R o) (Backprop.Learn.Model.Neural.LSTM.LSTM' i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Show.Show (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
+instance GHC.Generics.Generic (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 
 module Backprop.Learn.Model
 
@@ -1655,55 +1174,53 @@ add :: Backprop a => a -> a -> a
 --   <a>Generic</a> whose fields are all themselves instances of
 --   <a>Backprop</a>.
 one :: Backprop a => a -> a
-runLearn_ :: (Learn a b l, MaybeC Backprop (LStateMaybe l), Backprop b) => l -> LParam_ I l -> a -> LState_ I l -> (b, LState_ I l)
-runLearnStoch_ :: (Learn a b l, MaybeC Backprop (LStateMaybe l), Backprop b, PrimMonad m) => l -> Gen (PrimState m) -> LParam_ I l -> a -> LState_ I l -> m (b, LState_ I l)
-runLearnStateless_ :: (Learn a b l, NoState l) => l -> LParam_ I l -> a -> b
-runLearnStochStateless_ :: (Learn a b l, NoState l, PrimMonad m) => l -> Gen (PrimState m) -> LParam_ I l -> a -> m b
-gradLearn :: (Learn a b l, NoState l, Backprop a, Backprop b, MaybeC Backprop (LParamMaybe l)) => l -> LParam_ I l -> a -> (LParam_ I l, a)
-gradLearnStoch :: (Learn a b l, NoState l, Backprop a, Backprop b, MaybeC Backprop (LParamMaybe l), PrimMonad m) => l -> Gen (PrimState m) -> LParam_ I l -> a -> m (LParam_ I l, a)
-initParam :: forall l m d proxy. (Initialize (LParam l), ContGen d, PrimMonad m) => proxy l -> d -> Gen (PrimState m) -> m (LParam l)
-initParamMaybe :: forall l m d proxy. (MaybeC Initialize (LParamMaybe l), ContGen d, PrimMonad m, KnownMayb (LParamMaybe l)) => proxy l -> d -> Gen (PrimState m) -> LParam_ m l
-initParamNormal :: forall l m proxy. (Initialize (LParam l), PrimMonad m) => proxy l -> Double -> Gen (PrimState m) -> m (LParam l)
-initParamNormalMaybe :: forall l m proxy. (MaybeC Initialize (LParamMaybe l), PrimMonad m, KnownMayb (LParamMaybe l)) => proxy l -> Double -> Gen (PrimState m) -> LParam_ m l
-encodeParam :: Binary (LParam l) => proxy l -> LParam l -> ByteString
-decodeParam :: Binary (LParam l) => proxy l -> ByteString -> LParam l
-decodeParamOrFail :: Binary (LParam l) => proxy l -> ByteString -> Either String (LParam l)
-saveParam :: Binary (LParam l) => proxy l -> FilePath -> LParam l -> IO ()
-loadParam :: Binary (LParam l) => proxy l -> FilePath -> IO (LParam l)
-loadParamOrFail :: Binary (LParam l) => proxy l -> FilePath -> IO (Either String (LParam l))
-iterateLearn :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l)) => (b -> a) -> Int -> l -> LParam_ I l -> a -> LState_ I l -> ([b], LState_ I l)
-iterateLearnM :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), Monad m) => (b -> m a) -> Int -> l -> LParam_ I l -> a -> LState_ I l -> m ([b], LState_ I l)
-iterateLearnStoch :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), PrimMonad m) => (b -> m a) -> Int -> l -> Gen (PrimState m) -> LParam_ I l -> a -> LState_ I l -> m ([b], LState_ I l)
-scanLearn :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), Traversable t) => l -> LParam_ I l -> t a -> LState_ I l -> (t b, LState_ I l)
-scanLearnStoch :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), PrimMonad m, Traversable t) => l -> Gen (PrimState m) -> LParam_ I l -> t a -> LState_ I l -> m (t b, LState_ I l)
-iterateLearn_ :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l)) => (b -> a) -> l -> LParam_ I l -> a -> LState_ I l -> [b]
-iterateLearnM_ :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), Monad m) => (b -> m a) -> Int -> l -> LParam_ I l -> a -> LState_ I l -> m [b]
-iterateLearnStoch_ :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), PrimMonad m) => (b -> m a) -> Int -> l -> Gen (PrimState m) -> LParam_ I l -> a -> LState_ I l -> m [b]
-scanLearn_ :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), Traversable t) => l -> LParam_ I l -> t a -> LState_ I l -> t b
-scanLearnStoch_ :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), PrimMonad m, Traversable t) => l -> Gen (PrimState m) -> LParam_ I l -> t a -> LState_ I l -> m (t b)
-primeLearn :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), Foldable t) => l -> LParam_ I l -> t a -> LState_ I l -> LState_ I l
-primeLearnStoch :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), PrimMonad m, Foldable t) => l -> Gen (PrimState m) -> LParam_ I l -> t a -> LState_ I l -> m (LState_ I l)
-selfPrime :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l)) => (b -> a) -> l -> LParam_ I l -> a -> LState_ I l -> [LState_ I l]
-selfPrimeM :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), Monad m) => (b -> m a) -> Int -> l -> LParam_ I l -> a -> LState_ I l -> m (LState_ I l)
+runModel :: forall p s a b. (MaybeC Backprop s, Backprop b) => Model p s a b -> Mayb I p -> a -> Mayb I s -> (b, Mayb I s)
+runModelStoch :: forall p s a b m. (MaybeC Backprop s, Backprop b, PrimMonad m) => Model p s a b -> Gen (PrimState m) -> Mayb I p -> a -> Mayb I s -> m (b, Mayb I s)
+runModelStateless :: Model p  'Nothing a b -> Mayb I p -> a -> b
+runModelStochStateless :: PrimMonad m => Model p  'Nothing a b -> Gen (PrimState m) -> Mayb I p -> a -> m b
+gradModel :: (Backprop a, Backprop b, MaybeC Backprop p) => Model p  'Nothing a b -> Mayb I p -> a -> (Mayb I p, a)
+gradModelStoch :: (Backprop a, Backprop b, MaybeC Backprop p, PrimMonad m) => Model p  'Nothing a b -> Gen (PrimState m) -> Mayb I p -> a -> m (Mayb I p, a)
+initParam :: (Initialize p, ContGen d, PrimMonad m) => model ( 'Just p) s a b -> d -> Gen (PrimState m) -> m p
+initParamNormal :: (Initialize p, PrimMonad m) => model ( 'Just p) s a b -> Double -> Gen (PrimState m) -> m p
+encodeParam :: Binary p => model ( 'Just p) s a b -> p -> ByteString
+decodeParam :: Binary p => model ( 'Just p) s a b -> ByteString -> p
+decodeParamOrFail :: Binary p => model ( 'Just p) s a b -> ByteString -> Either String p
+saveParam :: Binary p => model ( 'Just p) s a b -> FilePath -> p -> IO ()
+loadParam :: Binary p => model ( 'Just p) s a b -> FilePath -> IO p
+loadParamOrFail :: Binary p => model ( 'Just p) s a b -> FilePath -> IO (Either String p)
+iterateModel :: (Backprop b, MaybeC Backprop s) => (b -> a) -> Int -> Model p s a b -> Mayb I p -> a -> Mayb I s -> ([b], Mayb I s)
+iterateModelM :: (Backprop b, MaybeC Backprop s, Monad m) => (b -> m a) -> Int -> Model p s a b -> Mayb I p -> a -> Mayb I s -> m ([b], Mayb I s)
+iterateModelStoch :: (Backprop b, MaybeC Backprop s, PrimMonad m) => (b -> m a) -> Int -> Model p s a b -> Gen (PrimState m) -> Mayb I p -> a -> Mayb I s -> m ([b], Mayb I s)
+scanModel :: (Traversable t, Backprop b, MaybeC Backprop s) => Model p s a b -> Mayb I p -> t a -> Mayb I s -> (t b, Mayb I s)
+scanModelStoch :: (Traversable t, Backprop b, MaybeC Backprop s, PrimMonad m) => Model p s a b -> Gen (PrimState m) -> Mayb I p -> t a -> Mayb I s -> m (t b, Mayb I s)
+iterateModel_ :: (Backprop b, MaybeC Backprop s) => (b -> a) -> Model p s a b -> Mayb I p -> a -> Mayb I s -> [b]
+iterateModelM_ :: (Backprop b, MaybeC Backprop s, Monad m) => (b -> m a) -> Int -> Model p s a b -> Mayb I p -> a -> Mayb I s -> m [b]
+iterateModelStoch_ :: (Backprop b, MaybeC Backprop s, PrimMonad m) => (b -> m a) -> Int -> Model p s a b -> Gen (PrimState m) -> Mayb I p -> a -> Mayb I s -> m [b]
+scanModel_ :: (Traversable t, Backprop b, MaybeC Backprop s) => Model p s a b -> Mayb I p -> t a -> Mayb I s -> t b
+scanModelStoch_ :: (Traversable t, Backprop b, MaybeC Backprop s, PrimMonad m) => Model p s a b -> Gen (PrimState m) -> Mayb I p -> t a -> Mayb I s -> m (t b)
+primeModel :: (Foldable t, Backprop b, MaybeC Backprop s) => Model p s a b -> Mayb I p -> t a -> Mayb I s -> Mayb I s
+primeModelStoch :: (Foldable t, Backprop b, MaybeC Backprop s, PrimMonad m) => Model p s a b -> Gen (PrimState m) -> Mayb I p -> t a -> Mayb I s -> m (Mayb I s)
+selfPrime :: (Backprop b, MaybeC Backprop s) => (b -> a) -> Model p s a b -> Mayb I p -> a -> Mayb I s -> [Mayb I s]
+selfPrimeM :: (Backprop b, MaybeC Backprop s, Monad m) => (b -> m a) -> Int -> Model p s a b -> Mayb I p -> a -> Mayb I s -> m (Mayb I s)
 
 module Backprop.Learn.Train
 
 -- | Gradient of model with respect to loss function and target
-gradLearnLoss :: (Learn a b l, NoState l, LParamMaybe l ~  'Just (LParam l), Backprop (LParam l)) => Loss b -> Regularizer (LParam l) -> l -> LParam l -> a -> b -> LParam l
+gradModelLoss :: Backprop p => Loss b -> Regularizer p -> Model ( 'Just p)  'Nothing a b -> p -> a -> b -> p
 
 -- | Stochastic gradient of model with respect to loss function and target
-gradLearnStochLoss :: (Learn a b l, NoState l, LParamMaybe l ~  'Just (LParam l), Backprop (LParam l), PrimMonad m) => Loss b -> Regularizer (LParam l) -> l -> Gen (PrimState m) -> LParam l -> a -> b -> m (LParam l)
+gradModelStochLoss :: (Backprop p, PrimMonad m) => Loss b -> Regularizer p -> Model ( 'Just p)  'Nothing a b -> Gen (PrimState m) -> p -> a -> b -> m p
 type Grad (m :: * -> *) a = a -> m Diff a
 
 -- | Using a model's deterministic prediction function (with a given loss
 --   function), generate a <a>Grad</a> compatible with <a>Numeric.Opto</a>
 --   and <a>Numeric.Opto.Run</a>.
-learnGrad :: (MonadSample (a, b) m, Learn a b l, NoState l, LParamMaybe l ~  'Just (LParam l), Backprop (LParam l)) => Loss b -> Regularizer (LParam l) -> l -> Grad m (LParam l)
+modelGrad :: (MonadSample (a, b) m, Backprop p) => Loss b -> Regularizer p -> Model ( 'Just p)  'Nothing a b -> Grad m p
 
 -- | Using a model's stochastic prediction function (with a given loss
 --   function), generate a <a>Grad</a> compatible with <a>Numeric.Opto</a>
 --   and <a>Numeric.Opto.Run</a>.
-learnGradStoch :: (MonadSample (a, b) m, PrimMonad m, Learn a b l, NoState l, LParamMaybe l ~  'Just (LParam l), Backprop (LParam l)) => Loss b -> Regularizer (LParam l) -> l -> Gen (PrimState m) -> Grad m (LParam l)
+modelGradStoch :: (MonadSample (a, b) m, PrimMonad m, Backprop p) => Loss b -> Regularizer p -> Model ( 'Just p)  'Nothing a b -> Gen (PrimState m) -> Grad m p
 
 module Backprop.Learn.Test
 type Test o = o -> o -> Double
@@ -1718,21 +1235,21 @@ crossEntropyTest :: KnownNat n => Test (R n)
 -- | Create a <a>Test</a> from a <a>Loss</a>
 lossTest :: Loss a -> Test a
 lmapTest :: (a -> b) -> Test b -> Test a
-testLearn :: (Learn a b l, NoState l) => Test b -> l -> LParam_ I l -> a -> b -> Double
-testLearnStoch :: (Learn a b l, NoState l, PrimMonad m) => Test b -> l -> Gen (PrimState m) -> LParam_ I l -> a -> b -> m Double
-testLearnAll :: (Learn a b l, NoState l, Foldable t) => Test b -> l -> LParam_ I l -> t (a, b) -> Double
-testLearnStochAll :: (Learn a b l, NoState l, PrimMonad m, Foldable t) => Test b -> l -> Gen (PrimState m) -> LParam_ I l -> t (a, b) -> m Double
-testLearnCov :: (Learn a b l, NoState l, Foldable t, Fractional b) => l -> LParam_ I l -> t (a, b) -> b
-testLearnCorr :: (Learn a b l, NoState l, Foldable t, Floating b) => l -> LParam_ I l -> t (a, b) -> b
-testLearnStochCov :: (Learn a b l, NoState l, PrimMonad m, Foldable t, Fractional b) => l -> Gen (PrimState m) -> LParam_ I l -> t (a, b) -> m b
-testLearnStochCorr :: (Learn a b l, NoState l, PrimMonad m, Foldable t, Floating b) => l -> Gen (PrimState m) -> LParam_ I l -> t (a, b) -> m b
+testModel :: Test b -> Model p  'Nothing a b -> Mayb I p -> a -> b -> Double
+testModelStoch :: PrimMonad m => Test b -> Model p  'Nothing a b -> Gen (PrimState m) -> Mayb I p -> a -> b -> m Double
+testModelAll :: Foldable t => Test b -> Model p  'Nothing a b -> Mayb I p -> t (a, b) -> Double
+testModelStochAll :: (Foldable t, PrimMonad m) => Test b -> Model p  'Nothing a b -> Gen (PrimState m) -> Mayb I p -> t (a, b) -> m Double
+testModelCov :: (Foldable t, Fractional b) => Model p  'Nothing a b -> Mayb I p -> t (a, b) -> b
+testModelCorr :: (Foldable t, Floating b) => Model p  'Nothing a b -> Mayb I p -> t (a, b) -> b
+testModelStochCov :: (Foldable t, PrimMonad m, Fractional b) => Model p  'Nothing a b -> Gen (PrimState m) -> Mayb I p -> t (a, b) -> m b
+testModelStochCorr :: (Foldable t, PrimMonad m, Floating b) => Model p  'Nothing a b -> Gen (PrimState m) -> Mayb I p -> t (a, b) -> m b
 
 module Backprop.Learn.Run
 consecutives :: Monad m => ConduitT i (i, i) m ()
 consecutivesN :: forall v n i m. (KnownNat n, Vector v i, Monad m) => ConduitT i (Vector v n i, Vector v n i) m ()
 leadings :: forall v n i m. (KnownNat n, Vector v i, Monad m) => ConduitT i (Vector v n i, i) m ()
-conduitLearn :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), Monad m) => l -> LParam_ I l -> LState_ I l -> ConduitT a b m (LState_ I l)
-conduitLearnStoch :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), PrimMonad m) => l -> Gen (PrimState m) -> LParam_ I l -> LState_ I l -> ConduitT a b m (LState_ I l)
+conduitModel :: (Backprop b, MaybeC Backprop s, Monad m) => Model p s a b -> Mayb I p -> Mayb I s -> ConduitT a b m (Mayb I s)
+conduitModelStoch :: (Backprop b, MaybeC Backprop s, PrimMonad m) => Model p s a b -> Gen (PrimState m) -> Mayb I p -> Mayb I s -> ConduitT a b m (Mayb I s)
 
 -- | What module should this be in?
 oneHot' :: (Vector v a, KnownNat n) => a -> a -> Finite n -> Vector v n a
