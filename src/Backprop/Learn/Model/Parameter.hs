@@ -15,6 +15,7 @@
 module Backprop.Learn.Model.Parameter (
     deParam, deParamD
   , reParam, reParamD
+  , dummryParam
   ) where
 
 import           Backprop.Learn.Model.Types
@@ -84,3 +85,9 @@ reParamD
     -> Model p s a b
     -> Model q s a b
 reParamD r = reParam r (\_ -> pure . r)
+
+-- | Give an unparameterized model a "dummy" parameter.
+dummyParam
+    :: Model 'Nothing  s a b
+    -> Model p         s a b
+dummyParam = reParamD (const N_)
