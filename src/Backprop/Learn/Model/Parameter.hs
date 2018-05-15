@@ -15,12 +15,11 @@
 module Backprop.Learn.Model.Parameter (
     deParam, deParamD
   , reParam, reParamD
-  , dummryParam
+  , dummyParam
   ) where
 
 import           Backprop.Learn.Model.Types
 import           Control.Monad.Primitive
-import           Data.Type.Mayb
 import           Numeric.Backprop
 import qualified System.Random.MWC          as MWC
 

@@ -42,7 +42,6 @@ import           Data.List
 import           Data.Maybe
 import           Data.Proxy
 import           Data.Type.Equality
-import           Data.Type.Mayb
 import           Data.Typeable
 import           GHC.Generics                          (Generic)
 import           GHC.TypeLits.Compare

@@ -22,7 +22,8 @@ module Backprop.Learn.Model.Types (
   , BFunc, BFuncStoch
   , Func, pattern Func, runFunc, runFuncStoch
   , funcD
-    -- * Helper type family for HKD tricks
+    -- * Utility
+  , Mayb(..), fromJ_, MaybeC, KnownMayb, knownMayb, I(..)
   , HKD
   ) where
 
