@@ -9,7 +9,7 @@ module Backprop.Learn.Run (
     consecutives
   , consecutivesN
   , leadings
-  , conduitModel, conduitModelStoch
+  , conduitLearn, conduitLearnStoch
   -- * Encoding and decoding for learning
   , oneHot', oneHot, oneHotR
   , SVG.maxIndex, maxIndexR
@@ -76,38 +76,38 @@ conseq n = void . runMaybeT $ do
       lift $ yield (xs, ys, y)
       go ys
 
-conduitModel
-    :: (Backprop b, MaybeC Backprop s, Monad m)
-    => Model p s a b
-    -> Mayb I p
-    -> Mayb I s
-    -> ConduitT a b m (Mayb I s)
-conduitModel f p = go
+conduitLearn
+    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), Monad m)
+    => l
+    -> LParam_ I l
+    -> LState_ I l
+    -> ConduitT a b m (LState_ I l)
+conduitLearn l p = go
   where
     go s = do
       mx <- await
       case mx of
         Nothing -> return s
         Just x  -> do
-          let (y, s') = runModel f p x s
+          let (y, s') = runLearn_ l p x s
           yield y
           go s'
 
-conduitModelStoch
-    :: (Backprop b, MaybeC Backprop s, PrimMonad m)
-    => Model p s a b
+conduitLearnStoch
+    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), PrimMonad m)
+    => l
     -> MWC.Gen (PrimState m)
-    -> Mayb I p
-    -> Mayb I s
-    -> ConduitT a b m (Mayb I s)
-conduitModelStoch f g p = go
+    -> LParam_ I l
+    -> LState_ I l
+    -> ConduitT a b m (LState_ I l)
+conduitLearnStoch l g p = go
   where
     go s = do
       mx <- await
       case mx of
         Nothing -> return s
         Just x  -> do
-          (y, s') <- lift $ runModelStoch f g p x s
+          (y, s') <- lift $ runLearnStoch_ l g p x s
           yield y
           go s'
 

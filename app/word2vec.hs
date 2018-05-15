@@ -1,9 +1,12 @@
-{-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE TupleSections         #-}
-{-# LANGUAGE TypeApplications      #-}
-{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE AllowAmbiguousTypes                  #-}
+{-# LANGUAGE DataKinds                            #-}
+{-# LANGUAGE PartialTypeSignatures                #-}
+{-# LANGUAGE PolyKinds                            #-}
+{-# LANGUAGE ScopedTypeVariables                  #-}
+{-# LANGUAGE TupleSections                        #-}
+{-# LANGUAGE TypeApplications                     #-}
+{-# LANGUAGE TypeOperators                        #-}
+{-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 
 import           Backprop.Learn
 import           Control.DeepSeq
@@ -34,19 +37,14 @@ import qualified Data.Vector.Storable                  as VS
 import qualified Numeric.LinearAlgebra.Static          as H
 import qualified System.Random.MWC                     as MWC
 
-type Encoder n e = FCA n e
-type Decoder n e = FCA e n
+encoder :: forall n e. (KnownNat n, KnownNat e) => Model _ _ (R n) (R e)
+encoder = fca logistic
 
-type Word2Vec n e = Encoder n e :.~ Decoder n e
+decoder :: forall n e. (KnownNat n, KnownNat e) => Model _ _ (R e) (R n)
+decoder = fca softMax
 
-encoder :: Encoder n e
-encoder = FCA logistic
-
-decoder :: KnownNat n => Decoder n e
-decoder = FCA softMax
-
-word2vec :: forall n e. KnownNat n => Word2Vec n e
-word2vec = encoder :.~ decoder
+word2vec :: forall n e. (KnownNat n, KnownNat e) => Model _ _ (R n) (R n)
+word2vec = decoder @n @e <~ encoder @n @e
 
 oneHotWord
     :: KnownNat n
@@ -68,8 +66,9 @@ main = MWC.withSystemRandom @IO $ \g -> do
 
     printf "%d unique words found.\n" (natVal (Proxy @n))
 
-    let model@(enc :.~ _) = word2vec @n @100
-    p0 <- initParamNormal [model] 0.2 g
+    let model = word2vec @n @100
+        enc   = encoder  @n @100
+    p0 <- initParamNormal model 0.2 g
 
 
     let report n b = do
@@ -80,18 +79,18 @@ main = MWC.withSystemRandom @IO $ \g -> do
           t1 <- liftIO getCurrentTime
           case mp of
             Nothing -> liftIO $ putStrLn "Done!"
-            Just p@(T.T2 pEnc _) -> do
+            Just p@(T.T2 _ pEnc) -> do
               chnk <- lift . state $ (,[])
               liftIO $ do
                 printf "Trained on %d points in %s.\n"
                   (length chnk)
                   (show (t1 `diffUTCTime` t0))
-                let trainScore = testLearnAll maxIxTest model (J_I p) chnk
+                let trainScore = testModelAll maxIxTest model (J_I p) chnk
                 printf "Training error:   %.3f%%\n" ((1 - trainScore) * 100)
 
                 testWords <- tokenize <$> readFile testFile
                 let tests = flip map testWords $ \w ->
-                       let v = maybe 0 (runLearnStateless_ enc (J_I pEnc))
+                       let v = maybe 0 (runModelStateless enc (J_I pEnc))
                                 $ oneHotWord wordSet w
                        in  intercalate "," $ map (printf "%0.4f") (VS.toList (H.extract v))
 
@@ -116,7 +115,7 @@ main = MWC.withSystemRandom @IO $ \g -> do
             (RO' Nothing Nothing)
             p0
             (adam @_ @(MutVar _ _) def
-               (learnGradStoch crossEntropy noReg model g)
+               (modelGradStoch crossEntropy noReg model g)
             )
        .| report 500 0
        .| C.sinkNull

@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleContexts       #-}
 {-# LANGUAGE GADTs                  #-}
 {-# LANGUAGE LambdaCase             #-}
+{-# LANGUAGE PolyKinds              #-}
 {-# LANGUAGE ScopedTypeVariables    #-}
 {-# LANGUAGE TupleSections          #-}
 {-# LANGUAGE TypeApplications       #-}
@@ -10,23 +11,23 @@
 
 module Backprop.Learn.Model (
     module M, Backprop(..)
-  , runLearn_, runLearnStoch_, runLearnStateless_, runLearnStochStateless_
-  , gradLearn, gradLearnStoch
+  -- * Running and Grad
+  , runModel, runModelStoch, runModelStateless, runModelStochStateless
+  , gradModel, gradModelStoch
   -- * Work with parameters
-  , initParam, initParamMaybe, initParamNormal, initParamNormalMaybe
+  , initParam, initParamNormal
   , encodeParam, decodeParam, decodeParamOrFail, saveParam, loadParam, loadParamOrFail
   -- * Iterated runners
-  , iterateLearn, iterateLearnM, iterateLearnStoch
-  , scanLearn, scanLearnStoch
+  , iterateModel, iterateModelM, iterateModelStoch
+  , scanModel, scanModelStoch
   -- * No final state
-  , iterateLearn_, iterateLearnM_, iterateLearnStoch_
-  , scanLearn_, scanLearnStoch_
+  , iterateModel_, iterateModelM_, iterateModelStoch_
+  , scanModel_, scanModelStoch_
   -- * "Prime" runners
-  , primeLearn, primeLearnStoch, selfPrime, selfPrimeM
+  , primeModel, primeModelStoch, selfPrime, selfPrimeM
   ) where
 
 import           Backprop.Learn.Initialize
-import           Backprop.Learn.Model.Class       as M
 import           Backprop.Learn.Model.Combinator  as M
 import           Backprop.Learn.Model.Function    as M
 import           Backprop.Learn.Model.Neural      as M
@@ -35,400 +36,351 @@ import           Backprop.Learn.Model.Parameter   as M
 import           Backprop.Learn.Model.Regression  as M
 import           Backprop.Learn.Model.State       as M
 import           Backprop.Learn.Model.Stochastic  as M
+import           Backprop.Learn.Model.Types       as M
 import           Control.Monad.Primitive
 import           Control.Monad.ST
 import           Control.Monad.Trans.State
 import           Data.Bifunctor
 import           Data.Foldable
 import           Data.Functor.Identity
-import           Data.Type.Mayb
 import           Data.Word
 import           Numeric.Backprop
 import           Statistics.Distribution
+import           Type.Class.Higher
 import qualified Data.Binary                      as Bi
 import qualified Data.ByteString.Lazy             as BSL
 import qualified Data.Vector.Unboxed              as VU
 import qualified System.Random.MWC                as MWC
 
 -- TODO: this can be more efficient by breaking out into separate functions
-runLearn_
-    :: (Learn a b l, MaybeC Backprop (LStateMaybe l), Backprop b)
-    => l
-    -> LParam_ I l
+runModel
+    :: forall p s a b. (MaybeC Backprop s, Backprop b)
+    => Model p s a b
+    -> Mayb I p
     -> a
-    -> LState_ I l
-    -> (b, LState_ I l)
-runLearn_ l mp x ms = case mp of
-    N_ -> case ms of
-      N_       -> (evalBP (runLearnStateless l N_) x, N_)
-      J_ (I s) -> second (J_ . I)
-                . evalBP2 (\x' s' -> uncurry T2
-                                       . second fromJ_
-                                       $ runLearn l N_ x' (J_ s')
-                          ) x
-                $ s
-    J_ (I p) -> case ms of
-      N_       -> (evalBP2 (runLearnStateless l . J_) p x, N_)
-      J_ (I s) -> second (J_ . I)
-                . evalBPN (\(p' :< x' :< s' :< Ø) ->
-                                uncurry T2
-                              . second fromJ_
-                              $ runLearn l (J_ p') x' (J_ s')
-                          )
-                $ (p ::< x ::< s ::< Ø)
+    -> Mayb I s
+    -> (b, Mayb I s)
+runModel f mp x ms = evalBP0 go
+  where
+    go :: forall z. Reifies z W => BVar z (b, Mayb I s)
+    go = case ms' of
+        N_    -> T2 y $ auto N_
+        J_ s' -> T2 y $ isoVar (J_ . I) (getI . fromJ_) s'
+      where
+        y :: BVar z b
+        ms' :: Mayb (BVar z) s
+        (y, ms') = runLearn f (map1 (auto . getI) mp)
+                              (auto x)
+                              (map1 (auto . getI) ms)
 
-runLearnStoch_
-    :: (Learn a b l, MaybeC Backprop (LStateMaybe l), Backprop b, PrimMonad m)
-    => l
+-- TODO: this can be more efficient by breaking out into separate functions
+runModelStoch
+    :: forall p s a b m. (MaybeC Backprop s, Backprop b, PrimMonad m)
+    => Model p s a b
     -> MWC.Gen (PrimState m)
-    -> LParam_ I l
+    -> Mayb I p
     -> a
-    -> LState_ I l
-    -> m (b, LState_ I l)
-runLearnStoch_ l g mp x ms = do
+    -> Mayb I s
+    -> m (b, Mayb I s)
+runModelStoch f g mp x ms = do
     -- TODO: is this the best way to handle this?
     seed <- MWC.uniformVector @_ @Word32 @VU.Vector g 2
-    pure $ case mp of
-      N_ -> case ms of
-        N_       -> (, N_) $ evalBP (\x' -> runST $ do
-            g' <- MWC.initialize seed
-            runLearnStochStateless l g' N_ x'
-          ) x
-        J_ (I s) -> second (J_ . I) $ evalBP2 (\x' s' -> runST $ do
-            g' <- MWC.initialize seed
-            uncurry T2 . second fromJ_
-              <$> runLearnStoch l g' N_ x' (J_ s')
-          ) x s
-      J_ (I p) -> case ms of
-        N_       -> (, N_) $ evalBP2 (\p' x' -> runST $ do
-            g' <- MWC.initialize seed
-            runLearnStochStateless l g' (J_ p') x'
-          ) p x
-        J_ (I s) -> second (J_ . I) $ evalBPN (\(p' :< x' :< s' :< Ø) -> runST $ do
-            g' <- MWC.initialize seed
-            uncurry T2 . second fromJ_
-              <$> runLearnStoch l g' (J_ p') x' (J_ s')
-          ) (p ::< x ::< s ::< Ø)
+    pure $ evalBP0 (runST (go seed))
+  where
+    go  :: forall q z. Reifies z W
+        => VU.Vector Word32
+        -> ST q (BVar z (b, Mayb I s))
+    go seed = do
+      g' <- MWC.initialize seed
+      (y :: BVar z b, ms') <- runLearnStoch f g'
+        (map1 (auto . getI) mp)
+        (auto x)
+        (map1 (auto . getI) ms)
+      pure $ case ms' of
+        N_    -> T2 y $ auto N_
+        J_ s' -> T2 y $ isoVar (J_ . I) (getI . fromJ_) s'
 
-runLearnStateless_
-    :: (Learn a b l, NoState l)
-    => l
-    -> LParam_ I l
+runModelStateless
+    :: Model p 'Nothing a b
+    -> Mayb I p
     -> a
     -> b
-runLearnStateless_ l = \case
-    N_       -> evalBP  (runLearnStateless l N_  )
-    J_ (I p) -> evalBP2 (runLearnStateless l . J_) p
+runModelStateless f = \case
+    N_       -> evalBP  (runLearnStateless f N_  )
+    J_ (I p) -> evalBP2 (runLearnStateless f . J_) p
 
-runLearnStochStateless_
-    :: (Learn a b l, NoState l, PrimMonad m)
-    => l
+runModelStochStateless
+    :: PrimMonad m
+    => Model p 'Nothing a b
     -> MWC.Gen (PrimState m)
-    -> LParam_ I l
+    -> Mayb I p
     -> a
     -> m b
-runLearnStochStateless_ l g mp x = do
+runModelStochStateless f g mp x = do
     seed <- MWC.uniformVector @_ @Word32 @VU.Vector g 2
     pure $ case mp of
       N_       -> evalBP  (\x' -> runST $ do
           g' <- MWC.initialize seed
-          runLearnStochStateless l g' N_ x'
+          runLearnStochStateless f g' N_ x'
         ) x
       J_ (I p) -> evalBP2 (\p' x' -> runST $ do
           g' <- MWC.initialize seed
-          runLearnStochStateless l g' (J_ p') x'
+          runLearnStochStateless f g' (J_ p') x'
         ) p x
 
-gradLearn
-    :: (Learn a b l, NoState l, Backprop a, Backprop b, MaybeC Backprop (LParamMaybe l))
-    => l
-    -> LParam_ I l
+gradModel
+    :: (Backprop a, Backprop b, MaybeC Backprop p)
+    => Model p 'Nothing a b
+    -> Mayb I p
     -> a
-    -> (LParam_ I l, a)
-gradLearn l = \case
-    N_       ->       (N_,)    . gradBP  (runLearnStateless l   N_)
-    J_ (I p) -> first (J_ . I) . gradBP2 (runLearnStateless l . J_) p
+    -> (Mayb I p, a)
+gradModel f = \case
+    N_       ->       (N_,)    . gradBP  (runLearnStateless f   N_)
+    J_ (I p) -> first (J_ . I) . gradBP2 (runLearnStateless f . J_) p
 
-gradLearnStoch
-    :: (Learn a b l, NoState l, Backprop a, Backprop b, MaybeC Backprop (LParamMaybe l), PrimMonad m)
-    => l
+gradModelStoch
+    :: (Backprop a, Backprop b, MaybeC Backprop p, PrimMonad m)
+    => Model p 'Nothing a b
     -> MWC.Gen (PrimState m)
-    -> LParam_ I l
+    -> Mayb I p
     -> a
-    -> m (LParam_ I l, a)
-gradLearnStoch l g mp x = do
+    -> m (Mayb I p, a)
+gradModelStoch f g mp x = do
     seed <- MWC.uniformVector @_ @Word32 @VU.Vector g 2
     pure $ case mp of
       N_       ->       (N_,)    $ gradBP  (\x' -> runST $ do
           g' <- MWC.initialize seed
-          runLearnStochStateless l g' N_ x'
+          runLearnStochStateless f g' N_ x'
         ) x
       J_ (I p) -> first (J_ . I) $ gradBP2 (\p' x' -> runST $ do
           g' <- MWC.initialize seed
-          runLearnStochStateless l g' (J_ p') x'
+          runLearnStochStateless f g' (J_ p') x'
         ) p x
 
-iterateLearn
-    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l))
+iterateModel
+    :: (Backprop b, MaybeC Backprop s)
     => (b -> a)         -- ^ loop
     -> Int              -- ^ num times
-    -> l
-    -> LParam_ I l
+    -> Model p s a b
+    -> Mayb I p
     -> a
-    -> LState_ I l
-    -> ([b], LState_ I l)
-iterateLearn f n l p x = runIdentity . iterateLearnM (Identity . f) n l p x
+    -> Mayb I s
+    -> ([b], Mayb I s)
+iterateModel l n f p x = runIdentity . iterateModelM (Identity . l) n f p x
 
-iterateLearn_
-    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l))
+iterateModel_
+    :: (Backprop b, MaybeC Backprop s)
     => (b -> a)         -- ^ loop
-    -> l
-    -> LParam_ I l
+    -> Model p s a b
+    -> Mayb I p
     -> a
-    -> LState_ I l
+    -> Mayb I s
     -> [b]
-iterateLearn_ f l p = go
+iterateModel_ l f p = go
   where
-    go !x !s = y : go (f y) s'
+    go !x !s = y : go (l y) s'
       where
-        (y, s') = runLearn_ l p x s
+        (y, s') = runModel f p x s
 
 selfPrime
-    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l))
+    :: (Backprop b, MaybeC Backprop s)
     => (b -> a)         -- ^ loop
-    -> l
-    -> LParam_ I l
+    -> Model p s a b
+    -> Mayb I p
     -> a
-    -> LState_ I l
-    -> [LState_ I l]
-selfPrime f l p = go
+    -> Mayb I s
+    -> [Mayb I s]
+selfPrime l f p = go
   where
-    go !x !s = s' : go (f y) s'
+    go !x !s = s' : go (l y) s'
       where
-        (y, s') = runLearn_ l p x s
+        (y, s') = runModel f p x s
 
-iterateLearnM
-    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), Monad m)
+iterateModelM
+    :: (Backprop b, MaybeC Backprop s, Monad m)
     => (b -> m a)           -- ^ loop
     -> Int                  -- ^ num times
-    -> l
-    -> LParam_ I l
+    -> Model p s a b
+    -> Mayb I p
     -> a
-    -> LState_ I l
-    -> m ([b], LState_ I l)
-iterateLearnM f n l p = go 0
+    -> Mayb I s
+    -> m ([b], Mayb I s)
+iterateModelM l n f p = go 0
   where
     go !i !x !s
       | i <= n    = do
-          let (y, s') = runLearn_ l p x s
-          (ys, s'') <- flip (go (i + 1)) s' =<< f y
+          let (y, s') = runModel f p x s
+          (ys, s'') <- flip (go (i + 1)) s' =<< l y
           pure (y : ys, s'')
       | otherwise = pure ([], s)
 
-iterateLearnM_
-    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), Monad m)
+iterateModelM_
+    :: (Backprop b, MaybeC Backprop s, Monad m)
     => (b -> m a)           -- ^ loop
     -> Int                  -- ^ num times
-    -> l
-    -> LParam_ I l
+    -> Model p s a b
+    -> Mayb I p
     -> a
-    -> LState_ I l
+    -> Mayb I s
     -> m [b]
-iterateLearnM_ f n l p x = fmap fst . iterateLearnM f n l p x
+iterateModelM_ l n f p x = fmap fst . iterateModelM l n f p x
 
 selfPrimeM
-    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), Monad m)
+    :: (Backprop b, MaybeC Backprop s, Monad m)
     => (b -> m a)           -- ^ loop
     -> Int                  -- ^ num times
-    -> l
-    -> LParam_ I l
+    -> Model p s a b
+    -> Mayb I p
     -> a
-    -> LState_ I l
-    -> m (LState_ I l)
-selfPrimeM f n l p x = fmap snd . iterateLearnM f n l p x
+    -> Mayb I s
+    -> m (Mayb I s)
+selfPrimeM l n f p x = fmap snd . iterateModelM l n f p x
 
-iterateLearnStoch
-    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), PrimMonad m)
+iterateModelStoch
+    :: (Backprop b, MaybeC Backprop s, PrimMonad m)
     => (b -> m a)           -- ^ loop
     -> Int                  -- ^ num times
-    -> l
+    -> Model p s a b
     -> MWC.Gen (PrimState m)
-    -> LParam_ I l
+    -> Mayb I p
     -> a
-    -> LState_ I l
-    -> m ([b], LState_ I l)
-iterateLearnStoch f n l g p = go 0
+    -> Mayb I s
+    -> m ([b], Mayb I s)
+iterateModelStoch l n f g p = go 0
   where
     go !i !x !s
       | i <= n    = do
-          (y , s' ) <- runLearnStoch_ l g p x s
-          (ys, s'') <- flip (go (i + 1)) s' =<< f y
+          (y , s' ) <- runModelStoch f g p x s
+          (ys, s'') <- flip (go (i + 1)) s' =<< l y
           pure (y : ys, s'')
       | otherwise = pure ([], s)
 
-iterateLearnStoch_
-    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), PrimMonad m)
+iterateModelStoch_
+    :: (Backprop b, MaybeC Backprop s, PrimMonad m)
     => (b -> m a)           -- ^ loop
     -> Int                  -- ^ num times
-    -> l
+    -> Model p s a b
     -> MWC.Gen (PrimState m)
-    -> LParam_ I l
+    -> Mayb I p
     -> a
-    -> LState_ I l
+    -> Mayb I s
     -> m [b]
-iterateLearnStoch_ f n l g p x = fmap fst . iterateLearnStoch f n l g p x
+iterateModelStoch_ l n f g p x = fmap fst . iterateModelStoch l n f g p x
 
-scanLearn
-    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), Traversable t)
-    => l
-    -> LParam_ I l
+scanModel
+    :: (Traversable t, Backprop b, MaybeC Backprop s)
+    => Model p s a b
+    -> Mayb I p
     -> t a
-    -> LState_ I l
-    -> (t b, LState_ I l)
-scanLearn l p = runState . traverse (state . runLearn_ l p)
+    -> Mayb I s
+    -> (t b, Mayb I s)
+scanModel f p = runState . traverse (state . runModel f p)
 
-scanLearn_
-    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), Traversable t)
-    => l
-    -> LParam_ I l
+scanModel_
+    :: (Traversable t, Backprop b, MaybeC Backprop s)
+    => Model p s a b
+    -> Mayb I p
     -> t a
-    -> LState_ I l
+    -> Mayb I s
     -> t b
-scanLearn_ l p xs = fst . scanLearn l p xs
+scanModel_ f p xs = fst . scanModel f p xs
 
-primeLearn
-    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), Foldable t)
-    => l
-    -> LParam_ I l
+primeModel
+    :: (Foldable t, Backprop b, MaybeC Backprop s)
+    => Model p s a b
+    -> Mayb I p
     -> t a
-    -> LState_ I l
-    -> LState_ I l
-primeLearn l p = execState . traverse_ (state . runLearn_ l p)
+    -> Mayb I s
+    -> Mayb I s
+primeModel f p = execState . traverse_ (state . runModel f p)
 
-scanLearnStoch
-    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), PrimMonad m, Traversable t)
-    => l
+scanModelStoch
+    :: (Traversable t, Backprop b, MaybeC Backprop s, PrimMonad m)
+    => Model p s a b
     -> MWC.Gen (PrimState m)
-    -> LParam_ I l
+    -> Mayb I p
     -> t a
-    -> LState_ I l
-    -> m (t b, LState_ I l)
-scanLearnStoch l g p = runStateT . traverse (StateT . runLearnStoch_ l g p)
+    -> Mayb I s
+    -> m (t b, Mayb I s)
+scanModelStoch f g p = runStateT . traverse (StateT . runModelStoch f g p)
 
-scanLearnStoch_
-    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), PrimMonad m, Traversable t)
-    => l
+scanModelStoch_
+    :: (Traversable t, Backprop b, MaybeC Backprop s, PrimMonad m)
+    => Model p s a b
     -> MWC.Gen (PrimState m)
-    -> LParam_ I l
+    -> Mayb I p
     -> t a
-    -> LState_ I l
+    -> Mayb I s
     -> m (t b)
-scanLearnStoch_ l g p xs = fmap fst . scanLearnStoch l g p xs
+scanModelStoch_ f g p xs = fmap fst . scanModelStoch f g p xs
 
-primeLearnStoch
-    :: (Learn a b l, Backprop b, MaybeC Backprop (LStateMaybe l), PrimMonad m, Foldable t)
-    => l
+primeModelStoch
+    :: (Foldable t, Backprop b, MaybeC Backprop s, PrimMonad m)
+    => Model p s a b
     -> MWC.Gen (PrimState m)
-    -> LParam_ I l
+    -> Mayb I p
     -> t a
-    -> LState_ I l
-    -> m (LState_ I l)
-primeLearnStoch l g p = execStateT . traverse_ (StateT . runLearnStoch_ l g p)
-
-initParamMaybe
-    :: forall l m d proxy.
-     ( MaybeC Initialize (LParamMaybe l)
-     , ContGen d
-     , PrimMonad m
-     , KnownMayb (LParamMaybe l)
-     )
-    => proxy l                            -- ^ ignored
-    -> d
-    -> MWC.Gen (PrimState m)
-    -> LParam_ m l
-initParamMaybe _ d g = case knownMayb @(LParamMaybe l) of
-                    N_            -> N_
-                    J_ (_ :: P p) -> J_ $ initialize @p d g
+    -> Mayb I s
+    -> m (Mayb I s)
+primeModelStoch f g p = execStateT . traverse_ (StateT . runModelStoch f g p)
 
 initParam
-    :: forall l m d proxy.
-     ( Initialize (LParam l)
-     , ContGen d
-     , PrimMonad m
-     )
-    => proxy l                            -- ^ ignored
+    :: (Initialize p, ContGen d, PrimMonad m)
+    => model ('Just p) s a b                    -- ^ ignored
     -> d
     -> MWC.Gen (PrimState m)
-    -> m (LParam l)
+    -> m p
 initParam _ = initialize
 
-initParamNormalMaybe
-    :: forall l m proxy.
-     ( MaybeC Initialize (LParamMaybe l)
-     , PrimMonad m
-     , KnownMayb (LParamMaybe l)
-     )
-    => proxy l                            -- ^ ignored
-    -> Double
-    -> MWC.Gen (PrimState m)
-    -> LParam_ m l
-initParamNormalMaybe _ d g = case knownMayb @(LParamMaybe l) of
-    N_            -> N_
-    J_ (_ :: P p) -> J_ $ initializeNormal @p d g
-
-
 initParamNormal
-    :: forall l m proxy.
-     ( Initialize (LParam l)
-     , PrimMonad m
-     )
-    => proxy l                            -- ^ ignored
+    :: (Initialize p, PrimMonad m)
+    => model ('Just p) s a b                    -- ^ ignored
     -> Double
     -> MWC.Gen (PrimState m)
-    -> m (LParam l)
+    -> m p
 initParamNormal _ = initializeNormal
 
 encodeParam
-    :: Bi.Binary (LParam l)
-    => proxy l                              -- ^ ignored
-    -> LParam l
+    :: Bi.Binary p
+    => model ('Just p) s a b                    -- ^ ignored
+    -> p
     -> BSL.ByteString
 encodeParam _ = Bi.encode
 
 decodeParam
-    :: Bi.Binary (LParam l)
-    => proxy l                              -- ^ ignored
+    :: Bi.Binary p
+    => model ('Just p) s a b                    -- ^ ignored
     -> BSL.ByteString
-    -> LParam l
+    -> p
 decodeParam _ = Bi.decode
 
 decodeParamOrFail
-    :: Bi.Binary (LParam l)
-    => proxy l                              -- ^ ignored
+    :: Bi.Binary p
+    => model ('Just p) s a b                    -- ^ ignored
     -> BSL.ByteString
-    -> Either String (LParam l)
+    -> Either String p
 decodeParamOrFail _ = bimap thrd thrd . Bi.decodeOrFail
 
 saveParam
-    :: Bi.Binary (LParam l)
-    => proxy l
+    :: Bi.Binary p
+    => model ('Just p) s a b                    -- ^ ignored
     -> FilePath
-    -> LParam l
+    -> p
     -> IO ()
 saveParam p fp = BSL.writeFile fp . encodeParam p
 
 loadParam
-    :: Bi.Binary (LParam l)
-    => proxy l
+    :: Bi.Binary p
+    => model ('Just p) s a b                    -- ^ ignored
     -> FilePath
-    -> IO (LParam l)
+    -> IO p
 loadParam p fp = decodeParam p <$> BSL.readFile fp
 
 loadParamOrFail
-    :: Bi.Binary (LParam l)
-    => proxy l
+    :: Bi.Binary p
+    => model ('Just p) s a b                    -- ^ ignored
     -> FilePath
-    -> IO (Either String (LParam l))
+    -> IO (Either String p)
 loadParamOrFail p fp = decodeParamOrFail p <$> BSL.readFile fp
 
 

@@ -16,12 +16,22 @@
 {-# LANGUAGE ViewPatterns          #-}
 
 module Backprop.Learn.Model.Function (
+  -- * Types
+    ParamFunc(..)
+  , ParamFuncP, pattern PFP, runParamFuncP
+  , FixedFunc, pattern FF, runFixedFunc
+  , paramMap, learnParam
+  , idLearn
+  -- ** Combinators
+  , dimapPF, lmapPF, rmapPF, compPF, parPF
+  -- *** Chain
+  , (.-), nilPF, onlyPF
   -- * Activation functions
   -- | See <https://en.wikipedia.org/wiki/Activation_function>
   --
   -- ** Maps
   -- *** Unparameterized
-    step
+  , step
   , logistic
   , softsign
   , reLU
@@ -52,20 +62,180 @@ module Backprop.Learn.Model.Function (
   , kSparse
   ) where
 
+import           Backprop.Learn.Model.Class
 import           Control.Category
 import           Data.Foldable
 import           Data.Proxy
+import           Data.Type.Length
+import           Data.Type.Mayb hiding                        (type (<$>))
 import           Data.Type.Tuple hiding                       (T2(..), T3(..))
+import           Data.Typeable
 import           GHC.TypeNats
 import           Numeric.Backprop
 import           Numeric.LinearAlgebra.Static.Backprop hiding (tr)
 import           Prelude hiding                               ((.), id)
+import           Type.Class.Known
+import           Type.Family.List
 import qualified Data.Type.Tuple                              as T
 import qualified Data.Vector.Sized                            as SV
 import qualified Data.Vector.Storable.Sized                   as SVS
 import qualified Numeric.LinearAlgebra                        as HU
 import qualified Numeric.LinearAlgebra.Static                 as H
 import qualified Numeric.LinearAlgebra.Static.Vector          as H
+
+-- | An unparameterized function.  Has a 'Category' instance.
+--
+-- A @'FixedFunc' a b@ essentially the same as a:
+--
+-- @
+-- forall s. 'Reifies' s 'W' => 'BVar' s a -> 'BVar' s b
+-- @
+--
+-- And the 'FF' pattern (and 'runFixedFunc' extractor) witness this.
+--
+-- It is usually better to just use the functions directly, with
+-- combinators like 'Dimap', 'LMap', 'RMap', 'dimapPF', 'lmapPF', 'rmapPF',
+-- etc.  This is just provided to let you work nicely with 'ParamFunc'
+-- combinators.
+type FixedFunc = ParamFunc 'Nothing
+
+-- | 'FF' and 'runFixedFunc' witness the fact that a @'FixedFunc' a b@ is
+-- just a function from @'BVar' s a@ to @'BVar' s b@.
+pattern FF :: (forall s. Reifies s W => BVar s a -> BVar s b) -> FixedFunc a b
+pattern FF { runFixedFunc } <- (getFF->runFixedFunc) where
+    FF f = PF (const f)
+{-# COMPLETE FF #-}
+
+getFF :: forall a b. FixedFunc a b -> (forall s. Reifies s W => BVar s a -> BVar s b)
+getFF ff = runParamFunc ff N_
+
+-- | Identity model, useful for using with other combinators.
+idLearn :: FixedFunc a a
+idLearn = FF id
+
+-- | A @'ParamFunc' p a b@ is a parameterized function from @a@ to @b@,
+-- potentially with trainable parameter @p@.
+--
+-- A utility wrapper for a deterministic and stateless model.
+newtype ParamFunc p a b =
+    PF { runParamFunc :: forall s. Reifies s W => Mayb (BVar s) p -> BVar s a -> BVar s b
+       }
+  deriving (Typeable)
+
+instance ( Num a, Num b, MaybeC Num p, KnownMayb p)
+      => Learn a b (ParamFunc p a b) where
+    type LParamMaybe (ParamFunc p a b) = p
+
+    runLearn p = stateless . runParamFunc p
+
+instance Category (ParamFunc p) where
+    id = PF (const id)
+    f . g = PF $ \p -> runParamFunc f p
+                     . runParamFunc g p
+
+-- | Convenient type synonym for a 'ParamFunc' with parameters.
+--
+-- Mostly made to be easy to construct/deconstruct with 'PFP' and
+-- 'runParamFuncP'.
+type ParamFuncP p = ParamFunc ('Just p)
+
+pattern PFP :: (forall s. Reifies s W => BVar s p -> BVar s a -> BVar s b)
+            -> ParamFuncP p a b
+pattern PFP { runParamFuncP } <- (getPFP->(getWF->runParamFuncP))
+  where
+    PFP f = PF $ \(J_ p) -> f p
+{-# COMPLETE PFP #-}
+
+newtype WrapFun p a b = WF { getWF :: forall s. Reifies s W => BVar s p -> BVar s a -> BVar s b }
+
+getPFP :: ParamFuncP p a b -> WrapFun p a b
+getPFP pf = WF (\case p -> runParamFunc pf (J_ p))
+
+-- | Create a 'ParamFunc' from any instance of 'Learn' that does not have
+-- state.
+learnParam
+    :: forall l a b. (Learn a b l, NoState l)
+    => l
+    -> ParamFunc (LParamMaybe l) a b
+learnParam l = PF (runLearnStateless l)
+
+-- | 'ParamFuncP' taking a singleton list; meant to be used with '.-'
+onlyPF
+    :: forall p a b. (KnownMayb p, MaybeC Backprop p)
+    => ParamFunc p a b
+    -> ParamFuncP (T (MaybeToList p)) a b
+onlyPF f = PFP $ \ps -> case knownMayb @p of
+                          N_   -> runParamFunc f N_
+                          J_ _ -> runParamFunc f (J_ (isoVar tOnly onlyT ps))
+
+
+-- | Compose two 'ParamFuncP's on lists.
+(.-)
+    :: forall ps qs a b c. (ListC (Backprop <$> ps), ListC (Backprop <$> qs), Known Length ps)
+    => ParamFuncP (T ps) b c
+    -> ParamFuncP (T qs) a b
+    -> ParamFuncP (T (ps ++ qs)) a c
+f .- g = PFP $ \ps -> runParamFuncP f (ps ^^. tTake @ps @qs known)
+                    . runParamFuncP g (ps ^^. tDrop @ps @qs known)
+infixr 9 .-
+
+-- | The identity of '.-'
+nilPF :: ParamFuncP (T '[]) a a
+nilPF = id
+
+-- | Pre- and post-compose a 'ParamFunc'
+dimapPF
+    :: (forall s. Reifies s W => BVar s a -> BVar s b)
+    -> (forall s. Reifies s W => BVar s c -> BVar s d)
+    -> ParamFunc p b c
+    -> ParamFunc p a d
+dimapPF f g h = PF $ \p -> g . runParamFunc h p . f
+
+-- | Precompose a 'ParamFunc'
+lmapPF
+    :: (forall s. Reifies s W => BVar s a -> BVar s b)
+    -> ParamFunc p b c
+    -> ParamFunc p a c
+lmapPF f = dimapPF f id
+
+-- | Postcompose a 'ParamFunc'
+rmapPF
+    :: (forall s. Reifies s W => BVar s b -> BVar s c)
+    -> ParamFunc p a b
+    -> ParamFunc p a c
+rmapPF = dimapPF id
+
+-- | Compose two 'ParamFunc's sequentially
+compPF
+    :: forall p q a b c. (MaybeC Backprop p, MaybeC Backprop q, KnownMayb p, KnownMayb q)
+    => ParamFunc p a b
+    -> ParamFunc q b c
+    -> ParamFunc (TupMaybe p q) a c
+compPF f g = PF $ \pq ->
+    let (p, q) = splitTupMaybe @_ @p @q (\(T2B p' q') -> (p', q')) pq
+    in  runParamFunc g q . runParamFunc f p
+
+-- | Compose two 'ParamFunc's in parallel
+parPF
+    :: forall p q a b c d.
+     ( MaybeC Backprop p
+     , MaybeC Backprop q
+     , KnownMayb p
+     , KnownMayb q
+     , Backprop a
+     , Backprop b
+     , Backprop c
+     , Backprop d
+     )
+    => ParamFunc p a c
+    -> ParamFunc q b d
+    -> ParamFunc (TupMaybe p q) (T.T2 a b) (T.T2 c d)
+parPF f g = PF $ \pq (T2B x y) ->
+    let (p, q) = splitTupMaybe @_ @p @q (\(T2B p' q') -> (p', q')) pq
+    in  T2B (runParamFunc f p x)
+            (runParamFunc g q y)
+
+-- TODO: replace all of these with manual ops?
 
 -- | Softmax normalizer
 softMax
@@ -378,6 +548,15 @@ liftUniform
     -> BVar s Double
     -> r
 liftUniform f = f . konst
+
+-- | Utility function to make a 'ParamFunc' that maps a parameterized
+-- function over every item in the 'R'.  The parameter is shared across the
+-- entire map, and trained.
+paramMap
+    :: KnownNat i
+    => (forall s. Reifies s W => Mayb (BVar s) p -> BVar s Double -> BVar s Double)
+    -> ParamFunc p (R i) (R i)
+paramMap f = PF (vmap . f)
 
 -- -- TODO: vmap can do better.
 

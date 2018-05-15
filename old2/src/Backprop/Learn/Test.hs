@@ -1,5 +1,4 @@
 {-# LANGUAGE ApplicativeDo                        #-}
-{-# LANGUAGE DataKinds                            #-}
 {-# LANGUAGE FlexibleContexts                     #-}
 {-# LANGUAGE PartialTypeSignatures                #-}
 {-# LANGUAGE RankNTypes                           #-}
@@ -17,10 +16,10 @@ module Backprop.Learn.Test (
   -- ** Manipulate tests
   , lossTest, lmapTest
   -- * Run tests
-  , testModel, testModelStoch, testModelAll, testModelStochAll
+  , testLearn, testLearnStoch, testLearnAll, testLearnStochAll
   -- ** Correlation tests
-  , testModelCov, testModelCorr
-  , testModelStochCov, testModelStochCorr
+  , testLearnCov, testLearnCorr
+  , testLearnStochCov, testLearnStochCorr
   ) where
 
 import           Backprop.Learn.Loss
@@ -86,25 +85,26 @@ lmapTest
     -> Test a
 lmapTest f t x y = t (f x) (f y)
 
-testModel
-    :: Test b
-    -> Model p 'Nothing a b
-    -> Mayb I p
+testLearn
+    :: (Learn a b l, NoState l)
+    => Test b
+    -> l
+    -> LParam_ I l
     -> a
     -> b
     -> Double
-testModel t f mp x y = t y $ runModelStateless f mp x
+testLearn t l mp x y = t y $ runLearnStateless_ l mp x
 
-testModelStoch
-    :: PrimMonad m
+testLearnStoch
+    :: (Learn a b l, NoState l, PrimMonad m)
     => Test b
-    -> Model p 'Nothing a b
+    -> l
     -> MWC.Gen (PrimState m)
-    -> Mayb I p
+    -> LParam_ I l
     -> a
     -> b
     -> m Double
-testModelStoch t f g mp x y = t y <$> runModelStochStateless f g mp x
+testLearnStoch t l g mp x y = t y <$> runLearnStochStateless_ l g mp x
 
 cov :: Fractional a => L.Fold (a, a) a
 cov = do
@@ -126,30 +126,30 @@ corr = do
          / sqrt ( x2 / n - (x / n)**2 )
          / sqrt ( y2 / n - (y / n)**2 )
 
-testModelCov
-    :: (Foldable t, Fractional b)
-    => Model p 'Nothing a b
-    -> Mayb I p
+testLearnCov
+    :: (Learn a b l, NoState l, Foldable t, Fractional b)
+    => l
+    -> LParam_ I l
     -> t (a, b)
     -> b
-testModelCov f p = L.fold $ (lmap . first) (runModelStateless f p) cov
+testLearnCov l p = L.fold $ (lmap . first) (runLearnStateless_ l p) cov
 
-testModelCorr
-    :: (Foldable t, Floating b)
-    => Model p 'Nothing a b
-    -> Mayb I p
+testLearnCorr
+    :: (Learn a b l, NoState l, Foldable t, Floating b)
+    => l
+    -> LParam_ I l
     -> t (a, b)
     -> b
-testModelCorr f p = L.fold $ (lmap . first) (runModelStateless f p) corr
+testLearnCorr l p = L.fold $ (lmap . first) (runLearnStateless_ l p) corr
 
-testModelAll
-    :: Foldable t
+testLearnAll
+    :: (Learn a b l, NoState l, Foldable t)
     => Test b
-    -> Model p 'Nothing a b
-    -> Mayb I p
+    -> l
+    -> LParam_ I l
     -> t (a, b)
     -> Double
-testModelAll t f p = L.fold $ lmap (uncurry (testModel t f p)) L.mean
+testLearnAll t l p = L.fold $ lmap (uncurry (testLearn t l p)) L.mean
 
 -- newtype M m a = M { getM :: m a }
 -- instance (Semigroup a, Applicative m) => Semigroup (M m a) where
@@ -158,35 +158,35 @@ testModelAll t f p = L.fold $ lmap (uncurry (testModel t f p)) L.mean
 --     mappend = (<>)
 --     mempty = M (pure mempty)
 
-testModelStochAll
-    :: (Foldable t, PrimMonad m)
+testLearnStochAll
+    :: (Learn a b l, NoState l, PrimMonad m, Foldable t)
     => Test b
-    -> Model p 'Nothing a b
+    -> l
     -> MWC.Gen (PrimState m)
-    -> Mayb I p
+    -> LParam_ I l
     -> t (a, b)
     -> m Double
-testModelStochAll t f g p = L.foldM $ L.premapM (uncurry (testModelStoch t f g p))
+testLearnStochAll t l g p = L.foldM $ L.premapM (uncurry (testLearnStoch t l g p))
                                       (L.generalize L.mean)
 
-testModelStochCov
-    :: (Foldable t, PrimMonad m, Fractional b)
-    => Model p 'Nothing a b
+testLearnStochCov
+    :: (Learn a b l, NoState l, PrimMonad m, Foldable t, Fractional b)
+    => l
     -> MWC.Gen (PrimState m)
-    -> Mayb I p
+    -> LParam_ I l
     -> t (a, b)
     -> m b
-testModelStochCov f g p = L.foldM $ (L.premapM . flip bitraverse pure)
-                                      (runModelStochStateless f g p)
+testLearnStochCov l g p = L.foldM $ (L.premapM . flip bitraverse pure)
+                                      (runLearnStochStateless_ l g p)
                                       (L.generalize cov)
 
-testModelStochCorr
-    :: (Foldable t, PrimMonad m, Floating b)
-    => Model p 'Nothing a b
+testLearnStochCorr
+    :: (Learn a b l, NoState l, PrimMonad m, Foldable t, Floating b)
+    => l
     -> MWC.Gen (PrimState m)
-    -> Mayb I p
+    -> LParam_ I l
     -> t (a, b)
     -> m b
-testModelStochCorr f g p = L.foldM $ (L.premapM . flip bitraverse pure)
-                                       (runModelStochStateless f g p)
+testLearnStochCorr l g p = L.foldM $ (L.premapM . flip bitraverse pure)
+                                       (runLearnStochStateless_ l g p)
                                        (L.generalize corr)

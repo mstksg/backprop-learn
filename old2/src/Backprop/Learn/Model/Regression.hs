@@ -11,8 +11,6 @@
 {-# LANGUAGE RankNTypes                               #-}
 {-# LANGUAGE RecordWildCards                          #-}
 {-# LANGUAGE ScopedTypeVariables                      #-}
-{-# LANGUAGE StandaloneDeriving                       #-}
-{-# LANGUAGE TemplateHaskell                          #-}
 {-# LANGUAGE TypeApplications                         #-}
 {-# LANGUAGE TypeFamilies                             #-}
 {-# LANGUAGE TypeInType                               #-}
@@ -22,18 +20,22 @@
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise       #-}
 
 module Backprop.Learn.Model.Regression (
-    linReg, logReg
-  , LRp(..), lrAlpha, lrBeta, runLRp
+    LinReg(..)
+  , LogReg, pattern LogReg
+  , LRp(..), lrBeta, lrAlpha, runLRp
   , expandInput, expandOutput, reshapeInput, reshapeOutput
-  , arima, autoregressive, movingAverage, arma
-  , ARIMAp(..), ARIMAs(..)
-  , arimaPhi, arimaTheta, arimaConstant, arimaYPred, arimaYHist, arimaEHist
+  , ARIMA(..), ARIMAp(..), ARIMAs(..)
+  , ARIMAUnroll, arimaUnroll
+  , ARIMAUnrollFinal, arimaUnrollFinal
+  , AR, MA, ARMA
   ) where
 
 import           Backprop.Learn.Initialize
+import           Backprop.Learn.Model.Class
 import           Backprop.Learn.Model.Combinator
 import           Backprop.Learn.Model.Function
-import           Backprop.Learn.Model.Types
+import           Backprop.Learn.Model.Parameter
+import           Backprop.Learn.Model.State
 import           Control.DeepSeq
 import           Control.Monad.Primitive
 import           Data.Finite
@@ -45,8 +47,9 @@ import           Data.Type.Equality
 import           Data.Typeable
 import           GHC.Generics                          (Generic)
 import           GHC.TypeLits.Compare
+import           GHC.TypeLits.Extra
 import           GHC.TypeNats
-import           Lens.Micro.TH
+import           Lens.Micro
 import           Numeric.Backprop
 import           Numeric.LinearAlgebra.Static.Backprop
 import           Numeric.LinearAlgebra.Static.Vector
@@ -56,6 +59,7 @@ import           Numeric.Opto.Update hiding            ((<.>))
 import           Statistics.Distribution
 import           Unsafe.Coerce
 import qualified Data.Binary                           as Bi
+import qualified Data.Type.Tuple                       as T
 import qualified Data.Vector.Generic.Sized             as SVG
 import qualified Data.Vector.Sized                     as SV
 import qualified Data.Vector.Storable.Sized            as SVS
@@ -63,14 +67,29 @@ import qualified Numeric.LinearAlgebra                 as HU
 import qualified Numeric.LinearAlgebra.Static          as H
 import qualified System.Random.MWC                     as MWC
 
+-- | Multivariate linear regression, from an i-vector to an o-vector.
+data LinReg (i :: Nat) (o :: Nat) = LinReg
+  deriving Typeable
+
+-- | Mutivariate Logistic regression, from an i-vector to an o-vector.
+--
+-- Essentially a linear regression postcomposed with the logistic
+-- function.
+type LogReg i o = RMap (R o) (R o) (LinReg i o)
+
+-- | Constructor for a 'LogReg'
+pattern LogReg :: LogReg i o
+pattern LogReg <- RM _ LinReg
+  where
+    LogReg = RM logistic LinReg
+{-# COMPLETE LogReg #-}
+
 -- | Linear Regression parameter
 data LRp i o = LRp
     { _lrAlpha :: !(R o)
     , _lrBeta  :: !(L o i)
     }
   deriving (Generic, Typeable, Show)
-
-makeLenses ''LRp
 
 instance NFData (LRp i o)
 instance (KnownNat i, KnownNat o) => Initialize (LRp i o)
@@ -82,6 +101,12 @@ instance (KnownNat i, KnownNat o, Ref m (LRp i o) v) => ScalingInPlace m v Doubl
 instance (KnownNat i, KnownNat o) => Bi.Binary (LRp i o)
 instance (KnownNat i, KnownNat o) => Backprop (LRp i o)
 
+lrBeta :: Lens (LRp i o) (LRp i' o) (L o i) (L o i')
+lrBeta f lrp = (\w -> lrp { _lrBeta = w }) <$> f (_lrBeta lrp)
+
+lrAlpha :: Lens' (LRp i o) (R o)
+lrAlpha f lrp = (\b -> lrp { _lrAlpha = b }) <$> f (_lrAlpha lrp)
+
 runLRp
     :: (KnownNat i, KnownNat o, Reifies s W)
     => BVar s (LRp i o)
@@ -89,15 +114,41 @@ runLRp
     -> BVar s (R o)
 runLRp lrp x = (lrp ^^. lrBeta) #> x + (lrp ^^. lrAlpha)
 
-linReg
-    :: (KnownNat i, KnownNat o)
-    => Model ('Just (LRp i o)) 'Nothing (R i) (R o)
-linReg = modelStatelessD (\(J_ p) -> runLRp p)
+instance (KnownNat i, KnownNat o) => Num (LRp i o) where
+    (+)         = gPlus
+    (-)         = gMinus
+    (*)         = gTimes
+    negate      = gNegate
+    abs         = gAbs
+    signum      = gSignum
+    fromInteger = gFromInteger
 
-logReg
-    :: (KnownNat i, KnownNat o)
-    => Model ('Just (LRp i o)) 'Nothing (R i) (R o)
-logReg = funcD logistic <~ linReg
+instance (KnownNat i, KnownNat o) => Fractional (LRp i o) where
+    (/)          = gDivide
+    recip        = gRecip
+    fromRational = gFromRational
+
+instance (KnownNat i, KnownNat o) => Floating (LRp i o) where
+    pi    = gPi
+    sqrt  = gSqrt
+    exp   = gExp
+    log   = gLog
+    sin   = gSin
+    cos   = gCos
+    tan   = gTan
+    asin  = gAsin
+    acos  = gAcos
+    atan  = gAtan
+    sinh  = gSinh
+    cosh  = gCosh
+    asinh = gAsinh
+    acosh = gAcosh
+    atanh = gAtanh
+
+instance (KnownNat i, KnownNat o) => Learn (R i) (R o) (LinReg i o) where
+    type LParamMaybe (LinReg i o) = 'Just (LRp i o)
+
+    runLearn _ (J_ p) = stateless (runLRp p)
 
 -- | Adjust an 'LRp' to take extra inputs, initialized randomly.
 --
@@ -149,36 +200,96 @@ reshapeOutput is LRp{..} =
     α = rVec _lrAlpha
     β = lRows _lrBeta
 
-instance (KnownNat i, KnownNat o) => Num (LRp i o) where
-    (+)         = gPlus
-    (-)         = gMinus
-    (*)         = gTimes
-    negate      = gNegate
-    abs         = gAbs
-    signum      = gSignum
-    fromInteger = gFromInteger
 
-instance (KnownNat i, KnownNat o) => Fractional (LRp i o) where
-    (/)          = gDivide
-    recip        = gRecip
-    fromRational = gFromRational
+-- | Auto-regressive integrated moving average model.
+--
+-- ARIMA(p,d,q) is an ARIMA model with p autoregressive history terms on
+-- the d-th order differenced history and q error (innovation) history
+-- terms.
+--
+-- It is a @'Learn' Double Double@ instance, and is meant to predict the
+-- "next step" of a time sequence.
+--
+-- In this state, it is a runnable stateful model.  To train, use with
+-- 'ARIMAUnroll' to unroll and fix the initial state.
+data ARIMA :: Nat -> Nat -> Nat -> Type where
+    ARIMA :: { _arimaGenYHist :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double
+             , _arimaGenEHist :: forall m. PrimMonad m => MWC.Gen (PrimState m) -> m Double
+             }
+          -> ARIMA p d q
 
-instance (KnownNat i, KnownNat o) => Floating (LRp i o) where
-    pi    = gPi
-    sqrt  = gSqrt
-    exp   = gExp
-    log   = gLog
-    sin   = gSin
-    cos   = gCos
-    tan   = gTan
-    asin  = gAsin
-    acos  = gAcos
-    atan  = gAtan
-    sinh  = gSinh
-    cosh  = gCosh
-    asinh = gAsinh
-    acosh = gAcosh
-    atanh = gAtanh
+-- | The "unrolled" and "destated" 'ARIMA' model, which takes a vector of
+-- sequential inputs and outputs a vector of the model's expected next
+-- steps.
+--
+-- Useful for actually training 'ARIMA' using gradient descent.
+--
+-- This /fixes/ the initial error history to be zero (or a fixed stochastic
+-- sample), and treats the initial output history to be a /learned
+-- parameter/.
+--
+-- @
+-- instance 'Learn' ('SV.Vector' n 'Double') (SV.Vector n Double) ('ARIMAUnroll' p q) where
+--     -- | Initial state is a parameter, but initial error history is fixed
+--     type 'LParamMaybe' (ARIMAUnroll p q) = 'Just (T2 (ARIMAp p q) (ARIMAs p q))
+--     type 'LStateMaybe' (ARIMAUnroll p q) = 'Nothing
+-- @
+type ARIMAUnroll p d q = DeParamAt (T.T2 (ARIMAp p q) (ARIMAs p d q))
+                                   (T.T2 (ARIMAp p q) (T.T2 Double (R (p + d))))
+                                   (R q)
+                                   (UnrollTrainState (Max (p + d) q) (ARIMA p d q))
+
+-- | 'ARIMAUnroll', but only looking at the final output after running the
+-- model on all inputs.
+--
+-- @
+-- instance 'Learn' ('SV.Vector' n 'Double') Double ('ARIMAUnrollFinal' p q) where
+--     -- | Initial state is a parameter, but initial error history is fixed
+--     type 'LParamMaybe' (ARIMAUnrollFinal p q) = 'Just (T2 (ARIMAp p q) (ARIMAs p q))
+--     type 'LStateMaybe' (ARIMAUnrollFinal p q) = 'Nothing
+-- @
+type ARIMAUnrollFinal p d q = DeParamAt (T.T2 (ARIMAp p q) (ARIMAs p d q))
+                                        (T.T2 (ARIMAp p q) (T.T2 Double (R (p + d))))
+                                        (R q)
+                                        (UnrollFinalTrainState (Max (p + d) q) (ARIMA p d q))
+
+splitHist
+    :: T.T2 (ARIMAp p q) (ARIMAs p d q)
+    -> (T.T2 (ARIMAp p q) (T.T2 Double (R (p + d))), R q)
+splitHist (T.T2 p ARIMAs{..}) = (T.T2 p (T.T2 _arimaYPred _arimaYHist), _arimaEHist)
+
+joinHist
+    :: T.T2 (ARIMAp p q) (T.T2 Double (R (p + d)))
+    -> R q
+    -> T.T2 (ARIMAp p q) (ARIMAs p d q)
+joinHist (T.T2 p (T.T2 _arimaYPred _arimaYHist)) _arimaEHist = T.T2 p ARIMAs{..}
+
+-- | Constructor for 'ARIMAUnroll'
+arimaUnroll
+    :: KnownNat q
+    => ARIMA p d q
+    -> ARIMAUnroll p d q
+arimaUnroll a@ARIMA{..} = DPA
+    { _dpaSplit      = splitHist
+    , _dpaJoin       = joinHist
+    , _dpaParam      = 0
+    , _dpaParamStoch = fmap vecR . SVS.replicateM . _arimaGenEHist
+    , _dpaLearn      = UnrollTrainState a
+    }
+
+-- | Constructor for 'ARIMAUnrollFinal'
+arimaUnrollFinal
+    :: KnownNat q
+    => ARIMA p d q
+    -> ARIMAUnrollFinal p d q
+arimaUnrollFinal a@ARIMA{..} = DPA
+    { _dpaSplit      = splitHist
+    , _dpaJoin       = joinHist
+    , _dpaParam      = 0
+    , _dpaParamStoch = fmap vecR . SVS.replicateM . _arimaGenEHist
+    , _dpaLearn      = UnrollFinalTrainState a
+    }
+
 
 -- | 'ARIMA' parmaeters
 data ARIMAp :: Nat -> Nat -> Type where
@@ -187,9 +298,7 @@ data ARIMAp :: Nat -> Nat -> Type where
               , _arimaConstant :: !Double
               }
            -> ARIMAp p q
-  deriving (Generic, Typeable, Show)
-
-makeLenses ''ARIMAp
+  deriving (Generic, Show)
 
 -- | 'ARIMA' state
 data ARIMAs :: Nat -> Nat -> Nat -> Type where
@@ -198,17 +307,16 @@ data ARIMAs :: Nat -> Nat -> Nat -> Type where
               , _arimaEHist :: !(R q)
               }
           -> ARIMAs p d q
-  deriving (Generic, Typeable, Show)
+  deriving (Generic, Show)
 
-makeLenses ''ARIMAs
+instance (KnownNat p, KnownNat d, KnownNat q) => Learn Double Double (ARIMA p d q) where
+    type LParamMaybe (ARIMA p d q) = 'Just (ARIMAp p q)
+    type LStateMaybe (ARIMA p d q) = 'Just (ARIMAs p d q)
 
-
-arima
-    :: forall p d q. (KnownNat p, KnownNat d, KnownNat q)
-    => Model ('Just (ARIMAp p q)) ('Just (ARIMAs p d q)) Double Double
-arima = modelD $ \(J_ p) x (J_ s) ->
-    let d :: L p (p + d)
-        d = difference
+    runLearn ARIMA{..} (J_ p) x (J_ s) = (y, J_ s')
+      where
+        d :: L p (p + d)
+        d  = difference
         e  = x - (s ^^. arimaYPred)
         y  = (p ^^. arimaConstant)
            + (p ^^. arimaPhi  ) <.> (constVar d #> (s ^^. arimaYHist))
@@ -223,22 +331,6 @@ arima = modelD $ \(J_ p) x (J_ s) ->
                 y
                 yHist'
                 eHist'
-    in  (y, J_ s')
-
-autoregressive
-    :: KnownNat p
-    => Model ('Just (ARIMAp p 0)) ('Just (ARIMAs p 0 0)) Double Double
-autoregressive = arima
-
-movingAverage
-    :: KnownNat q
-    => Model ('Just (ARIMAp 0 q)) ('Just (ARIMAs 0 0 q)) Double Double
-movingAverage = arima
-
-arma
-    :: (KnownNat p, KnownNat q)
-    => Model ('Just (ARIMAp p q)) ('Just (ARIMAs p 0 q)) Double Double
-arma = arima
 
 monosquare :: forall n. (n <=? (n ^ 2)) :~: 'True
 monosquare = unsafeCoerce Refl
@@ -365,3 +457,31 @@ instance (KnownNat p, KnownNat d, KnownNat q) => Bi.Binary (ARIMAs p d q)
 
 instance (KnownNat p, KnownNat q) => Backprop (ARIMAp p q)
 instance (KnownNat p, KnownNat d, KnownNat q) => Backprop (ARIMAs p d q)
+
+arimaPhi :: Lens (ARIMAp p q) (ARIMAp p' q) (R p) (R p')
+arimaPhi f a = (\x' -> a { _arimaPhi = x' } ) <$> f (_arimaPhi a)
+
+arimaTheta :: Lens (ARIMAp p q) (ARIMAp p q') (R q) (R q')
+arimaTheta f a = (\x' -> a { _arimaTheta = x' } ) <$> f (_arimaTheta a)
+
+arimaConstant :: Lens' (ARIMAp p q) Double
+arimaConstant f a = (\x' -> a { _arimaConstant = x' } ) <$> f (_arimaConstant a)
+
+arimaYPred :: Lens' (ARIMAs p d q) Double
+arimaYPred f a = (\x' -> a { _arimaYPred = x' } ) <$> f (_arimaYPred a)
+
+arimaYHist :: Lens' (ARIMAs p d q) (R (p + d))
+arimaYHist f a = (\x' -> a { _arimaYHist = x' } ) <$> f (_arimaYHist a)
+
+arimaEHist :: Lens (ARIMAs p d q) (ARIMAs p d q') (R q) (R q')
+arimaEHist f a = (\x' -> a { _arimaEHist = x' } ) <$> f (_arimaEHist a)
+
+-- | Autoregressive model
+type AR p = ARIMA p 0 0
+
+-- | Moving average model
+type MA = ARIMA 0 0
+
+-- | Autoregressive Moving average model
+type ARMA p = ARIMA p 0
+
