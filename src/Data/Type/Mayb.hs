@@ -16,6 +16,7 @@
 {-# LANGUAGE TypeInType             #-}
 {-# LANGUAGE TypeOperators          #-}
 {-# LANGUAGE UndecidableInstances   #-}
+{-# LANGUAGE ViewPatterns           #-}
 
 module Data.Type.Mayb (
     MaybeC, MaybeToList, ListToMaybe
@@ -27,6 +28,7 @@ module Data.Type.Mayb (
   , MaybeWit(..), type (<$>)
   , TupMaybe, splitTupMaybe, tupMaybe
   , BoolMayb, boolMayb
+  , pattern MaybB
   ) where
 
 import           Data.Bifunctor
@@ -35,11 +37,13 @@ import           Data.Type.Boolean
 import           Data.Type.Combinator
 import           Data.Type.Product
 import           Data.Type.Tuple
+import           Numeric.Backprop
+import           Numeric.Backprop.Class
 import           Type.Class.Higher
 import           Type.Class.Known
 import           Type.Class.Witness
-import           Type.Family.Maybe    (type (<$>))
-import qualified GHC.TypeLits         as TL
+import           Type.Family.Maybe      (type (<$>))
+import qualified GHC.TypeLits           as TL
 
 type family MaybeC (c :: k -> Constraint) (m :: Maybe k) :: Constraint where
     MaybeC c ('Just a) = c a
@@ -213,3 +217,38 @@ type family BoolMayb (b :: Bool) = (m :: Maybe ()) | m -> b where
 boolMayb :: Boolean b -> Mayb P (BoolMayb b)
 boolMayb False_ = N_
 boolMayb True_  = J_ P
+
+instance MaybeC Backprop (f <$> a) => Backprop (Mayb f a) where
+    zero = \case
+      N_ -> N_
+      J_ x  -> J_ (zero x)
+    {-# INLINE zero #-}
+    add = \case
+      N_ -> \case
+        N_ -> N_
+      J_ x -> \case
+        J_ y -> J_ (add x y)
+    {-# INLINE add #-}
+    one = \case
+      N_ -> N_
+      J_ x  -> J_ (one x)
+    {-# INLINE one #-}
+
+pattern MaybB
+    :: (Reifies s W, MaybeC Backprop a, KnownMayb a)
+    => Mayb (BVar s) a
+    -> BVar s (Mayb I a)
+pattern MaybB v <- (_mb->v)
+  where
+    MaybB = \case
+      N_   -> auto N_
+      J_ x -> isoVar (J_ . I) (getI . fromJ_) x
+{-# COMPLETE MaybB #-}
+
+_mb :: forall a s. (MaybeC Backprop a, KnownMayb a, Reifies s W)
+    => BVar s (Mayb I a)
+    -> Mayb (BVar s) a
+_mb v = case knownMayb @a of
+          J_ _ -> J_ $ isoVar (getI . fromJ_) (J_ . I) v
+          N_   -> N_
+{-# INLINE _mb #-}
