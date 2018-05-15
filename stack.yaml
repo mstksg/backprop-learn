@@ -46,7 +46,7 @@ packages:
     commit: b5d2639ded249abacda10e66b8a3d1261d06ebea
   extra-dep: true
 - location:
-    git: git@github.com:haskell/vector.git
+    git: https://github.com/haskell/vector.git
     commit: cc5460dfb7a2fb099760155ca46f96c05a1b81b7
   extra-dep: true
 # - location: ../hmatrix-backprop
