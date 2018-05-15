@@ -43,6 +43,7 @@ dependencies:
 - hmatrix-backprop >= 0.1.2.1
 - hmatrix-vector-sized
 - microlens
+- microlens-th
 - mwc-random
 - one-liner
 - one-liner-instances

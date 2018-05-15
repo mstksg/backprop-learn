@@ -18,12 +18,8 @@ module Backprop.Learn.Model.Parameter (
   ) where
 
 import           Backprop.Learn.Model.Types
-import           Control.Monad
 import           Control.Monad.Primitive
-import           Data.Kind
 import           Data.Type.Mayb
-import           Data.Type.Tuple
-import           Data.Typeable
 import           Numeric.Backprop
 import qualified System.Random.MWC          as MWC
 

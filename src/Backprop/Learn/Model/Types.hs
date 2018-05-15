@@ -4,6 +4,7 @@
 {-# LANGUAGE PatternSynonyms  #-}
 {-# LANGUAGE RankNTypes       #-}
 {-# LANGUAGE TupleSections    #-}
+{-# LANGUAGE TypeFamilies     #-}
 {-# LANGUAGE TypeInType       #-}
 {-# LANGUAGE ViewPatterns     #-}
 
@@ -21,6 +22,8 @@ module Backprop.Learn.Model.Types (
   , BFunc, BFuncStoch
   , Func, pattern Func, runFunc, runFuncStoch
   , funcD
+    -- * Helper type family for HKD tricks
+  , HKD
   ) where
 
 import           Control.Category
@@ -150,3 +153,9 @@ instance Category (Model p s) where
           (y, s1) <- runLearnStoch g gen p x s0
           runLearnStoch f gen p y s1
       }
+
+-- | Helper type family for HKD data types.  See
+-- <http://reasonablypolymorphic.com/blog/higher-kinded-data>
+type family HKD f a where
+    HKD I a = a
+    HKD f a = f a

@@ -1,15 +1,11 @@
 {-# LANGUAGE ApplicativeDo         #-}
-{-# LANGUAGE DeriveDataTypeable    #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
-{-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PatternSynonyms       #-}
 {-# LANGUAGE RankNTypes            #-}
-{-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE TupleSections         #-}
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeInType            #-}
@@ -18,7 +14,7 @@
 
 module Backprop.Learn.Model.State (
   -- * To and from statelessness
-    trainState, deState, deStateD, dummyState
+    trainState, deState, deStateD, zeroState, dummyState
   -- * Manipulate model states
   , unroll, unrollFinal, recurrent
   ) where
@@ -87,6 +83,13 @@ deStateD
     -> Model p ('Just s) a b
     -> Model p 'Nothing  a b
 deStateD s = deState s (const (pure s))
+
+-- | 'deState' with a constant state of 0.
+zeroState
+    :: Num s
+    => Model p ('Just s) a b
+    -> Model p 'Nothing a b
+zeroState = deStateD 0
 
 -- | Unroll a (usually) stateful model into one taking a vector of
 -- sequential inputs.
