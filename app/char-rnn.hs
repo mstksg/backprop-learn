@@ -26,6 +26,7 @@ import           Data.Primitive.MutVar
 import           Data.Proxy
 import           Data.Time
 import           Data.Type.Equality
+import           Data.Type.Tuple
 import           GHC.TypeNats
 import           Numeric.LinearAlgebra.Static.Backprop
 import           Numeric.LinearAlgebra.Static.Vector
@@ -36,7 +37,6 @@ import qualified Conduit                               as C
 import qualified Data.Conduit.Combinators              as C
 import qualified Data.Set                              as S
 import qualified Data.Text                             as T
-import qualified Data.Type.Tuple                       as T
 import qualified Data.Vector.Sized                     as SV
 import qualified Data.Vector.Storable.Sized            as SVS
 import qualified System.Random.MWC                     as MWC
@@ -45,12 +45,13 @@ import qualified System.Random.MWC.Distributions       as MWC
 -- | TODO: replace with 'LModel'
 charRNN
     :: forall n h1 h2. (KnownNat n, KnownNat h1, KnownNat h2)
-    => Model _ _ (R n) (R n)
+    => LModel _ _ (R n) (R n)
 charRNN = fca softMax
-       <~ dropout @h2 0.25
-       <~ lstm
-       <~ dropout @h1 0.25
-       <~ lstm
+       #: dropout @h2 0.25
+       #: lstm
+       #: dropout @h1 0.25
+       #: lstm
+       #: nilLM
 
 oneHotChar
     :: KnownNat n
@@ -82,7 +83,7 @@ main = MWC.withSystemRandom @IO $ \g -> do
           t1 <- liftIO getCurrentTime
           case mp of
             Nothing -> liftIO $ putStrLn "Done!"
-            Just p@(T.T2 p' s') -> do
+            Just p@(p' :& s') -> do
               chnk <- lift . state $ (,[])
               liftIO $ do
                 printf "Trained on %d points in %s.\n"

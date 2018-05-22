@@ -40,7 +40,7 @@ import           Control.Monad.Trans.State
 import           Data.Bifunctor
 import           Data.Type.Length
 import           Data.Type.Mayb             as Mayb
-import           Data.Type.Tuple hiding     (T2(..))
+import           Data.Type.Tuple
 import           GHC.TypeNats
 import           Numeric.Backprop
 import           Prelude hiding             ((.), id)
@@ -65,11 +65,11 @@ import qualified Data.Vector.Sized          as SV
     -> Model             q              t  a b
     -> Model (TupMaybe p q) (TupMaybe s t) a c
 (<~) = withModelFunc2 $ \f g pq x st -> do
-    let (p, q) = splitTupMaybe @_ @p @q (\(T2B v u) -> (v, u)) pq
-        (s, t) = splitTupMaybe @_ @s @t (\(T2B v u) -> (v, u)) st
+    let (p, q) = splitTupMaybe @_ @p @q (\(v :&& u) -> (v, u)) pq
+        (s, t) = splitTupMaybe @_ @s @t (\(v :&& u) -> (v, u)) st
     (y, t') <- g q x t
     (z, s') <- f p y s
-    pure (z, tupMaybe T2B s' t')
+    pure (z, tupMaybe (:&&) s' t')
 infixr 8 <~
 
 -- | Compose two 'Model's one after the other, in reverse composition order
@@ -125,7 +125,7 @@ type LModel ps ss a b = Model ('Just (T ps)) ('Just (T ss)) a b
     (z, s' ) <- f      p   y     s
     let sss' = case s' of
                  N_     -> fromJ_ ss'
-                 J_ s'J -> isoVar2 (:&) (\case t :& ts -> (t, ts)) s'J (fromJ_ ss')
+                 J_ s'J -> isoVar2 (:#) (\case t :# ts -> (t, ts)) s'J (fromJ_ ss')
     pure $ (z, J_ sss')
 infixr 5 #:
 
@@ -215,8 +215,8 @@ feedback
     -> Model             q              t  b a      -- ^ back
     -> Model (TupMaybe p q) (TupMaybe s t) a b
 feedback n = withModelFunc2 $ \feed back pq x0 st0 ->
-    let (p , q ) = splitTupMaybe @_ @p @q (\(T2B v u) -> (v, u)) pq
-        (s0, t0) = splitTupMaybe @_ @s @t (\(T2B v u) -> (v, u)) st0
+    let (p , q ) = splitTupMaybe @_ @p @q (\(v :&& u) -> (v, u)) pq
+        (s0, t0) = splitTupMaybe @_ @s @t (\(v :&& u) -> (v, u)) st0
         go !i !x !s !t = do
             (y, s') <- feed p x s
             if i >= n
@@ -224,7 +224,7 @@ feedback n = withModelFunc2 $ \feed back pq x0 st0 ->
               else do
                 (z, t') <- back q y t
                 go (i + 1) z s' t'
-    in  second (uncurry (tupMaybe T2B)) <$> go 1 x0 s0 t0
+    in  second (uncurry (tupMaybe (:&&))) <$> go 1 x0 s0 t0
 
 -- | 'feedback', but tracing and observing all of the intermediate values.
 feedbackTrace
@@ -244,12 +244,12 @@ feedbackTrace
     -> Model             q              t  b a      -- ^ back
     -> Model (TupMaybe p q) (TupMaybe s t) a (ABP (SV.Vector n) b)
 feedbackTrace = withModelFunc2 $ \feed back pq x0 st0 ->
-    let (p , q ) = splitTupMaybe @_ @p @q (\(T2B v u) -> (v, u)) pq
-        (s0, t0) = splitTupMaybe @_ @s @t (\(T2B v u) -> (v, u)) st0
+    let (p , q ) = splitTupMaybe @_ @p @q (\(v :&& u) -> (v, u)) pq
+        (s0, t0) = splitTupMaybe @_ @s @t (\(v :&& u) -> (v, u)) st0
         go !x (!s, !t) = do
           (y, s') <- feed p x s
           (z, t') <- back q y t
           pure (y, (z, (s', t')))
-    in  second (uncurry (tupMaybe T2B) . snd) <$>
+    in  second (uncurry (tupMaybe (:&&)) . snd) <$>
           runStateT (collectVar . ABP <$> SV.replicateM (StateT (uncurry go)))
                    (x0, (s0, t0))

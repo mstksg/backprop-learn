@@ -89,7 +89,7 @@ lstm' = modelD $ \(J_ p) x (J_ s) ->
 --
 lstm
     :: (KnownNat i, KnownNat o)
-    => Model ('Just (LSTMp i o)) ('Just (T2 (R o) (R o))) (R i) (R o)
+    => Model ('Just (LSTMp i o)) ('Just (R o :& R o)) (R i) (R o)
 lstm = recurrent H.split (H.#) id lstm'
 
 -- | Forget biases initialized to 1

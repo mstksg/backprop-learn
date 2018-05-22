@@ -55,12 +55,11 @@ module Backprop.Learn.Model.Function (
 import           Control.Category
 import           Data.Foldable
 import           Data.Proxy
-import           Data.Type.Tuple hiding                       (T2(..))
+import           Data.Type.Tuple
 import           GHC.TypeNats
 import           Numeric.Backprop
 import           Numeric.LinearAlgebra.Static.Backprop hiding (tr)
 import           Prelude hiding                               ((.), id)
-import qualified Data.Type.Tuple                              as T
 import qualified Data.Vector.Sized                            as SV
 import qualified Data.Vector.Storable.Sized                   as SVS
 import qualified Numeric.LinearAlgebra                        as HU
@@ -239,10 +238,10 @@ sreLU tl al tr ar x
 -- with 'PFP'.
 sreLUPFP
     :: (KnownNat n, Reifies s W)
-    => BVar s (T.T2 (T.T2 Double Double) (T.T2 Double Double))
+    => BVar s ((Double :& Double) :& (Double :& Double))
     -> BVar s (R n)
     -> BVar s (R n)
-sreLUPFP (T2B (T2B tl al) (T2B tr ar)) = vmap (sreLU tl al tr ar)
+sreLUPFP ((tl :&& al) :&& (tr :&& ar)) = vmap (sreLU tl al tr ar)
 
 -- | Inverse square root linear unit
 --
@@ -281,10 +280,10 @@ apl as bs x = vmap' (max 0) x
 -- | 'apl' uncurried, to be directly usable with 'PFP'.
 aplPFP
     :: (KnownNat n, KnownNat m, Reifies s W)
-    => BVar s (T.T2 (L n m) (L n m))
+    => BVar s (L n m :& L n m)
     -> BVar s (R m)
     -> BVar s (R m)
-aplPFP (T2B a b) = apl a b
+aplPFP (a :&& b) = apl a b
 
 -- | SoftPlus
 --

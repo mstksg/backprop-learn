@@ -25,7 +25,7 @@ import           Control.Monad.Trans.State
 import           Data.Bifunctor
 import           Data.Foldable
 import           Data.Type.Mayb
-import           Data.Type.Tuple hiding     (T2(..))
+import           Data.Type.Tuple
 import           Numeric.Backprop
 import qualified System.Random.MWC          as MWC
 
@@ -38,7 +38,7 @@ import qualified System.Random.MWC          as MWC
 -- Its parameters are:
 --
 -- *   If the input has no parameters, just the initial state.
--- *   If the input has a parameter, a 'T2' of that parameter and initial state.
+-- *   If the input has a parameter, a ':&' of that parameter and initial state.
 trainState
     :: forall p s a b.
      ( KnownMayb p
@@ -49,7 +49,7 @@ trainState
     => Model           p s           a b
     -> Model (TupMaybe p s) 'Nothing a b
 trainState = withModelFunc $ \f ps x n_ ->
-    let (p, s) = splitTupMaybe @_ @p @s (\(T2B v u) -> (v, u)) ps
+    let (p, s) = splitTupMaybe @_ @p @s (\(v :&& u) -> (v, u)) ps
     in  (second . const) n_ <$> f p x s
 
 -- | Make a model stateless by pre-applying a fixed state (or a stochastic
@@ -151,10 +151,10 @@ recurrent
     -> Model p           s            ab c
     -> Model p (TupMaybe s ('Just b)) a  c
 recurrent spl joi sto = withModelFunc $ \f p x sy -> do
-    let (s, J_ y) = splitTupMaybe @_ @s @('Just b) (\(T2B v u) -> (v, u)) sy
+    let (s, J_ y) = splitTupMaybe @_ @s @('Just b) (\(v :&& u) -> (v, u)) sy
         xy        = isoVar2 joi spl x y
     (z, s') <- f p xy s
-    pure (z, tupMaybe T2B s' (J_ (sto z)))
+    pure (z, tupMaybe (:&&) s' (J_ (sto z)))
 
 -- | Give a stateless model a "dummy" state.  For now, useful for using
 -- with combinators like 'deState' that require state.  However, 'deState'

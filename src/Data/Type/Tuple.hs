@@ -74,7 +74,7 @@ module Data.Type.Tuple (
   -- * Zero-tuples (unit)
     T0(..)
   -- * Two-tuples
-  , T2(..), pattern T2B
+  , (:&)(..), pattern (:&&)
   -- ** Conversions
   -- $t2iso
   , t2Tup, tupT2
@@ -129,8 +129,9 @@ data T0 = T0
 -- | Strict 2-tuple with 'Num', 'Fractional', and 'Floating' instances.
 --
 -- @since 0.1.1.0
-data T2 a b   = T2 !a !b
+data a :& b = !a :& !b
   deriving (Show, Read, Eq, Ord, Generic, Functor, Data, Typeable)
+infixr 1 :&
 
 -- | Strict inductive N-tuple with a 'Num', 'Fractional', and 'Floating'
 -- instances.
@@ -148,7 +149,7 @@ data T2 a b   = T2 !a !b
 -- @since 0.1.5.0
 data T :: [Type] -> Type where
     TNil :: T '[]
-    (:&) :: !a -> !(T as) -> T (a ': as)
+    (:#) :: !a -> !(T as) -> T (a ': as)
 
 -- | @since 0.1.5.1
 deriving instance ListC (Show <$> as) => Show (T as)
@@ -162,36 +163,36 @@ deriving instance Typeable (T as)
 -- | @since 0.1.5.1
 deriving instance Typeable T0
 -- | @since 0.1.5.1
-deriving instance Typeable (T2 a b)
+deriving instance Typeable (a :& b)
 
 instance NFData T0
-instance (NFData a, NFData b) => NFData (T2 a b)
+instance (NFData a, NFData b) => NFData (a :& b)
 instance ListC (NFData <$> as) => NFData (T as) where
     rnf = \case
       TNil    -> ()
-      x :& xs -> rnf x `seq` rnf xs
+      x :# xs -> rnf x `seq` rnf xs
 
 -- TODO: optimize
 
 -- | @since 0.1.5.1
 instance Bi.Binary T0
 -- | @since 0.1.5.1
-instance (Bi.Binary a, Bi.Binary b) => Bi.Binary (T2 a b)
+instance (Bi.Binary a, Bi.Binary b) => Bi.Binary (a :& b)
 
-instance Bifunctor T2 where
-    bimap f g (T2 x y) = T2 (f x) (g y)
+instance Bifunctor (:&) where
+    bimap f g (x :& y) = f x :& g y
 
 -- | Convert to a Haskell tuple.
 --
 -- Forms an isomorphism with 'tupT2'.
-t2Tup :: T2 a b -> (a, b)
-t2Tup (T2 x y) = (x, y)
+t2Tup :: (a :& b) -> (a, b)
+t2Tup (x :& y) = (x, y)
 
 -- | Convert from Haskell tuple.
 --
 -- Forms an isomorphism with 't2Tup'.
-tupT2 :: (a, b) -> T2 a b
-tupT2 (x, y) = T2 x y
+tupT2 :: (a, b) -> a :& b
+tupT2 (x, y) = x :& y
 
 -- | A singleton 'T'
 --
@@ -199,7 +200,7 @@ tupT2 (x, y) = T2 x y
 --
 -- @since 0.1.5.0
 onlyT :: a -> T '[a]
-onlyT = (:& TNil)
+onlyT = (:# TNil)
 
 -- | Extract a singleton 'T'
 --
@@ -207,24 +208,24 @@ onlyT = (:& TNil)
 --
 -- @since 0.1.5.0
 tOnly :: T '[a] -> a
-tOnly (x :& _) = x
+tOnly (x :# _) = x
 
 -- | Uncurry a function to take in a 'T2' of its arguments
 --
 -- @since 0.1.2.0
-uncurryT2 :: (a -> b -> c) -> T2 a b -> c
-uncurryT2 f (T2 x y) = f x y
+uncurryT2 :: (a -> b -> c) -> a :& b -> c
+uncurryT2 f (x :& y) = f x y
 
 -- | Curry a function taking a 'T2' of its arguments
 --
 -- @since 0.1.2.0
-curryT2 :: (T2 a b -> c) -> a -> b -> c
-curryT2 f x y = f (T2 x y)
+curryT2 :: (a :& b -> c) -> a -> b -> c
+curryT2 f x y = f (x :& y)
 
-instance Field1 (T2 a b) (T2 a' b) a a' where
+instance Field1 (a :& b) (a' :& b) a a' where
     _1 = t2_1
 
-instance Field2 (T2 a b) (T2 a b') b b' where
+instance Field2 (a :& b) (a :& b') b b' where
     _2 = t2_2
 
 instance Field1 (T (a ': as)) (T (a ': as)) a a where
@@ -238,13 +239,13 @@ instance Field3 (T (a ': b ': c ': as)) (T (a ': b ': c ': as)) c c where
 
 -- | Lens into the first field of a 'T2'.  Also exported as '_1' from
 -- "Lens.Micro".
-t2_1 :: Lens (T2 a b) (T2 a' b) a a'
-t2_1 f (T2 x y) = (`T2` y) <$> f x
+t2_1 :: Lens (a :& b) (a' :& b) a a'
+t2_1 f (x :& y) = (:& y) <$> f x
 
 -- | Lens into the second field of a 'T2'.  Also exported as '_2' from
 -- "Lens.Micro".
-t2_2 :: Lens (T2 a b) (T2 a b') b b'
-t2_2 f (T2 x y) = T2 x <$> f y
+t2_2 :: Lens (a :& b) (a :& b') b b'
+t2_2 f (x :& y) = (x :&) <$> f y
 
 -- | Index into a 'T'.
 --
@@ -258,20 +259,20 @@ indexT = flip (^.) . tIx
 --
 -- @since 0.1.5.0
 tIx :: Index as a -> Lens' (T as) a
-tIx IZ     f (x :& xs) = (:& xs) <$> f x
-tIx (IS i) f (x :& xs) = (x :&)  <$> tIx i f xs
+tIx IZ     f (x :# xs) = (:# xs) <$> f x
+tIx (IS i) f (x :# xs) = (x :#)  <$> tIx i f xs
 
 -- | Lens into the head of a 'T'
 --
 -- @since 0.1.5.0
 tHead :: Lens (T (a ': as)) (T (b ': as)) a b
-tHead f (x :& xs) = (:& xs) <$> f x
+tHead f (x :# xs) = (:# xs) <$> f x
 
 -- | Lens into the tail of a 'T'
 --
 -- @since 0.1.5.0
 tTail :: Lens (T (a ': as)) (T (a ': bs)) (T as) (T bs)
-tTail f (x :& xs) = (x :&) <$> f xs
+tTail f (x :# xs) = (x :#) <$> f xs
 
 -- | Append two 'T's.
 --
@@ -280,7 +281,7 @@ tTail f (x :& xs) = (x :&) <$> f xs
 -- @since 0.1.5.0
 tAppend :: T as -> T bs -> T (as ++ bs)
 tAppend TNil      ys = ys
-tAppend (x :& xs) ys = x :& tAppend xs ys
+tAppend (x :# xs) ys = x :# tAppend xs ys
 infixr 5 `tAppend`
 
 -- | Split a 'T'.  For splits known at compile-time, you can use 'known' to
@@ -291,7 +292,7 @@ infixr 5 `tAppend`
 -- @since 0.1.5.0
 tSplit :: Length as -> T (as ++ bs) -> (T as, T bs)
 tSplit LZ     xs        = (TNil, xs)
-tSplit (LS l) (x :& xs) = first (x :&) . tSplit l $ xs
+tSplit (LS l) (x :# xs) = first (x :#) . tSplit l $ xs
 
 -- | Lens into the initial portion of a 'T'.  For splits known at
 -- compile-time, you can use 'known' to derive the 'Length' automatically.
@@ -314,7 +315,7 @@ tDrop l f (tSplit l->(xs,ys)) = tAppend xs <$> f ys
 -- @since 0.1.5.0
 tProd :: T as -> Tuple as
 tProd TNil      = Ø
-tProd (x :& xs) = x ::< tProd xs
+tProd (x :# xs) = x ::< tProd xs
 
 -- | Convert a 'Tuple' to a 'T'.
 --
@@ -323,7 +324,7 @@ tProd (x :& xs) = x ::< tProd xs
 -- @since 0.1.5.0
 prodT :: Tuple as -> T as
 prodT Ø           = TNil
-prodT (I x :< xs) = x :& prodT xs
+prodT (I x :< xs) = x :# prodT xs
 
 
 instance Num T0 where
@@ -365,48 +366,44 @@ instance Monoid T0 where
     mempty = T0
     mappend = (<>)
 
-instance (Num a, Num b) => Num (T2 a b) where
-    T2 x1 y1 + T2 x2 y2 = T2 (x1 + x2) (y1 + y2)
-    T2 x1 y1 - T2 x2 y2 = T2 (x1 - x2) (y1 - y2)
-    T2 x1 y1 * T2 x2 y2 = T2 (x1 * x2) (y1 * y2)
-    negate (T2 x y)     = T2 (negate x) (negate y)
-    abs    (T2 x y)     = T2 (abs    x) (abs    y)
-    signum (T2 x y)     = T2 (signum x) (signum y)
-    fromInteger x       = T2 (fromInteger x) (fromInteger x)
+instance (Num a, Num b) => Num (a :& b) where
+    (x1 :& y1) + (x2 :& y2) = x1 + x2 :& y1 + y2
+    (x1 :& y1) - (x2 :& y2) = x1 - x2 :& y1 - y2
+    (x1 :& y1) * (x2 :& y2) = x1 * x2 :& y1 * y2
+    negate (x :& y)     = negate x :& negate y
+    abs    (x :& y)     = abs    x :& abs    y
+    signum (x :& y)     = signum x :& signum y
+    fromInteger x       = fromInteger x :& fromInteger x
 
-instance (Fractional a, Fractional b) => Fractional (T2 a b) where
-    T2 x1 y1 / T2 x2 y2 = T2 (x1 / x2) (y1 / y2)
-    recip (T2 x y)      = T2 (recip x) (recip y)
-    fromRational x      = T2 (fromRational x) (fromRational x)
+instance (Fractional a, Fractional b) => Fractional (a :& b) where
+    (x1 :& y1) / (x2 :& y2) = x1 / x2 :& y1 / y2
+    recip (x :& y)          = recip x :& recip y
+    fromRational x          = fromRational x :& fromRational x
 
-instance (Floating a, Floating b) => Floating (T2 a b) where
-    pi                            = T2 pi pi
-    T2 x1 y1 ** T2 x2 y2          = T2 (x1 ** x2) (y1 ** y2)
-    logBase (T2 x1 y1) (T2 x2 y2) = T2 (logBase x1 x2) (logBase y1 y2)
-    exp   (T2 x y)                = T2 (exp   x) (exp   y)
-    log   (T2 x y)                = T2 (log   x) (log   y)
-    sqrt  (T2 x y)                = T2 (sqrt  x) (sqrt  y)
-    sin   (T2 x y)                = T2 (sin   x) (sin   y)
-    cos   (T2 x y)                = T2 (cos   x) (cos   y)
-    asin  (T2 x y)                = T2 (asin  x) (asin  y)
-    acos  (T2 x y)                = T2 (acos  x) (acos  y)
-    atan  (T2 x y)                = T2 (atan  x) (atan  y)
-    sinh  (T2 x y)                = T2 (sinh  x) (sinh  y)
-    cosh  (T2 x y)                = T2 (cosh  x) (cosh  y)
-    asinh (T2 x y)                = T2 (asinh x) (asinh y)
-    acosh (T2 x y)                = T2 (acosh x) (acosh y)
-    atanh (T2 x y)                = T2 (atanh x) (atanh y)
+instance (Floating a, Floating b) => Floating (a :& b) where
+    pi                            = pi :& pi
+    (x1 :& y1) ** (x2 :& y2)      = x1 ** x2 :& y1 ** y2
+    logBase (x1 :& y1) (x2 :& y2) = logBase x1 x2 :& logBase y1 y2
+    exp   (x :& y)                = exp   x :& exp   y
+    log   (x :& y)                = log   x :& log   y
+    sqrt  (x :& y)                = sqrt  x :& sqrt  y
+    sin   (x :& y)                = sin   x :& sin   y
+    cos   (x :& y)                = cos   x :& cos   y
+    asin  (x :& y)                = asin  x :& asin  y
+    acos  (x :& y)                = acos  x :& acos  y
+    atan  (x :& y)                = atan  x :& atan  y
+    sinh  (x :& y)                = sinh  x :& sinh  y
+    cosh  (x :& y)                = cosh  x :& cosh  y
+    asinh (x :& y)                = asinh x :& asinh y
+    acosh (x :& y)                = acosh x :& acosh y
+    atanh (x :& y)                = atanh x :& atanh y
 
-instance (Semigroup a, Semigroup b) => Semigroup (T2 a b) where
-    T2 x1 y1 <> T2 x2 y2 = T2 (x1 <> x2) (y1 <> y2)
+instance (Semigroup a, Semigroup b) => Semigroup (a :& b) where
+    (x1 :& y1) <> (x2 :& y2) = x1 <> x2 :& y1 <> y2
 
-#if MIN_VERSION_base(4,11,0)
-instance (Monoid a, Monoid b) => Monoid (T2 a b) where
-#else
-instance (Semigroup a, Semigroup b, Monoid a, Monoid b) => Monoid (T2 a b) where
-#endif
+instance (Semigroup a, Semigroup b, Monoid a, Monoid b) => Monoid (a :& b) where
     mappend = (<>)
-    mempty  = T2 mempty mempty
+    mempty  = mempty :& mempty
 
 -- | Initialize a 'T' with a Rank-N value.  Mostly used internally, but
 -- provided in case useful.
@@ -423,7 +420,7 @@ constT x = go
   where
     go :: forall bs. ListC (c <$> bs) => Length bs -> T bs
     go LZ     = TNil
-    go (LS l) = x :& go l
+    go (LS l) = x :# go l
 
 -- | Map over a 'T' with a Rank-N function.  Mostly used internally, but
 -- provided in case useful.
@@ -440,7 +437,7 @@ mapT f = go
   where
     go :: forall bs. ListC (c <$> bs) => T bs -> T bs
     go TNil      = TNil
-    go (x :& xs) = f x :& go xs
+    go (x :# xs) = f x :# go xs
 
 -- | Map over a 'T' with a Rank-N function.  Mostly used internally, but
 -- provided in case useful.
@@ -458,7 +455,7 @@ zipT f = go
   where
     go :: forall bs. ListC (c <$> bs) => T bs -> T bs -> T bs
     go TNil      TNil      = TNil
-    go (x :& xs) (y :& ys) = f x y :& go xs ys
+    go (x :# xs) (y :# ys) = f x y :# go xs ys
 
 instance (Known Length as, ListC (Num <$> as)) => Num (T as) where
     (+)           = zipT @Num (+)
@@ -504,7 +501,7 @@ instance (Known Length as, ListC (Semigroup <$> as), ListC (Monoid <$> as)) => M
 instance (Known Length as, ListC (Bi.Binary <$> as)) => Bi.Binary (T as) where
     put = \case
       TNil -> pure ()
-      x :& xs -> do
+      x :# xs -> do
         Bi.put x
         Bi.put xs
     get = getT known
@@ -515,24 +512,24 @@ getT = \case
     LS l -> do
       x  <- Bi.get
       xs <- getT l
-      pure (x :& xs)
+      pure (x :# xs)
 
-instance (Backprop a, Backprop b) => Backprop (T2 a b) where
-    zero (T2 x y) = T2 (zero x) (zero y)
-    add (T2 x1 y1) (T2 x2 y2) = T2 (add x1 x2) (add y1 y2)
-    one (T2 x y) = T2 (one x) (one y)
+instance (Backprop a, Backprop b) => Backprop (a :& b) where
+    zero (x :& y) = zero x :& zero y
+    add (x1 :& y1) (x2 :& y2) = add x1 x2 :& add y1 y2
+    one (x :& y) = one x :& one y
 instance (ListC (Backprop <$> as)) => Backprop (T as) where
     zero = \case
       TNil -> TNil
-      x :& xs -> zero x :& zero xs
+      x :# xs -> zero x :# zero xs
     add = \case
       TNil -> \case
         TNil -> TNil
-      x :& xs -> \case
-        y :& ys -> add x y :& add xs ys
+      x :# xs -> \case
+        y :# ys -> add x y :# add xs ys
     one = \case
       TNil -> TNil
-      x :& xs -> one x :& one xs
+      x :# xs -> one x :# one xs
 
 -- $t2iso
 --
@@ -552,46 +549,46 @@ instance (ListC (Backprop <$> as)) => Backprop (T as) where
 -- 'iso' 'onlyT' 'tOnly' :: 'Iso'' a (T '[a])
 -- @
 
-pattern T2B
+pattern (:&&)
     :: (Backprop a, Backprop b, Reifies s W)
     => BVar s a
     -> BVar s b
-    -> BVar s (T2 a b)
-pattern T2B x y <- (\xy -> (xy ^^. _1, xy ^^. _2) -> (x, y))
+    -> BVar s (a :& b)
+pattern x :&& y <- (\xy -> (xy ^^. _1, xy ^^. _2) -> (x, y))
   where
-    T2B = isoVar2 T2 t2Tup
-{-# COMPLETE T2B #-}
+    (:&&) = isoVar2 (:&) t2Tup
+{-# COMPLETE (:&&) #-}
 
-instance (Additive a, Additive b) => Additive (T2 a b) where
+instance (Additive a, Additive b) => Additive (a :& b) where
     (.+.)   = gAdd
     addZero = gAddZero
 instance (ListC (Additive <$> as), Known Length as) => Additive (T as) where
     (.+.)   = zipT @Additive (.+.)
     addZero = constT @Additive addZero known
 
-instance (Scaling c a, Scaling c b) => Scaling c (T2 a b)
+instance (Scaling c a, Scaling c b) => Scaling c (a :& b)
 
-instance (Metric c a, Metric c b, Ord c, Floating c) => Metric c (T2 a b)
+instance (Metric c a, Metric c b, Ord c, Floating c) => Metric c (a :& b)
 
-instance (Ref m (T2 a b) v, Additive a, Additive b) => AdditiveInPlace m v (T2 a b)
+instance (Ref m (a :& b) v, Additive a, Additive b) => AdditiveInPlace m v (a :& b)
 
-instance (Ref m (T2 a b) v, Scaling c a, Scaling c b) => ScalingInPlace m v c (T2 a b)
+instance (Ref m (a :& b) v, Scaling c a, Scaling c b) => ScalingInPlace m v c (a :& b)
 
 instance Scaling c a => Scaling c (T '[a]) where
-    c .* (x :& TNil) = (c .* x) :& TNil
+    c .* (x :# TNil) = (c .* x) :# TNil
     scaleOne = scaleOne @c @a
 instance (Scaling c b, Scaling c (T (a ': as)), Additive a, ListC (Additive <$> as), Known Length as)
         => Scaling c (T (b ': (a ': as))) where
-    c .* (x :& xs) = (c .* x) :& (c .* xs)
+    c .* (x :# xs) = (c .* x) :# (c .* xs)
     scaleOne = scaleOne @c @b
 
 instance Metric c a => Metric c (T '[a]) where
-    (x :& TNil) <.> (y :& TNil) = x <.> y
-    norm_inf (x :& TNil)        = norm_inf x
-    norm_0 (x :& TNil)          = norm_0 x
-    norm_1 (x :& TNil)          = norm_1 x
-    norm_2 (x :& TNil)          = norm_2 x
-    quadrance (x :& TNil)       = quadrance x
+    (x :# TNil) <.> (y :# TNil) = x <.> y
+    norm_inf (x :# TNil)        = norm_inf x
+    norm_0 (x :# TNil)          = norm_0 x
+    norm_1 (x :# TNil)          = norm_1 x
+    norm_2 (x :# TNil)          = norm_2 x
+    quadrance (x :# TNil)       = quadrance x
 
 instance ( Metric c b
          , Metric c (T (a ': as))
@@ -603,11 +600,11 @@ instance ( Metric c b
          , Floating c
          )
       => Metric c (T (b ': (a ': as))) where
-    (x :& xs) <.> (y :& ys) = (x <.> y) + (xs <.> ys)
-    norm_inf (x :& xs)      = max (norm_inf x) (norm_inf xs)
-    norm_0 (x :& xs)        = norm_0 x + norm_0 xs
-    norm_1 (x :& xs)        = norm_0 x + norm_0 xs
-    quadrance (x :& xs)     = quadrance x + quadrance xs
+    (x :# xs) <.> (y :# ys) = (x <.> y) + (xs <.> ys)
+    norm_inf (x :# xs)      = max (norm_inf x) (norm_inf xs)
+    norm_0 (x :# xs)        = norm_0 x + norm_0 xs
+    norm_1 (x :# xs)        = norm_0 x + norm_0 xs
+    quadrance (x :# xs)     = quadrance x + quadrance xs
 
 instance (Ref m (T as) v, Additive (T as)) => AdditiveInPlace m v (T as)
 instance (Ref m (T as) v, Scaling c (T as)) => ScalingInPlace m v c (T as)

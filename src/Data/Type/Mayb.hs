@@ -176,11 +176,11 @@ type family TupMaybe (a :: Maybe Type) (b :: Maybe Type) :: Maybe Type where
     TupMaybe 'Nothing  'Nothing  = 'Nothing
     TupMaybe 'Nothing  ('Just b) = 'Just b
     TupMaybe ('Just a) 'Nothing  = 'Just a
-    TupMaybe ('Just a) ('Just b) = 'Just (T2 a b)
+    TupMaybe ('Just a) ('Just b) = 'Just (a :& b)
 
 tupMaybe
     :: forall f a b. ()
-    => (forall a' b'. (a ~ 'Just a', b ~ 'Just b') => f a' -> f b' -> f (T2 a' b'))
+    => (forall a' b'. (a ~ 'Just a', b ~ 'Just b') => f a' -> f b' -> f (a' :& b'))
     -> Mayb f a
     -> Mayb f b
     -> Mayb f (TupMaybe a b)
@@ -194,7 +194,7 @@ tupMaybe f = \case
 
 splitTupMaybe
     :: forall f a b. (KnownMayb a, KnownMayb b)
-    => (forall a' b'. (a ~ 'Just a', b ~ 'Just b') => f (T2 a' b') -> (f a', f b'))
+    => (forall a' b'. (a ~ 'Just a', b ~ 'Just b') => f (a' :& b') -> (f a', f b'))
     -> Mayb f (TupMaybe a b)
     -> (Mayb f a, Mayb f b)
 splitTupMaybe f = case knownMayb @a of

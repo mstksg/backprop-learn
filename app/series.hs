@@ -37,6 +37,7 @@ import           Data.Singletons
 import           Data.Singletons.TypeLits
 import           Data.Time
 import           Data.Type.Equality
+import           Data.Type.Tuple
 import           GHC.TypeLits.Compare
 import           GHC.TypeNats
 import           Numeric.LinearAlgebra.Static.Backprop hiding ((<>))
@@ -47,7 +48,6 @@ import           Statistics.Distribution
 import           Statistics.Distribution.Normal
 import           Text.Printf
 import qualified Data.Conduit.Combinators                     as C
-import qualified Data.Type.Tuple                              as T
 import qualified Data.Vector.Sized                            as SV
 import qualified System.Random.MWC                            as MWC
 
@@ -71,11 +71,11 @@ data ModelPick :: Type -> Type -> Type where
     MARIMA :: Sing p -> Sing d -> Sing q
            -> ModelPick (ARIMAp p q) (ARIMAs p d q)
     MFCRNN :: Sing h
-           -> ModelPick (T.T2 (LRp h 1) (LRp (1 + h) h)) (R h)
+           -> ModelPick (LRp h 1 :& LRp (1 + h) h) (R h)
     MLSTM  :: Sing h
-           -> ModelPick (T.T2 (LRp h 1) (LSTMp 1 h))     (T.T2 (R h) (R h))
+           -> ModelPick (LRp h 1 :& LSTMp 1 h)     (R h :& R h)
     MGRU   :: Sing h
-           -> ModelPick (T.T2 (LRp h 1) (GRUp 1 h))      (R h)
+           -> ModelPick (LRp h 1 :& GRUp 1 h)      (R h)
 
 data Process = PSin
 

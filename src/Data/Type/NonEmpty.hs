@@ -39,9 +39,9 @@ data NETup :: NonEmpty Type -> Type where
     NET :: !a -> !(T as) -> NETup (a ':| as)
 
 pattern NETT :: T (a ': as) -> NETup (a ':| as)
-pattern NETT { netT } <- (\case NET x xs -> x :& xs->(!netT))
+pattern NETT { netT } <- (\case NET x xs -> x :# xs->(!netT))
   where
-    NETT (!(x :& xs)) = NET x xs
+    NETT (!(x :# xs)) = NET x xs
 {-# COMPLETE NETT #-}
 
 instance (NFData a, ListC (NFData <$> as)) => NFData (NETup (a ':| as)) where

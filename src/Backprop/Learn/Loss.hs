@@ -30,7 +30,7 @@ module Backprop.Learn.Loss (
 
 import           Control.Applicative
 import           Data.Finite
-import           Data.Type.Tuple hiding                (T2(..))
+import           Data.Type.Tuple
 import           GHC.TypeNats
 import           Numeric.Backprop
 import           Numeric.LinearAlgebra.Static.Backprop
@@ -109,13 +109,13 @@ lastLoss l targ = l (SV.last targ) . viewVar (SV.ix maxBound)
 scaleLoss :: Double -> Loss a -> Loss a
 scaleLoss β l x = (* constVar β) . l x
 
--- | Lift and sum a loss function over the components of a 'T.T2'.
+-- | Lift and sum a loss function over the components of a ':&'.
 t2Loss
     :: (Backprop a, Backprop b)
     => Loss a                   -- ^ loss on first component
     -> Loss b                   -- ^ loss on second component
-    -> Loss (T.T2 a b)
-t2Loss f g (T.T2 xT yT) (T2B xR yR) = f xT xR + g yT yR
+    -> Loss (a :& b)
+t2Loss f g (xT :& yT) (xR :&& yR) = f xT xR + g yT yR
 
 -- | A regularizer on parameters
 type Regularizer p = forall s. Reifies s W => BVar s p -> BVar s Double
