@@ -86,7 +86,6 @@ instance Initialize a => Initialize (Complex a) where
 
 instance Initialize T0
 instance (Initialize a, Initialize b) => Initialize (T2 a b)
-instance (Initialize a, Initialize b, Initialize c) => Initialize (T3 a b c)
 
 instance (ListC (Initialize <$> as), Known Length as) => Initialize (T as) where
     initialize d g = constTA @Initialize (initialize d g) known

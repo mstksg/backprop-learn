@@ -82,15 +82,6 @@ module Data.Type.Tuple (
   , uncurryT2, curryT2
   -- ** Lenses
   , t2_1, t2_2
-  -- * Three-tuples
-  , T3(..), pattern T3B
-  -- ** Conversions
-  -- $t3iso
-  , t3Tup, tupT3
-  -- ** Lenses
-  , t3_1, t3_2, t3_3
-  -- ** Consumption
-  , uncurryT3, curryT3
   -- * N-Tuples
   , T(..)
   , indexT
@@ -114,7 +105,7 @@ import           Data.Type.Product
 import           GHC.Generics               (Generic)
 import           Lens.Micro
 import           Lens.Micro.Internal hiding (Index)
-import           Numeric.Backprop hiding    (T2, T3)
+import           Numeric.Backprop hiding    (T2)
 import           Numeric.Opto.Ref
 import           Numeric.Opto.Update
 import           Type.Class.Known
@@ -139,12 +130,6 @@ data T0 = T0
 --
 -- @since 0.1.1.0
 data T2 a b   = T2 !a !b
-  deriving (Show, Read, Eq, Ord, Generic, Functor, Data, Typeable)
-
--- | Strict 3-tuple with a 'Num', 'Fractional', and 'Floating' instances.
---
--- @since 0.1.1.0
-data T3 a b c = T3 !a !b !c
   deriving (Show, Read, Eq, Ord, Generic, Functor, Data, Typeable)
 
 -- | Strict inductive N-tuple with a 'Num', 'Fractional', and 'Floating'
@@ -178,12 +163,9 @@ deriving instance Typeable (T as)
 deriving instance Typeable T0
 -- | @since 0.1.5.1
 deriving instance Typeable (T2 a b)
--- | @since 0.1.5.1
-deriving instance Typeable (T3 a b c)
 
 instance NFData T0
 instance (NFData a, NFData b) => NFData (T2 a b)
-instance (NFData a, NFData b, NFData c) => NFData (T3 a b c)
 instance ListC (NFData <$> as) => NFData (T as) where
     rnf = \case
       TNil    -> ()
@@ -195,14 +177,9 @@ instance ListC (NFData <$> as) => NFData (T as) where
 instance Bi.Binary T0
 -- | @since 0.1.5.1
 instance (Bi.Binary a, Bi.Binary b) => Bi.Binary (T2 a b)
--- | @since 0.1.5.1
-instance (Bi.Binary a, Bi.Binary b, Bi.Binary c) => Bi.Binary (T3 a b c)
 
 instance Bifunctor T2 where
     bimap f g (T2 x y) = T2 (f x) (g y)
-
-instance Bifunctor (T3 a) where
-    bimap f g (T3 x y z) = T3 x (f y) (g z)
 
 -- | Convert to a Haskell tuple.
 --
@@ -215,18 +192,6 @@ t2Tup (T2 x y) = (x, y)
 -- Forms an isomorphism with 't2Tup'.
 tupT2 :: (a, b) -> T2 a b
 tupT2 (x, y) = T2 x y
-
--- | Convert to a Haskell tuple.
---
--- Forms an isomorphism with 'tupT3'.
-t3Tup :: T3 a b c -> (a, b, c)
-t3Tup (T3 x y z) = (x, y, z)
-
--- | Convert from Haskell tuple.
---
--- Forms an isomorphism with 't3Tup'.
-tupT3 :: (a, b, c) -> T3 a b c
-tupT3 (x, y, z) = T3 x y z
 
 -- | A singleton 'T'
 --
@@ -256,32 +221,11 @@ uncurryT2 f (T2 x y) = f x y
 curryT2 :: (T2 a b -> c) -> a -> b -> c
 curryT2 f x y = f (T2 x y)
 
--- | Uncurry a function to take in a 'T3' of its arguments
---
--- @since 0.1.2.0
-uncurryT3 :: (a -> b -> c -> d) -> T3 a b c -> d
-uncurryT3 f (T3 x y z) = f x y z
-
--- | Curry a function taking a 'T3' of its arguments
---
--- @since 0.1.2.0
-curryT3 :: (T3 a b c -> d) -> a -> b -> c -> d
-curryT3 f x y z = f (T3 x y z)
-
 instance Field1 (T2 a b) (T2 a' b) a a' where
     _1 = t2_1
 
 instance Field2 (T2 a b) (T2 a b') b b' where
     _2 = t2_2
-
-instance Field1 (T3 a b c) (T3 a' b c) a a' where
-    _1 = t3_1
-
-instance Field2 (T3 a b c) (T3 a b' c) b b' where
-    _2 = t3_2
-
-instance Field3 (T3 a b c) (T3 a b c') c c' where
-    _3 = t3_3
 
 instance Field1 (T (a ': as)) (T (a ': as)) a a where
     _1 = tIx IZ
@@ -301,21 +245,6 @@ t2_1 f (T2 x y) = (`T2` y) <$> f x
 -- "Lens.Micro".
 t2_2 :: Lens (T2 a b) (T2 a b') b b'
 t2_2 f (T2 x y) = T2 x <$> f y
-
--- | Lens into the first field of a 'T3'.  Also exported as '_1' from
--- "Lens.Micro".
-t3_1 :: Lens (T3 a b c) (T3 a' b c) a a'
-t3_1 f (T3 x y z) = (\x' -> T3 x' y z) <$> f x
-
--- | Lens into the second field of a 'T3'.  Also exported as '_2' from
--- "Lens.Micro".
-t3_2 :: Lens (T3 a b c) (T3 a b' c) b b'
-t3_2 f (T3 x y z) = (\y' -> T3 x y' z) <$> f y
-
--- | Lens into the third field of a 'T3'.  Also exported as '_3' from
--- "Lens.Micro".
-t3_3 :: Lens (T3 a b c) (T3 a b c') c c'
-t3_3 f (T3 x y z) = T3 x y <$> f z
 
 -- | Index into a 'T'.
 --
@@ -479,49 +408,6 @@ instance (Semigroup a, Semigroup b, Monoid a, Monoid b) => Monoid (T2 a b) where
     mappend = (<>)
     mempty  = T2 mempty mempty
 
-instance (Num a, Num b, Num c) => Num (T3 a b c) where
-    T3 x1 y1 z1 + T3 x2 y2 z2 = T3 (x1 + x2) (y1 + y2) (z1 + z2)
-    T3 x1 y1 z1 - T3 x2 y2 z2 = T3 (x1 - x2) (y1 - y2) (z1 + z2)
-    T3 x1 y1 z1 * T3 x2 y2 z2 = T3 (x1 * x2) (y1 * y2) (z1 + z2)
-    negate (T3 x y z)         = T3 (negate x) (negate y) (negate z)
-    abs    (T3 x y z)         = T3 (abs    x) (abs    y) (abs    z)
-    signum (T3 x y z)         = T3 (signum x) (signum y) (signum z)
-    fromInteger x             = T3 (fromInteger x) (fromInteger x) (fromInteger x)
-
-instance (Fractional a, Fractional b, Fractional c) => Fractional (T3 a b c) where
-    T3 x1 y1 z1 / T3 x2 y2 z2 = T3 (x1 / x2) (y1 / y2) (z1 / z2)
-    recip (T3 x y z)          = T3 (recip x) (recip y) (recip z)
-    fromRational x            = T3 (fromRational x) (fromRational x) (fromRational x)
-
-instance (Floating a, Floating b, Floating c) => Floating (T3 a b c) where
-    pi                                  = T3 pi pi pi
-    T3 x1 y1 z1 ** T3 x2 y2 z2          = T3 (x1 ** x2) (y1 ** y2) (z1 ** z2)
-    logBase (T3 x1 y1 z1) (T3 x2 y2 z2) = T3 (logBase x1 x2) (logBase y1 y2) (logBase z1 z2)
-    exp   (T3 x y z)                    = T3 (exp   x) (exp   y) (exp   z)
-    log   (T3 x y z)                    = T3 (log   x) (log   y) (log   z)
-    sqrt  (T3 x y z)                    = T3 (sqrt  x) (sqrt  y) (sqrt  z)
-    sin   (T3 x y z)                    = T3 (sin   x) (sin   y) (sin   z)
-    cos   (T3 x y z)                    = T3 (cos   x) (cos   y) (cos   z)
-    asin  (T3 x y z)                    = T3 (asin  x) (asin  y) (asin  z)
-    acos  (T3 x y z)                    = T3 (acos  x) (acos  y) (acos  z)
-    atan  (T3 x y z)                    = T3 (atan  x) (atan  y) (atan  z)
-    sinh  (T3 x y z)                    = T3 (sinh  x) (sinh  y) (sinh  z)
-    cosh  (T3 x y z)                    = T3 (cosh  x) (cosh  y) (cosh  z)
-    asinh (T3 x y z)                    = T3 (asinh x) (asinh y) (asinh z)
-    acosh (T3 x y z)                    = T3 (acosh x) (acosh y) (acosh z)
-    atanh (T3 x y z)                    = T3 (atanh x) (atanh y) (atanh z)
-
-instance (Semigroup a, Semigroup b, Semigroup c) => Semigroup (T3 a b c) where
-    T3 x1 y1 z1 <> T3 x2 y2 z2 = T3 (x1 <> x2) (y1 <> y2) (z1 <> z2)
-
-#if MIN_VERSION_base(4,11,0)
-instance (Monoid a, Monoid b, Monoid c) => Monoid (T3 a b c) where
-#else
-instance (Semigroup a, Semigroup b, Semigroup c, Monoid a, Monoid b, Monoid c) => Monoid (T3 a b c) where
-#endif
-    mappend = (<>)
-    mempty  = T3 mempty mempty mempty
-
 -- | Initialize a 'T' with a Rank-N value.  Mostly used internally, but
 -- provided in case useful.
 --
@@ -635,10 +521,6 @@ instance (Backprop a, Backprop b) => Backprop (T2 a b) where
     zero (T2 x y) = T2 (zero x) (zero y)
     add (T2 x1 y1) (T2 x2 y2) = T2 (add x1 x2) (add y1 y2)
     one (T2 x y) = T2 (one x) (one y)
-instance (Backprop a, Backprop b, Backprop c) => Backprop (T3 a b c) where
-    zero (T3 x y z) = T3 (zero x) (zero y) (zero z)
-    add (T3 x1 y1 z1) (T3 x2 y2 z2) = T3 (add x1 x2) (add y1 y2) (add z1 z2)
-    one (T3 x y z) = T3 (one x) (one y) (one z)
 instance (ListC (Backprop <$> as)) => Backprop (T as) where
     zero = \case
       TNil -> TNil
@@ -661,15 +543,6 @@ instance (ListC (Backprop <$> as)) => Backprop (T as) where
 -- 'iso' 'tupT2' 't2Tup' :: 'Iso'' (a, b) ('T2' a b)
 -- @
 
--- $t3iso
---
--- If using /lens/, the two conversion functions can be chained with prisms
--- and traversals and other optics using:
---
--- @
--- 'iso' 'tupT3' 't2Tup' :: 'Iso'' (a, b, c) ('T3' a b c)
--- @
-
 -- $tiso
 --
 -- If using /lens/, the two conversion functions can be chained with prisms
@@ -689,21 +562,7 @@ pattern T2B x y <- (\xy -> (xy ^^. _1, xy ^^. _2) -> (x, y))
     T2B = isoVar2 T2 t2Tup
 {-# COMPLETE T2B #-}
 
-pattern T3B
-    :: (Backprop a, Backprop b, Backprop c, Reifies s W)
-    => BVar s a
-    -> BVar s b
-    -> BVar s c
-    -> BVar s (T3 a b c)
-pattern T3B x y z <- (\xyz -> (xyz ^^. _1, xyz ^^. _2, xyz ^^. _3) -> (x, y, z))
-  where
-    T3B = isoVar3 T3 t3Tup
-{-# COMPLETE T3B #-}
-
 instance (Additive a, Additive b) => Additive (T2 a b) where
-    (.+.)   = gAdd
-    addZero = gAddZero
-instance (Additive a, Additive b, Additive c) => Additive (T3 a b c) where
     (.+.)   = gAdd
     addZero = gAddZero
 instance (ListC (Additive <$> as), Known Length as) => Additive (T as) where
@@ -711,16 +570,12 @@ instance (ListC (Additive <$> as), Known Length as) => Additive (T as) where
     addZero = constT @Additive addZero known
 
 instance (Scaling c a, Scaling c b) => Scaling c (T2 a b)
-instance (Scaling c a, Scaling c b, Scaling c d) => Scaling c (T3 a b d)
 
 instance (Metric c a, Metric c b, Ord c, Floating c) => Metric c (T2 a b)
-instance (Metric c a, Metric c b, Metric c d, Ord c, Floating c) => Metric c (T3 a b d)
 
 instance (Ref m (T2 a b) v, Additive a, Additive b) => AdditiveInPlace m v (T2 a b)
-instance (Ref m (T3 a b c) v, Additive a, Additive b, Additive c) => AdditiveInPlace m v (T3 a b c)
 
 instance (Ref m (T2 a b) v, Scaling c a, Scaling c b) => ScalingInPlace m v c (T2 a b)
-instance (Ref m (T3 a b d) v, Scaling c a, Scaling c b, Scaling c d) => ScalingInPlace m v c (T3 a b d)
 
 instance Scaling c a => Scaling c (T '[a]) where
     c .* (x :& TNil) = (c .* x) :& TNil

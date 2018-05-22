@@ -18,7 +18,6 @@ module Backprop.Learn.Loss (
   , lastLoss
   , zipLoss
   , t2Loss
-  , t3Loss
   -- * Regularization
   , Regularizer
   , l2Reg
@@ -31,7 +30,7 @@ module Backprop.Learn.Loss (
 
 import           Control.Applicative
 import           Data.Finite
-import           Data.Type.Tuple hiding                (T2(..), T3(..))
+import           Data.Type.Tuple hiding                (T2(..))
 import           GHC.TypeNats
 import           Numeric.Backprop
 import           Numeric.LinearAlgebra.Static.Backprop
@@ -117,18 +116,6 @@ t2Loss
     -> Loss b                   -- ^ loss on second component
     -> Loss (T.T2 a b)
 t2Loss f g (T.T2 xT yT) (T2B xR yR) = f xT xR + g yT yR
-
--- | Lift and sum a loss function over the components of a 'T.T3'.
-t3Loss
-    :: (Backprop a, Backprop b, Backprop c)
-    => Loss a                   -- ^ loss on first component
-    -> Loss b                   -- ^ loss on second component
-    -> Loss c                   -- ^ loss on third component
-    -> Loss (T.T3 a b c)
-t3Loss f g h (T.T3 xT yT zT) xRyRzR
-        = f xT (xRyRzR ^^. t3_1)
-        + g yT (xRyRzR ^^. t3_2)
-        + h zT (xRyRzR ^^. t3_3)
 
 -- | A regularizer on parameters
 type Regularizer p = forall s. Reifies s W => BVar s p -> BVar s Double

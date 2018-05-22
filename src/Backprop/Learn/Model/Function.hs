@@ -55,7 +55,7 @@ module Backprop.Learn.Model.Function (
 import           Control.Category
 import           Data.Foldable
 import           Data.Proxy
-import           Data.Type.Tuple hiding                       (T2(..), T3(..))
+import           Data.Type.Tuple hiding                       (T2(..))
 import           GHC.TypeNats
 import           Numeric.Backprop
 import           Numeric.LinearAlgebra.Static.Backprop hiding (tr)

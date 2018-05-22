@@ -36,7 +36,7 @@ import           Data.Functor.Identity
 import           Data.Kind
 import           Data.Type.Mayb
 import           Numeric.Backprop
-import           Prelude hiding             ((.), id)
+import           Prelude hiding             ((.))
 import qualified System.Random.MWC          as MWC
 
 type ModelFunc p s a b = forall z. Reifies z W

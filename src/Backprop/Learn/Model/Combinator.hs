@@ -40,7 +40,7 @@ import           Control.Monad.Trans.State
 import           Data.Bifunctor
 import           Data.Type.Length
 import           Data.Type.Mayb             as Mayb
-import           Data.Type.Tuple hiding     (T2(..), T3(..))
+import           Data.Type.Tuple hiding     (T2(..))
 import           GHC.TypeNats
 import           Numeric.Backprop
 import           Prelude hiding             ((.), id)
