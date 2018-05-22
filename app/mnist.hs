@@ -42,9 +42,6 @@ mnistNet :: Model _ _ (R 784) (R 10)
 mnistNet = fca     @300 softMax
         <~ dropout      0.25
         <~ fca     @784 logistic
--- mnistNet = FCA logistic
---        :.~ DO 0.25
---        :.~ FCA softMax
 
 main :: IO ()
 main = MWC.withSystemRandom $ \g -> do

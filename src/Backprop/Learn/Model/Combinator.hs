@@ -27,7 +27,7 @@ module Backprop.Learn.Model.Combinator (
     -- * Tuple-based Composition
     (~>), (<~)
     -- * List-based Composition
-  , LModel, (#++), nilLM, liftLM
+  , LModel, (#:), nilLM, (#++), liftLM
     -- * Misc
   , feedback, feedbackTrace
   ) where
@@ -36,7 +36,6 @@ import           Backprop.Learn.Model.Types
 import           Control.Applicative
 import           Control.Category
 import           Control.Monad
-import           Control.Monad.Primitive
 import           Control.Monad.Trans.State
 import           Data.Bifunctor
 import           Data.Type.Length
@@ -49,7 +48,6 @@ import           Type.Class.Known
 import           Type.Class.Witness
 import           Type.Family.List           as List
 import qualified Data.Vector.Sized          as SV
-import qualified System.Random.MWC          as MWC
 
 -- | Compose two 'Model's one after the other.
 (<~)
@@ -66,20 +64,12 @@ import qualified System.Random.MWC          as MWC
     => Model           p              s    b c
     -> Model             q              t  a b
     -> Model (TupMaybe p q) (TupMaybe s t) a c
-f <~ g = Model
-    { runLearn = \pq x st ->
-        let (p, q) = splitTupMaybe @_ @p @q (\(T2B v u) -> (v, u)) pq
-            (s, t) = splitTupMaybe @_ @s @t (\(T2B v u) -> (v, u)) st
-            (y, t') = runLearn g q x t
-            (z, s') = runLearn f p y s
-        in  (z, tupMaybe T2B s' t')
-    , runLearnStoch = \gen pq x st -> do
-        let (p, q) = splitTupMaybe @_ @p @q (\(T2B v u) -> (v, u)) pq
-            (s, t) = splitTupMaybe @_ @s @t (\(T2B v u) -> (v, u)) st
-        (y, t') <- runLearnStoch g gen q x t
-        (z, s') <- runLearnStoch f gen p y s
-        pure (z, tupMaybe T2B s' t')
-    }
+(<~) = withModelFunc2 $ \f g pq x st -> do
+    let (p, q) = splitTupMaybe @_ @p @q (\(T2B v u) -> (v, u)) pq
+        (s, t) = splitTupMaybe @_ @s @t (\(T2B v u) -> (v, u)) st
+    (y, t') <- g q x t
+    (z, s') <- f p y s
+    pure (z, tupMaybe T2B s' t')
 infixr 8 <~
 
 -- | Compose two 'Model's one after the other, in reverse composition order
@@ -108,13 +98,14 @@ type LModel ps ss a b = Model ('Just (T ps)) ('Just (T ss)) a b
 -- | 'Cons' a model to the end of a chain of 'LModel' compositions.  Can be
 -- used with 'nilLM'.
 --
---
 (#:)
     :: forall p ps s ss a b c.
      ( MaybeC Backprop p
      , ListC (Backprop List.<$> ps)
      , MaybeC Backprop s
      , ListC (Backprop List.<$> ss)
+     , KnownMayb p
+     , KnownMayb s
      -- , ListC (Backprop List.<$> (ss ++ ts))
      -- , Known Length ps
      -- , Known Length ss
@@ -123,7 +114,19 @@ type LModel ps ss a b = Model ('Just (T ps)) ('Just (T ss)) a b
     => Model         p                           s        b c
     -> LModel                   ps                    ss  a b
     -> LModel (MaybeToList p ++ ps) (MaybeToList s ++ ss) a c
-f #: fs = Model {}
+(#:) = withModelFunc2 $ \f fs (J_ pps) x (J_ sss) -> do
+    let (p, ps) = case knownMayb @p of
+          N_   -> (N_, pps)
+          J_ _ -> (J_ (pps ^^. tHead), pps ^^. tTail)
+        (s, ss) = case knownMayb @s of
+          N_   -> (N_, sss)
+          J_ _ -> (J_ (sss ^^. tHead), sss ^^. tTail)
+    (y, ss') <- fs (J_ ps) x (J_ ss)
+    (z, s' ) <- f      p   y     s
+    let sss' = case s' of
+                 N_     -> fromJ_ ss'
+                 J_ s'J -> isoVar2 (:&) (\case t :& ts -> (t, ts)) s'J (fromJ_ ss')
+    pure $ (z, J_ sss')
 infixr 5 #:
 
 -- | Compose two 'LModel's
@@ -141,30 +144,19 @@ infixr 5 #:
     => LModel  ps         ss        b c
     -> LModel        qs         ts  a b
     -> LModel (ps ++ qs) (ss ++ ts) a c
-f #++ g = Model
-    { runLearn  = \(J_ psqs) x (J_ ssts) -> appendLength @ss @ts known known //
-        let (y, J_ ts) = runLearn g (J_ (psqs ^^. tDrop @ps @qs known))
-                                    x
-                                    (J_ (ssts ^^. tDrop @ss @ts known))
-            (z, J_ ss) = runLearn f (J_ (psqs ^^. tTake @ps @qs known))
-                                    y
-                                    (J_ (ssts ^^. tTake @ss @ts known))
-        in  (z, J_ $ isoVar2 (tAppend @ss @ts) (tSplit @ss @ts known)
-                             ss ts
-            )
-    , runLearnStoch = \gen (J_ psqs) x (J_ ssts) -> appendLength @ss @ts known known // do
-        (y, ts) <- second fromJ_
-               <$> runLearnStoch g gen (J_ (psqs ^^. tDrop @ps @qs known))
-                                       x
-                                       (J_ (ssts ^^. tDrop @ss @ts known))
-        (z, ss) <- second fromJ_
-               <$> runLearnStoch f gen (J_ (psqs ^^. tTake @ps @qs known))
-                                        y
-                                        (J_ (ssts ^^. tTake @ss @ts known))
-        pure  (z, J_ $ isoVar2 (tAppend @ss @ts) (tSplit @ss @ts known)
-                               ss ts
-              )
-    }
+(#++) = withModelFunc2 $ \f g (J_ psqs) x (J_ ssts) ->
+        appendLength @ss @ts known known // do
+    (y, ts) <- second fromJ_
+           <$> g (J_ (psqs ^^. tDrop @ps @qs known))
+                 x
+                 (J_ (ssts ^^. tDrop @ss @ts known))
+    (z, ss) <- second fromJ_
+           <$> f (J_ (psqs ^^. tTake @ps @qs known))
+                 y
+                 (J_ (ssts ^^. tTake @ss @ts known))
+    pure  (z, J_ $ isoVar2 (tAppend @ss @ts) (tSplit @ss @ts known)
+                           ss ts
+          )
 infixr 5 #++
 
 appendLength
@@ -190,34 +182,20 @@ liftLM
      )
     => Model p s a b
     -> LModel (MaybeToList p) (MaybeToList s) a b
-liftLM f = Model
-    { runLearn = \(J_ ps) x ssM@(J_ ss) -> case knownMayb @p of
-        N_ -> case knownMayb @s of
-          N_ -> (second . const) ssM
-              $ runLearn f N_ x N_
-          J_ _ -> second (J_ . isoVar onlyT tOnly . fromJ_)
-                $ runLearn f N_ x (J_ (isoVar tOnly onlyT ss))
-        J_ _ ->
-          let p = isoVar tOnly onlyT ps
-          in  case knownMayb @s of
-                N_ -> (second . const) ssM
-                    $ runLearn f (J_ p) x N_
-                J_ _ -> second (J_ . isoVar onlyT tOnly . fromJ_)
-                      $ runLearn f (J_ p) x (J_ (isoVar tOnly onlyT ss))
-    , runLearnStoch = \g (J_ ps) x ssM@(J_ ss) -> case knownMayb @p of
-        N_ -> case knownMayb @s of
-          N_ -> (fmap . second . const) ssM
-              $ runLearnStoch f g N_ x N_
-          J_ _ -> (fmap . second) (J_ . isoVar onlyT tOnly . fromJ_)
-                $ runLearnStoch f g N_ x (J_ (isoVar tOnly onlyT ss))
-        J_ _ ->
-          let p = isoVar tOnly onlyT ps
-          in  case knownMayb @s of
-                N_ -> (fmap . second . const) ssM
-                    $ runLearnStoch f g (J_ p) x N_
-                J_ _ -> (fmap . second) (J_ . isoVar onlyT tOnly . fromJ_)
-                      $ runLearnStoch f g (J_ p) x (J_ (isoVar tOnly onlyT ss))
-    }
+liftLM = withModelFunc $ \f (J_ ps) x ssM@(J_ ss) ->
+    case knownMayb @p of
+      N_ -> case knownMayb @s of
+        N_ -> (fmap . second . const) ssM
+            $ f N_ x N_
+        J_ _ -> (fmap . second) (J_ . isoVar onlyT tOnly . fromJ_)
+              $ f N_ x (J_ (isoVar tOnly onlyT ss))
+      J_ _ ->
+        let p = isoVar tOnly onlyT ps
+        in  case knownMayb @s of
+              N_ -> (fmap . second . const) ssM
+                  $ f (J_ p) x N_
+              J_ _ -> (fmap . second) (J_ . isoVar onlyT tOnly . fromJ_)
+                    $ f (J_ p) x (J_ (isoVar tOnly onlyT ss))
 
 -- | Return a model that loops a model ("feed") repeatedly onto itself,
 -- with a model to provide the back loop.
@@ -236,50 +214,17 @@ feedback
     -> Model           p              s    a b      -- ^ feed
     -> Model             q              t  b a      -- ^ back
     -> Model (TupMaybe p q) (TupMaybe s t) a b
-feedback n feed back = Model rL rLS
-  where
-    rL  :: forall z. (Reifies z W)
-        => Mayb (BVar z) (TupMaybe p q)
-        -> BVar z a
-        -> Mayb (BVar z) (TupMaybe s t)
-        -> (BVar z b, Mayb (BVar z) (TupMaybe s t))
-    rL pq x0 st0 = second (uncurry (tupMaybe T2B)) $ go 1 x0 s0 t0
-      where
-        go  :: Int
-            -> BVar z a
-            -> Mayb (BVar z) s
-            -> Mayb (BVar z) t
-            -> (BVar z b, (Mayb (BVar z) s, Mayb (BVar z) t))
-        go !i !x !s !t
-            | i >= n    = (y, (s', t))
-            | otherwise = go (i + 1) z s' t'
-          where
-            (y, s') = runLearn feed p x s
-            (z, t') = runLearn back q y t
-        (p , q ) = splitTupMaybe @_ @p @q (\(T2B v u) -> (v, u)) pq
+feedback n = withModelFunc2 $ \feed back pq x0 st0 ->
+    let (p , q ) = splitTupMaybe @_ @p @q (\(T2B v u) -> (v, u)) pq
         (s0, t0) = splitTupMaybe @_ @s @t (\(T2B v u) -> (v, u)) st0
-    rLS :: forall m z. (PrimMonad m, Reifies z W)
-        => MWC.Gen (PrimState m)
-        -> Mayb (BVar z) (TupMaybe p q)
-        -> BVar z a
-        -> Mayb (BVar z) (TupMaybe s t)
-        -> m (BVar z b, Mayb (BVar z) (TupMaybe s t))
-    rLS g pq x0 st0 = second (uncurry (tupMaybe T2B)) <$> go 1 x0 s0 t0
-      where
-        go  :: Int
-            -> BVar z a
-            -> Mayb (BVar z) s
-            -> Mayb (BVar z) t
-            -> m (BVar z b, (Mayb (BVar z) s, Mayb (BVar z) t))
         go !i !x !s !t = do
-            (y, s') <- runLearnStoch feed g p x s
+            (y, s') <- feed p x s
             if i >= n
               then pure (y, (s', t))
               else do
-                (z, t') <- runLearnStoch back g q y t
+                (z, t') <- back q y t
                 go (i + 1) z s' t'
-        (p , q ) = splitTupMaybe @_ @p @q (\(T2B v u) -> (v, u)) pq
-        (s0, t0) = splitTupMaybe @_ @s @t (\(T2B v u) -> (v, u)) st0
+    in  second (uncurry (tupMaybe T2B)) <$> go 1 x0 s0 t0
 
 -- | 'feedback', but tracing and observing all of the intermediate values.
 feedbackTrace
@@ -298,42 +243,13 @@ feedbackTrace
     => Model           p              s    a b      -- ^ feed
     -> Model             q              t  b a      -- ^ back
     -> Model (TupMaybe p q) (TupMaybe s t) a (ABP (SV.Vector n) b)
-feedbackTrace feed back = Model rL rLS
-  where
-    rL  :: forall z. (Reifies z W)
-        => Mayb (BVar z) (TupMaybe p q)
-        -> BVar z a
-        -> Mayb (BVar z) (TupMaybe s t)
-        -> (BVar z (ABP (SV.Vector n) b), Mayb (BVar z) (TupMaybe s t))
-    rL pq x0 st0 = second (uncurry (tupMaybe T2B) . snd) $
-        runState (collectVar . ABP <$> SV.replicateM (state (uncurry go)))
-                 (x0, (s0, t0))
-      where
-        go  :: BVar z a
-            -> (Mayb (BVar z) s, Mayb (BVar z) t)
-            -> (BVar z b, (BVar z a, (Mayb (BVar z) s, Mayb (BVar z) t)))
-        go !x (!s, !t) = (y, (z, (s', t')))
-          where
-            (y, s') = runLearn feed p x s
-            (z, t') = runLearn back q y t
-        (p , q ) = splitTupMaybe @_ @p @q (\(T2B v u) -> (v, u)) pq
+feedbackTrace = withModelFunc2 $ \feed back pq x0 st0 ->
+    let (p , q ) = splitTupMaybe @_ @p @q (\(T2B v u) -> (v, u)) pq
         (s0, t0) = splitTupMaybe @_ @s @t (\(T2B v u) -> (v, u)) st0
-    rLS :: forall m z. (PrimMonad m, Reifies z W)
-        => MWC.Gen (PrimState m)
-        -> Mayb (BVar z) (TupMaybe p q)
-        -> BVar z a
-        -> Mayb (BVar z) (TupMaybe s t)
-        -> m (BVar z (ABP (SV.Vector n) b), Mayb (BVar z) (TupMaybe s t))
-    rLS g pq x0 st0 = second (uncurry (tupMaybe T2B) . snd) <$>
-        runStateT (collectVar . ABP <$> SV.replicateM (StateT (uncurry go)))
-                 (x0, (s0, t0))
-      where
-        go  :: BVar z a
-            -> (Mayb (BVar z) s, Mayb (BVar z) t)
-            -> m (BVar z b, (BVar z a, (Mayb (BVar z) s, Mayb (BVar z) t)))
         go !x (!s, !t) = do
-          (y, s') <- runLearnStoch feed g p x s
-          (z, t') <- runLearnStoch back g q y t
+          (y, s') <- feed p x s
+          (z, t') <- back q y t
           pure (y, (z, (s', t')))
-        (p , q ) = splitTupMaybe @_ @p @q (\(T2B v u) -> (v, u)) pq
-        (s0, t0) = splitTupMaybe @_ @s @t (\(T2B v u) -> (v, u)) st0
+    in  second (uncurry (tupMaybe T2B) . snd) <$>
+          runStateT (collectVar . ABP <$> SV.replicateM (StateT (uncurry go)))
+                   (x0, (s0, t0))

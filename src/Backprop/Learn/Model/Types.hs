@@ -22,6 +22,8 @@ module Backprop.Learn.Model.Types (
   , BFunc, BFuncStoch
   , Func, pattern Func, runFunc, runFuncStoch
   , funcD
+    -- * Manipulating models as functions
+  , ModelFuncM(..), withModelFunc0, withModelFunc, withModelFunc2
     -- * Utility
   , Mayb(..), fromJ_, MaybeC, KnownMayb, knownMayb, I(..)
   , HKD
@@ -29,11 +31,13 @@ module Backprop.Learn.Model.Types (
 
 import           Control.Category
 import           Control.Monad.Primitive
+import           Control.Monad.Trans.Reader
+import           Data.Functor.Identity
 import           Data.Kind
 import           Data.Type.Mayb
 import           Numeric.Backprop
-import           Prelude hiding          ((.), id)
-import qualified System.Random.MWC       as MWC
+import           Prelude hiding             ((.), id)
+import qualified System.Random.MWC          as MWC
 
 type ModelFunc p s a b = forall z. Reifies z W
     => Mayb (BVar z) p
@@ -154,6 +158,55 @@ instance Category (Model p s) where
           (y, s1) <- runLearnStoch g gen p x s0
           runLearnStoch f gen p y s1
       }
+
+type ModelFuncM m p s a b = forall z. Reifies z W
+    => Mayb (BVar z) p
+    -> BVar z a
+    -> Mayb (BVar z) s
+    -> m (BVar z b, Mayb (BVar z) s)
+
+withModelFunc0
+    :: (forall m. Monad m => ModelFuncM m p s a b)
+    -> Model p s a b
+withModelFunc0 f = Model
+    { runLearn      = \p x -> runIdentity . f p x
+    , runLearnStoch = \g p x -> flip runReaderT g . f p x
+    }
+
+withModelFunc
+    :: (forall m. Monad m => ModelFuncM m p s a b -> ModelFuncM m q t c d)
+    -> Model p s a b
+    -> Model q t c d
+withModelFunc f m = Model
+    { runLearn      = \p x -> runIdentity . f (runLearnModelFuncM m) p x
+    , runLearnStoch = \g p x -> flip runReaderT g . f (runLearnStochModelFuncM m) p x
+    }
+
+withModelFunc2
+    :: (forall m. Monad m => ModelFuncM m p s a b -> ModelFuncM m q t c d -> ModelFuncM m r u e f)
+    -> Model p s a b
+    -> Model q t c d
+    -> Model r u e f
+withModelFunc2 f m n = Model
+    { runLearn      = \p x ->
+            runIdentity
+          . f (runLearnModelFuncM m) (runLearnModelFuncM n) p x
+    , runLearnStoch = \g p x ->
+            flip runReaderT g
+          . f (runLearnStochModelFuncM m) (runLearnStochModelFuncM n) p x
+    }
+
+runLearnModelFuncM
+    :: Model p s a b
+    -> ModelFuncM Identity p s a b
+runLearnModelFuncM m p x = Identity . runLearn m p x
+
+runLearnStochModelFuncM
+    :: PrimMonad m
+    => Model p s a b
+    -> ModelFuncM (ReaderT (MWC.Gen (PrimState m)) m) p s a b
+runLearnStochModelFuncM m p x s = ReaderT $ \g -> runLearnStoch m g p x s
+
 
 -- | Helper type family for HKD data types.  See
 -- <http://reasonablypolymorphic.com/blog/higher-kinded-data>
