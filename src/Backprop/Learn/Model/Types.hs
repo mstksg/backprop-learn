@@ -23,7 +23,7 @@ module Backprop.Learn.Model.Types (
   , Func, pattern Func, runFunc, runFuncStoch
   , funcD
     -- * Manipulating models as functions
-  , ModelFuncM(..), withModelFunc0, withModelFunc, withModelFunc2
+  , ModelFuncM, withModelFunc0, withModelFunc, withModelFunc2
     -- * Utility
   , Mayb(..), fromJ_, MaybeC, KnownMayb, knownMayb, I(..)
   , HKD

@@ -85,7 +85,9 @@ reParamD
     -> Model q s a b
 reParamD r = reParam r (\_ -> pure . r)
 
--- | Give an unparameterized model a "dummy" parameter.
+-- | Give an unparameterized model a "dummy" parameter.  Useful for usage
+-- with combinators like 'Control.Category..' from that require all input
+-- models to share a common parameterization.
 dummyParam
     :: Model 'Nothing  s a b
     -> Model p         s a b

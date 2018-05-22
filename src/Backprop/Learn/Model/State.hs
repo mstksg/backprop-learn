@@ -166,6 +166,6 @@ recurrent spl joi sto = withModelFunc $ \f p x sy -> do
 dummyState
     :: forall s p a b. ()
     => Model p 'Nothing   a b
-    -> Model p ('Just s) a b
+    -> Model p s          a b
 dummyState = withModelFunc $ \f p x s ->
     (second . const) s <$> f p x N_
