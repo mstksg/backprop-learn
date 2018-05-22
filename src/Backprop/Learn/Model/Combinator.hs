@@ -64,12 +64,10 @@ import qualified Data.Vector.Sized          as SV
     => Model           p              s    b c
     -> Model             q              t  a b
     -> Model (TupMaybe p q) (TupMaybe s t) a c
-(<~) = withModelFunc2 $ \f g pq x st -> do
-    let (p, q) = splitTupMaybe @_ @p @q (\(v :&& u) -> (v, u)) pq
-        (s, t) = splitTupMaybe @_ @s @t (\(v :&& u) -> (v, u)) st
+(<~) = withModelFunc2 $ \f g (p :&? q) x (s :&? t) -> do
     (y, t') <- g q x t
     (z, s') <- f p y s
-    pure (z, tupMaybe (:&&) s' t')
+    pure (z, s' :&? t')
 infixr 8 <~
 
 -- | Compose two 'Model's one after the other, in reverse composition order
@@ -214,17 +212,15 @@ feedback
     -> Model           p              s    a b      -- ^ feed
     -> Model             q              t  b a      -- ^ back
     -> Model (TupMaybe p q) (TupMaybe s t) a b
-feedback n = withModelFunc2 $ \feed back pq x0 st0 ->
-    let (p , q ) = splitTupMaybe @_ @p @q (\(v :&& u) -> (v, u)) pq
-        (s0, t0) = splitTupMaybe @_ @s @t (\(v :&& u) -> (v, u)) st0
-        go !i !x !s !t = do
+feedback n = withModelFunc2 $ \feed back (p :&? q) x0 (s0 :&? t0) ->
+    let go !i !x !s !t = do
             (y, s') <- feed p x s
             if i >= n
               then pure (y, (s', t))
               else do
                 (z, t') <- back q y t
                 go (i + 1) z s' t'
-    in  second (uncurry (tupMaybe (:&&))) <$> go 1 x0 s0 t0
+    in  second (uncurry (:&?)) <$> go 1 x0 s0 t0
 
 -- | 'feedback', but tracing and observing all of the intermediate values.
 feedbackTrace
@@ -243,13 +239,11 @@ feedbackTrace
     => Model           p              s    a b      -- ^ feed
     -> Model             q              t  b a      -- ^ back
     -> Model (TupMaybe p q) (TupMaybe s t) a (ABP (SV.Vector n) b)
-feedbackTrace = withModelFunc2 $ \feed back pq x0 st0 ->
-    let (p , q ) = splitTupMaybe @_ @p @q (\(v :&& u) -> (v, u)) pq
-        (s0, t0) = splitTupMaybe @_ @s @t (\(v :&& u) -> (v, u)) st0
-        go !x (!s, !t) = do
+feedbackTrace = withModelFunc2 $ \feed back (p :&? q) x0 (s0 :&? t0) ->
+    let go !x (!s, !t) = do
           (y, s') <- feed p x s
           (z, t') <- back q y t
           pure (y, (z, (s', t')))
-    in  second (uncurry (tupMaybe (:&&)) . snd) <$>
+    in  second (uncurry (:&?) . snd) <$>
           runStateT (collectVar . ABP <$> SV.replicateM (StateT (uncurry go)))
                    (x0, (s0, t0))

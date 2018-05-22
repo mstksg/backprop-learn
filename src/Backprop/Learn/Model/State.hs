@@ -25,7 +25,6 @@ import           Control.Monad.Trans.State
 import           Data.Bifunctor
 import           Data.Foldable
 import           Data.Type.Mayb
-import           Data.Type.Tuple
 import           Numeric.Backprop
 import qualified System.Random.MWC          as MWC
 
@@ -48,9 +47,8 @@ trainState
      )
     => Model           p s           a b
     -> Model (TupMaybe p s) 'Nothing a b
-trainState = withModelFunc $ \f ps x n_ ->
-    let (p, s) = splitTupMaybe @_ @p @s (\(v :&& u) -> (v, u)) ps
-    in  (second . const) n_ <$> f p x s
+trainState = withModelFunc $ \f (p :&? s) x n_ ->
+    (second . const) n_ <$> f p x s
 
 -- | Make a model stateless by pre-applying a fixed state (or a stochastic
 -- one with fixed stribution) and dropping the modified state from the
@@ -150,11 +148,9 @@ recurrent
     -> BFunc c b                                -- ^ store state
     -> Model p           s            ab c
     -> Model p (TupMaybe s ('Just b)) a  c
-recurrent spl joi sto = withModelFunc $ \f p x sy -> do
-    let (s, J_ y) = splitTupMaybe @_ @s @('Just b) (\(v :&& u) -> (v, u)) sy
-        xy        = isoVar2 joi spl x y
-    (z, s') <- f p xy s
-    pure (z, tupMaybe (:&&) s' (J_ (sto z)))
+recurrent spl joi sto = withModelFunc $ \f p x (s :&? y) -> do
+    (z, s') <- f p (isoVar2 joi spl x (fromJ_ y)) s
+    pure (z, s' :&? J_ (sto z))
 
 -- | Give a stateless model a "dummy" state.  For now, useful for using
 -- with combinators like 'deState' that require state.  However, 'deState'

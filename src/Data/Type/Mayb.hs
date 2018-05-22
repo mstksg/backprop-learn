@@ -26,7 +26,7 @@ module Data.Type.Mayb (
   , zipMayb3
   , FromJust
   , MaybeWit(..), type (<$>)
-  , TupMaybe, splitTupMaybe, tupMaybe
+  , TupMaybe, pattern (:&?), splitTupMaybe, tupMaybe
   , BoolMayb, boolMayb
   , pattern MaybB
   ) where
@@ -177,6 +177,15 @@ type family TupMaybe (a :: Maybe Type) (b :: Maybe Type) :: Maybe Type where
     TupMaybe 'Nothing  ('Just b) = 'Just b
     TupMaybe ('Just a) 'Nothing  = 'Just a
     TupMaybe ('Just a) ('Just b) = 'Just (a :& b)
+
+pattern (:&?)
+    :: (MaybeC Backprop a, MaybeC Backprop b, KnownMayb a, KnownMayb b, Reifies s W)
+    => Mayb (BVar s) a
+    -> Mayb (BVar s) b
+    -> Mayb (BVar s) (TupMaybe a b)
+pattern x :&? y <- (splitTupMaybe (\(v :&& u) -> (v, u))->(x, y))
+  where
+    (:&?) = tupMaybe (:&&)
 
 tupMaybe
     :: forall f a b. ()

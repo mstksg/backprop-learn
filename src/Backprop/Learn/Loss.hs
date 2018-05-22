@@ -35,7 +35,6 @@ import           GHC.TypeNats
 import           Numeric.Backprop
 import           Numeric.LinearAlgebra.Static.Backprop
 import           Numeric.Opto.Update hiding            ((<.>))
-import qualified Data.Type.Tuple                       as T
 import qualified Data.Vector.Sized                     as SV
 import qualified Prelude.Backprop                      as B
 
