@@ -30,7 +30,7 @@
 --   
 --   <ol>
 --   <li>A function wants to return more than one value (<tt><a>BVar</a> s
---   (<a>T2</a> a b)</tt></li>
+--   (<tt>T2</tt> a b)</tt></li>
 --   <li>You want to uncurry a <a>BVar</a> function to use with
 --   <a>backprop</a> and <a>gradBP</a>.</li>
 --   <li>You want to use the useful <tt>Prism</tt>s automatically generated
@@ -48,7 +48,7 @@
 --   note that these are incompatible with <a>_1</a>, <a>_2</a>, and
 --   <a>_3</a> from <a>Control.Lens</a>.
 --   
---   You can "construct" a <tt><a>BVar</a> s (<a>T2</a> a b)</tt> with
+--   You can "construct" a <tt><a>BVar</a> s (<tt>T2</tt> a b)</tt> with
 --   functions like <a>isoVar</a>.
 module Data.Type.Tuple
 
@@ -68,65 +68,32 @@ T0 :: T0
 
 -- | Strict 2-tuple with <a>Num</a>, <a>Fractional</a>, and <a>Floating</a>
 --   instances.
-data T2 a b
-T2 :: !a -> !b -> T2 a b
+data a (:&) b
+(:&) :: !a -> !b -> (:&) a b
 
 -- | Convert to a Haskell tuple.
 --   
 --   Forms an isomorphism with <a>tupT2</a>.
-t2Tup :: T2 a b -> (a, b)
+t2Tup :: (a :& b) -> (a, b)
 
 -- | Convert from Haskell tuple.
 --   
 --   Forms an isomorphism with <a>t2Tup</a>.
-tupT2 :: (a, b) -> T2 a b
+tupT2 :: (a, b) -> a :& b
 
--- | Uncurry a function to take in a <a>T2</a> of its arguments
-uncurryT2 :: (a -> b -> c) -> T2 a b -> c
+-- | Uncurry a function to take in a <tt>T2</tt> of its arguments
+uncurryT2 :: (a -> b -> c) -> a :& b -> c
 
--- | Curry a function taking a <a>T2</a> of its arguments
-curryT2 :: (T2 a b -> c) -> a -> b -> c
+-- | Curry a function taking a <tt>T2</tt> of its arguments
+curryT2 :: (a :& b -> c) -> a -> b -> c
 
--- | Lens into the first field of a <a>T2</a>. Also exported as <a>_1</a>
+-- | Lens into the first field of a <tt>T2</tt>. Also exported as <a>_1</a>
 --   from <a>Lens.Micro</a>.
-t2_1 :: Lens (T2 a b) (T2 a' b) a a'
+t2_1 :: Lens (a :& b) (a' :& b) a a'
 
--- | Lens into the second field of a <a>T2</a>. Also exported as <a>_2</a>
---   from <a>Lens.Micro</a>.
-t2_2 :: Lens (T2 a b) (T2 a b') b b'
-
--- | Strict 3-tuple with a <a>Num</a>, <a>Fractional</a>, and
---   <a>Floating</a> instances.
-data T3 a b c
-T3 :: !a -> !b -> !c -> T3 a b c
-
--- | Convert to a Haskell tuple.
---   
---   Forms an isomorphism with <a>tupT3</a>.
-t3Tup :: T3 a b c -> (a, b, c)
-
--- | Convert from Haskell tuple.
---   
---   Forms an isomorphism with <a>t3Tup</a>.
-tupT3 :: (a, b, c) -> T3 a b c
-
--- | Lens into the first field of a <a>T3</a>. Also exported as <a>_1</a>
---   from <a>Lens.Micro</a>.
-t3_1 :: Lens (T3 a b c) (T3 a' b c) a a'
-
--- | Lens into the second field of a <a>T3</a>. Also exported as <a>_2</a>
---   from <a>Lens.Micro</a>.
-t3_2 :: Lens (T3 a b c) (T3 a b' c) b b'
-
--- | Lens into the third field of a <a>T3</a>. Also exported as <a>_3</a>
---   from <a>Lens.Micro</a>.
-t3_3 :: Lens (T3 a b c) (T3 a b c') c c'
-
--- | Uncurry a function to take in a <a>T3</a> of its arguments
-uncurryT3 :: (a -> b -> c -> d) -> T3 a b c -> d
-
--- | Curry a function taking a <a>T3</a> of its arguments
-curryT3 :: (T3 a b c -> d) -> a -> b -> c -> d
+-- | Lens into the second field of a <tt>T2</tt>. Also exported as
+--   <a>_2</a> from <a>Lens.Micro</a>.
+t2_2 :: Lens (a :& b) (a :& b') b b'
 
 -- | Strict inductive N-tuple with a <a>Num</a>, <a>Fractional</a>, and
 --   <a>Floating</a> instances.
@@ -142,7 +109,7 @@ curryT3 :: (T3 a b c -> d) -> a -> b -> c -> d
 --   numerical instances.
 data T :: [Type] -> Type
 [TNil] :: T '[]
-[:&] :: !a -> !(T as) -> T (a : as)
+[:#] :: !a -> !(T as) -> T (a : as)
 
 -- | Index into a <a>T</a>.
 --   
@@ -220,20 +187,13 @@ mapT :: forall c as. ListC (c <$> as) => (forall a. c a => a -> a) -> T as -> T 
 --   Must be used with <i>TypeApplications</i> to provide the Rank-N
 --   constraint.
 zipT :: forall c as. ListC (c <$> as) => (forall a. c a => a -> a -> a) -> T as -> T as -> T as
-instance (Data.Data.Data a, Data.Data.Data b, Data.Data.Data c) => Data.Data.Data (Data.Type.Tuple.T3 a b c)
-instance GHC.Base.Functor (Data.Type.Tuple.T3 a b)
-instance GHC.Generics.Generic (Data.Type.Tuple.T3 a b c)
-instance (GHC.Classes.Ord a, GHC.Classes.Ord b, GHC.Classes.Ord c) => GHC.Classes.Ord (Data.Type.Tuple.T3 a b c)
-instance (GHC.Classes.Eq a, GHC.Classes.Eq b, GHC.Classes.Eq c) => GHC.Classes.Eq (Data.Type.Tuple.T3 a b c)
-instance (GHC.Read.Read a, GHC.Read.Read b, GHC.Read.Read c) => GHC.Read.Read (Data.Type.Tuple.T3 a b c)
-instance (GHC.Show.Show a, GHC.Show.Show b, GHC.Show.Show c) => GHC.Show.Show (Data.Type.Tuple.T3 a b c)
-instance (Data.Data.Data a, Data.Data.Data b) => Data.Data.Data (Data.Type.Tuple.T2 a b)
-instance GHC.Base.Functor (Data.Type.Tuple.T2 a)
-instance GHC.Generics.Generic (Data.Type.Tuple.T2 a b)
-instance (GHC.Classes.Ord a, GHC.Classes.Ord b) => GHC.Classes.Ord (Data.Type.Tuple.T2 a b)
-instance (GHC.Classes.Eq a, GHC.Classes.Eq b) => GHC.Classes.Eq (Data.Type.Tuple.T2 a b)
-instance (GHC.Read.Read a, GHC.Read.Read b) => GHC.Read.Read (Data.Type.Tuple.T2 a b)
-instance (GHC.Show.Show a, GHC.Show.Show b) => GHC.Show.Show (Data.Type.Tuple.T2 a b)
+instance (Data.Data.Data a, Data.Data.Data b) => Data.Data.Data (a Data.Type.Tuple.:& b)
+instance GHC.Base.Functor ((Data.Type.Tuple.:&) a)
+instance GHC.Generics.Generic (a Data.Type.Tuple.:& b)
+instance (GHC.Classes.Ord a, GHC.Classes.Ord b) => GHC.Classes.Ord (a Data.Type.Tuple.:& b)
+instance (GHC.Classes.Eq a, GHC.Classes.Eq b) => GHC.Classes.Eq (a Data.Type.Tuple.:& b)
+instance (GHC.Read.Read a, GHC.Read.Read b) => GHC.Read.Read (a Data.Type.Tuple.:& b)
+instance (GHC.Show.Show a, GHC.Show.Show b) => GHC.Show.Show (a Data.Type.Tuple.:& b)
 instance Data.Data.Data Data.Type.Tuple.T0
 instance GHC.Generics.Generic Data.Type.Tuple.T0
 instance GHC.Classes.Ord Data.Type.Tuple.T0
@@ -261,39 +221,22 @@ instance Numeric.Opto.Update.Metric c a => Numeric.Opto.Update.Metric c (Data.Ty
 instance (Numeric.Opto.Update.Metric c b, Numeric.Opto.Update.Metric c (Data.Type.Tuple.T (a : as)), Numeric.Opto.Update.Scaling c (Data.Type.Tuple.T (a : as)), Numeric.Opto.Update.Additive a, Type.Family.List.ListC (Numeric.Opto.Update.Additive Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as, GHC.Classes.Ord c, GHC.Float.Floating c) => Numeric.Opto.Update.Metric c (Data.Type.Tuple.T (b : a : as))
 instance (Numeric.Opto.Ref.Ref m (Data.Type.Tuple.T as) v, Numeric.Opto.Update.Additive (Data.Type.Tuple.T as)) => Numeric.Opto.Update.AdditiveInPlace m v (Data.Type.Tuple.T as)
 instance (Numeric.Opto.Ref.Ref m (Data.Type.Tuple.T as) v, Numeric.Opto.Update.Scaling c (Data.Type.Tuple.T as)) => Numeric.Opto.Update.ScalingInPlace m v c (Data.Type.Tuple.T as)
-instance (Control.DeepSeq.NFData a, Control.DeepSeq.NFData b, Control.DeepSeq.NFData c) => Control.DeepSeq.NFData (Data.Type.Tuple.T3 a b c)
-instance (Data.Binary.Class.Binary a, Data.Binary.Class.Binary b, Data.Binary.Class.Binary c) => Data.Binary.Class.Binary (Data.Type.Tuple.T3 a b c)
-instance Data.Bifunctor.Bifunctor (Data.Type.Tuple.T3 a)
-instance Lens.Micro.Internal.Field1 (Data.Type.Tuple.T3 a b c) (Data.Type.Tuple.T3 a' b c) a a'
-instance Lens.Micro.Internal.Field2 (Data.Type.Tuple.T3 a b c) (Data.Type.Tuple.T3 a b' c) b b'
-instance Lens.Micro.Internal.Field3 (Data.Type.Tuple.T3 a b c) (Data.Type.Tuple.T3 a b c') c c'
-instance (GHC.Num.Num a, GHC.Num.Num b, GHC.Num.Num c) => GHC.Num.Num (Data.Type.Tuple.T3 a b c)
-instance (GHC.Real.Fractional a, GHC.Real.Fractional b, GHC.Real.Fractional c) => GHC.Real.Fractional (Data.Type.Tuple.T3 a b c)
-instance (GHC.Float.Floating a, GHC.Float.Floating b, GHC.Float.Floating c) => GHC.Float.Floating (Data.Type.Tuple.T3 a b c)
-instance (GHC.Base.Semigroup a, GHC.Base.Semigroup b, GHC.Base.Semigroup c) => GHC.Base.Semigroup (Data.Type.Tuple.T3 a b c)
-instance (GHC.Base.Monoid a, GHC.Base.Monoid b, GHC.Base.Monoid c) => GHC.Base.Monoid (Data.Type.Tuple.T3 a b c)
-instance (Numeric.Backprop.Class.Backprop a, Numeric.Backprop.Class.Backprop b, Numeric.Backprop.Class.Backprop c) => Numeric.Backprop.Class.Backprop (Data.Type.Tuple.T3 a b c)
-instance (Numeric.Opto.Update.Additive a, Numeric.Opto.Update.Additive b, Numeric.Opto.Update.Additive c) => Numeric.Opto.Update.Additive (Data.Type.Tuple.T3 a b c)
-instance (Numeric.Opto.Update.Scaling c a, Numeric.Opto.Update.Scaling c b, Numeric.Opto.Update.Scaling c d) => Numeric.Opto.Update.Scaling c (Data.Type.Tuple.T3 a b d)
-instance (Numeric.Opto.Update.Metric c a, Numeric.Opto.Update.Metric c b, Numeric.Opto.Update.Metric c d, GHC.Classes.Ord c, GHC.Float.Floating c) => Numeric.Opto.Update.Metric c (Data.Type.Tuple.T3 a b d)
-instance (Numeric.Opto.Ref.Ref m (Data.Type.Tuple.T3 a b c) v, Numeric.Opto.Update.Additive a, Numeric.Opto.Update.Additive b, Numeric.Opto.Update.Additive c) => Numeric.Opto.Update.AdditiveInPlace m v (Data.Type.Tuple.T3 a b c)
-instance (Numeric.Opto.Ref.Ref m (Data.Type.Tuple.T3 a b d) v, Numeric.Opto.Update.Scaling c a, Numeric.Opto.Update.Scaling c b, Numeric.Opto.Update.Scaling c d) => Numeric.Opto.Update.ScalingInPlace m v c (Data.Type.Tuple.T3 a b d)
-instance (Control.DeepSeq.NFData a, Control.DeepSeq.NFData b) => Control.DeepSeq.NFData (Data.Type.Tuple.T2 a b)
-instance (Data.Binary.Class.Binary a, Data.Binary.Class.Binary b) => Data.Binary.Class.Binary (Data.Type.Tuple.T2 a b)
-instance Data.Bifunctor.Bifunctor Data.Type.Tuple.T2
-instance Lens.Micro.Internal.Field1 (Data.Type.Tuple.T2 a b) (Data.Type.Tuple.T2 a' b) a a'
-instance Lens.Micro.Internal.Field2 (Data.Type.Tuple.T2 a b) (Data.Type.Tuple.T2 a b') b b'
-instance (GHC.Num.Num a, GHC.Num.Num b) => GHC.Num.Num (Data.Type.Tuple.T2 a b)
-instance (GHC.Real.Fractional a, GHC.Real.Fractional b) => GHC.Real.Fractional (Data.Type.Tuple.T2 a b)
-instance (GHC.Float.Floating a, GHC.Float.Floating b) => GHC.Float.Floating (Data.Type.Tuple.T2 a b)
-instance (GHC.Base.Semigroup a, GHC.Base.Semigroup b) => GHC.Base.Semigroup (Data.Type.Tuple.T2 a b)
-instance (GHC.Base.Monoid a, GHC.Base.Monoid b) => GHC.Base.Monoid (Data.Type.Tuple.T2 a b)
-instance (Numeric.Backprop.Class.Backprop a, Numeric.Backprop.Class.Backprop b) => Numeric.Backprop.Class.Backprop (Data.Type.Tuple.T2 a b)
-instance (Numeric.Opto.Update.Additive a, Numeric.Opto.Update.Additive b) => Numeric.Opto.Update.Additive (Data.Type.Tuple.T2 a b)
-instance (Numeric.Opto.Update.Scaling c a, Numeric.Opto.Update.Scaling c b) => Numeric.Opto.Update.Scaling c (Data.Type.Tuple.T2 a b)
-instance (Numeric.Opto.Update.Metric c a, Numeric.Opto.Update.Metric c b, GHC.Classes.Ord c, GHC.Float.Floating c) => Numeric.Opto.Update.Metric c (Data.Type.Tuple.T2 a b)
-instance (Numeric.Opto.Ref.Ref m (Data.Type.Tuple.T2 a b) v, Numeric.Opto.Update.Additive a, Numeric.Opto.Update.Additive b) => Numeric.Opto.Update.AdditiveInPlace m v (Data.Type.Tuple.T2 a b)
-instance (Numeric.Opto.Ref.Ref m (Data.Type.Tuple.T2 a b) v, Numeric.Opto.Update.Scaling c a, Numeric.Opto.Update.Scaling c b) => Numeric.Opto.Update.ScalingInPlace m v c (Data.Type.Tuple.T2 a b)
+instance (Control.DeepSeq.NFData a, Control.DeepSeq.NFData b) => Control.DeepSeq.NFData (a Data.Type.Tuple.:& b)
+instance (Data.Binary.Class.Binary a, Data.Binary.Class.Binary b) => Data.Binary.Class.Binary (a Data.Type.Tuple.:& b)
+instance Data.Bifunctor.Bifunctor (Data.Type.Tuple.:&)
+instance Lens.Micro.Internal.Field1 (a Data.Type.Tuple.:& b) (a' Data.Type.Tuple.:& b) a a'
+instance Lens.Micro.Internal.Field2 (a Data.Type.Tuple.:& b) (a Data.Type.Tuple.:& b') b b'
+instance (GHC.Num.Num a, GHC.Num.Num b) => GHC.Num.Num (a Data.Type.Tuple.:& b)
+instance (GHC.Real.Fractional a, GHC.Real.Fractional b) => GHC.Real.Fractional (a Data.Type.Tuple.:& b)
+instance (GHC.Float.Floating a, GHC.Float.Floating b) => GHC.Float.Floating (a Data.Type.Tuple.:& b)
+instance (GHC.Base.Semigroup a, GHC.Base.Semigroup b) => GHC.Base.Semigroup (a Data.Type.Tuple.:& b)
+instance (GHC.Base.Semigroup a, GHC.Base.Semigroup b, GHC.Base.Monoid a, GHC.Base.Monoid b) => GHC.Base.Monoid (a Data.Type.Tuple.:& b)
+instance (Numeric.Backprop.Class.Backprop a, Numeric.Backprop.Class.Backprop b) => Numeric.Backprop.Class.Backprop (a Data.Type.Tuple.:& b)
+instance (Numeric.Opto.Update.Additive a, Numeric.Opto.Update.Additive b) => Numeric.Opto.Update.Additive (a Data.Type.Tuple.:& b)
+instance (Numeric.Opto.Update.Scaling c a, Numeric.Opto.Update.Scaling c b) => Numeric.Opto.Update.Scaling c (a Data.Type.Tuple.:& b)
+instance (Numeric.Opto.Update.Metric c a, Numeric.Opto.Update.Metric c b, GHC.Classes.Ord c, GHC.Float.Floating c) => Numeric.Opto.Update.Metric c (a Data.Type.Tuple.:& b)
+instance (Numeric.Opto.Ref.Ref m (a Data.Type.Tuple.:& b) v, Numeric.Opto.Update.Additive a, Numeric.Opto.Update.Additive b) => Numeric.Opto.Update.AdditiveInPlace m v (a Data.Type.Tuple.:& b)
+instance (Numeric.Opto.Ref.Ref m (a Data.Type.Tuple.:& b) v, Numeric.Opto.Update.Scaling c a, Numeric.Opto.Update.Scaling c b) => Numeric.Opto.Update.ScalingInPlace m v c (a Data.Type.Tuple.:& b)
 instance Control.DeepSeq.NFData Data.Type.Tuple.T0
 instance Data.Binary.Class.Binary Data.Type.Tuple.T0
 instance GHC.Num.Num Data.Type.Tuple.T0
@@ -342,8 +285,8 @@ class MaybeWit (c :: k -> Constraint) (m :: Maybe k)
 maybeWit :: MaybeWit c m => Mayb (Wit1 c) m
 
 -- | Map over a type-level <tt>Maybe</tt>.
-splitTupMaybe :: forall f a b. (KnownMayb a, KnownMayb b) => (forall a' b'. (a ~  'Just a', b ~  'Just b') => f (T2 a' b') -> (f a', f b')) -> Mayb f (TupMaybe a b) -> (Mayb f a, Mayb f b)
-tupMaybe :: forall f a b. () => (forall a' b'. (a ~  'Just a', b ~  'Just b') => f a' -> f b' -> f (T2 a' b')) -> Mayb f a -> Mayb f b -> Mayb f (TupMaybe a b)
+splitTupMaybe :: forall f a b. (KnownMayb a, KnownMayb b) => (forall a' b'. (a ~  'Just a', b ~  'Just b') => f (a' :& b') -> (f a', f b')) -> Mayb f (TupMaybe a b) -> (Mayb f a, Mayb f b)
+tupMaybe :: forall f a b. () => (forall a' b'. (a ~  'Just a', b ~  'Just b') => f a' -> f b' -> f (a' :& b')) -> Mayb f a -> Mayb f b -> Mayb f (TupMaybe a b)
 boolMayb :: Boolean b -> Mayb P (BoolMayb b)
 instance forall k (f :: k -> *) (m :: GHC.Base.Maybe k). Data.Type.Mayb.MaybeC GHC.Show.Show (f Type.Family.Maybe.<$> m) => GHC.Show.Show (Data.Type.Mayb.Mayb f m)
 instance forall k (c :: k -> GHC.Types.Constraint) (m :: GHC.Base.Maybe k). (Data.Type.Mayb.MaybeC c m, Type.Class.Known.Known (Data.Type.Mayb.Mayb Data.Type.Mayb.P) m) => Data.Type.Mayb.MaybeWit c m
@@ -449,8 +392,8 @@ module Backprop.Learn.Model.State
 --   
 --   <ul>
 --   <li>If the input has no parameters, just the initial state.</li>
---   <li>If the input has a parameter, a <a>T2</a> of that parameter and
---   initial state.</li>
+--   <li>If the input has a parameter, a <a>:&amp;</a> of that parameter
+--   and initial state.</li>
 --   </ul>
 trainState :: forall p s a b. (KnownMayb p, KnownMayb s, MaybeC Backprop p, MaybeC Backprop s) => Model p s a b -> Model (TupMaybe p s)  'Nothing a b
 
@@ -651,7 +594,7 @@ sreLU :: (Num a, Ord a) => a -> a -> a -> a -> a -> a
 
 -- | An uncurried and uniformly lifted version of <a>sreLU</a> directly
 --   usable with <tt>PFP</tt>.
-sreLUPFP :: (KnownNat n, Reifies s W) => BVar s (T2 (T2 Double Double) (T2 Double Double)) -> BVar s (R n) -> BVar s (R n)
+sreLUPFP :: (KnownNat n, Reifies s W) => BVar s ((Double :& Double) :& (Double :& Double)) -> BVar s (R n) -> BVar s (R n)
 
 -- | Exponential linear unit
 --   
@@ -689,7 +632,7 @@ isrLU :: (Floating a, Ord a) => a -> a -> a
 apl :: (KnownNat n, KnownNat m, Reifies s W) => BVar s (L n m) -> BVar s (L n m) -> BVar s (R m) -> BVar s (R m)
 
 -- | <a>apl</a> uncurried, to be directly usable with <tt>PFP</tt>.
-aplPFP :: (KnownNat n, KnownNat m, Reifies s W) => BVar s (T2 (L n m) (L n m)) -> BVar s (R m) -> BVar s (R m)
+aplPFP :: (KnownNat n, KnownNat m, Reifies s W) => BVar s (L n m :& L n m) -> BVar s (R m) -> BVar s (R m)
 
 -- | Softmax normalizer
 softMax :: (KnownNat i, Reifies s W) => BVar s (R i) -> BVar s (R i)
@@ -796,11 +739,8 @@ sumLossDecay :: forall n a. (KnownNat n, Backprop a) => Double -> Loss a -> Loss
 lastLoss :: (KnownNat (n + 1), Backprop a) => Loss a -> Loss (Vector (n + 1) a)
 zipLoss :: (Traversable t, Applicative t, Backprop a) => t Double -> Loss a -> Loss (t a)
 
--- | Lift and sum a loss function over the components of a <a>T2</a>.
-t2Loss :: (Backprop a, Backprop b) => Loss a -> Loss b -> Loss (T2 a b)
-
--- | Lift and sum a loss function over the components of a <a>T3</a>.
-t3Loss :: (Backprop a, Backprop b, Backprop c) => Loss a -> Loss b -> Loss c -> Loss (T3 a b c)
+-- | Lift and sum a loss function over the components of a <a>:&amp;</a>.
+t2Loss :: (Backprop a, Backprop b) => Loss a -> Loss b -> Loss (a :& b)
 
 -- | A regularizer on parameters
 type Regularizer p = forall s. Reifies s W => BVar s p -> BVar s Double
@@ -843,8 +783,7 @@ instance Backprop.Learn.Initialize.Initialize GHC.Types.Double
 instance Backprop.Learn.Initialize.Initialize GHC.Types.Float
 instance Backprop.Learn.Initialize.Initialize a => Backprop.Learn.Initialize.Initialize (Data.Complex.Complex a)
 instance Backprop.Learn.Initialize.Initialize Data.Type.Tuple.T0
-instance (Backprop.Learn.Initialize.Initialize a, Backprop.Learn.Initialize.Initialize b) => Backprop.Learn.Initialize.Initialize (Data.Type.Tuple.T2 a b)
-instance (Backprop.Learn.Initialize.Initialize a, Backprop.Learn.Initialize.Initialize b, Backprop.Learn.Initialize.Initialize c) => Backprop.Learn.Initialize.Initialize (Data.Type.Tuple.T3 a b c)
+instance (Backprop.Learn.Initialize.Initialize a, Backprop.Learn.Initialize.Initialize b) => Backprop.Learn.Initialize.Initialize (a Data.Type.Tuple.:& b)
 instance (Type.Family.List.ListC (Backprop.Learn.Initialize.Initialize Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => Backprop.Learn.Initialize.Initialize (Data.Type.Tuple.T as)
 instance (Backprop.Learn.Initialize.Initialize a, Type.Family.List.ListC (Backprop.Learn.Initialize.Initialize Type.Family.List.<$> as), Type.Class.Known.Known Data.Type.Length.Length as) => Backprop.Learn.Initialize.Initialize (Data.Type.NonEmpty.NETup (a 'GHC.Base.:| as))
 instance Backprop.Learn.Initialize.Initialize ()
@@ -865,8 +804,8 @@ data LRp i o
 LRp :: !(R o) -> !(L o i) -> LRp i o
 [_lrAlpha] :: LRp i o -> !(R o)
 [_lrBeta] :: LRp i o -> !(L o i)
-lrAlpha :: forall i_a191h o_a191i. Lens' (LRp i_a191h o_a191i) (R o_a191i)
-lrBeta :: forall i_a191h o_a191i i_a19fg. Lens (LRp i_a191h o_a191i) (LRp i_a19fg o_a191i) (L o_a191i i_a191h) (L o_a191i i_a19fg)
+lrAlpha :: forall i_a12HA o_a12HB. Lens' (LRp i_a12HA o_a12HB) (R o_a12HB)
+lrBeta :: forall i_a12HA o_a12HB i_a12Vz. Lens (LRp i_a12HA o_a12HB) (LRp i_a12Vz o_a12HB) (L o_a12HB i_a12HA) (L o_a12HB i_a12Vz)
 runLRp :: (KnownNat i, KnownNat o, Reifies s W) => BVar s (LRp i o) -> BVar s (R i) -> BVar s (R o)
 
 -- | Adjust an <a>LRp</a> to take extra inputs, initialized randomly.
@@ -897,12 +836,12 @@ data ARIMAp :: Nat -> Nat -> Type
 -- | <tt>ARIMA</tt> state
 data ARIMAs :: Nat -> Nat -> Nat -> Type
 [ARIMAs] :: {_arimaYPred :: !Double, _arimaYHist :: !(R (p + d)), _arimaEHist :: !(R q)} -> ARIMAs p d q
-arimaPhi :: forall a_a19l6 b_a19l7 a_a19Hg. Lens (ARIMAp a_a19l6 b_a19l7) (ARIMAp a_a19Hg b_a19l7) (R a_a19l6) (R a_a19Hg)
-arimaTheta :: forall a_a19l6 b_a19l7 b_a19Hh. Lens (ARIMAp a_a19l6 b_a19l7) (ARIMAp a_a19l6 b_a19Hh) (R b_a19l7) (R b_a19Hh)
-arimaConstant :: forall a_a19l6 b_a19l7. Lens' (ARIMAp a_a19l6 b_a19l7) Double
-arimaYPred :: forall a_a19Ia b_a19Ib c_a19Ic. Lens' (ARIMAs a_a19Ia b_a19Ib c_a19Ic) Double
-arimaYHist :: forall a_a19Ia b_a19Ib c_a19Ic a_a19ON b_a19OO. Lens (ARIMAs a_a19Ia b_a19Ib c_a19Ic) (ARIMAs a_a19ON b_a19OO c_a19Ic) (R ((+) a_a19Ia b_a19Ib)) (R ((+) a_a19ON b_a19OO))
-arimaEHist :: forall a_a19Ia b_a19Ib c_a19Ic c_a19OM. Lens (ARIMAs a_a19Ia b_a19Ib c_a19Ic) (ARIMAs a_a19Ia b_a19Ib c_a19OM) (R c_a19Ic) (R c_a19OM)
+arimaPhi :: forall a_a131p b_a131q a_a13nz. Lens (ARIMAp a_a131p b_a131q) (ARIMAp a_a13nz b_a131q) (R a_a131p) (R a_a13nz)
+arimaTheta :: forall a_a131p b_a131q b_a13nA. Lens (ARIMAp a_a131p b_a131q) (ARIMAp a_a131p b_a13nA) (R b_a131q) (R b_a13nA)
+arimaConstant :: forall a_a131p b_a131q. Lens' (ARIMAp a_a131p b_a131q) Double
+arimaYPred :: forall a_a13ot b_a13ou c_a13ov. Lens' (ARIMAs a_a13ot b_a13ou c_a13ov) Double
+arimaYHist :: forall a_a13ot b_a13ou c_a13ov a_a13v6 b_a13v7. Lens (ARIMAs a_a13ot b_a13ou c_a13ov) (ARIMAs a_a13v6 b_a13v7 c_a13ov) (R ((+) a_a13ot b_a13ou)) (R ((+) a_a13v6 b_a13v7))
+arimaEHist :: forall a_a13ot b_a13ou c_a13ov c_a13v5. Lens (ARIMAs a_a13ot b_a13ou c_a13ov) (ARIMAs a_a13ot b_a13ou c_a13v5) (R c_a13ov) (R c_a13v5)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARIMAp p q)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARIMAs p d q)
 instance GHC.Num.Num (Backprop.Learn.Model.Regression.ARIMAp p q)
@@ -990,7 +929,7 @@ module Backprop.Learn.Model.Neural.LSTM
 -- | Long-term short-term memory layer
 --   
 --   <a>http://colah.github.io/posts/2015-08-Understanding-LSTMs/</a>
-lstm :: (KnownNat i, KnownNat o) => Model ( 'Just (LSTMp i o)) ( 'Just (T2 (R o) (R o))) (R i) (R o)
+lstm :: (KnownNat i, KnownNat o) => Model ( 'Just (LSTMp i o)) ( 'Just (R o :& R o)) (R i) (R o)
 
 -- | <tt>LSTM</tt> layer parmateters
 data LSTMp (i :: Nat) (o :: Nat)
@@ -999,10 +938,10 @@ LSTMp :: !(FCp (i + o) o) -> !(FCp (i + o) o) -> !(FCp (i + o) o) -> !(FCp (i + 
 [_lstmInput] :: LSTMp -> !(FCp (i + o) o)
 [_lstmUpdate] :: LSTMp -> !(FCp (i + o) o)
 [_lstmOutput] :: LSTMp -> !(FCp (i + o) o)
-lstmForget :: forall i_a1zYE o_a1zYF. Lens' (LSTMp i_a1zYE o_a1zYF) (FCp ((+) i_a1zYE o_a1zYF) o_a1zYF)
-lstmInput :: forall i_a1zYE o_a1zYF. Lens' (LSTMp i_a1zYE o_a1zYF) (FCp ((+) i_a1zYE o_a1zYF) o_a1zYF)
-lstmUpdate :: forall i_a1zYE o_a1zYF. Lens' (LSTMp i_a1zYE o_a1zYF) (FCp ((+) i_a1zYE o_a1zYF) o_a1zYF)
-lstmOutput :: forall i_a1zYE o_a1zYF. Lens' (LSTMp i_a1zYE o_a1zYF) (FCp ((+) i_a1zYE o_a1zYF) o_a1zYF)
+lstmForget :: forall i_a1tF2 o_a1tF3. Lens' (LSTMp i_a1tF2 o_a1tF3) (FCp ((+) i_a1tF2 o_a1tF3) o_a1tF3)
+lstmInput :: forall i_a1tF2 o_a1tF3. Lens' (LSTMp i_a1tF2 o_a1tF3) (FCp ((+) i_a1tF2 o_a1tF3) o_a1tF3)
+lstmUpdate :: forall i_a1tF2 o_a1tF3. Lens' (LSTMp i_a1tF2 o_a1tF3) (FCp ((+) i_a1tF2 o_a1tF3) o_a1tF3)
+lstmOutput :: forall i_a1tF2 o_a1tF3. Lens' (LSTMp i_a1tF2 o_a1tF3) (FCp ((+) i_a1tF2 o_a1tF3) o_a1tF3)
 
 -- | Gated Recurrent Unit
 --   
@@ -1015,9 +954,9 @@ GRUp :: !(FCp (i + o) o) -> !(FCp (i + o) o) -> !(FCp (i + o) o) -> GRUp
 [_gruMemory] :: GRUp -> !(FCp (i + o) o)
 [_gruUpdate] :: GRUp -> !(FCp (i + o) o)
 [_gruOutput] :: GRUp -> !(FCp (i + o) o)
-gruMemory :: forall i_a1A5a o_a1A5b. Lens' (GRUp i_a1A5a o_a1A5b) (FCp ((+) i_a1A5a o_a1A5b) o_a1A5b)
-gruUpdate :: forall i_a1A5a o_a1A5b. Lens' (GRUp i_a1A5a o_a1A5b) (FCp ((+) i_a1A5a o_a1A5b) o_a1A5b)
-gruOutput :: forall i_a1A5a o_a1A5b. Lens' (GRUp i_a1A5a o_a1A5b) (FCp ((+) i_a1A5a o_a1A5b) o_a1A5b)
+gruMemory :: forall i_a1tLy o_a1tLz. Lens' (GRUp i_a1tLy o_a1tLz) (FCp ((+) i_a1tLy o_a1tLz) o_a1tLz)
+gruUpdate :: forall i_a1tLy o_a1tLz. Lens' (GRUp i_a1tLy o_a1tLz) (FCp ((+) i_a1tLy o_a1tLz) o_a1tLz)
+gruOutput :: forall i_a1tLy o_a1tLz. Lens' (GRUp i_a1tLy o_a1tLz) (FCp ((+) i_a1tLy o_a1tLz) o_a1tLz)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Additive (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Scaling GHC.Types.Double (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
