@@ -389,6 +389,10 @@ runFuncStoch :: () => Func a b -> forall (m :: * -> *) z. (PrimMonad m, Reifies 
 -- | Construct an deterministic unparameterized stateless model, with no
 --   stochastic component.
 funcD :: BFunc a b -> Func a b
+type ModelFuncM m p s a b = forall z. Reifies z W => Mayb (BVar z) p -> BVar z a -> Mayb (BVar z) s -> m (BVar z b, Mayb (BVar z) s)
+withModelFunc0 :: (forall m. Monad m => ModelFuncM m p s a b) -> Model p s a b
+withModelFunc :: (forall m. Monad m => ModelFuncM m p s a b -> ModelFuncM m q t c d) -> Model p s a b -> Model q t c d
+withModelFunc2 :: (forall m. Monad m => ModelFuncM m p s a b -> ModelFuncM m q t c d -> ModelFuncM m r u e f) -> Model p s a b -> Model q t c d -> Model r u e f
 data Mayb :: (k -> Type) -> Maybe k -> Type
 [N_] :: Mayb f  'Nothing
 [J_] :: !(f a) -> Mayb f ( 'Just a)
@@ -745,12 +749,17 @@ infixr 8 <~
 --   (<a>T</a>), making for more seamless composition.
 type LModel ps ss a b = Model ( 'Just (T ps)) ( 'Just (T ss)) a b
 
--- | Compose two <a>LModel</a>s
-(#++) :: forall ps qs ss ts a b c. (ListC (Backprop <$> ps), ListC (Backprop <$> qs), ListC (Backprop <$> ss), ListC (Backprop <$> ts), ListC (Backprop <$> (ss ++ ts)), Known Length ps, Known Length ss, Known Length ts) => LModel ps ss b c -> LModel qs ts a b -> LModel (ps ++ qs) (ss ++ ts) a c
-infixr 5 #++
+-- | <tt>Cons</tt> a model to the end of a chain of <a>LModel</a>
+--   compositions. Can be used with <a>nilLM</a>.
+(#:) :: forall p ps s ss a b c. (MaybeC Backprop p, ListC (Backprop <$> ps), MaybeC Backprop s, ListC (Backprop <$> ss), KnownMayb p, KnownMayb s) => Model p s b c -> LModel ps ss a b -> LModel (MaybeToList p ++ ps) (MaybeToList s ++ ss) a c
+infixr 5 #:
 
 -- | Identity of <a>#++</a>
 nilLM :: Model ( 'Just (T '[])) ( 'Just (T '[])) a a
+
+-- | Compose two <a>LModel</a>s
+(#++) :: forall ps qs ss ts a b c. (ListC (Backprop <$> ps), ListC (Backprop <$> qs), ListC (Backprop <$> ss), ListC (Backprop <$> ts), ListC (Backprop <$> (ss ++ ts)), Known Length ps, Known Length ss, Known Length ts) => LModel ps ss b c -> LModel qs ts a b -> LModel (ps ++ qs) (ss ++ ts) a c
+infixr 5 #++
 
 -- | Lift a normal <a>Model</a> to a <a>LModel</a> with a singleton list
 --   parameter/state if '<a>Just</a>, or an empty list if '<a>Nothing</a>.
@@ -850,8 +859,8 @@ data LRp i o
 LRp :: !(R o) -> !(L o i) -> LRp i o
 [_lrAlpha] :: LRp i o -> !(R o)
 [_lrBeta] :: LRp i o -> !(L o i)
-lrAlpha :: forall i_a1az6 o_a1az7. Lens' (LRp i_a1az6 o_a1az7) (R o_a1az7)
-lrBeta :: forall i_a1az6 o_a1az7 i_a1aN5. Lens (LRp i_a1az6 o_a1az7) (LRp i_a1aN5 o_a1az7) (L o_a1az7 i_a1az6) (L o_a1az7 i_a1aN5)
+lrAlpha :: forall i_a19zE o_a19zF. Lens' (LRp i_a19zE o_a19zF) (R o_a19zF)
+lrBeta :: forall i_a19zE o_a19zF i_a19ND. Lens (LRp i_a19zE o_a19zF) (LRp i_a19ND o_a19zF) (L o_a19zF i_a19zE) (L o_a19zF i_a19ND)
 runLRp :: (KnownNat i, KnownNat o, Reifies s W) => BVar s (LRp i o) -> BVar s (R i) -> BVar s (R o)
 
 -- | Adjust an <a>LRp</a> to take extra inputs, initialized randomly.
@@ -882,12 +891,12 @@ data ARIMAp :: Nat -> Nat -> Type
 -- | <tt>ARIMA</tt> state
 data ARIMAs :: Nat -> Nat -> Nat -> Type
 [ARIMAs] :: {_arimaYPred :: !Double, _arimaYHist :: !(R (p + d)), _arimaEHist :: !(R q)} -> ARIMAs p d q
-arimaPhi :: forall a_a1aSV b_a1aSW a_a1bf5. Lens (ARIMAp a_a1aSV b_a1aSW) (ARIMAp a_a1bf5 b_a1aSW) (R a_a1aSV) (R a_a1bf5)
-arimaTheta :: forall a_a1aSV b_a1aSW b_a1bf6. Lens (ARIMAp a_a1aSV b_a1aSW) (ARIMAp a_a1aSV b_a1bf6) (R b_a1aSW) (R b_a1bf6)
-arimaConstant :: forall a_a1aSV b_a1aSW. Lens' (ARIMAp a_a1aSV b_a1aSW) Double
-arimaYPred :: forall a_a1bfZ b_a1bg0 c_a1bg1. Lens' (ARIMAs a_a1bfZ b_a1bg0 c_a1bg1) Double
-arimaYHist :: forall a_a1bfZ b_a1bg0 c_a1bg1 a_a1bmC b_a1bmD. Lens (ARIMAs a_a1bfZ b_a1bg0 c_a1bg1) (ARIMAs a_a1bmC b_a1bmD c_a1bg1) (R ((+) a_a1bfZ b_a1bg0)) (R ((+) a_a1bmC b_a1bmD))
-arimaEHist :: forall a_a1bfZ b_a1bg0 c_a1bg1 c_a1bmB. Lens (ARIMAs a_a1bfZ b_a1bg0 c_a1bg1) (ARIMAs a_a1bfZ b_a1bg0 c_a1bmB) (R c_a1bg1) (R c_a1bmB)
+arimaPhi :: forall a_a19Tt b_a19Tu a_a1afD. Lens (ARIMAp a_a19Tt b_a19Tu) (ARIMAp a_a1afD b_a19Tu) (R a_a19Tt) (R a_a1afD)
+arimaTheta :: forall a_a19Tt b_a19Tu b_a1afE. Lens (ARIMAp a_a19Tt b_a19Tu) (ARIMAp a_a19Tt b_a1afE) (R b_a19Tu) (R b_a1afE)
+arimaConstant :: forall a_a19Tt b_a19Tu. Lens' (ARIMAp a_a19Tt b_a19Tu) Double
+arimaYPred :: forall a_a1agx b_a1agy c_a1agz. Lens' (ARIMAs a_a1agx b_a1agy c_a1agz) Double
+arimaYHist :: forall a_a1agx b_a1agy c_a1agz a_a1ana b_a1anb. Lens (ARIMAs a_a1agx b_a1agy c_a1agz) (ARIMAs a_a1ana b_a1anb c_a1agz) (R ((+) a_a1agx b_a1agy)) (R ((+) a_a1ana b_a1anb))
+arimaEHist :: forall a_a1agx b_a1agy c_a1agz c_a1an9. Lens (ARIMAs a_a1agx b_a1agy c_a1agz) (ARIMAs a_a1agx b_a1agy c_a1an9) (R c_a1agz) (R c_a1an9)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARIMAp p q)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARIMAs p d q)
 instance GHC.Num.Num (Backprop.Learn.Model.Regression.ARIMAp p q)
@@ -984,10 +993,10 @@ LSTMp :: !(FCp (i + o) o) -> !(FCp (i + o) o) -> !(FCp (i + o) o) -> !(FCp (i + 
 [_lstmInput] :: LSTMp -> !(FCp (i + o) o)
 [_lstmUpdate] :: LSTMp -> !(FCp (i + o) o)
 [_lstmOutput] :: LSTMp -> !(FCp (i + o) o)
-lstmForget :: forall i_a1Bwr o_a1Bws. Lens' (LSTMp i_a1Bwr o_a1Bws) (FCp ((+) i_a1Bwr o_a1Bws) o_a1Bws)
-lstmInput :: forall i_a1Bwr o_a1Bws. Lens' (LSTMp i_a1Bwr o_a1Bws) (FCp ((+) i_a1Bwr o_a1Bws) o_a1Bws)
-lstmUpdate :: forall i_a1Bwr o_a1Bws. Lens' (LSTMp i_a1Bwr o_a1Bws) (FCp ((+) i_a1Bwr o_a1Bws) o_a1Bws)
-lstmOutput :: forall i_a1Bwr o_a1Bws. Lens' (LSTMp i_a1Bwr o_a1Bws) (FCp ((+) i_a1Bwr o_a1Bws) o_a1Bws)
+lstmForget :: forall i_a1AwZ o_a1Ax0. Lens' (LSTMp i_a1AwZ o_a1Ax0) (FCp ((+) i_a1AwZ o_a1Ax0) o_a1Ax0)
+lstmInput :: forall i_a1AwZ o_a1Ax0. Lens' (LSTMp i_a1AwZ o_a1Ax0) (FCp ((+) i_a1AwZ o_a1Ax0) o_a1Ax0)
+lstmUpdate :: forall i_a1AwZ o_a1Ax0. Lens' (LSTMp i_a1AwZ o_a1Ax0) (FCp ((+) i_a1AwZ o_a1Ax0) o_a1Ax0)
+lstmOutput :: forall i_a1AwZ o_a1Ax0. Lens' (LSTMp i_a1AwZ o_a1Ax0) (FCp ((+) i_a1AwZ o_a1Ax0) o_a1Ax0)
 
 -- | Gated Recurrent Unit
 --   
@@ -1000,9 +1009,9 @@ GRUp :: !(FCp (i + o) o) -> !(FCp (i + o) o) -> !(FCp (i + o) o) -> GRUp
 [_gruMemory] :: GRUp -> !(FCp (i + o) o)
 [_gruUpdate] :: GRUp -> !(FCp (i + o) o)
 [_gruOutput] :: GRUp -> !(FCp (i + o) o)
-gruMemory :: forall i_a1BCX o_a1BCY. Lens' (GRUp i_a1BCX o_a1BCY) (FCp ((+) i_a1BCX o_a1BCY) o_a1BCY)
-gruUpdate :: forall i_a1BCX o_a1BCY. Lens' (GRUp i_a1BCX o_a1BCY) (FCp ((+) i_a1BCX o_a1BCY) o_a1BCY)
-gruOutput :: forall i_a1BCX o_a1BCY. Lens' (GRUp i_a1BCX o_a1BCY) (FCp ((+) i_a1BCX o_a1BCY) o_a1BCY)
+gruMemory :: forall i_a1ADv o_a1ADw. Lens' (GRUp i_a1ADv o_a1ADw) (FCp ((+) i_a1ADv o_a1ADw) o_a1ADw)
+gruUpdate :: forall i_a1ADv o_a1ADw. Lens' (GRUp i_a1ADv o_a1ADw) (FCp ((+) i_a1ADv o_a1ADw) o_a1ADw)
+gruOutput :: forall i_a1ADv o_a1ADw. Lens' (GRUp i_a1ADv o_a1ADw) (FCp ((+) i_a1ADv o_a1ADw) o_a1ADw)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Additive (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Scaling GHC.Types.Double (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
