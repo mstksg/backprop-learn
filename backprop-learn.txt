@@ -432,7 +432,9 @@ reParam :: (forall z. Reifies z W => Mayb (BVar z) q -> Mayb (BVar z) p) -> (for
 -- | <a>reParam</a>, but with no special stochastic mode function.
 reParamD :: (forall z. Reifies z W => Mayb (BVar z) q -> Mayb (BVar z) p) -> Model p s a b -> Model q s a b
 
--- | Give an unparameterized model a "dummy" parameter.
+-- | Give an unparameterized model a "dummy" parameter. Useful for usage
+--   with combinators like <a>.</a> from that require all input models to
+--   share a common parameterization.
 dummyParam :: Model  'Nothing s a b -> Model p s a b
 
 module Backprop.Learn.Model.State
@@ -472,7 +474,11 @@ zeroState :: Num s => Model p ( 'Just s) a b -> Model p  'Nothing a b
 --   combinators like <a>deState</a> that require state. However,
 --   <a>deState</a> could also be made more lenient (to accept non stateful
 --   models) in the future.
-dummyState :: Model p  'Nothing a b -> Model p ( 'Just s) a b
+--   
+--   Also useful for usage with combinators like <a>.</a> from
+--   <a>Control.Category</a> that requires all input models to share common
+--   state.
+dummyState :: forall s p a b. () => Model p  'Nothing a b -> Model p s a b
 
 -- | Unroll a (usually) stateful model into one taking a vector of
 --   sequential inputs.
@@ -859,8 +865,8 @@ data LRp i o
 LRp :: !(R o) -> !(L o i) -> LRp i o
 [_lrAlpha] :: LRp i o -> !(R o)
 [_lrBeta] :: LRp i o -> !(L o i)
-lrAlpha :: forall i_a19zE o_a19zF. Lens' (LRp i_a19zE o_a19zF) (R o_a19zF)
-lrBeta :: forall i_a19zE o_a19zF i_a19ND. Lens (LRp i_a19zE o_a19zF) (LRp i_a19ND o_a19zF) (L o_a19zF i_a19zE) (L o_a19zF i_a19ND)
+lrAlpha :: forall i_a191h o_a191i. Lens' (LRp i_a191h o_a191i) (R o_a191i)
+lrBeta :: forall i_a191h o_a191i i_a19fg. Lens (LRp i_a191h o_a191i) (LRp i_a19fg o_a191i) (L o_a191i i_a191h) (L o_a191i i_a19fg)
 runLRp :: (KnownNat i, KnownNat o, Reifies s W) => BVar s (LRp i o) -> BVar s (R i) -> BVar s (R o)
 
 -- | Adjust an <a>LRp</a> to take extra inputs, initialized randomly.
@@ -891,12 +897,12 @@ data ARIMAp :: Nat -> Nat -> Type
 -- | <tt>ARIMA</tt> state
 data ARIMAs :: Nat -> Nat -> Nat -> Type
 [ARIMAs] :: {_arimaYPred :: !Double, _arimaYHist :: !(R (p + d)), _arimaEHist :: !(R q)} -> ARIMAs p d q
-arimaPhi :: forall a_a19Tt b_a19Tu a_a1afD. Lens (ARIMAp a_a19Tt b_a19Tu) (ARIMAp a_a1afD b_a19Tu) (R a_a19Tt) (R a_a1afD)
-arimaTheta :: forall a_a19Tt b_a19Tu b_a1afE. Lens (ARIMAp a_a19Tt b_a19Tu) (ARIMAp a_a19Tt b_a1afE) (R b_a19Tu) (R b_a1afE)
-arimaConstant :: forall a_a19Tt b_a19Tu. Lens' (ARIMAp a_a19Tt b_a19Tu) Double
-arimaYPred :: forall a_a1agx b_a1agy c_a1agz. Lens' (ARIMAs a_a1agx b_a1agy c_a1agz) Double
-arimaYHist :: forall a_a1agx b_a1agy c_a1agz a_a1ana b_a1anb. Lens (ARIMAs a_a1agx b_a1agy c_a1agz) (ARIMAs a_a1ana b_a1anb c_a1agz) (R ((+) a_a1agx b_a1agy)) (R ((+) a_a1ana b_a1anb))
-arimaEHist :: forall a_a1agx b_a1agy c_a1agz c_a1an9. Lens (ARIMAs a_a1agx b_a1agy c_a1agz) (ARIMAs a_a1agx b_a1agy c_a1an9) (R c_a1agz) (R c_a1an9)
+arimaPhi :: forall a_a19l6 b_a19l7 a_a19Hg. Lens (ARIMAp a_a19l6 b_a19l7) (ARIMAp a_a19Hg b_a19l7) (R a_a19l6) (R a_a19Hg)
+arimaTheta :: forall a_a19l6 b_a19l7 b_a19Hh. Lens (ARIMAp a_a19l6 b_a19l7) (ARIMAp a_a19l6 b_a19Hh) (R b_a19l7) (R b_a19Hh)
+arimaConstant :: forall a_a19l6 b_a19l7. Lens' (ARIMAp a_a19l6 b_a19l7) Double
+arimaYPred :: forall a_a19Ia b_a19Ib c_a19Ic. Lens' (ARIMAs a_a19Ia b_a19Ib c_a19Ic) Double
+arimaYHist :: forall a_a19Ia b_a19Ib c_a19Ic a_a19ON b_a19OO. Lens (ARIMAs a_a19Ia b_a19Ib c_a19Ic) (ARIMAs a_a19ON b_a19OO c_a19Ic) (R ((+) a_a19Ia b_a19Ib)) (R ((+) a_a19ON b_a19OO))
+arimaEHist :: forall a_a19Ia b_a19Ib c_a19Ic c_a19OM. Lens (ARIMAs a_a19Ia b_a19Ib c_a19Ic) (ARIMAs a_a19Ia b_a19Ib c_a19OM) (R c_a19Ic) (R c_a19OM)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARIMAp p q)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARIMAs p d q)
 instance GHC.Num.Num (Backprop.Learn.Model.Regression.ARIMAp p q)
@@ -993,10 +999,10 @@ LSTMp :: !(FCp (i + o) o) -> !(FCp (i + o) o) -> !(FCp (i + o) o) -> !(FCp (i + 
 [_lstmInput] :: LSTMp -> !(FCp (i + o) o)
 [_lstmUpdate] :: LSTMp -> !(FCp (i + o) o)
 [_lstmOutput] :: LSTMp -> !(FCp (i + o) o)
-lstmForget :: forall i_a1AwZ o_a1Ax0. Lens' (LSTMp i_a1AwZ o_a1Ax0) (FCp ((+) i_a1AwZ o_a1Ax0) o_a1Ax0)
-lstmInput :: forall i_a1AwZ o_a1Ax0. Lens' (LSTMp i_a1AwZ o_a1Ax0) (FCp ((+) i_a1AwZ o_a1Ax0) o_a1Ax0)
-lstmUpdate :: forall i_a1AwZ o_a1Ax0. Lens' (LSTMp i_a1AwZ o_a1Ax0) (FCp ((+) i_a1AwZ o_a1Ax0) o_a1Ax0)
-lstmOutput :: forall i_a1AwZ o_a1Ax0. Lens' (LSTMp i_a1AwZ o_a1Ax0) (FCp ((+) i_a1AwZ o_a1Ax0) o_a1Ax0)
+lstmForget :: forall i_a1zYE o_a1zYF. Lens' (LSTMp i_a1zYE o_a1zYF) (FCp ((+) i_a1zYE o_a1zYF) o_a1zYF)
+lstmInput :: forall i_a1zYE o_a1zYF. Lens' (LSTMp i_a1zYE o_a1zYF) (FCp ((+) i_a1zYE o_a1zYF) o_a1zYF)
+lstmUpdate :: forall i_a1zYE o_a1zYF. Lens' (LSTMp i_a1zYE o_a1zYF) (FCp ((+) i_a1zYE o_a1zYF) o_a1zYF)
+lstmOutput :: forall i_a1zYE o_a1zYF. Lens' (LSTMp i_a1zYE o_a1zYF) (FCp ((+) i_a1zYE o_a1zYF) o_a1zYF)
 
 -- | Gated Recurrent Unit
 --   
@@ -1009,9 +1015,9 @@ GRUp :: !(FCp (i + o) o) -> !(FCp (i + o) o) -> !(FCp (i + o) o) -> GRUp
 [_gruMemory] :: GRUp -> !(FCp (i + o) o)
 [_gruUpdate] :: GRUp -> !(FCp (i + o) o)
 [_gruOutput] :: GRUp -> !(FCp (i + o) o)
-gruMemory :: forall i_a1ADv o_a1ADw. Lens' (GRUp i_a1ADv o_a1ADw) (FCp ((+) i_a1ADv o_a1ADw) o_a1ADw)
-gruUpdate :: forall i_a1ADv o_a1ADw. Lens' (GRUp i_a1ADv o_a1ADw) (FCp ((+) i_a1ADv o_a1ADw) o_a1ADw)
-gruOutput :: forall i_a1ADv o_a1ADw. Lens' (GRUp i_a1ADv o_a1ADw) (FCp ((+) i_a1ADv o_a1ADw) o_a1ADw)
+gruMemory :: forall i_a1A5a o_a1A5b. Lens' (GRUp i_a1A5a o_a1A5b) (FCp ((+) i_a1A5a o_a1A5b) o_a1A5b)
+gruUpdate :: forall i_a1A5a o_a1A5b. Lens' (GRUp i_a1A5a o_a1A5b) (FCp ((+) i_a1A5a o_a1A5b) o_a1A5b)
+gruOutput :: forall i_a1A5a o_a1A5b. Lens' (GRUp i_a1A5a o_a1A5b) (FCp ((+) i_a1A5a o_a1A5b) o_a1A5b)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Additive (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Scaling GHC.Types.Double (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
