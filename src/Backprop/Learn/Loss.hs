@@ -29,9 +29,11 @@ module Backprop.Learn.Loss (
   ) where
 
 import           Control.Applicative
+import           Data.Coerce
 import           Data.Finite
 import           Data.Type.Tuple
 import           GHC.TypeNats
+import           Lens.Micro
 import           Numeric.Backprop
 import           Numeric.LinearAlgebra.Static.Backprop
 import           Numeric.Opto.Update hiding            ((<.>))
@@ -99,10 +101,16 @@ sumLossDecay β = zipLoss $ SV.generate (\i -> β ** (fromIntegral i - n))
     n = fromIntegral $ maxBound @(Finite n)
 
 lastLoss
-    :: (KnownNat (n + 1), Backprop a)
+    :: forall n a. (KnownNat (n + 1), Backprop a)
     => Loss a
     -> Loss (SV.Vector (n + 1) a)
-lastLoss l targ = l (SV.last targ) . viewVar (SV.ix maxBound)
+lastLoss l targ = l (SV.last targ)
+                . viewVar (coerced . SV.ix @(n + 1) maxBound)
+                . B.coerce @_ @(ABP (SV.Vector (n + 1)) a)
+
+coerced :: Coercible a b => Lens' a b
+coerced f x = coerce <$> f (coerce x)
+{-# INLINE coerced #-}
 
 -- | Scale the result of a loss function.
 scaleLoss :: Double -> Loss a -> Loss a

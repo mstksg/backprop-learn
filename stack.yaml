@@ -53,11 +53,11 @@ packages:
 #   extra-dep: true
 # - location:
 #     git: https://github.com/mstksg/backprop.git
-#     commit: e36bb0e82e93af044b5f32e0ec1c2f745d261eb4
+#     commit: 145b8c2a9facb115893941d662f66e5b579b2c06
 #   extra-dep: true
 # - location:
 #     git: https://github.com/mstksg/hmatrix-backprop.git
-#     commit: ca78e5a215ca26e13b71474e49daa0d52d2b7b2b
+#     commit: d8944893dc105f24e587abaca615363932a62e81
 #   extra-dep: true
 # - location:
 #     git: https://github.com/mstksg/type-combinators-singletons.git
@@ -71,8 +71,8 @@ packages:
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps:
-- backprop-0.2.2.0
-- hmatrix-backprop-0.1.2.1
+- backprop-0.2.4.0
+- hmatrix-backprop-0.1.2.2
 # - type-combinators-0.2.4.3
 # - mnist-idx-0.1.2.6
 # - finite-typelits-0.1.2.0

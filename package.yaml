@@ -27,7 +27,7 @@ ghc-options:
 # - -O0
 # - -fprint-explicit-kinds
 dependencies:
-- backprop >= 0.2.2
+- backprop >= 0.2.4
 - base >=4.7 && <5
 - binary
 - bytestring
@@ -40,7 +40,7 @@ dependencies:
 - ghc-typelits-knownnat
 - ghc-typelits-natnormalise
 - hmatrix
-- hmatrix-backprop >= 0.1.2.1
+- hmatrix-backprop >= 0.1.2.2
 - hmatrix-vector-sized
 - microlens
 - microlens-th

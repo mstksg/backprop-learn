@@ -32,7 +32,7 @@ import qualified System.Random.MWC          as MWC
 -- Takes the fixed value of @q@, as well as a stochastic mode version with
 -- fixed distribution.
 deParam
-    :: forall p q pq s a b. (Backprop p, Backprop q, Backprop pq)
+    :: forall p q pq s a b. (Backprop p, Backprop q)
     => (pq -> (p, q))                   -- ^ split
     -> (p -> q -> pq)                   -- ^ join
     -> q                                -- ^ fixed param
@@ -53,7 +53,7 @@ deParam spl joi q qStoch = reParam (J_ . r . fromJ_)
 
 -- | 'deParam', but with no special stochastic mode version.
 deParamD
-    :: (Backprop p, Backprop q, Backprop pq)
+    :: (Backprop p, Backprop q)
     => (pq -> (p, q))                   -- ^ split
     -> (p -> q -> pq)                   -- ^ join
     -> q                                -- ^ fixed param

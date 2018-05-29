@@ -97,7 +97,7 @@ zeroState = deStateD 0
 -- sequential inputs, receives a single input and uses its output as the
 -- next input.
 unroll
-    :: (Traversable t, Backprop a, Backprop b, Backprop (t b))
+    :: (Traversable t, Backprop a, Backprop b)
     => Model p s    a     b
     -> Model p s (t a) (t b)
 unroll = withModelFunc $ \f p xs s ->
@@ -139,7 +139,6 @@ recurrent
     :: forall p s ab a b c.
      ( KnownMayb s
      , MaybeC Backprop s
-     , Backprop ab
      , Backprop a
      , Backprop b
      )

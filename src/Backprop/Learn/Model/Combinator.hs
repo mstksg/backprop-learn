@@ -134,6 +134,7 @@ infixr 5 #:
      , ListC (Backprop List.<$> qs)
      , ListC (Backprop List.<$> ss)
      , ListC (Backprop List.<$> ts)
+     , ListC (Backprop List.<$> (ps ++ qs))
      , ListC (Backprop List.<$> (ss ++ ts))
      , Known Length ps
      , Known Length ss
