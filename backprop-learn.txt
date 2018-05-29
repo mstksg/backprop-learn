@@ -360,10 +360,10 @@ module Backprop.Learn.Model.Parameter
 --   
 --   Takes the fixed value of <tt>q</tt>, as well as a stochastic mode
 --   version with fixed distribution.
-deParam :: forall p q pq s a b. (Backprop p, Backprop q, Backprop pq) => (pq -> (p, q)) -> (p -> q -> pq) -> q -> (forall m. (PrimMonad m) => Gen (PrimState m) -> m q) -> Model ( 'Just pq) s a b -> Model ( 'Just p) s a b
+deParam :: forall p q pq s a b. (Backprop p, Backprop q) => (pq -> (p, q)) -> (p -> q -> pq) -> q -> (forall m. (PrimMonad m) => Gen (PrimState m) -> m q) -> Model ( 'Just pq) s a b -> Model ( 'Just p) s a b
 
 -- | <a>deParam</a>, but with no special stochastic mode version.
-deParamD :: (Backprop p, Backprop q, Backprop pq) => (pq -> (p, q)) -> (p -> q -> pq) -> q -> Model ( 'Just pq) s a b -> Model ( 'Just p) s a b
+deParamD :: (Backprop p, Backprop q) => (pq -> (p, q)) -> (p -> q -> pq) -> q -> Model ( 'Just pq) s a b -> Model ( 'Just p) s a b
 
 -- | Pre-applies a function to a parameter before a model sees it.
 --   Essentially something like <tt>lmap</tt> for parameters.
@@ -435,7 +435,7 @@ dummyState :: forall s p a b. () => Model p  'Nothing a b -> Model p s a b
 --   Compare to <tt>feedbackTrace</tt>, which, instead of receiving a
 --   vector of sequential inputs, receives a single input and uses its
 --   output as the next input.
-unroll :: (Traversable t, Backprop a, Backprop b, Backprop (t b)) => Model p s a b -> Model p s (t a) (t b)
+unroll :: (Traversable t, Backprop a, Backprop b) => Model p s a b -> Model p s (t a) (t b)
 
 -- | Version of <a>unroll</a> that only keeps the "final" result, dropping
 --   all of the intermediate results.
@@ -458,7 +458,7 @@ unrollFinal :: (Traversable t, Backprop a) => Model p s a b -> Model p s (t a) b
 --   as input.
 --   
 --   See <tt>fcr</tt> for an application.
-recurrent :: forall p s ab a b c. (KnownMayb s, MaybeC Backprop s, Backprop ab, Backprop a, Backprop b) => (ab -> (a, b)) -> (a -> b -> ab) -> BFunc c b -> Model p s ab c -> Model p (TupMaybe s ( 'Just b)) a c
+recurrent :: forall p s ab a b c. (KnownMayb s, MaybeC Backprop s, Backprop a, Backprop b) => (ab -> (a, b)) -> (a -> b -> ab) -> BFunc c b -> Model p s ab c -> Model p (TupMaybe s ( 'Just b)) a c
 
 module Backprop.Learn.Model.Function
 
@@ -527,11 +527,11 @@ sin :: Floating a => a -> a
 
 -- | Note: if possible, use the potentially much more performant
 --   <a>vmap'</a>.
-vmap :: (Reifies s W, KnownNat n) => BVar s ℝ -> BVar s ℝ -> BVar s R n -> BVar s R n
+vmap :: (KnownNat n, Reifies s W) => BVar s ℝ -> BVar s ℝ -> BVar s R n -> BVar s R n
 
 -- | <a>vmap</a>, but potentially more performant. Only usable if the
 --   mapped function does not depend on any external <a>BVar</a>s.
-vmap' :: (Reifies s W, Num vec n, Storable field, Sized field vec n Vector) => forall s'. Reifies s' W => BVar s' field -> BVar s' field -> BVar s vec n -> BVar s vec n
+vmap' :: (Num vec n, Storable field, Sized field vec n Vector, Backprop vec n, Backprop field, Reifies s W) => forall s'. Reifies s' W => BVar s' field -> BVar s' field -> BVar s vec n -> BVar s vec n
 
 -- | Usable with functions like <a>*</a>, <a>isru</a>, etc. to turn them
 --   into a form usable with <tt>PFP</tt>:
@@ -707,7 +707,7 @@ infixr 5 #:
 nilLM :: Model ( 'Just (T '[])) ( 'Just (T '[])) a a
 
 -- | Compose two <a>LModel</a>s
-(#++) :: forall ps qs ss ts a b c. (ListC (Backprop <$> ps), ListC (Backprop <$> qs), ListC (Backprop <$> ss), ListC (Backprop <$> ts), ListC (Backprop <$> (ss ++ ts)), Known Length ps, Known Length ss, Known Length ts) => LModel ps ss b c -> LModel qs ts a b -> LModel (ps ++ qs) (ss ++ ts) a c
+(#++) :: forall ps qs ss ts a b c. (ListC (Backprop <$> ps), ListC (Backprop <$> qs), ListC (Backprop <$> ss), ListC (Backprop <$> ts), ListC (Backprop <$> (ps ++ qs)), ListC (Backprop <$> (ss ++ ts)), Known Length ps, Known Length ss, Known Length ts) => LModel ps ss b c -> LModel qs ts a b -> LModel (ps ++ qs) (ss ++ ts) a c
 infixr 5 #++
 
 -- | Lift a normal <a>Model</a> to a <a>LModel</a> with a singleton list
@@ -736,7 +736,7 @@ squaredErrorV :: KnownNat n => Loss (R n)
 scaleLoss :: Double -> Loss a -> Loss a
 sumLoss :: (Traversable t, Applicative t, Backprop a) => Loss a -> Loss (t a)
 sumLossDecay :: forall n a. (KnownNat n, Backprop a) => Double -> Loss a -> Loss (Vector n a)
-lastLoss :: (KnownNat (n + 1), Backprop a) => Loss a -> Loss (Vector (n + 1) a)
+lastLoss :: forall n a. (KnownNat (n + 1), Backprop a) => Loss a -> Loss (Vector (n + 1) a)
 zipLoss :: (Traversable t, Applicative t, Backprop a) => t Double -> Loss a -> Loss (t a)
 
 -- | Lift and sum a loss function over the components of a <a>:&amp;</a>.
@@ -804,8 +804,8 @@ data LRp i o
 LRp :: !(R o) -> !(L o i) -> LRp i o
 [_lrAlpha] :: LRp i o -> !(R o)
 [_lrBeta] :: LRp i o -> !(L o i)
-lrAlpha :: forall i_a12nq o_a12nr. Lens' (LRp i_a12nq o_a12nr) (R o_a12nr)
-lrBeta :: forall i_a12nq o_a12nr i_a12Bp. Lens (LRp i_a12nq o_a12nr) (LRp i_a12Bp o_a12nr) (L o_a12nr i_a12nq) (L o_a12nr i_a12Bp)
+lrAlpha :: forall i_a12Ck o_a12Cl. Lens' (LRp i_a12Ck o_a12Cl) (R o_a12Cl)
+lrBeta :: forall i_a12Ck o_a12Cl i_a12Qj. Lens (LRp i_a12Ck o_a12Cl) (LRp i_a12Qj o_a12Cl) (L o_a12Cl i_a12Ck) (L o_a12Cl i_a12Qj)
 runLRp :: (KnownNat i, KnownNat o, Reifies s W) => BVar s (LRp i o) -> BVar s (R i) -> BVar s (R o)
 
 -- | Adjust an <a>LRp</a> to take extra inputs, initialized randomly.
@@ -836,12 +836,12 @@ data ARIMAp :: Nat -> Nat -> Type
 -- | <tt>ARIMA</tt> state
 data ARIMAs :: Nat -> Nat -> Nat -> Type
 [ARIMAs] :: {_arimaYPred :: !Double, _arimaYHist :: !(R (p + d)), _arimaEHist :: !(R q)} -> ARIMAs p d q
-arimaPhi :: forall a_a12Hf b_a12Hg a_a133p. Lens (ARIMAp a_a12Hf b_a12Hg) (ARIMAp a_a133p b_a12Hg) (R a_a12Hf) (R a_a133p)
-arimaTheta :: forall a_a12Hf b_a12Hg b_a133q. Lens (ARIMAp a_a12Hf b_a12Hg) (ARIMAp a_a12Hf b_a133q) (R b_a12Hg) (R b_a133q)
-arimaConstant :: forall a_a12Hf b_a12Hg. Lens' (ARIMAp a_a12Hf b_a12Hg) Double
-arimaYPred :: forall a_a134j b_a134k c_a134l. Lens' (ARIMAs a_a134j b_a134k c_a134l) Double
-arimaYHist :: forall a_a134j b_a134k c_a134l a_a13aW b_a13aX. Lens (ARIMAs a_a134j b_a134k c_a134l) (ARIMAs a_a13aW b_a13aX c_a134l) (R ((+) a_a134j b_a134k)) (R ((+) a_a13aW b_a13aX))
-arimaEHist :: forall a_a134j b_a134k c_a134l c_a13aV. Lens (ARIMAs a_a134j b_a134k c_a134l) (ARIMAs a_a134j b_a134k c_a13aV) (R c_a134l) (R c_a13aV)
+arimaPhi :: forall a_a12W9 b_a12Wa a_a13il. Lens (ARIMAp a_a12W9 b_a12Wa) (ARIMAp a_a13il b_a12Wa) (R a_a12W9) (R a_a13il)
+arimaTheta :: forall a_a12W9 b_a12Wa b_a13im. Lens (ARIMAp a_a12W9 b_a12Wa) (ARIMAp a_a12W9 b_a13im) (R b_a12Wa) (R b_a13im)
+arimaConstant :: forall a_a12W9 b_a12Wa. Lens' (ARIMAp a_a12W9 b_a12Wa) Double
+arimaYPred :: forall a_a13jf b_a13jg c_a13jh. Lens' (ARIMAs a_a13jf b_a13jg c_a13jh) Double
+arimaYHist :: forall a_a13jf b_a13jg c_a13jh a_a13pS b_a13pT. Lens (ARIMAs a_a13jf b_a13jg c_a13jh) (ARIMAs a_a13pS b_a13pT c_a13jh) (R ((+) a_a13jf b_a13jg)) (R ((+) a_a13pS b_a13pT))
+arimaEHist :: forall a_a13jf b_a13jg c_a13jh c_a13pR. Lens (ARIMAs a_a13jf b_a13jg c_a13jh) (ARIMAs a_a13jf b_a13jg c_a13pR) (R c_a13jh) (R c_a13pR)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARIMAp p q)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARIMAs p d q)
 instance GHC.Num.Num (Backprop.Learn.Model.Regression.ARIMAp p q)
@@ -938,10 +938,10 @@ LSTMp :: !(FCp (i + o) o) -> !(FCp (i + o) o) -> !(FCp (i + o) o) -> !(FCp (i + 
 [_lstmInput] :: LSTMp -> !(FCp (i + o) o)
 [_lstmUpdate] :: LSTMp -> !(FCp (i + o) o)
 [_lstmOutput] :: LSTMp -> !(FCp (i + o) o)
-lstmForget :: forall i_a1tkS o_a1tkT. Lens' (LSTMp i_a1tkS o_a1tkT) (FCp ((+) i_a1tkS o_a1tkT) o_a1tkT)
-lstmInput :: forall i_a1tkS o_a1tkT. Lens' (LSTMp i_a1tkS o_a1tkT) (FCp ((+) i_a1tkS o_a1tkT) o_a1tkT)
-lstmUpdate :: forall i_a1tkS o_a1tkT. Lens' (LSTMp i_a1tkS o_a1tkT) (FCp ((+) i_a1tkS o_a1tkT) o_a1tkT)
-lstmOutput :: forall i_a1tkS o_a1tkT. Lens' (LSTMp i_a1tkS o_a1tkT) (FCp ((+) i_a1tkS o_a1tkT) o_a1tkT)
+lstmForget :: forall i_a1tAP o_a1tAQ. Lens' (LSTMp i_a1tAP o_a1tAQ) (FCp ((+) i_a1tAP o_a1tAQ) o_a1tAQ)
+lstmInput :: forall i_a1tAP o_a1tAQ. Lens' (LSTMp i_a1tAP o_a1tAQ) (FCp ((+) i_a1tAP o_a1tAQ) o_a1tAQ)
+lstmUpdate :: forall i_a1tAP o_a1tAQ. Lens' (LSTMp i_a1tAP o_a1tAQ) (FCp ((+) i_a1tAP o_a1tAQ) o_a1tAQ)
+lstmOutput :: forall i_a1tAP o_a1tAQ. Lens' (LSTMp i_a1tAP o_a1tAQ) (FCp ((+) i_a1tAP o_a1tAQ) o_a1tAQ)
 
 -- | Gated Recurrent Unit
 --   
@@ -954,9 +954,9 @@ GRUp :: !(FCp (i + o) o) -> !(FCp (i + o) o) -> !(FCp (i + o) o) -> GRUp
 [_gruMemory] :: GRUp -> !(FCp (i + o) o)
 [_gruUpdate] :: GRUp -> !(FCp (i + o) o)
 [_gruOutput] :: GRUp -> !(FCp (i + o) o)
-gruMemory :: forall i_a1tro o_a1trp. Lens' (GRUp i_a1tro o_a1trp) (FCp ((+) i_a1tro o_a1trp) o_a1trp)
-gruUpdate :: forall i_a1tro o_a1trp. Lens' (GRUp i_a1tro o_a1trp) (FCp ((+) i_a1tro o_a1trp) o_a1trp)
-gruOutput :: forall i_a1tro o_a1trp. Lens' (GRUp i_a1tro o_a1trp) (FCp ((+) i_a1tro o_a1trp) o_a1trp)
+gruMemory :: forall i_a1tHl o_a1tHm. Lens' (GRUp i_a1tHl o_a1tHm) (FCp ((+) i_a1tHl o_a1tHm) o_a1tHm)
+gruUpdate :: forall i_a1tHl o_a1tHm. Lens' (GRUp i_a1tHl o_a1tHm) (FCp ((+) i_a1tHl o_a1tHm) o_a1tHm)
+gruOutput :: forall i_a1tHl o_a1tHm. Lens' (GRUp i_a1tHl o_a1tHm) (FCp ((+) i_a1tHl o_a1tHm) o_a1tHm)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Additive (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Scaling GHC.Types.Double (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
@@ -1050,6 +1050,14 @@ module Backprop.Learn.Model
 --   <li><pre><a>one</a> <a>.</a> <a>one</a> = <a>one</a></pre></li>
 --   </ul>
 --   
+--   <ul>
+--   <li><i><i>unital</i></i></li>
+--   </ul>
+--   
+--   <ul>
+--   <li><pre><a>one</a> = <tt>gradBP</tt> <a>id</a></pre></li>
+--   </ul>
+--   
 --   Note that not all values in the backpropagation process needs all of
 --   these methods: Only the "final result" needs <a>one</a>, for example.
 --   These are all grouped under one typeclass for convenience in defining
@@ -1101,18 +1109,27 @@ zero :: Backprop a => a -> a
 --   all instances provided by this library.
 --   
 --   See <a>addNum</a> for a pre-built definition for instances of
---   <a>Num</a> and <tt>addFunctor</tt> for a definition for instances of
---   <a>Functor</a>. If left blank, will automatically be
---   <a>genericAdd</a>, a pre-built definition for instances of
---   <a>Generic</a> with one constructor whose fields are all themselves
---   instances of <a>Backprop</a>.
+--   <a>Num</a> and <a>addIsList</a> for a definition for instances of
+--   <a>IsList</a>. If left blank, will automatically be <a>genericAdd</a>,
+--   a pre-built definition for instances of <a>Generic</a> with one
+--   constructor whose fields are all themselves instances of
+--   <a>Backprop</a>.
 add :: Backprop a => a -> a -> a
 
 -- | <a>One</a> all components of a value. For scalar values, this should
 --   just be <tt><a>const</a> 1</tt>. For vectors and matrices, this should
 --   set all components to one, the multiplicative identity.
 --   
---   Should be idempotent:
+--   As the library uses it, the most important law is:
+--   
+--   <ul>
+--   <li><pre><a>one</a> = <tt>gradBP</tt> <a>id</a></pre></li>
+--   </ul>
+--   
+--   That is, <tt><a>one</a> x</tt> is the gradient of the identity
+--   function with respect to its input.
+--   
+--   Ideally should be idempotent:
 --   
 --   <ul>
 --   <li><pre><a>one</a> <a>.</a> <a>one</a> = <a>one</a></pre></li>
