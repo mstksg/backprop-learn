@@ -1,9 +1,12 @@
+{-# LANGUAGE AllowAmbiguousTypes                      #-}
 {-# LANGUAGE DataKinds                                #-}
 {-# LANGUAGE FlexibleContexts                         #-}
 {-# LANGUAGE FlexibleInstances                        #-}
 {-# LANGUAGE MultiParamTypeClasses                    #-}
 {-# LANGUAGE PatternSynonyms                          #-}
 {-# LANGUAGE RankNTypes                               #-}
+{-# LANGUAGE ScopedTypeVariables                      #-}
+{-# LANGUAGE TypeApplications                         #-}
 {-# LANGUAGE TypeFamilies                             #-}
 {-# LANGUAGE TypeOperators                            #-}
 {-# LANGUAGE UndecidableInstances                     #-}
@@ -37,7 +40,7 @@ type FCp = LRp
 fcWeights :: Lens (FCp i o) (FCp i' o) (L o i) (L o i')
 fcWeights = lrBeta
 
-fcBias :: Lens' (FCp i o) (R o)
+fcBias :: forall i o. Lens' (FCp i o) (R o)
 fcBias = lrAlpha
 
 -- | Fully connected feed-forward layer with bias.  Parameterized by its
@@ -87,13 +90,14 @@ lensIso f g h x = g <$> _1 h (f x)
 fcrInputWeights
     :: (KnownNat s, KnownNat i, KnownNat i', KnownNat o)
     => Lens (FCRp s i o) (FCRp s i' o) (L o i) (L o i')
-fcrInputWeights = fcWeights . lensIso H.splitCols (uncurry (H.|||))
+fcrInputWeights = fcWeights
+                . lensIso H.splitCols (uncurry (H.|||))
 
 fcrStateWeights
     :: (KnownNat s, KnownNat s', KnownNat i, KnownNat o)
     => Lens (FCRp s i o) (FCRp s' i o) (L o s) (L o s')
-fcrStateWeights = fcWeights . lensIso (swap . H.splitCols) (uncurry (H.|||) . swap)
+fcrStateWeights = fcWeights
+                . lensIso (swap . H.splitCols) (uncurry (H.|||) . swap)
 
-fcrBias :: Lens' (FCRp s i o) (R o)
-fcrBias = fcBias
-
+fcrBias :: forall s i o. Lens' (FCRp s i o) (R o)
+fcrBias = fcBias @(i + s) @o

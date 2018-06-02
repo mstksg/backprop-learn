@@ -15,7 +15,7 @@
 # resolver:
 #  name: custom-snapshot
 #  location: "./custom-snapshot.yaml"
-resolver: nightly-2018-05-08
+resolver: nightly-2018-06-02
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -43,7 +43,7 @@ packages:
   extra-dep: true
 - location:
     git: https://github.com/mstksg/opto.git
-    commit: b5d2639ded249abacda10e66b8a3d1261d06ebea
+    commit: 22014151c05bb4bb5accdc88732172386e1c6545
   extra-dep: true
 - location:
     git: https://github.com/haskell/vector.git
