@@ -285,8 +285,9 @@ class MaybeWit (c :: k -> Constraint) (m :: Maybe k)
 maybeWit :: MaybeWit c m => Mayb (Wit1 c) m
 
 -- | Map over a type-level <tt>Maybe</tt>.
-splitTupMaybe :: forall f a b. (KnownMayb a, KnownMayb b) => (forall a' b'. (a ~  'Just a', b ~  'Just b') => f (a' :& b') -> (f a', f b')) -> Mayb f (TupMaybe a b) -> (Mayb f a, Mayb f b)
-tupMaybe :: forall f a b. () => (forall a' b'. (a ~  'Just a', b ~  'Just b') => f a' -> f b' -> f (a' :& b')) -> Mayb f a -> Mayb f b -> Mayb f (TupMaybe a b)
+infixr 1 :&?
+splitTupMaybe :: forall f a b. (KnownMayb a, KnownMayb b) => (forall a' b'. (a ~  'Just a', b ~  'Just b') => f (a' :& b') -> (f a', f b')) -> Mayb f (a :&? b) -> (Mayb f a, Mayb f b)
+tupMaybe :: forall f a b. () => (forall a' b'. (a ~  'Just a', b ~  'Just b') => f a' -> f b' -> f (a' :& b')) -> Mayb f a -> Mayb f b -> Mayb f (a :&? b)
 boolMayb :: Boolean b -> Mayb P (BoolMayb b)
 instance forall k (f :: k -> *) (m :: GHC.Base.Maybe k). Data.Type.Mayb.MaybeC GHC.Show.Show (f Type.Family.Maybe.<$> m) => GHC.Show.Show (Data.Type.Mayb.Mayb f m)
 instance forall k (c :: k -> GHC.Types.Constraint) (m :: GHC.Base.Maybe k). (Data.Type.Mayb.MaybeC c m, Type.Class.Known.Known (Data.Type.Mayb.Mayb Data.Type.Mayb.P) m) => Data.Type.Mayb.MaybeWit c m
@@ -395,7 +396,7 @@ module Backprop.Learn.Model.State
 --   <li>If the input has a parameter, a <tt>:&amp;</tt> of that parameter
 --   and initial state.</li>
 --   </ul>
-trainState :: forall p s a b. (KnownMayb p, KnownMayb s, MaybeC Backprop p, MaybeC Backprop s) => Model p s a b -> Model (TupMaybe p s)  'Nothing a b
+trainState :: forall p s a b. (KnownMayb p, KnownMayb s, MaybeC Backprop p, MaybeC Backprop s) => Model p s a b -> Model (p :&? s)  'Nothing a b
 
 -- | Make a model stateless by pre-applying a fixed state (or a stochastic
 --   one with fixed stribution) and dropping the modified state from the
@@ -458,7 +459,7 @@ unrollFinal :: (Traversable t, Backprop a) => Model p s a b -> Model p s (t a) b
 --   as input.
 --   
 --   See <tt>fcr</tt> for an application.
-recurrent :: forall p s ab a b c. (KnownMayb s, MaybeC Backprop s, Backprop a, Backprop b) => (ab -> (a, b)) -> (a -> b -> ab) -> BFunc c b -> Model p s ab c -> Model p (TupMaybe s ( 'Just b)) a c
+recurrent :: forall p s ab a b c. (KnownMayb s, MaybeC Backprop s, Backprop a, Backprop b) => (ab -> (a, b)) -> (a -> b -> ab) -> BFunc c b -> Model p s ab c -> Model p (s :&?  'Just b) a c
 
 module Backprop.Learn.Model.Function
 
@@ -687,11 +688,11 @@ module Backprop.Learn.Model.Combinator
 
 -- | Compose two <a>Model</a>s one after the other, in reverse composition
 --   order
-(~>) :: forall p q s t a b c. (KnownMayb p, KnownMayb q, KnownMayb s, KnownMayb t, MaybeC Backprop p, MaybeC Backprop q, MaybeC Backprop s, MaybeC Backprop t) => Model q t a b -> Model p s b c -> Model (TupMaybe p q) (TupMaybe s t) a c
+(~>) :: forall p q s t a b c. (KnownMayb p, KnownMayb q, KnownMayb s, KnownMayb t, MaybeC Backprop p, MaybeC Backprop q, MaybeC Backprop s, MaybeC Backprop t) => Model p s a b -> Model q t b c -> Model (p :&? q) (s :&? t) a c
 infixr 8 ~>
 
 -- | Compose two <a>Model</a>s one after the other.
-(<~) :: forall p q s t a b c. (KnownMayb p, KnownMayb q, KnownMayb s, KnownMayb t, MaybeC Backprop p, MaybeC Backprop q, MaybeC Backprop s, MaybeC Backprop t) => Model p s b c -> Model q t a b -> Model (TupMaybe p q) (TupMaybe s t) a c
+(<~) :: forall p q s t a b c. (KnownMayb p, KnownMayb q, KnownMayb s, KnownMayb t, MaybeC Backprop p, MaybeC Backprop q, MaybeC Backprop s, MaybeC Backprop t) => Model p s b c -> Model q t a b -> Model (p :&? q) (s :&? t) a c
 infixr 8 <~
 
 -- | <a>Model</a> where parameters and states are heterogeneous lists
@@ -718,11 +719,11 @@ liftLM :: forall p s a b. (KnownMayb p, MaybeC Backprop p, KnownMayb s, MaybeC B
 
 -- | Return a model that loops a model ("feed") repeatedly onto itself,
 --   with a model to provide the back loop.
-feedback :: forall p q s t a b. (KnownMayb p, KnownMayb q, KnownMayb s, KnownMayb t, MaybeC Backprop p, MaybeC Backprop q, MaybeC Backprop s, MaybeC Backprop t) => Int -> Model p s a b -> Model q t b a -> Model (TupMaybe p q) (TupMaybe s t) a b
+feedback :: forall p q s t a b. (KnownMayb p, KnownMayb q, KnownMayb s, KnownMayb t, MaybeC Backprop p, MaybeC Backprop q, MaybeC Backprop s, MaybeC Backprop t) => Int -> Model p s a b -> Model q t b a -> Model (p :&? q) (s :&? t) a b
 
 -- | <a>feedback</a>, but tracing and observing all of the intermediate
 --   values.
-feedbackTrace :: forall n p q s t a b. (KnownMayb p, KnownMayb q, KnownMayb s, KnownMayb t, MaybeC Backprop p, MaybeC Backprop q, MaybeC Backprop s, MaybeC Backprop t, KnownNat n, Backprop b) => Model p s a b -> Model q t b a -> Model (TupMaybe p q) (TupMaybe s t) a (ABP (Vector n) b)
+feedbackTrace :: forall n p q s t a b. (KnownMayb p, KnownMayb q, KnownMayb s, KnownMayb t, MaybeC Backprop p, MaybeC Backprop q, MaybeC Backprop s, MaybeC Backprop t, KnownNat n, Backprop b) => Model p s a b -> Model q t b a -> Model (p :&? q) (s :&? t) a (ABP (Vector n) b)
 
 module Backprop.Learn.Loss
 type Loss a = forall s. Reifies s W => a -> BVar s a -> BVar s Double
@@ -804,8 +805,8 @@ data LRp i o
 LRp :: !(R o) -> !(L o i) -> LRp i o
 [_lrAlpha] :: LRp i o -> !(R o)
 [_lrBeta] :: LRp i o -> !(L o i)
-lrAlpha :: forall i_a12Cw o_a12Cx. Lens' (LRp i_a12Cw o_a12Cx) (R o_a12Cx)
-lrBeta :: forall i_a12Cw o_a12Cx i_a12Qv. Lens (LRp i_a12Cw o_a12Cx) (LRp i_a12Qv o_a12Cx) (L o_a12Cx i_a12Cw) (L o_a12Cx i_a12Qv)
+lrAlpha :: forall i_a12Kz o_a12KA. Lens' (LRp i_a12Kz o_a12KA) (R o_a12KA)
+lrBeta :: forall i_a12Kz o_a12KA i_a12Yy. Lens (LRp i_a12Kz o_a12KA) (LRp i_a12Yy o_a12KA) (L o_a12KA i_a12Kz) (L o_a12KA i_a12Yy)
 runLRp :: (KnownNat i, KnownNat o, Reifies s W) => BVar s (LRp i o) -> BVar s (R i) -> BVar s (R o)
 
 -- | Adjust an <a>LRp</a> to take extra inputs, initialized randomly.
@@ -836,12 +837,12 @@ data ARIMAp :: Nat -> Nat -> Type
 -- | <tt>ARIMA</tt> state
 data ARIMAs :: Nat -> Nat -> Nat -> Type
 [ARIMAs] :: {_arimaYPred :: !Double, _arimaYHist :: !(R (p + d)), _arimaEHist :: !(R q)} -> ARIMAs p d q
-arimaPhi :: forall a_a12Wl b_a12Wm a_a13ix. Lens (ARIMAp a_a12Wl b_a12Wm) (ARIMAp a_a13ix b_a12Wm) (R a_a12Wl) (R a_a13ix)
-arimaTheta :: forall a_a12Wl b_a12Wm b_a13iy. Lens (ARIMAp a_a12Wl b_a12Wm) (ARIMAp a_a12Wl b_a13iy) (R b_a12Wm) (R b_a13iy)
-arimaConstant :: forall a_a12Wl b_a12Wm. Lens' (ARIMAp a_a12Wl b_a12Wm) Double
-arimaYPred :: forall a_a13jr b_a13js c_a13jt. Lens' (ARIMAs a_a13jr b_a13js c_a13jt) Double
-arimaYHist :: forall a_a13jr b_a13js c_a13jt a_a13q4 b_a13q5. Lens (ARIMAs a_a13jr b_a13js c_a13jt) (ARIMAs a_a13q4 b_a13q5 c_a13jt) (R ((+) a_a13jr b_a13js)) (R ((+) a_a13q4 b_a13q5))
-arimaEHist :: forall a_a13jr b_a13js c_a13jt c_a13q3. Lens (ARIMAs a_a13jr b_a13js c_a13jt) (ARIMAs a_a13jr b_a13js c_a13q3) (R c_a13jt) (R c_a13q3)
+arimaPhi :: forall a_a134o b_a134p a_a13qA. Lens (ARIMAp a_a134o b_a134p) (ARIMAp a_a13qA b_a134p) (R a_a134o) (R a_a13qA)
+arimaTheta :: forall a_a134o b_a134p b_a13qB. Lens (ARIMAp a_a134o b_a134p) (ARIMAp a_a134o b_a13qB) (R b_a134p) (R b_a13qB)
+arimaConstant :: forall a_a134o b_a134p. Lens' (ARIMAp a_a134o b_a134p) Double
+arimaYPred :: forall a_a13ru b_a13rv c_a13rw. Lens' (ARIMAs a_a13ru b_a13rv c_a13rw) Double
+arimaYHist :: forall a_a13ru b_a13rv c_a13rw a_a13y7 b_a13y8. Lens (ARIMAs a_a13ru b_a13rv c_a13rw) (ARIMAs a_a13y7 b_a13y8 c_a13rw) (R ((+) a_a13ru b_a13rv)) (R ((+) a_a13y7 b_a13y8))
+arimaEHist :: forall a_a13ru b_a13rv c_a13rw c_a13y6. Lens (ARIMAs a_a13ru b_a13rv c_a13rw) (ARIMAs a_a13ru b_a13rv c_a13y6) (R c_a13rw) (R c_a13y6)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARIMAp p q)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARIMAs p d q)
 instance GHC.Num.Num (Backprop.Learn.Model.Regression.ARIMAp p q)
@@ -938,10 +939,10 @@ LSTMp :: !(FCp (i + o) o) -> !(FCp (i + o) o) -> !(FCp (i + o) o) -> !(FCp (i + 
 [_lstmInput] :: LSTMp -> !(FCp (i + o) o)
 [_lstmUpdate] :: LSTMp -> !(FCp (i + o) o)
 [_lstmOutput] :: LSTMp -> !(FCp (i + o) o)
-lstmForget :: forall i_a1tAF o_a1tAG. Lens' (LSTMp i_a1tAF o_a1tAG) (FCp ((+) i_a1tAF o_a1tAG) o_a1tAG)
-lstmInput :: forall i_a1tAF o_a1tAG. Lens' (LSTMp i_a1tAF o_a1tAG) (FCp ((+) i_a1tAF o_a1tAG) o_a1tAG)
-lstmUpdate :: forall i_a1tAF o_a1tAG. Lens' (LSTMp i_a1tAF o_a1tAG) (FCp ((+) i_a1tAF o_a1tAG) o_a1tAG)
-lstmOutput :: forall i_a1tAF o_a1tAG. Lens' (LSTMp i_a1tAF o_a1tAG) (FCp ((+) i_a1tAF o_a1tAG) o_a1tAG)
+lstmForget :: forall i_a1tII o_a1tIJ. Lens' (LSTMp i_a1tII o_a1tIJ) (FCp ((+) i_a1tII o_a1tIJ) o_a1tIJ)
+lstmInput :: forall i_a1tII o_a1tIJ. Lens' (LSTMp i_a1tII o_a1tIJ) (FCp ((+) i_a1tII o_a1tIJ) o_a1tIJ)
+lstmUpdate :: forall i_a1tII o_a1tIJ. Lens' (LSTMp i_a1tII o_a1tIJ) (FCp ((+) i_a1tII o_a1tIJ) o_a1tIJ)
+lstmOutput :: forall i_a1tII o_a1tIJ. Lens' (LSTMp i_a1tII o_a1tIJ) (FCp ((+) i_a1tII o_a1tIJ) o_a1tIJ)
 
 -- | Gated Recurrent Unit
 --   
@@ -954,9 +955,9 @@ GRUp :: !(FCp (i + o) o) -> !(FCp (i + o) o) -> !(FCp (i + o) o) -> GRUp
 [_gruMemory] :: GRUp -> !(FCp (i + o) o)
 [_gruUpdate] :: GRUp -> !(FCp (i + o) o)
 [_gruOutput] :: GRUp -> !(FCp (i + o) o)
-gruMemory :: forall i_a1tHb o_a1tHc. Lens' (GRUp i_a1tHb o_a1tHc) (FCp ((+) i_a1tHb o_a1tHc) o_a1tHc)
-gruUpdate :: forall i_a1tHb o_a1tHc. Lens' (GRUp i_a1tHb o_a1tHc) (FCp ((+) i_a1tHb o_a1tHc) o_a1tHc)
-gruOutput :: forall i_a1tHb o_a1tHc. Lens' (GRUp i_a1tHb o_a1tHc) (FCp ((+) i_a1tHb o_a1tHc) o_a1tHc)
+gruMemory :: forall i_a1tPe o_a1tPf. Lens' (GRUp i_a1tPe o_a1tPf) (FCp ((+) i_a1tPe o_a1tPf) o_a1tPf)
+gruUpdate :: forall i_a1tPe o_a1tPf. Lens' (GRUp i_a1tPe o_a1tPf) (FCp ((+) i_a1tPe o_a1tPf) o_a1tPf)
+gruOutput :: forall i_a1tPe o_a1tPf. Lens' (GRUp i_a1tPe o_a1tPf) (FCp ((+) i_a1tPe o_a1tPf) o_a1tPf)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Additive (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Scaling GHC.Types.Double (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
