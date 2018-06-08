@@ -1,12 +1,12 @@
-{-# LANGUAGE ApplicativeDo                        #-}
-{-# LANGUAGE DataKinds                            #-}
-{-# LANGUAGE FlexibleContexts                     #-}
-{-# LANGUAGE PartialTypeSignatures                #-}
-{-# LANGUAGE RankNTypes                           #-}
-{-# LANGUAGE ScopedTypeVariables                  #-}
-{-# LANGUAGE TypeApplications                     #-}
-{-# LANGUAGE TypeFamilies                         #-}
-{-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
+{-# LANGUAGE ApplicativeDo                   #-}
+{-# LANGUAGE DataKinds                       #-}
+{-# LANGUAGE FlexibleContexts                #-}
+{-# LANGUAGE PartialTypeSignatures           #-}
+{-# LANGUAGE RankNTypes                      #-}
+{-# LANGUAGE ScopedTypeVariables             #-}
+{-# LANGUAGE TypeApplications                #-}
+{-# LANGUAGE TypeFamilies                    #-}
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 module Backprop.Learn.Test (
   -- * Tests

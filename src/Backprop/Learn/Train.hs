@@ -1,12 +1,12 @@
-{-# LANGUAGE DataKinds                            #-}
-{-# LANGUAGE FlexibleContexts                     #-}
-{-# LANGUAGE MultiParamTypeClasses                #-}
-{-# LANGUAGE PartialTypeSignatures                #-}
-{-# LANGUAGE RankNTypes                           #-}
-{-# LANGUAGE ScopedTypeVariables                  #-}
-{-# LANGUAGE TypeApplications                     #-}
-{-# LANGUAGE TypeFamilies                         #-}
-{-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
+{-# LANGUAGE DataKinds                       #-}
+{-# LANGUAGE FlexibleContexts                #-}
+{-# LANGUAGE MultiParamTypeClasses           #-}
+{-# LANGUAGE PartialTypeSignatures           #-}
+{-# LANGUAGE RankNTypes                      #-}
+{-# LANGUAGE ScopedTypeVariables             #-}
+{-# LANGUAGE TypeApplications                #-}
+{-# LANGUAGE TypeFamilies                    #-}
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 module Backprop.Learn.Train (
   -- * Gradients

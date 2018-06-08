@@ -1,9 +1,10 @@
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE DataKinds                     #-}
+{-# LANGUAGE FlexibleContexts              #-}
+{-# LANGUAGE RankNTypes                    #-}
+{-# LANGUAGE ScopedTypeVariables           #-}
+{-# LANGUAGE TypeApplications              #-}
+{-# LANGUAGE TypeOperators                 #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 module Backprop.Learn.Loss (
   -- * Loss functions
