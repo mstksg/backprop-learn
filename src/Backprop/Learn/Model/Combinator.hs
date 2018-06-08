@@ -82,10 +82,13 @@ infixr 8 <~
      , MaybeC Backprop s
      , MaybeC Backprop t
      )
-    => Model             q              t  a b
-    -> Model           p              s    b c
+    => Model           p              s    a b
+    -> Model             q              t  b c
     -> Model (TupMaybe p q) (TupMaybe s t) a c
-f ~> g = g <~ f
+(~>) = withModelFunc2 $ \f g (p :&? q) x (s :&? t) -> do
+    (y, s') <- f p x s
+    (z, t') <- g q y t
+    pure (z, s' :&? t')
 infixr 8 ~>
 
 
