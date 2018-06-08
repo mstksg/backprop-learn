@@ -26,7 +26,7 @@ module Data.Type.Mayb (
   , zipMayb3
   , FromJust
   , MaybeWit(..), type (<$>)
-  , TupMaybe, pattern (:&?), splitTupMaybe, tupMaybe
+  , type (:&?), pattern (:&?), splitTupMaybe, tupMaybe
   , BoolMayb, boolMayb
   , pattern MaybB
   ) where
@@ -172,17 +172,18 @@ type family FromJust (d :: TL.ErrorMessage) (m :: Maybe k) :: k where
     FromJust e ('Just a) = a
     FromJust e 'Nothing  = TL.TypeError e
 
-type family TupMaybe (a :: Maybe Type) (b :: Maybe Type) :: Maybe Type where
-    TupMaybe 'Nothing  'Nothing  = 'Nothing
-    TupMaybe 'Nothing  ('Just b) = 'Just b
-    TupMaybe ('Just a) 'Nothing  = 'Just a
-    TupMaybe ('Just a) ('Just b) = 'Just (a :& b)
+type family (a :: Maybe Type) :&? (b :: Maybe Type) :: Maybe Type where
+    'Nothing :&? 'Nothing = 'Nothing
+    'Nothing :&? 'Just b  = 'Just b
+    'Just a  :&? 'Nothing = 'Just a
+    'Just a  :&? 'Just b  = 'Just (a :& b)
+infixr 1 :&?
 
 pattern (:&?)
     :: (MaybeC Backprop a, MaybeC Backprop b, KnownMayb a, KnownMayb b, Reifies s W)
     => Mayb (BVar s) a
     -> Mayb (BVar s) b
-    -> Mayb (BVar s) (TupMaybe a b)
+    -> Mayb (BVar s) (a :&? b)
 pattern x :&? y <- (splitTupMaybe (\(v :&& u) -> (v, u))->(x, y))
   where
     (:&?) = tupMaybe (:&&)
@@ -192,7 +193,7 @@ tupMaybe
     => (forall a' b'. (a ~ 'Just a', b ~ 'Just b') => f a' -> f b' -> f (a' :& b'))
     -> Mayb f a
     -> Mayb f b
-    -> Mayb f (TupMaybe a b)
+    -> Mayb f (a :&? b)
 tupMaybe f = \case
     N_   -> \case
       N_   -> N_
@@ -204,7 +205,7 @@ tupMaybe f = \case
 splitTupMaybe
     :: forall f a b. (KnownMayb a, KnownMayb b)
     => (forall a' b'. (a ~ 'Just a', b ~ 'Just b') => f (a' :& b') -> (f a', f b'))
-    -> Mayb f (TupMaybe a b)
+    -> Mayb f (a :&? b)
     -> (Mayb f a, Mayb f b)
 splitTupMaybe f = case knownMayb @a of
     N_ -> case knownMayb @b of

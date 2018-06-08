@@ -45,8 +45,8 @@ trainState
      , MaybeC Backprop p
      , MaybeC Backprop s
      )
-    => Model           p s           a b
-    -> Model (TupMaybe p s) 'Nothing a b
+    => Model  p     s           a b
+    -> Model (p :&? s) 'Nothing a b
 trainState = withModelFunc $ \f (p :&? s) x n_ ->
     (second . const) n_ <$> f p x s
 
@@ -145,8 +145,8 @@ recurrent
     => (ab -> (a, b))                           -- ^ split
     -> (a -> b -> ab)                           -- ^ join
     -> BFunc c b                                -- ^ store state
-    -> Model p           s            ab c
-    -> Model p (TupMaybe s ('Just b)) a  c
+    -> Model p  s              ab c
+    -> Model p (s :&? 'Just b) a  c
 recurrent spl joi sto = withModelFunc $ \f p x (s :&? y) -> do
     (z, s') <- f p (isoVar2 joi spl x (fromJ_ y)) s
     pure (z, s' :&? J_ (sto z))

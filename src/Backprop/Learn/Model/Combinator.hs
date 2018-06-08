@@ -61,9 +61,9 @@ import qualified Data.Vector.Sized          as SV
      , MaybeC Backprop s
      , MaybeC Backprop t
      )
-    => Model           p              s    b c
-    -> Model             q              t  a b
-    -> Model (TupMaybe p q) (TupMaybe s t) a c
+    => Model  p         s        b c
+    -> Model        q         t  a b
+    -> Model (p :&? q) (s :&? t) a c
 (<~) = withModelFunc2 $ \f g (p :&? q) x (s :&? t) -> do
     (y, t') <- g q x t
     (z, s') <- f p y s
@@ -82,9 +82,9 @@ infixr 8 <~
      , MaybeC Backprop s
      , MaybeC Backprop t
      )
-    => Model           p              s    a b
-    -> Model             q              t  b c
-    -> Model (TupMaybe p q) (TupMaybe s t) a c
+    => Model  p         s        a b
+    -> Model        q         t  b c
+    -> Model (p :&? q) (s :&? t) a c
 (~>) = withModelFunc2 $ \f g (p :&? q) x (s :&? t) -> do
     (y, s') <- f p x s
     (z, t') <- g q y t
@@ -212,10 +212,10 @@ feedback
      , MaybeC Backprop s
      , MaybeC Backprop t
      )
-    => Int                                          -- ^ times
-    -> Model           p              s    a b      -- ^ feed
-    -> Model             q              t  b a      -- ^ back
-    -> Model (TupMaybe p q) (TupMaybe s t) a b
+    => Int                                -- ^ times
+    -> Model  p         s        a b      -- ^ feed
+    -> Model        q         t  b a      -- ^ back
+    -> Model (p :&? q) (s :&? t) a b
 feedback n = withModelFunc2 $ \feed back (p :&? q) x0 (s0 :&? t0) ->
     let go !i !x !s !t = do
             (y, s') <- feed p x s
@@ -240,9 +240,9 @@ feedbackTrace
      , KnownNat n
      , Backprop b
      )
-    => Model           p              s    a b      -- ^ feed
-    -> Model             q              t  b a      -- ^ back
-    -> Model (TupMaybe p q) (TupMaybe s t) a (ABP (SV.Vector n) b)
+    => Model  p         s        a b      -- ^ feed
+    -> Model        q         t  b a      -- ^ back
+    -> Model (p :&? q) (s :&? t) a (ABP (SV.Vector n) b)
 feedbackTrace = withModelFunc2 $ \feed back (p :&? q) x0 (s0 :&? t0) ->
     let go !x (!s, !t) = do
           (y, s') <- feed p x s
