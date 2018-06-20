@@ -105,7 +105,7 @@ import           Data.Type.Product
 import           GHC.Generics               (Generic)
 import           Lens.Micro
 import           Lens.Micro.Internal hiding (Index)
-import           Numeric.Backprop hiding    (T2)
+import           Numeric.Backprop hiding    (T2, (:&))
 import           Numeric.Opto.Ref
 import           Numeric.Opto.Update
 import           Type.Class.Known

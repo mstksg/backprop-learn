@@ -28,7 +28,7 @@ ghc-options:
 # - -fprint-explicit-kinds
 dependencies:
 - base >=4.7 && <5
-- backprop >= 0.2.4
+- backprop >= 0.2.5
 - binary
 - bytestring
 - conduit

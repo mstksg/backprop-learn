@@ -34,6 +34,7 @@ import           Control.Monad.Primitive
 import           Control.Monad.Trans.Reader
 import           Data.Functor.Identity
 import           Data.Kind
+import           Data.Type.Combinator
 import           Data.Type.Mayb
 import           Numeric.Backprop
 import           Prelude hiding             ((.))

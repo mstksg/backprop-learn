@@ -35,7 +35,7 @@ import           Data.Finite
 import           Data.Type.Tuple
 import           GHC.TypeNats
 import           Lens.Micro
-import           Numeric.Backprop
+import           Numeric.Backprop hiding               ((:&))
 import           Numeric.LinearAlgebra.Static.Backprop
 import           Numeric.Opto.Update hiding            ((<.>))
 import qualified Data.Vector.Sized                     as SV
