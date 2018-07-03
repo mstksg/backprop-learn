@@ -9,7 +9,7 @@
 module Backprop.Learn.Loss (
   -- * Loss functions
     Loss
-  , crossEntropy
+  , crossEntropy, crossEntropy1
   , squaredError, absError, totalSquaredError, squaredErrorV
   -- , totalCov
   -- ** Manipulate loss functions
@@ -44,34 +44,37 @@ import qualified Prelude.Backprop                      as B
 type Loss a = forall s. Reifies s W => a -> BVar s a -> BVar s Double
 
 crossEntropy :: KnownNat n => Loss (R n)
-crossEntropy targ res = -(log res <.> constVar targ)
+crossEntropy targ res = -(log res <.> auto targ)
+
+crossEntropy1 :: Loss Double
+crossEntropy1 targ res = -(log res * auto targ + log (1 - res) * auto (1 - targ))
 
 squaredErrorV :: KnownNat n => Loss (R n)
 squaredErrorV targ res = e <.> e
   where
-    e = res - constVar targ
+    e = res - auto targ
 
 totalSquaredError
   :: (Backprop (t Double), Num (t Double), Foldable t, Functor t)
     => Loss (t Double)
 totalSquaredError targ res = B.sum (e * e)
   where
-    e = constVar targ - res
+    e = auto targ - res
 
 squaredError :: Loss Double
-squaredError targ res = (res - constVar targ) ** 2
+squaredError targ res = (res - auto targ) ** 2
 
 absError :: Loss Double
-absError targ res = abs (res - constVar targ)
+absError targ res = abs (res - auto targ)
 
 -- -- | Sum of covariances between matching components.  Not sure if anyone
 -- -- uses this.
 -- totalCov :: (Backprop (t Double), Foldable t, Functor t) => Loss (t Double)
 -- totalCov targ res = -(xy / fromIntegral n - (x * y) / fromIntegral (n * n))
 --   where
---     x = constVar $ sum targ
+--     x = auto $ sum targ
 --     y = B.sum res
---     xy = B.sum (constVar targ * res)
+--     xy = B.sum (auto targ * res)
 --     n = length targ
 
 -- klDivergence :: Loss Double
@@ -89,7 +92,7 @@ zipLoss
     -> Loss a
     -> Loss (t a)
 zipLoss xs l targ = sum
-                  . liftA3 (\α t -> (* constVar α) . l t) xs targ
+                  . liftA3 (\α t -> (* auto α) . l t) xs targ
                   . sequenceVar
 
 sumLossDecay
@@ -115,7 +118,7 @@ coerced f x = coerce <$> f (coerce x)
 
 -- | Scale the result of a loss function.
 scaleLoss :: Double -> Loss a -> Loss a
-scaleLoss β l x = (* constVar β) . l x
+scaleLoss β l x = (* auto β) . l x
 
 -- | Lift and sum a loss function over the components of a ':&'.
 t2Loss
@@ -155,7 +158,7 @@ l1Reg λ = liftOp1 . op1 $ \x ->
 
 -- | No regularization
 noReg :: Regularizer p
-noReg _ = constVar 0
+noReg _ = auto 0
 
 -- | Add together two regularizers
 addReg :: Regularizer p -> Regularizer p -> Regularizer p
@@ -163,4 +166,4 @@ addReg = liftA2 (+)
 
 -- | Scale a regularizer's influence
 scaleReg :: Double -> Regularizer p -> Regularizer p
-scaleReg λ reg = (* constVar λ) . reg
+scaleReg λ reg = (* auto λ) . reg

@@ -13,7 +13,7 @@ module Backprop.Learn.Test (
     Test
   , maxIxTest, rmseTest
   , squaredErrorTest, absErrorTest, totalSquaredErrorTest, squaredErrorTestV
-  , crossEntropyTest
+  , crossEntropyTest, crossEntropyTest1
   -- ** Manipulate tests
   , lossTest, lmapTest
   -- * Run tests
@@ -79,6 +79,9 @@ squaredErrorTestV x y = e `H.dot` e
 
 crossEntropyTest :: KnownNat n => Test (H.R n)
 crossEntropyTest targ res = -(log res H.<.> targ)
+
+crossEntropyTest1 :: Test Double
+crossEntropyTest1 targ res = -(log res * targ + log (1 - res) * (1 - targ))
 
 lmapTest
     :: (a -> b)
