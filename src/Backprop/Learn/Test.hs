@@ -47,10 +47,13 @@ type Test o = o -> o -> Double
 lossTest :: Loss a -> Test a
 lossTest l x = evalBP (l x)
 
-boolTest :: Test Double
+boolTest :: forall a. RealFrac a => Test a
 boolTest x y
-    | round x == round y = 1
-    | otherwise          = 0
+    | ri x == ri y = 1
+    | otherwise    = 0
+  where
+    ri :: a -> Int
+    ri = round
 
 maxIxTest :: KnownNat n => Test (H.R n)
 maxIxTest x y
