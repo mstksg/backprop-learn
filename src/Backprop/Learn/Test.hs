@@ -14,6 +14,7 @@ module Backprop.Learn.Test (
   , maxIxTest, rmseTest
   , squaredErrorTest, absErrorTest, totalSquaredErrorTest, squaredErrorTestV
   , crossEntropyTest, crossEntropyTest1
+  , boolTest
   -- ** Manipulate tests
   , lossTest, lmapTest
   -- * Run tests
@@ -45,6 +46,11 @@ type Test o = o -> o -> Double
 -- | Create a 'Test' from a 'Loss'
 lossTest :: Loss a -> Test a
 lossTest l x = evalBP (l x)
+
+boolTest :: Test Double
+boolTest x y
+    | round x == round y = 1
+    | otherwise          = 0
 
 maxIxTest :: KnownNat n => Test (H.R n)
 maxIxTest x y
