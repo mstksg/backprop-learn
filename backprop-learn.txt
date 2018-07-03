@@ -1206,7 +1206,7 @@ totalSquaredErrorTest :: (Applicative t, Foldable t, Real a) => Test (t a)
 squaredErrorTestV :: KnownNat n => Test (R n)
 crossEntropyTest :: KnownNat n => Test (R n)
 crossEntropyTest1 :: Test Double
-boolTest :: Test Double
+boolTest :: forall a. RealFrac a => Test a
 
 -- | Create a <a>Test</a> from a <a>Loss</a>
 lossTest :: Loss a -> Test a
