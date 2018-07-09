@@ -721,6 +721,7 @@ infixr 5 #++
 --   Essentially prepares a model to be used with <tt>#~</tt> and
 --   <a>nilLM</a>.
 liftLM :: forall p s a b. (KnownMayb p, MaybeC Backprop p, KnownMayb s, MaybeC Backprop s) => Model p s a b -> LModel (MaybeToList p) (MaybeToList s) a b
+forkModel :: forall p q s t a b c. (KnownMayb p, KnownMayb q, KnownMayb s, KnownMayb t, MaybeC Backprop p, MaybeC Backprop q, MaybeC Backprop s, MaybeC Backprop t, Backprop b, Backprop c) => Model p s a b -> Model q t a c -> Model (p :&? q) (s :&? t) a (b :& c)
 
 -- | Return a model that loops a model ("feed") repeatedly onto itself,
 --   with a model to provide the back loop.
@@ -811,8 +812,8 @@ data LRp i o
 LRp :: !(R o) -> !(L o i) -> LRp i o
 [_lrAlpha] :: LRp i o -> !(R o)
 [_lrBeta] :: LRp i o -> !(L o i)
-lrAlpha :: forall i_a13C0 o_a13C1. Lens' (LRp i_a13C0 o_a13C1) (R o_a13C1)
-lrBeta :: forall i_a13C0 o_a13C1 i_a13PZ. Lens (LRp i_a13C0 o_a13C1) (LRp i_a13PZ o_a13C1) (L o_a13C1 i_a13C0) (L o_a13C1 i_a13PZ)
+lrAlpha :: forall i_a13O9 o_a13Oa. Lens' (LRp i_a13O9 o_a13Oa) (R o_a13Oa)
+lrBeta :: forall i_a13O9 o_a13Oa i_a1428. Lens (LRp i_a13O9 o_a13Oa) (LRp i_a1428 o_a13Oa) (L o_a13Oa i_a13O9) (L o_a13Oa i_a1428)
 runLRp :: (KnownNat i, KnownNat o, Reifies s W) => BVar s (LRp i o) -> BVar s (R i) -> BVar s (R o)
 
 -- | Adjust an <a>LRp</a> to take extra inputs, initialized randomly.
@@ -843,12 +844,12 @@ data ARIMAp :: Nat -> Nat -> Type
 -- | <tt>ARIMA</tt> state
 data ARIMAs :: Nat -> Nat -> Nat -> Type
 [ARIMAs] :: {_arimaYPred :: !Double, _arimaYHist :: !(R (p + d)), _arimaEHist :: !(R q)} -> ARIMAs p d q
-arimaPhi :: forall a_a13VP b_a13VQ a_a14i1. Lens (ARIMAp a_a13VP b_a13VQ) (ARIMAp a_a14i1 b_a13VQ) (R a_a13VP) (R a_a14i1)
-arimaTheta :: forall a_a13VP b_a13VQ b_a14i2. Lens (ARIMAp a_a13VP b_a13VQ) (ARIMAp a_a13VP b_a14i2) (R b_a13VQ) (R b_a14i2)
-arimaConstant :: forall a_a13VP b_a13VQ. Lens' (ARIMAp a_a13VP b_a13VQ) Double
-arimaYPred :: forall a_a14iV b_a14iW c_a14iX. Lens' (ARIMAs a_a14iV b_a14iW c_a14iX) Double
-arimaYHist :: forall a_a14iV b_a14iW c_a14iX a_a14py b_a14pz. Lens (ARIMAs a_a14iV b_a14iW c_a14iX) (ARIMAs a_a14py b_a14pz c_a14iX) (R ((+) a_a14iV b_a14iW)) (R ((+) a_a14py b_a14pz))
-arimaEHist :: forall a_a14iV b_a14iW c_a14iX c_a14px. Lens (ARIMAs a_a14iV b_a14iW c_a14iX) (ARIMAs a_a14iV b_a14iW c_a14px) (R c_a14iX) (R c_a14px)
+arimaPhi :: forall a_a147Y b_a147Z a_a14ua. Lens (ARIMAp a_a147Y b_a147Z) (ARIMAp a_a14ua b_a147Z) (R a_a147Y) (R a_a14ua)
+arimaTheta :: forall a_a147Y b_a147Z b_a14ub. Lens (ARIMAp a_a147Y b_a147Z) (ARIMAp a_a147Y b_a14ub) (R b_a147Z) (R b_a14ub)
+arimaConstant :: forall a_a147Y b_a147Z. Lens' (ARIMAp a_a147Y b_a147Z) Double
+arimaYPred :: forall a_a14v4 b_a14v5 c_a14v6. Lens' (ARIMAs a_a14v4 b_a14v5 c_a14v6) Double
+arimaYHist :: forall a_a14v4 b_a14v5 c_a14v6 a_a14BH b_a14BI. Lens (ARIMAs a_a14v4 b_a14v5 c_a14v6) (ARIMAs a_a14BH b_a14BI c_a14v6) (R ((+) a_a14v4 b_a14v5)) (R ((+) a_a14BH b_a14BI))
+arimaEHist :: forall a_a14v4 b_a14v5 c_a14v6 c_a14BG. Lens (ARIMAs a_a14v4 b_a14v5 c_a14v6) (ARIMAs a_a14v4 b_a14v5 c_a14BG) (R c_a14v6) (R c_a14BG)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARIMAp p q)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARIMAs p d q)
 instance GHC.Num.Num (Backprop.Learn.Model.Regression.ARIMAp p q)
@@ -945,10 +946,10 @@ LSTMp :: !(FCp (i + o) o) -> !(FCp (i + o) o) -> !(FCp (i + o) o) -> !(FCp (i + 
 [_lstmInput] :: LSTMp -> !(FCp (i + o) o)
 [_lstmUpdate] :: LSTMp -> !(FCp (i + o) o)
 [_lstmOutput] :: LSTMp -> !(FCp (i + o) o)
-lstmForget :: forall i_a1uAA o_a1uAB. Lens' (LSTMp i_a1uAA o_a1uAB) (FCp ((+) i_a1uAA o_a1uAB) o_a1uAB)
-lstmInput :: forall i_a1uAA o_a1uAB. Lens' (LSTMp i_a1uAA o_a1uAB) (FCp ((+) i_a1uAA o_a1uAB) o_a1uAB)
-lstmUpdate :: forall i_a1uAA o_a1uAB. Lens' (LSTMp i_a1uAA o_a1uAB) (FCp ((+) i_a1uAA o_a1uAB) o_a1uAB)
-lstmOutput :: forall i_a1uAA o_a1uAB. Lens' (LSTMp i_a1uAA o_a1uAB) (FCp ((+) i_a1uAA o_a1uAB) o_a1uAB)
+lstmForget :: forall i_a1uMJ o_a1uMK. Lens' (LSTMp i_a1uMJ o_a1uMK) (FCp ((+) i_a1uMJ o_a1uMK) o_a1uMK)
+lstmInput :: forall i_a1uMJ o_a1uMK. Lens' (LSTMp i_a1uMJ o_a1uMK) (FCp ((+) i_a1uMJ o_a1uMK) o_a1uMK)
+lstmUpdate :: forall i_a1uMJ o_a1uMK. Lens' (LSTMp i_a1uMJ o_a1uMK) (FCp ((+) i_a1uMJ o_a1uMK) o_a1uMK)
+lstmOutput :: forall i_a1uMJ o_a1uMK. Lens' (LSTMp i_a1uMJ o_a1uMK) (FCp ((+) i_a1uMJ o_a1uMK) o_a1uMK)
 
 -- | Gated Recurrent Unit
 --   
@@ -961,9 +962,9 @@ GRUp :: !(FCp (i + o) o) -> !(FCp (i + o) o) -> !(FCp (i + o) o) -> GRUp
 [_gruMemory] :: GRUp -> !(FCp (i + o) o)
 [_gruUpdate] :: GRUp -> !(FCp (i + o) o)
 [_gruOutput] :: GRUp -> !(FCp (i + o) o)
-gruMemory :: forall i_a1uH6 o_a1uH7. Lens' (GRUp i_a1uH6 o_a1uH7) (FCp ((+) i_a1uH6 o_a1uH7) o_a1uH7)
-gruUpdate :: forall i_a1uH6 o_a1uH7. Lens' (GRUp i_a1uH6 o_a1uH7) (FCp ((+) i_a1uH6 o_a1uH7) o_a1uH7)
-gruOutput :: forall i_a1uH6 o_a1uH7. Lens' (GRUp i_a1uH6 o_a1uH7) (FCp ((+) i_a1uH6 o_a1uH7) o_a1uH7)
+gruMemory :: forall i_a1uTf o_a1uTg. Lens' (GRUp i_a1uTf o_a1uTg) (FCp ((+) i_a1uTf o_a1uTg) o_a1uTg)
+gruUpdate :: forall i_a1uTf o_a1uTg. Lens' (GRUp i_a1uTf o_a1uTg) (FCp ((+) i_a1uTf o_a1uTg) o_a1uTg)
+gruOutput :: forall i_a1uTf o_a1uTg. Lens' (GRUp i_a1uTf o_a1uTg) (FCp ((+) i_a1uTf o_a1uTg) o_a1uTg)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Additive (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Scaling GHC.Types.Double (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
