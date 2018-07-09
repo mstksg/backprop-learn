@@ -73,7 +73,6 @@ import qualified Data.Vector.Storable.Sized                   as SVS
 import qualified Numeric.LinearAlgebra                        as HU
 import qualified Numeric.LinearAlgebra.Static                 as H
 import qualified Numeric.LinearAlgebra.Static.Vector          as H
-import qualified Prelude.Backprop                             as B
 
 meanModel
     :: (Backprop (t a), Foldable t, Functor t, Fractional a, Reifies s W)

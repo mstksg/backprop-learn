@@ -29,7 +29,7 @@ module Backprop.Learn.Model.Combinator (
     -- * List-based Composition
   , LModel, (#:), nilLM, (#++), liftLM
     -- * Misc
-  , feedback, feedbackTrace
+  , forkModel, feedback, feedbackTrace
   ) where
 
 import           Backprop.Learn.Model.Types
@@ -251,3 +251,24 @@ feedbackTrace = withModelFunc2 $ \feed back (p :&? q) x0 (s0 :&? t0) ->
     in  second (uncurry (:&?) . snd) <$>
           runStateT (collectVar . ABP <$> SV.replicateM (StateT (uncurry go)))
                    (x0, (s0, t0))
+
+forkModel
+    :: forall p q s t a b c.
+     ( KnownMayb p
+     , KnownMayb q
+     , KnownMayb s
+     , KnownMayb t
+     , MaybeC Backprop p
+     , MaybeC Backprop q
+     , MaybeC Backprop s
+     , MaybeC Backprop t
+     , Backprop b
+     , Backprop c
+     )
+    => Model  p         s        a b      -- ^ fork 1
+    -> Model        q         t  a c      -- ^ fork 2
+    -> Model (p :&? q) (s :&? t) a (b :& c)
+forkModel = withModelFunc2 $ \f g (p :&? q) x (s0 :&? t0) -> do
+    (y, s1) <- f p x s0
+    (z, t1) <- g q x t0
+    pure $ (y :&& z, s1 :&? t1)
