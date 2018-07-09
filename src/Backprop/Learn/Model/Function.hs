@@ -5,6 +5,7 @@
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE MultiWayIf            #-}
 {-# LANGUAGE PatternSynonyms       #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
@@ -16,12 +17,17 @@
 {-# LANGUAGE ViewPatterns          #-}
 
 module Backprop.Learn.Model.Function (
+  -- * Statistics
+    meanModel
+  , varModel
+  , stdevModel
+  , rangeModel
   -- * Activation functions
   -- | See <https://en.wikipedia.org/wiki/Activation_function>
   --
   -- ** Maps
   -- *** Unparameterized
-    step
+  , step
   , logistic
   , softsign
   , reLU
@@ -54,17 +60,64 @@ module Backprop.Learn.Model.Function (
 
 import           Control.Category
 import           Data.Foldable
+import           Data.Profunctor
 import           Data.Proxy
 import           Data.Type.Tuple
 import           GHC.TypeNats
-import           Numeric.Backprop
+import           Numeric.Backprop hiding                      (Rec(..))
 import           Numeric.LinearAlgebra.Static.Backprop hiding (tr)
 import           Prelude hiding                               ((.), id)
+import qualified Control.Foldl                                as F
 import qualified Data.Vector.Sized                            as SV
 import qualified Data.Vector.Storable.Sized                   as SVS
 import qualified Numeric.LinearAlgebra                        as HU
 import qualified Numeric.LinearAlgebra.Static                 as H
 import qualified Numeric.LinearAlgebra.Static.Vector          as H
+import qualified Prelude.Backprop                             as B
+
+meanModel
+    :: (Backprop (t a), Foldable t, Functor t, Fractional a, Reifies s W)
+    => BVar s (t a)
+    -> BVar s a
+meanModel = liftOp1 . op1 $ \xs ->
+    let x :& n = F.fold ((:&) <$> F.sum <*> F.length) xs
+    in  (x / fromIntegral n, \d -> (d / fromIntegral n) <$ xs)
+
+varModel
+    :: (Backprop (t a), Foldable t, Functor t, Fractional a, Reifies s W)
+    => BVar s (t a)
+    -> BVar s a
+varModel = liftOp1 . op1 $ \xs ->
+    let x2 :& x1 :& x0 = F.fold ((\x2' x1' x0' -> x2' :& x1' :& x0') <$> lmap (^(2::Int)) F.sum <*> F.sum <*> F.length) xs
+        meanx  = x1 / fromIntegral x0
+        subAll = 2 * x1 / (fromIntegral x0 ^ (2 :: Int))
+    in  ( (x2 / fromIntegral x0) - meanx * meanx
+        , \d -> let subAllD = d * subAll
+                in  (\x -> d * (2 * x / fromIntegral x0 + subAllD)) <$> xs
+        )
+
+stdevModel
+    :: (Backprop (t a), Foldable t, Functor t, Floating a, Reifies s W)
+    => BVar s (t a)
+    -> BVar s a
+stdevModel = sqrt . varModel
+
+rangeModel
+    :: (Backprop (t a), Foldable t, Functor t, Ord a, Num a, Reifies s W)
+    => BVar s (t a)
+    -> BVar s a
+rangeModel = liftOp1 . op1 $ \xs ->
+    let mn :& mx = F.fold ((:&) <$> F.minimum <*> F.maximum) xs
+    in  case (:&) <$> mn <*> mx of
+          Nothing           -> errorWithoutStackTrace "Backprop.Learn.Model.Function.range: empty range"
+          Just (mn' :& mx') ->
+            ( mx' - mn'
+            , \d -> (\x -> if | x == mx'  -> d
+                              | x == mn'  -> -d
+                              | otherwise -> 0
+                    ) <$> xs
+            )
+
 
 -- | Softmax normalizer
 softMax
