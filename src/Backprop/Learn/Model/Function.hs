@@ -92,7 +92,7 @@ varModel = liftOp1 . op1 $ \xs ->
         subAll = 2 * x1 / (fromIntegral x0 ^ (2 :: Int))
     in  ( (x2 / fromIntegral x0) - meanx * meanx
         , \d -> let subAllD = d * subAll
-                in  (\x -> d * 2 * x / fromIntegral x0 + subAllD) <$> xs
+                in  (\x -> d * 2 * x / fromIntegral x0 - subAllD) <$> xs
         )
 
 stdevModel
