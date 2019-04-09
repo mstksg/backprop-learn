@@ -15,7 +15,7 @@
 # resolver:
 #  name: custom-snapshot
 #  location: "./custom-snapshot.yaml"
-resolver: nightly-2018-06-02
+resolver: nightly-2019-04-08
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -37,18 +37,10 @@ resolver: nightly-2018-06-02
 # will not be run. This is useful for tweaking upstream packages.
 packages:
 - '.'
-- location:
-    git: https://github.com/mstksg/type-combinators.git
-    commit: 13e7d4bd99b1a80b5fdb436a85ee52cfa0ff799f
-  extra-dep: true
-- location:
-    git: https://github.com/mstksg/opto.git
-    commit: 22014151c05bb4bb5accdc88732172386e1c6545
-  extra-dep: true
-- location:
-    git: https://github.com/haskell/vector.git
-    commit: cc5460dfb7a2fb099760155ca46f96c05a1b81b7
-  extra-dep: true
+# - location:
+#     git: https://github.com/haskell/vector.git
+#     commit: cc5460dfb7a2fb099760155ca46f96c05a1b81b7
+#   extra-dep: true
 # - location: ../hmatrix-backprop
 #   extra-dep: true
 # - location:
@@ -71,11 +63,10 @@ packages:
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps:
-- backprop-0.2.5.0
-- hmatrix-backprop-0.1.2.3
-# - type-combinators-0.2.4.3
-# - mnist-idx-0.1.2.6
-# - finite-typelits-0.1.2.0
+- git: https://github.com/mstksg/type-combinators.git
+  commit: 50334ab6bc3e5c3aee53c881a027f687fde13fa4
+- git: https://github.com/mstksg/opto.git
+  commit: 7e954066bfe7bea006b7a6a7d19d6db9b0fc17c8
 
 # Override default flag values for local packages and extra-deps
 flags: {}

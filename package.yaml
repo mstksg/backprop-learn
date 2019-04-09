@@ -54,7 +54,7 @@ dependencies:
 - transformers
 - type-combinators
 - typelits-witnesses
-- vector
+- vector >= 0.12.0.2
 - vector-sized
 
 library:
