@@ -150,6 +150,7 @@ infixr 1 :&
 data T :: [Type] -> Type where
     TNil :: T '[]
     (:#) :: !a -> !(T as) -> T (a ': as)
+infixr 5 :#
 
 -- | @since 0.1.5.1
 deriving instance ListC (Show <$> as) => Show (T as)
