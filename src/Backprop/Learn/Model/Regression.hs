@@ -127,8 +127,7 @@ expandOutput LRp{..} d g = do
 -- Removed inputs will simply have their contributions removed from each
 -- output.
 reshapeInput
-    :: KnownNat i
-    => SV.Vector i' (Finite i)
+    :: SV.Vector i' (Finite i)
     -> LRp i o
     -> LRp i' o
 reshapeInput is p = p { _lrBeta = colsL . fmap (β `SV.index`) $ is }
@@ -137,8 +136,7 @@ reshapeInput is p = p { _lrBeta = colsL . fmap (β `SV.index`) $ is }
 
 -- | Premute (or remove) outputs
 reshapeOutput
-    :: KnownNat o
-    => SV.Vector o' (Finite o)
+    :: SV.Vector o' (Finite o)
     -> LRp i o
     -> LRp i o'
 reshapeOutput is LRp{..} =
