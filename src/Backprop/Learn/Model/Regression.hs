@@ -22,9 +22,14 @@
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise       #-}
 
 module Backprop.Learn.Model.Regression (
+  -- * Linear Regression
     linReg, logReg
   , LRp(..), lrAlpha, lrBeta, runLRp
-  , expandInput, expandOutput, reshapeInput, reshapeOutput
+  -- * Reshape
+  , reshapeLRpInput, reshapeLRpOutput
+  , expandLRpInput, expandLRpOutput
+  , premuteLRpInput, permuteLRpOutput
+  -- * ARIMA
   , arima, autoregressive, movingAverage, arma
   , ARIMAp(..), ARIMAs(..)
   , arimaPhi, arimaTheta, arimaConstant, arimaYPred, arimaYHist, arimaEHist
@@ -89,6 +94,29 @@ runLRp
     -> BVar s (R o)
 runLRp lrp x = (lrp ^^. lrBeta) #> x + (lrp ^^. lrAlpha)
 
+-- | Reshape an 'LRp' to take more or less inputs.  If more, new parameters
+-- are initialized randomly according to the given distribution.
+reshapeLRpInput
+    :: (ContGen d, PrimMonad m, KnownNat i, KnownNat i', KnownNat o)
+    => d
+    -> MWC.Gen (PrimState m)
+    -> LRp i o
+    -> m (LRp i' o)
+reshapeLRpInput d g (LRp α β) =
+    LRp α <$> reshapeLCols d g β
+
+-- | Reshape an 'LRp' to return more or less outputs  If more, new
+-- parameters are initialized randomly according to the given distribution.
+reshapeLRpOutput
+    :: (ContGen d, PrimMonad m, KnownNat i, KnownNat o, KnownNat o')
+    => d
+    -> MWC.Gen (PrimState m)
+    -> LRp i o
+    -> m (LRp i o')
+reshapeLRpOutput d g (LRp α β) =
+    LRp <$> reshapeR d g α
+        <*> reshapeLRows d g β
+
 linReg
     :: (KnownNat i, KnownNat o)
     => Model ('Just (LRp i o)) 'Nothing (R i) (R o)
@@ -102,22 +130,22 @@ logReg = funcD logistic <~ linReg
 -- | Adjust an 'LRp' to take extra inputs, initialized randomly.
 --
 -- Initial contributions to each output is randomized.
-expandInput
+expandLRpInput
     :: (PrimMonad m, ContGen d, KnownNat i, KnownNat j, KnownNat o)
     => LRp i o
     -> d
     -> MWC.Gen (PrimState m)
     -> m (LRp (i + j) o)
-expandInput LRp{..} d g = LRp _lrAlpha . (_lrBeta H.|||) <$> initialize d g
+expandLRpInput LRp{..} d g = LRp _lrAlpha . (_lrBeta H.|||) <$> initialize d g
 
 -- | Adjust an 'LRp' to return extra ouputs, initialized randomly
-expandOutput
+expandLRpOutput
     :: (PrimMonad m, ContGen d, KnownNat i, KnownNat o, KnownNat p)
     => LRp i o
     -> d
     -> MWC.Gen (PrimState m)
     -> m (LRp i (o + p))
-expandOutput LRp{..} d g = do
+expandLRpOutput LRp{..} d g = do
     newAlpha <- initialize d g
     newBeta  <- initialize d g
     pure (LRp (_lrAlpha H.# newAlpha) (_lrBeta H.=== newBeta))
@@ -126,20 +154,20 @@ expandOutput LRp{..} d g = do
 --
 -- Removed inputs will simply have their contributions removed from each
 -- output.
-reshapeInput
+premuteLRpInput
     :: SV.Vector i' (Finite i)
     -> LRp i o
     -> LRp i' o
-reshapeInput is p = p { _lrBeta = colsL . fmap (β `SV.index`) $ is }
+premuteLRpInput is p = p { _lrBeta = colsL . fmap (β `SV.index`) $ is }
   where
     β = lCols (_lrBeta p)
 
 -- | Premute (or remove) outputs
-reshapeOutput
+permuteLRpOutput
     :: SV.Vector o' (Finite o)
     -> LRp i o
     -> LRp i o'
-reshapeOutput is LRp{..} =
+permuteLRpOutput is LRp{..} =
     LRp { _lrAlpha = vecR . SVG.convert . fmap (α `SVS.index`) $ is
         , _lrBeta  = rowsL . fmap (β `SV.index`) $ is
         }

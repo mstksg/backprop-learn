@@ -64,7 +64,7 @@ import           Data.Profunctor
 import           Data.Proxy
 import           Data.Type.Tuple
 import           GHC.TypeNats
-import           Numeric.Backprop hiding                      (Rec(..))
+import           Numeric.Backprop
 import           Numeric.LinearAlgebra.Static.Backprop hiding (tr)
 import           Prelude hiding                               ((.), id)
 import qualified Control.Foldl                                as F

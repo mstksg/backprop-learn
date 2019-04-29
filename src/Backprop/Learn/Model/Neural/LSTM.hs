@@ -22,6 +22,8 @@ module Backprop.Learn.Model.Neural.LSTM (
     -- * LSTM
     lstm
   , LSTMp(..), lstmForget, lstmInput, lstmUpdate, lstmOutput
+  , reshapeLSTMpInput
+  , reshapeLSTMpOutput
     -- * GRU
   , gru
   , GRUp(..), gruMemory, gruUpdate, gruOutput
@@ -34,6 +36,8 @@ import           Backprop.Learn.Model.Regression
 import           Backprop.Learn.Model.State
 import           Backprop.Learn.Model.Types
 import           Control.DeepSeq
+import           Control.Monad
+import           Control.Monad.Primitive
 import           Data.Type.Tuple
 import           Data.Typeable
 import           GHC.Generics                          (Generic)
@@ -45,8 +49,10 @@ import           Numeric.LinearAlgebra.Static.Backprop
 import           Numeric.OneLiner
 import           Numeric.Opto.Ref
 import           Numeric.Opto.Update
+import           Statistics.Distribution
 import qualified Data.Binary                           as Bi
 import qualified Numeric.LinearAlgebra.Static          as H
+import qualified System.Random.MWC                     as MWC
 
 -- TODO: allow parameterize internal activation function?
 -- TODO: Peepholes
@@ -91,6 +97,35 @@ lstm
     :: (KnownNat i, KnownNat o)
     => Model ('Just (LSTMp i o)) ('Just (R o :& R o)) (R i) (R o)
 lstm = recurrent H.split (H.#) id lstm'
+
+reshapeLSTMpInput
+    :: (ContGen d, PrimMonad m, KnownNat i, KnownNat i', KnownNat o)
+    => d
+    -> MWC.Gen (PrimState m)
+    -> LSTMp i o
+    -> m (LSTMp i' o)
+reshapeLSTMpInput d g (LSTMp forget input update output) =
+    LSTMp <$> reshaper forget
+          <*> reshaper input
+          <*> reshaper update
+          <*> reshaper output
+  where
+    reshaper = reshapeLRpInput d g
+
+reshapeLSTMpOutput
+    :: (ContGen d, PrimMonad m, KnownNat i, KnownNat o, KnownNat o')
+    => d
+    -> MWC.Gen (PrimState m)
+    -> LSTMp i o
+    -> m (LSTMp i o')
+reshapeLSTMpOutput d g (LSTMp forget input update output) =
+    LSTMp <$> reshaper forget
+          <*> reshaper input
+          <*> reshaper update
+          <*> reshaper output
+  where
+    reshaper = reshapeLRpInput  d g
+           <=< reshapeLRpOutput d g
 
 -- | Forget biases initialized to 1
 instance (KnownNat i, KnownNat o) => Initialize (LSTMp i o) where

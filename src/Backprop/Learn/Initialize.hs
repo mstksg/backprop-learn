@@ -12,19 +12,27 @@
 {-# LANGUAGE TypeOperators                            #-}
 {-# LANGUAGE UndecidableInstances                     #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise       #-}
 
 module Backprop.Learn.Initialize (
     Initialize(..)
   , gInitialize
   , initializeNormal
   , initializeSingle
+  -- * Reshape
+  , reshapeR
+  , reshapeLRows
+  , reshapeLCols
   ) where
 
 import           Control.Monad.Primitive
 import           Data.Complex
+import           Data.Proxy
+import           Data.Type.Equality
 import           Data.Type.Length
 import           Data.Type.NonEmpty
 import           Data.Type.Tuple
+import           GHC.TypeLits.Compare
 import           GHC.TypeNats
 import           Generics.OneLiner
 import           Numeric.LinearAlgebra.Static.Vector
@@ -111,7 +119,6 @@ instance (KnownNat n, KnownNat m) => Initialize (H.L n m) where
 instance (KnownNat n, KnownNat m) => Initialize (H.M n m) where
     initialize d = fmap vecM . initialize d
 
-
 constTA
     :: forall c as f. (ListC (c <$> as), Applicative f)
     => (forall a. c a => f a)
@@ -123,3 +130,40 @@ constTA x = go
     go LZ     = pure TNil
     go (LS l) = (:#) <$> x <*> go l
 
+-- | Reshape a vector to have a different amount of items  If the matrix is
+-- grown, new weights are initialized according to the given distribution.
+reshapeR
+    :: forall i j d m. (ContGen d, PrimMonad m, KnownNat i, KnownNat j)
+    => d
+    -> MWC.Gen (PrimState m)
+    -> H.R i
+    -> m (H.R j)
+reshapeR d g x = case Proxy @j %<=? Proxy @i of
+    LE  Refl      -> pure . vecR . SVG.take @_ @j @(i - j) . rVec $ x
+    NLE Refl Refl -> (x H.#) <$> initialize @(H.R (j - i)) d g
+
+-- | Reshape a matrix to have a different amount of rows  If the matrix
+-- is grown, new weights are initialized according to the given
+-- distribution.
+reshapeLRows
+    :: forall i j n d m. (ContGen d, PrimMonad m, KnownNat n, KnownNat i, KnownNat j)
+    => d
+    -> MWC.Gen (PrimState m)
+    -> H.L i n
+    -> m (H.L j n)
+reshapeLRows d g x = case Proxy @j %<=? Proxy @i of
+    LE Refl       -> pure . rowsL . SVG.take @_ @j @(i - j) . lRows $ x
+    NLE Refl Refl -> (x H.===) <$> initialize @(H.L (j - i) n) d g
+
+-- | Reshape a matrix to have a different amount of columns.  If the matrix
+-- is grown, new weights are initialized according to the given
+-- distribution.
+reshapeLCols
+    :: forall i j n d m. (ContGen d, PrimMonad m, KnownNat n, KnownNat i, KnownNat j)
+    => d
+    -> MWC.Gen (PrimState m)
+    -> H.L n i
+    -> m (H.L n j)
+reshapeLCols d g x = case Proxy @j %<=? Proxy @i of
+    LE Refl       -> pure . colsL . SVG.take @_ @j @(i - j) . lCols $ x
+    NLE Refl Refl -> (x H.|||) <$> initialize @(H.L n (j - i)) d g
