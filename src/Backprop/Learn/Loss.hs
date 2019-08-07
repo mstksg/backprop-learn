@@ -29,6 +29,7 @@ module Backprop.Learn.Loss (
   , scaleReg
   ) where
 
+import           Backprop.Learn.Regularize
 import           Control.Applicative
 import           Data.Coerce
 import           Data.Finite
@@ -37,7 +38,6 @@ import           GHC.TypeNats
 import           Lens.Micro
 import           Numeric.Backprop
 import           Numeric.LinearAlgebra.Static.Backprop
-import           Numeric.Opto.Update hiding            ((<.>))
 import qualified Data.Vector.Sized                     as SV
 import qualified Prelude.Backprop                      as B
 
@@ -125,45 +125,6 @@ t2Loss
     :: (Backprop a, Backprop b)
     => Loss a                   -- ^ loss on first component
     -> Loss b                   -- ^ loss on second component
-    -> Loss (a :& b)
-t2Loss f g (xT :& yT) (xR :&& yR) = f xT xR + g yT yR
+    -> Loss (a :# b)
+t2Loss f g (xT :# yT) (xR :## yR) = f xT xR + g yT yR
 
--- | A regularizer on parameters
-type Regularizer p = forall s. Reifies s W => BVar s p -> BVar s Double
-
--- | L2 regularization
---
--- \[
--- \sum_w \frac{1}{2} w^2
--- \]
-l2Reg
-    :: (Metric Double p, Backprop p)
-    => Double                   -- ^ scaling factor (often 0.5)
-    -> Regularizer p
-l2Reg λ = liftOp1 . op1 $ \x ->
-            ( λ * quadrance x / 2, (.* x) . (* λ))
-
--- | L1 regularization
---
--- \[
--- \sum_w \lvert w \rvert
--- \]
-l1Reg
-    :: (Num p, Metric Double p, Backprop p)
-    => Double                   -- ^ scaling factor (often 0.5)
-    -> Regularizer p
-l1Reg λ = liftOp1 . op1 $ \x ->
-            ( λ * norm_1 x, (.* signum x) . (* λ)
-            )
-
--- | No regularization
-noReg :: Regularizer p
-noReg _ = auto 0
-
--- | Add together two regularizers
-addReg :: Regularizer p -> Regularizer p -> Regularizer p
-addReg = liftA2 (+)
-
--- | Scale a regularizer's influence
-scaleReg :: Double -> Regularizer p -> Regularizer p
-scaleReg λ reg = (* auto λ) . reg

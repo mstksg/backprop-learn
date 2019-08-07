@@ -20,247 +20,264 @@
 {-# LANGUAGE ViewPatterns               #-}
 
 module Data.Type.Mayb (
-    MaybeC, MaybeToList, ListToMaybe
-  , Mayb(.., J_I), fromJ_, maybToList, listToMayb
-  , P(..), KnownMayb, knownMayb
-  , zipMayb
-  , zipMayb3
-  , FromJust
-  , MaybeWit(..), type (<$>)
-  , type (:&?), pattern (:&?), splitTupMaybe, tupMaybe
+    MaybeC
+    -- , MaybeToList, ListToMaybe
+  -- , Mayb(.., J_I), fromJ_
+  , PMaybe(..,PJustI), fromPJust
+  , maybToList, listToMayb
+  -- , P(..), KnownMayb, knownMayb
+  -- , zipMayb
+  -- , zipMayb3
+  -- , FromJust
+  -- , MaybeWit(..), type (<$>)
+  , type (:#?), pattern (:#?), splitTupMaybe, tupMaybe
   , BoolMayb, boolMayb
   , pattern MaybB
   ) where
 
+-- import           Data.Type.Boolean
+-- import           Data.Type.Combinator
+-- import           Data.Type.Product
+-- import           Type.Class.Higher
+-- import           Type.Class.Known
+-- import           Type.Class.Witness
+-- import           Type.Family.Maybe    (type (<$>))
 import           Data.Bifunctor
+import           Data.Functor.Identity
 import           Data.Kind
-import           Data.Type.Boolean
-import           Data.Type.Combinator
-import           Data.Type.Product
+import           Data.Singletons
+import           Data.Singletons.Prelude.Bool
+import           Data.Singletons.Prelude.List
+import           Data.Singletons.Prelude.Maybe
 import           Data.Type.Tuple
+import           Data.Type.Universe
+import           Data.Type.Universe.Prod
+import           Data.Vinyl
 import           Numeric.Backprop
-import           Type.Class.Higher
-import           Type.Class.Known
-import           Type.Class.Witness
-import           Type.Family.Maybe    (type (<$>))
+import qualified Data.Vinyl.Functor as V
+import qualified Data.Vinyl.TypeLevel as V
 import qualified GHC.TypeLits         as TL
 
-type family MaybeC (c :: k -> Constraint) (m :: Maybe k) :: Constraint where
-    MaybeC c ('Just a) = c a
-    MaybeC c 'Nothing  = ()
+type MaybeC c m = V.AllConstrained c (MaybeToList m)
 
-type family MaybeToList (m :: Maybe k) = (l :: [k]) | l -> m where
-    MaybeToList 'Nothing  = '[]
-    MaybeToList ('Just a) = '[a]
+-- type family MaybeC (c :: k -> Constraint) (m :: Maybe k) :: Constraint where
+--     MaybeC c ('Just a) = c a
+--     MaybeC c 'Nothing  = ()
+
+-- type family KnownMayb (m :: Maybe k) :: Constraint where
+
+
+-- type family MaybeToList (m :: Maybe k) = (l :: [k]) | l -> m where
+--     MaybeToList 'Nothing  = '[]
+--     MaybeToList ('Just a) = '[a]
 
 -- type family ConsMaybe (ml :: (Maybe k, [k])) = (l :: (Bool, [k])) | l -> ml where
 --     ConsMaybe '( 'Nothing, as) = '( 'False, as      )
 --     ConsMaybe '( 'Just a , as) = '( 'True , a ': as )
 
 maybToList
-    :: Mayb f m
-    -> Prod f (MaybeToList m)
-maybToList N_     = Ø
-maybToList (J_ x) = x :< Ø
-
-type family ListToMaybe (l :: [k]) :: Maybe k where
-    ListToMaybe '[]       = 'Nothing
-    ListToMaybe (a ': as) = 'Just a
+    :: PMaybe f m
+    -> Rec f (MaybeToList m)
+maybToList PNothing  = RNil
+maybToList (PJust x) = x :& RNil
 
 listToMayb
-    :: Prod f as
-    -> Mayb f (ListToMaybe as)
-listToMayb Ø        = N_
-listToMayb (x :< _) = J_ x
+    :: Rec f as
+    -> PMaybe f (ListToMaybe as)
+listToMayb RNil     = PNothing
+listToMayb (x :& _) = PJust x
 
-class MaybeWit (c :: k -> Constraint) (m :: Maybe k) where
-    maybeWit :: Mayb (Wit1 c) m
+-- class MaybeWit (c :: k -> Constraint) (m :: Maybe k) where
+--     maybeWit :: Mayb (Wit1 c) m
 
-instance (MaybeC c m, Known (Mayb P) m) => MaybeWit c m where
-    maybeWit = case known @_ @(Mayb P) @m of
-        J_ _ -> J_ Wit1
-        N_   -> N_
+-- instance (MaybeC c m, Known (Mayb P) m) => MaybeWit c m where
+--     maybeWit = case known @_ @(Mayb P) @m of
+--         PJust _ -> PJust Wit1
+--         PNothing   -> PNothing
 
-type KnownMayb = Known (Mayb P)
+-- type KnownMayb = Known (Mayb P)
 
-knownMayb :: KnownMayb p => Mayb P p
-knownMayb = known
+-- knownMayb :: KnownMayb p => PMaybe P p
+-- knownMayb = known
 
-data Mayb :: (k -> Type) -> Maybe k -> Type where
-    N_ :: Mayb f 'Nothing
-    J_ :: !(f a) -> Mayb f ('Just a)
+-- data Mayb :: (k -> Type) -> Maybe k -> Type where
+--     PNothing :: Mayb f 'Nothing
+--     J_ :: !(f a) -> Mayb f ('Just a)
 
-deriving instance MaybeC Show (f <$> m) => Show (Mayb f m)
+-- deriving instance MaybeC Show (f <$> m) => Show (Mayb f m)
 
 data P :: k -> Type where
     P :: P a
 
-fromJ_ :: Mayb f ('Just a) -> f a
-fromJ_ (J_ x) = x
+fromPJust :: PMaybe f ('Just a) -> f a
+fromPJust (PJust x) = x
 
-pattern J_I :: a -> Mayb I ('Just a)
-pattern J_I x = J_ (I x)
+pattern PJustI :: a -> PMaybe Identity ('Just a)
+pattern PJustI x = PJust (Identity x)
 
-instance Known P k where
-    known = P
+-- instance Known P k where
+--     known = P
 
-instance Known (Mayb f) 'Nothing where
-    known = N_
+-- instance Known (Mayb f) 'Nothing where
+--     known = PNothing
 
-instance Known f a => Known (Mayb f) ('Just a) where
-    type KnownC (Mayb f) ('Just a) = Known f a
-    known = J_ known
+-- instance Known f a => Known (Mayb f) ('Just a) where
+--     type KnownC (Mayb f) ('Just a) = Known f a
+--     known = PJust known
 
-instance Functor1 Mayb where
-    map1 f (J_ x) = J_ (f x)
-    map1 _ N_     = N_
+-- instance Functor1 Mayb where
+--     map1 f (PJust x) = PJust (f x)
+--     map1 _ PNothing     = PNothing
 
-zipMayb
-    :: (forall a. f a -> g a -> h a)
-    -> Mayb f m
-    -> Mayb g m
-    -> Mayb h m
-zipMayb f (J_ x) (J_ y) = J_ (f x y)
-zipMayb _ N_     N_     = N_
+-- zipMayb
+--     :: (forall a. f a -> g a -> h a)
+--     -> Mayb f m
+--     -> Mayb g m
+--     -> Mayb h m
+-- zipMayb f (PJust x) (PJust y) = PJust (f x y)
+-- zipMayb _ PNothing     PNothing     = PNothing
 
-zipMayb3
-    :: (forall a. f a -> g a -> h a -> i a)
-    -> Mayb f m
-    -> Mayb g m
-    -> Mayb h m
-    -> Mayb i m
-zipMayb3 f (J_ x) (J_ y) (J_ z) = J_ (f x y z)
-zipMayb3 _ N_     N_     N_ = N_
+-- zipMayb3
+--     :: (forall a. f a -> g a -> h a -> i a)
+--     -> Mayb f m
+--     -> Mayb g m
+--     -> Mayb h m
+--     -> Mayb i m
+-- zipMayb3 f (PJust x) (PJust y) (PJust z) = PJust (f x y z)
+-- zipMayb3 _ PNothing     PNothing     PNothing = PNothing
 
-m2  :: forall c f m. MaybeC c (f <$> m)
-    => (forall a. c (f a) => f a -> f a -> f a)
-    -> Mayb f m
-    -> Mayb f m
-    -> Mayb f m
-m2 f (J_ x) (J_ y) = J_ (f x y)
-m2 _ N_     N_     = N_
+-- m2  :: forall c f m. MaybeC c (f <$> m)
+--     => (forall a. c (f a) => f a -> f a -> f a)
+--     -> PMaybe f m
+--     -> PMaybe f m
+--     -> PMaybe f m
+-- m2 f (PJust x) (PJust y) = PJust (f x y)
+-- m2 _ PNothing     PNothing     = PNothing
 
-m1  :: forall c f m. MaybeC c (f <$> m)
-    => (forall a. c (f a) => f a -> f a)
-    -> Mayb f m
-    -> Mayb f m
-m1 f (J_ x) = J_ (f x)
-m1 _ N_     = N_
+-- m1  :: forall c f m. MaybeC c (f <$> m)
+--     => (forall a. c (f a) => f a -> f a)
+--     -> Mayb f m
+--     -> Mayb f m
+-- m1 f (PJust x) = PJust (f x)
+-- m1 _ PNothing     = PNothing
 
-m0  :: forall c f m. (MaybeC c (f <$> m))
-    => (forall a. c (f a) => f a)
-    -> Mayb P m
-    -> Mayb f m
-m0 x (J_ _) = J_ x
-m0 _ N_     = N_
+-- m0  :: forall c f m. (MaybeC c (f <$> m))
+--     => (forall a. c (f a) => f a)
+--     -> PMaybe P m
+--     -> PMaybe f m
+-- m0 x (PJust _) = PJust x
+-- m0 _ PNothing     = PNothing
 
-instance (Known (Mayb P) m, MaybeC Num (f <$> m)) => Num (Mayb f m) where
-    (+) = m2 @Num (+)
-    (-) = m2 @Num (-)
-    (*) = m2 @Num (*)
-    negate = m1 @Num negate
-    abs    = m1 @Num abs
-    signum = m1 @Num signum
-    fromInteger x = m0 @Num (fromInteger x) known
+-- instance (Known (Mayb P) m, MaybeC Num (f <$> m)) => Num (Mayb f m) where
+--     (+) = m2 @Num (+)
+--     (-) = m2 @Num (-)
+--     (*) = m2 @Num (*)
+--     negate = m1 @Num negate
+--     abs    = m1 @Num abs
+--     signum = m1 @Num signum
+--     fromInteger x = m0 @Num (fromInteger x) known
 
-instance (Known (Mayb P) m, MaybeC Num (f <$> m), MaybeC Fractional (f <$> m))
-      => Fractional (Mayb f m) where
-    (/) = m2 @Fractional (/)
-    recip = m1 @Fractional recip
-    fromRational x = m0 @Fractional (fromRational x) known
+-- instance (Known (Mayb P) m, MaybeC Num (f <$> m), MaybeC Fractional (f <$> m))
+--       => Fractional (Mayb f m) where
+--     (/) = m2 @Fractional (/)
+--     recip = m1 @Fractional recip
+--     fromRational x = m0 @Fractional (fromRational x) known
 
-type family FromJust (d :: TL.ErrorMessage) (m :: Maybe k) :: k where
-    FromJust e ('Just a) = a
-    FromJust e 'Nothing  = TL.TypeError e
+-- type family FromJust (d :: TL.ErrorMessage) (m :: Maybe k) :: k where
+--     FromJust e ('Just a) = a
+--     FromJust e 'Nothing  = TL.TypeError e
 
-type family (a :: Maybe Type) :&? (b :: Maybe Type) :: Maybe Type where
-    'Nothing :&? 'Nothing = 'Nothing
-    'Nothing :&? 'Just b  = 'Just b
-    'Just a  :&? 'Nothing = 'Just a
-    'Just a  :&? 'Just b  = 'Just (a :& b)
-infixr 1 :&?
+type family (a :: Maybe Type) :#? (b :: Maybe Type) :: Maybe Type where
+    'Nothing :#? 'Nothing = 'Nothing
+    'Nothing :#? 'Just b  = 'Just b
+    'Just a  :#? 'Nothing = 'Just a
+    'Just a  :#? 'Just b  = 'Just (a :# b)
+infixr 1 :#?
 
-pattern (:&?)
-    :: (MaybeC Backprop a, MaybeC Backprop b, KnownMayb a, KnownMayb b, Reifies s W)
-    => Mayb (BVar s) a
-    -> Mayb (BVar s) b
-    -> Mayb (BVar s) (a :&? b)
-pattern x :&? y <- (splitTupMaybe (\(v :&& u) -> (v, u))->(x, y))
+pattern (:#?)
+    :: (MaybeC Backprop a, MaybeC Backprop b, Reifies s W, SingI a, SingI b)
+    => PMaybe (BVar s) a
+    -> PMaybe (BVar s) b
+    -> PMaybe (BVar s) (a :#? b)
+pattern x :#? y <- (splitTupMaybe (\(v :## u) -> (v, u))->(x, y))
   where
-    (:&?) = tupMaybe (:&&)
+    (:#?) = tupMaybe (:##)
 
 tupMaybe
     :: forall f a b. ()
-    => (forall a' b'. (a ~ 'Just a', b ~ 'Just b') => f a' -> f b' -> f (a' :& b'))
-    -> Mayb f a
-    -> Mayb f b
-    -> Mayb f (a :&? b)
+    => (forall a' b'. (a ~ 'Just a', b ~ 'Just b') => f a' -> f b' -> f (a' :# b'))
+    -> PMaybe f a
+    -> PMaybe f b
+    -> PMaybe f (a :#? b)
 tupMaybe f = \case
-    N_   -> \case
-      N_   -> N_
-      J_ y -> J_ y
-    J_ x -> \case
-      N_   -> J_ x
-      J_ y -> J_ (f x y)
+    PNothing   -> \case
+      PNothing   -> PNothing
+      PJust y -> PJust y
+    PJust x -> \case
+      PNothing   -> PJust x
+      PJust y -> PJust (f x y)
 
 splitTupMaybe
-    :: forall f a b. (KnownMayb a, KnownMayb b)
-    => (forall a' b'. (a ~ 'Just a', b ~ 'Just b') => f (a' :& b') -> (f a', f b'))
-    -> Mayb f (a :&? b)
-    -> (Mayb f a, Mayb f b)
-splitTupMaybe f = case knownMayb @a of
-    N_ -> case knownMayb @b of
-      N_ -> \case
-        N_ -> (N_, N_)
-      J_ _ -> \case
-        J_ y -> (N_, J_ y)
-    J_ _ -> case knownMayb @b of
-      N_ -> \case
-        J_ x -> (J_ x, N_)
-      J_ _ -> \case
-        J_ xy -> bimap J_ J_ . f $ xy
+    :: forall f a b. (SingI a, SingI b)
+    => (forall a' b'. (a ~ 'Just a', b ~ 'Just b') => f (a' :# b') -> (f a', f b'))
+    -> PMaybe f (a :#? b)
+    -> (PMaybe f a, PMaybe f b)
+splitTupMaybe f = case singProd (sing @a) of
+    PNothing -> case singProd (sing @b) of
+      PNothing -> \case
+        PNothing -> (PNothing, PNothing)
+      PJust _ -> \case
+        PJust y -> (PNothing, PJust y)
+    PJust _ -> case singProd (sing @b) of
+      PNothing -> \case
+        PJust x -> (PJust x, PNothing)
+      PJust _ -> \case
+        PJust xy -> bimap PJust PJust . f $ xy
 
 type family BoolMayb (b :: Bool) = (m :: Maybe ()) | m -> b where
     BoolMayb 'False = 'Nothing
     BoolMayb 'True  = 'Just '()
 
-boolMayb :: Boolean b -> Mayb P (BoolMayb b)
-boolMayb False_ = N_
-boolMayb True_  = J_ P
+boolMayb :: Sing b -> PMaybe P (BoolMayb b)
+boolMayb SFalse = PNothing
+boolMayb STrue  = PJust P
 
-instance MaybeC Backprop (f <$> a) => Backprop (Mayb f a) where
+instance ReifyConstraint Backprop f (MaybeToList as) => Backprop (PMaybe f as) where
     zero = \case
-      N_ -> N_
-      J_ x  -> J_ (zero x)
+      PNothing -> PNothing
+      PJust x  -> case reifyConstraint @Backprop (x :& RNil) of
+        V.Compose (Dict _) :& RNil -> PJust (zero x)
     {-# INLINE zero #-}
     add = \case
-      N_ -> \case
-        N_ -> N_
-      J_ x -> \case
-        J_ y -> J_ (add x y)
+      PNothing -> \case
+        PNothing -> PNothing
+      PJust x -> \case
+        PJust y -> case reifyConstraint @Backprop (x :& RNil) of
+          V.Compose (Dict _) :& RNil -> PJust (add x y)
     {-# INLINE add #-}
     one = \case
-      N_ -> N_
-      J_ x  -> J_ (one x)
+      PNothing -> PNothing
+      PJust x  -> case reifyConstraint @Backprop (x :& RNil) of
+        V.Compose (Dict _) :& RNil -> PJust (one x)
     {-# INLINE one #-}
 
 pattern MaybB
-    :: (Reifies s W, MaybeC Backprop a, KnownMayb a)
-    => Mayb (BVar s) a
-    -> BVar s (Mayb I a)
+    :: (Reifies s W, MaybeC Backprop a, SingI a)
+    => PMaybe (BVar s) a
+    -> BVar s (PMaybe Identity a)
 pattern MaybB v <- (_mb->v)
   where
     MaybB = \case
-      N_   -> auto N_
-      J_ x -> isoVar (J_ . I) (getI . fromJ_) x
+      PNothing -> auto PNothing
+      PJust x  -> isoVar (PJust . Identity) (runIdentity . fromPJust) x
 {-# COMPLETE MaybB #-}
 
-_mb :: forall a s. (MaybeC Backprop a, KnownMayb a, Reifies s W)
-    => BVar s (Mayb I a)
-    -> Mayb (BVar s) a
-_mb v = case knownMayb @a of
-          J_ _ -> J_ $ isoVar (getI . fromJ_) (J_ . I) v
-          N_   -> N_
+_mb :: forall a s. (MaybeC Backprop a, SingI a, Reifies s W)
+    => BVar s (PMaybe Identity a)
+    -> PMaybe (BVar s) a
+_mb v = case singProd (sing @a) of
+    PJust _  -> PJust $ isoVar (runIdentity . fromPJust) (PJust . Identity) v
+    PNothing -> PNothing
 {-# INLINE _mb #-}
 
-deriving instance Backprop a => Backprop (I a)
+-- deriving instance Backprop a => Backprop (I a)

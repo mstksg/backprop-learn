@@ -79,7 +79,7 @@ meanModel
     => BVar s (t a)
     -> BVar s a
 meanModel = liftOp1 . op1 $ \xs ->
-    let x :& n = F.fold ((:&) <$> F.sum <*> F.length) xs
+    let x :# n = F.fold ((:#) <$> F.sum <*> F.length) xs
     in  (x / fromIntegral n, \d -> (d / fromIntegral n) <$ xs)
 
 varModel
@@ -87,7 +87,7 @@ varModel
     => BVar s (t a)
     -> BVar s a
 varModel = liftOp1 . op1 $ \xs ->
-    let x2 :& x1 :& x0 = F.fold ((\x2' x1' x0' -> x2' :& x1' :& x0') <$> lmap (^(2::Int)) F.sum <*> F.sum <*> F.length) xs
+    let x2 :# x1 :# x0 = F.fold ((\x2' x1' x0' -> x2' :# x1' :# x0') <$> lmap (^(2::Int)) F.sum <*> F.sum <*> F.length) xs
         meanx  = x1 / fromIntegral x0
         subAll = 2 * x1 / (fromIntegral x0 ^ (2 :: Int))
     in  ( (x2 / fromIntegral x0) - meanx * meanx
@@ -106,10 +106,10 @@ rangeModel
     => BVar s (t a)
     -> BVar s a
 rangeModel = liftOp1 . op1 $ \xs ->
-    let mn :& mx = F.fold ((:&) <$> F.minimum <*> F.maximum) xs
-    in  case (:&) <$> mn <*> mx of
+    let mn :# mx = F.fold ((:#) <$> F.minimum <*> F.maximum) xs
+    in  case (:#) <$> mn <*> mx of
           Nothing           -> errorWithoutStackTrace "Backprop.Learn.Model.Function.range: empty range"
-          Just (mn' :& mx') ->
+          Just (mn' :# mx') ->
             ( mx' - mn'
             , \d -> (\x -> if | x == mx'  -> d
                               | x == mn'  -> -d
@@ -290,10 +290,10 @@ sreLU tl al tr ar x
 -- with 'PFP'.
 sreLUPFP
     :: (KnownNat n, Reifies s W)
-    => BVar s ((Double :& Double) :& (Double :& Double))
+    => BVar s ((Double :# Double) :# (Double :# Double))
     -> BVar s (R n)
     -> BVar s (R n)
-sreLUPFP ((tl :&& al) :&& (tr :&& ar)) = vmap (sreLU tl al tr ar)
+sreLUPFP ((tl :## al) :## (tr :## ar)) = vmap (sreLU tl al tr ar)
 
 -- | Inverse square root linear unit
 --
@@ -332,10 +332,10 @@ apl as bs x = vmap' (max 0) x
 -- | 'apl' uncurried, to be directly usable with 'PFP'.
 aplPFP
     :: (KnownNat n, KnownNat m, Reifies s W)
-    => BVar s (L n m :& L n m)
+    => BVar s (L n m :# L n m)
     -> BVar s (R m)
     -> BVar s (R m)
-aplPFP (a :&& b) = apl a b
+aplPFP (a :## b) = apl a b
 
 -- | SoftPlus
 --

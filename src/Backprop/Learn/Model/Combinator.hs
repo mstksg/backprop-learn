@@ -32,30 +32,37 @@ module Backprop.Learn.Model.Combinator (
   , forkModel, feedback, feedbackTrace
   ) where
 
+-- import           Data.Type.Length
+-- import           Type.Class.Known
+-- import           Type.Class.Witness
+-- import           Type.Family.List           as List
 import           Backprop.Learn.Model.Types
 import           Control.Applicative
 import           Control.Category
 import           Control.Monad
 import           Control.Monad.Trans.State
 import           Data.Bifunctor
-import           Data.Type.Length
-import           Data.Type.Mayb             as Mayb
+import           Data.Singletons
+import           Data.Singletons
+import           Data.Singletons.Prelude.List
+import           Data.Singletons.Prelude.Maybe
+import           Data.Type.List.Sublist
+import           Data.Type.Mayb                as Mayb
 import           Data.Type.Tuple
+import           Data.Type.Universe.Prod
+import           Data.Vinyl
 import           GHC.TypeNats
 import           Numeric.Backprop
-import           Prelude hiding             ((.), id)
-import           Type.Class.Known
-import           Type.Class.Witness
-import           Type.Family.List           as List
-import qualified Data.Vector.Sized          as SV
+import           Prelude hiding                ((.), id)
+import qualified Data.Vector.Sized             as SV
 
 -- | Compose two 'Model's one after the other.
 (<~)
     :: forall p q s t a b c.
-     ( KnownMayb p
-     , KnownMayb q
-     , KnownMayb s
-     , KnownMayb t
+     ( SingI p
+     , SingI q
+     , SingI s
+     , SingI t
      , MaybeC Backprop p
      , MaybeC Backprop q
      , MaybeC Backprop s
@@ -63,20 +70,20 @@ import qualified Data.Vector.Sized          as SV
      )
     => Model  p         s        b c
     -> Model        q         t  a b
-    -> Model (p :&? q) (s :&? t) a c
-(<~) = withModelFunc2 $ \f g (p :&? q) x (s :&? t) -> do
+    -> Model (p :#? q) (s :#? t) a c
+(<~) = withModelFunc2 $ \f g (p :#? q) x (s :#? t) -> do
     (y, t') <- g q x t
     (z, s') <- f p y s
-    pure (z, s' :&? t')
+    pure (z, s' :#? t')
 infixr 8 <~
 
 -- | Compose two 'Model's one after the other, in reverse composition order
 (~>)
     :: forall p q s t a b c.
-     ( KnownMayb p
-     , KnownMayb q
-     , KnownMayb s
-     , KnownMayb t
+     ( SingI p
+     , SingI q
+     , SingI s
+     , SingI t
      , MaybeC Backprop p
      , MaybeC Backprop q
      , MaybeC Backprop s
@@ -84,11 +91,11 @@ infixr 8 <~
      )
     => Model  p         s        a b
     -> Model        q         t  b c
-    -> Model (p :&? q) (s :&? t) a c
-(~>) = withModelFunc2 $ \f g (p :&? q) x (s :&? t) -> do
+    -> Model (p :#? q) (s :#? t) a c
+(~>) = withModelFunc2 $ \f g (p :#? q) x (s :#? t) -> do
     (y, s') <- f p x s
     (z, t') <- g q y t
-    pure (z, s' :&? t')
+    pure (z, s' :#? t')
 infixr 8 ~>
 
 
@@ -101,72 +108,74 @@ type LModel ps ss a b = Model ('Just (T ps)) ('Just (T ss)) a b
 --
 (#:)
     :: forall p ps s ss a b c.
-     ( MaybeC Backprop p
-     , ListC (Backprop List.<$> ps)
+     ( SingI p
+     , SingI s
+     , MaybeC Backprop p
      , MaybeC Backprop s
-     , ListC (Backprop List.<$> ss)
-     , KnownMayb p
-     , KnownMayb s
-     -- , ListC (Backprop List.<$> (ss ++ ts))
-     -- , Known Length ps
-     -- , Known Length ss
-     -- , Known Length ts
+     , ReifyConstraint Backprop TF ps
+     , ReifyConstraint Backprop TF ss
+     , RMap ss
+     , RApply ss
+     , RMap ps
+     , RApply ps
      )
     => Model         p                           s        b c
     -> LModel                   ps                    ss  a b
     -> LModel (MaybeToList p ++ ps) (MaybeToList s ++ ss) a c
-(#:) = withModelFunc2 $ \f fs (J_ pps) x (J_ sss) -> do
-    let (p, ps) = case knownMayb @p of
-          N_   -> (N_, pps)
-          J_ _ -> (J_ (pps ^^. tHead), pps ^^. tTail)
-        (s, ss) = case knownMayb @s of
-          N_   -> (N_, sss)
-          J_ _ -> (J_ (sss ^^. tHead), sss ^^. tTail)
-    (y, ss') <- fs (J_ ps) x (J_ ss)
-    (z, s' ) <- f      p   y     s
+(#:) = withModelFunc2 $ \f fs (PJust pps) x (PJust sss) -> do
+    let (p, ps) = case singProd (sing @p) of
+          PNothing   -> (PNothing, pps)
+          PJust _ -> (PJust (pps ^^. tHead), pps ^^. tTail)
+        (s, ss) = case singProd (sing @s) of
+          PNothing   -> (PNothing, sss)
+          PJust _ -> (PJust (sss ^^. tHead), sss ^^. tTail)
+    (y, ss') <- fs (PJust ps) x (PJust ss)
+    (z, s' ) <- f         p   y     s
     let sss' = case s' of
-                 N_     -> fromJ_ ss'
-                 J_ s'J -> isoVar2 (:#) (\case t :# ts -> (t, ts)) s'J (fromJ_ ss')
-    pure $ (z, J_ sss')
+          PNothing  -> fromPJust ss'
+          PJust s'J -> isoVar2 (:&&) (\case t :&& ts -> (t, ts))
+                         s'J
+                         (fromPJust ss')
+    pure $ (z, PJust sss')
 infixr 5 #:
 
 -- | Compose two 'LModel's
 (#++)
     :: forall ps qs ss ts a b c.
-     ( ListC (Backprop List.<$> ps)
-     , ListC (Backprop List.<$> qs)
-     , ListC (Backprop List.<$> ss)
-     , ListC (Backprop List.<$> ts)
-     , ListC (Backprop List.<$> (ps ++ qs))
-     , ListC (Backprop List.<$> (ss ++ ts))
-     , Known Length ps
-     , Known Length ss
-     , Known Length ts
-     )
+     ( Learnables ps
+     , Learnables qs
+     , Learnables ss
+     , Learnables ts
+     , Learnables (ps ++ qs)
+     , Learnables (ss ++ ts)
+     ) 
     => LModel  ps         ss        b c
     -> LModel        qs         ts  a b
     -> LModel (ps ++ qs) (ss ++ ts) a c
-(#++) = withModelFunc2 $ \f g (J_ psqs) x (J_ ssts) ->
-        appendLength @ss @ts known known // do
-    (y, ts) <- second fromJ_
-           <$> g (J_ (psqs ^^. tDrop @ps @qs known))
+(#++) = withModelFunc2 $ \f g (PJust psqs) x (PJust ssts) ->
+        withAppend (sing @ps) (sing @qs) $ \spsqs apsqs@AppendWit ->
+        withAppend (sing @ss) (sing @ts) $ \sssts assts@AppendWit -> do
+    (y, ts) <- second fromPJust
+           <$> g (PJust (psqs ^^. suffixLens (appendToSuffix apsqs)))
                  x
-                 (J_ (ssts ^^. tDrop @ss @ts known))
-    (z, ss) <- second fromJ_
-           <$> f (J_ (psqs ^^. tTake @ps @qs known))
+                 (PJust (ssts ^^. suffixLens (appendToSuffix assts)))
+    (z, ss) <- second fromPJust
+           <$> f (PJust (psqs ^^. prefixLens (appendToPrefix apsqs)))
                  y
-                 (J_ (ssts ^^. tTake @ss @ts known))
-    pure  (z, J_ $ isoVar2 (tAppend @ss @ts) (tSplit @ss @ts known)
-                           ss ts
+                 (PJust (ssts ^^. prefixLens (appendToPrefix assts)))
+    pure  ( z
+          , PJust $ isoVar2 (appendRec assts) (splitRec assts) ss ts
+    -- rappend @_ @ss @ts)
+                              -- (tSplit @ss @ts known)
           )
 infixr 5 #++
 
-appendLength
-    :: Length as
-    -> Length bs
-    -> Length (as ++ bs)
-appendLength LZ     = id
-appendLength (LS l) = LS . appendLength l
+-- appendLength
+--     :: Length as
+--     -> Length bs
+--     -> Length (as ++ bs)
+-- appendLength LZ     = id
+-- appendLength (LS l) = LS . appendLength l
 
 -- | Identity of '#++'
 nilLM :: Model ('Just (T '[])) ('Just (T '[])) a a
@@ -177,36 +186,36 @@ nilLM = id
 -- prepares a model to be used with '#~' and 'nilLM'.
 liftLM
     :: forall p s a b.
-     ( KnownMayb p
+     ( SingI p
      , MaybeC Backprop p
-     , KnownMayb s
+     , SingI s
      , MaybeC Backprop s
      )
     => Model p s a b
     -> LModel (MaybeToList p) (MaybeToList s) a b
-liftLM = withModelFunc $ \f (J_ ps) x ssM@(J_ ss) ->
-    case knownMayb @p of
-      N_ -> case knownMayb @s of
-        N_ -> (fmap . second . const) ssM
-            $ f N_ x N_
-        J_ _ -> (fmap . second) (J_ . isoVar onlyT tOnly . fromJ_)
-              $ f N_ x (J_ (isoVar tOnly onlyT ss))
-      J_ _ ->
+liftLM = withModelFunc $ \f (PJust ps) x ssM@(PJust ss) ->
+    case singProd (sing @p) of
+      PNothing -> case singProd (sing @s) of
+        PNothing -> (fmap . second . const) ssM
+            $ f PNothing x PNothing
+        PJust _ -> (fmap . second) (PJust . isoVar onlyT tOnly . fromPJust)
+              $ f PNothing x (PJust (isoVar tOnly onlyT ss))
+      PJust _ ->
         let p = isoVar tOnly onlyT ps
-        in  case knownMayb @s of
-              N_ -> (fmap . second . const) ssM
-                  $ f (J_ p) x N_
-              J_ _ -> (fmap . second) (J_ . isoVar onlyT tOnly . fromJ_)
-                    $ f (J_ p) x (J_ (isoVar tOnly onlyT ss))
+        in  case singProd (sing @s) of
+              PNothing -> (fmap . second . const) ssM
+                  $ f (PJust p) x PNothing
+              PJust _ -> (fmap . second) (PJust . isoVar onlyT tOnly . fromPJust)
+                    $ f (PJust p) x (PJust (isoVar tOnly onlyT ss))
 
 -- | Return a model that loops a model ("feed") repeatedly onto itself,
 -- with a model to provide the back loop.
 feedback
     :: forall p q s t a b.
-     ( KnownMayb p
-     , KnownMayb q
-     , KnownMayb s
-     , KnownMayb t
+     ( SingI p
+     , SingI q
+     , SingI s
+     , SingI t
      , MaybeC Backprop p
      , MaybeC Backprop q
      , MaybeC Backprop s
@@ -215,8 +224,8 @@ feedback
     => Int                                -- ^ times
     -> Model  p         s        a b      -- ^ feed
     -> Model        q         t  b a      -- ^ back
-    -> Model (p :&? q) (s :&? t) a b
-feedback n = withModelFunc2 $ \feed back (p :&? q) x0 (s0 :&? t0) ->
+    -> Model (p :#? q) (s :#? t) a b
+feedback n = withModelFunc2 $ \feed back (p :#? q) x0 (s0 :#? t0) ->
     let go !i !x !s !t = do
             (y, s') <- feed p x s
             if i >= n
@@ -224,15 +233,15 @@ feedback n = withModelFunc2 $ \feed back (p :&? q) x0 (s0 :&? t0) ->
               else do
                 (z, t') <- back q y t
                 go (i + 1) z s' t'
-    in  second (uncurry (:&?)) <$> go 1 x0 s0 t0
+    in  second (uncurry (:#?)) <$> go 1 x0 s0 t0
 
 -- | 'feedback', but tracing and observing all of the intermediate values.
 feedbackTrace
     :: forall n p q s t a b.
-     ( KnownMayb p
-     , KnownMayb q
-     , KnownMayb s
-     , KnownMayb t
+     ( SingI p
+     , SingI q
+     , SingI s
+     , SingI t
      , MaybeC Backprop p
      , MaybeC Backprop q
      , MaybeC Backprop s
@@ -242,22 +251,22 @@ feedbackTrace
      )
     => Model  p         s        a b      -- ^ feed
     -> Model        q         t  b a      -- ^ back
-    -> Model (p :&? q) (s :&? t) a (ABP (SV.Vector n) b)
-feedbackTrace = withModelFunc2 $ \feed back (p :&? q) x0 (s0 :&? t0) ->
+    -> Model (p :#? q) (s :#? t) a (ABP (SV.Vector n) b)
+feedbackTrace = withModelFunc2 $ \feed back (p :#? q) x0 (s0 :#? t0) ->
     let go !x (!s, !t) = do
           (y, s') <- feed p x s
           (z, t') <- back q y t
           pure (y, (z, (s', t')))
-    in  second (uncurry (:&?) . snd) <$>
+    in  second (uncurry (:#?) . snd) <$>
           runStateT (collectVar . ABP <$> SV.replicateM (StateT (uncurry go)))
                    (x0, (s0, t0))
 
 forkModel
     :: forall p q s t a b c.
-     ( KnownMayb p
-     , KnownMayb q
-     , KnownMayb s
-     , KnownMayb t
+     ( SingI p
+     , SingI q
+     , SingI s
+     , SingI t
      , MaybeC Backprop p
      , MaybeC Backprop q
      , MaybeC Backprop s
@@ -267,8 +276,8 @@ forkModel
      )
     => Model  p         s        a b      -- ^ fork 1
     -> Model        q         t  a c      -- ^ fork 2
-    -> Model (p :&? q) (s :&? t) a (b :& c)
-forkModel = withModelFunc2 $ \f g (p :&? q) x (s0 :&? t0) -> do
+    -> Model (p :#? q) (s :#? t) a (b :# c)
+forkModel = withModelFunc2 $ \f g (p :#? q) x (s0 :#? t0) -> do
     (y, s1) <- f p x s0
     (z, t1) <- g q x t0
-    pure $ (y :&& z, s1 :&? t1)
+    pure $ (y :## z, s1 :#? t1)

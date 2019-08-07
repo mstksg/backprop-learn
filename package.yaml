@@ -24,7 +24,7 @@ ghc-options:
 - -Wcompat
 - -Wincomplete-record-updates
 - -Wredundant-constraints
-# - -O0
+- -O0
 # - -fprint-explicit-kinds
 
 dependencies:
@@ -52,10 +52,14 @@ dependencies:
 - primitive
 - profunctors
 - statistics
+- decidable
 - transformers
-- type-combinators
+# - type-combinators
 - typelits-witnesses
+- list-witnesses
+- singletons
 - vector >= 0.12.0.2
+- vinyl
 - vector-sized
 
 library:
@@ -70,40 +74,40 @@ _exec: &exec
   - -O2
   - -Wall
 
-executables:
-  backprop-learn-mnist:
-    <<: *exec
-    main: mnist.hs
-    dependencies:
-    - backprop-learn
-    - data-default
-    - filepath
-    - mnist-idx
-    - time
-  backprop-learn-series:
-    <<: *exec
-    main: series.hs
-    dependencies:
-    - backprop-learn
-    - data-default
-    - filepath
-    - optparse-applicative
-    - time
-    - singletons
-  backprop-learn-char-rnn:
-    <<: *exec
-    main: char-rnn.hs
-    dependencies:
-    - backprop-learn
-    - data-default
-    - time
-    - text
-  backprop-learn-word2vec:
-    <<: *exec
-    main: word2vec.hs
-    dependencies:
-    - backprop-learn
-    - data-default
-    - time
-    - text
+# executables:
+#   backprop-learn-mnist:
+#     <<: *exec
+#     main: mnist.hs
+#     dependencies:
+#     - backprop-learn
+#     - data-default
+#     - filepath
+#     - mnist-idx
+#     - time
+#   backprop-learn-series:
+#     <<: *exec
+#     main: series.hs
+#     dependencies:
+#     - backprop-learn
+#     - data-default
+#     - filepath
+#     - optparse-applicative
+#     - time
+#     - singletons
+#   backprop-learn-char-rnn:
+#     <<: *exec
+#     main: char-rnn.hs
+#     dependencies:
+#     - backprop-learn
+#     - data-default
+#     - time
+#     - text
+#   backprop-learn-word2vec:
+#     <<: *exec
+#     main: word2vec.hs
+#     dependencies:
+#     - backprop-learn
+#     - data-default
+#     - time
+#     - text
 

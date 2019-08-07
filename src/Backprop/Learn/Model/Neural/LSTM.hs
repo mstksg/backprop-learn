@@ -69,11 +69,14 @@ data LSTMp (i :: Nat) (o :: Nat) =
 makeLenses ''LSTMp
 
 instance NFData (LSTMp i o)
-instance (KnownNat i, KnownNat o) => Additive (LSTMp i o)
-instance (KnownNat i, KnownNat o) => Scaling Double (LSTMp i o)
+instance (PrimMonad m, KnownNat i, KnownNat o) => Mutable m (LSTMp i o) where
+    type Ref m (LSTMp i o) = GRef m (LSTMp i o)
+    thawRef   = gThawRef
+    freezeRef = gFreezeRef
+    copyRef   = gCopyRef
+instance (KnownNat i, KnownNat o) => Linear Double (LSTMp i o)
 instance (KnownNat i, KnownNat o) => Metric Double (LSTMp i o)
-instance (KnownNat i, KnownNat o, Ref m (LSTMp i o) v) => AdditiveInPlace m v (LSTMp i o)
-instance (KnownNat i, KnownNat o, Ref m (LSTMp i o) v) => ScalingInPlace m v Double (LSTMp i o)
+instance (PrimMonad m, KnownNat i, KnownNat o) => LinearInPlace m Double (LSTMp i o)
 instance (KnownNat i, KnownNat o) => Bi.Binary (LSTMp i o)
 instance (KnownNat i, KnownNat o) => Backprop (LSTMp i o)
 
@@ -175,11 +178,14 @@ data GRUp (i :: Nat) (o :: Nat) =
 makeLenses ''GRUp
 
 instance NFData (GRUp i o)
-instance (KnownNat i, KnownNat o) => Additive (GRUp i o)
-instance (KnownNat i, KnownNat o) => Scaling Double (GRUp i o)
+instance (PrimMonad m, KnownNat i, KnownNat o) => Mutable m (GRUp i o) where
+    type Ref m (GRUp i o) = GRef m (GRUp i o)
+    thawRef   = gThawRef
+    freezeRef = gFreezeRef
+    copyRef   = gCopyRef
+instance (KnownNat i, KnownNat o) => Linear Double (GRUp i o)
 instance (KnownNat i, KnownNat o) => Metric Double (GRUp i o)
-instance (KnownNat i, KnownNat o, Ref m (GRUp i o) v) => AdditiveInPlace m v (GRUp i o)
-instance (KnownNat i, KnownNat o, Ref m (GRUp i o) v) => ScalingInPlace m v Double (GRUp i o)
+instance (KnownNat i, KnownNat o, Mutable m (GRUp i o)) => LinearInPlace m Double (GRUp i o)
 instance (KnownNat i, KnownNat o) => Bi.Binary (GRUp i o)
 instance (KnownNat i, KnownNat o) => Backprop (GRUp i o)
 

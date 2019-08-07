@@ -15,7 +15,7 @@
 # resolver:
 #  name: custom-snapshot
 #  location: "./custom-snapshot.yaml"
-resolver: nightly-2019-04-28
+resolver: nightly-2019-07-02
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -66,7 +66,13 @@ extra-deps:
 - github: mstksg/type-combinators
   commit: 50334ab6bc3e5c3aee53c881a027f687fde13fa4
 - github: mstksg/opto
-  commit: 7e954066bfe7bea006b7a6a7d19d6db9b0fc17c8
+  commit: 8ec2930c4c47be1bf90a753c34d44fe683947c44
+- github: mstksg/backprop
+  commit: 106371536e66d7e5e67f83f4f530c576f9ebf567
+- github: mstksg/decidable
+  commit: 5028ea8f78195467bbbb38ed219b2509f974e163
+- github: mstksg/list-witnesses
+  commit: eae99a2808e231502197a9cf7f71358e9f3f0c68
 
 # Override default flag values for local packages and extra-deps
 flags: {}

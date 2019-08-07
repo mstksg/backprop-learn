@@ -39,8 +39,8 @@ deParam
     -> (forall m. (PrimMonad m) => MWC.Gen (PrimState m) -> m q)    -- ^ fixed stoch param
     -> Model ('Just pq) s a b
     -> Model ('Just p )  s a b
-deParam spl joi q qStoch = reParam (J_ . r . fromJ_)
-                                   (\g -> fmap J_ . rStoch g . fromJ_)
+deParam spl joi q qStoch = reParam (PJust . r . fromPJust)
+                                   (\g -> fmap PJust . rStoch g . fromPJust)
   where
     r :: Reifies z W => BVar z p -> BVar z pq
     r p = isoVar2 joi spl p (auto q)
@@ -67,8 +67,8 @@ deParamD spl joi q = deParam spl joi q (const (pure q))
 -- Takes a determinstic function and also a stochastic function for
 -- stochastic mode.
 reParam
-    :: (forall z. Reifies z W => Mayb (BVar z) q -> Mayb (BVar z) p)
-    -> (forall m z. (PrimMonad m, Reifies z W) => MWC.Gen (PrimState m) -> Mayb (BVar z) q -> m (Mayb (BVar z) p))
+    :: (forall z. Reifies z W => PMaybe (BVar z) q -> PMaybe (BVar z) p)
+    -> (forall m z. (PrimMonad m, Reifies z W) => MWC.Gen (PrimState m) -> PMaybe (BVar z) q -> m (PMaybe (BVar z) p))
     -> Model p s a b
     -> Model q s a b
 reParam r rStoch f = Model
@@ -80,7 +80,7 @@ reParam r rStoch f = Model
 
 -- | 'reParam', but with no special stochastic mode function.
 reParamD
-    :: (forall z. Reifies z W => Mayb (BVar z) q -> Mayb (BVar z) p)
+    :: (forall z. Reifies z W => PMaybe (BVar z) q -> PMaybe (BVar z) p)
     -> Model p s a b
     -> Model q s a b
 reParamD r = reParam r (\_ -> pure . r)
@@ -91,4 +91,4 @@ reParamD r = reParam r (\_ -> pure . r)
 dummyParam
     :: Model 'Nothing  s a b
     -> Model p         s a b
-dummyParam = reParamD (const N_)
+dummyParam = reParamD (const PNothing)

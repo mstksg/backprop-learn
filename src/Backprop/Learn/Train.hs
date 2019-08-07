@@ -22,7 +22,6 @@ import           Backprop.Learn.Loss
 import           Backprop.Learn.Model
 import           Control.Monad.Primitive
 import           Control.Monad.ST
-import           Control.Monad.Sample
 import           Data.Word
 import           Numeric.Backprop
 import           Numeric.Opto.Core
@@ -66,22 +65,22 @@ gradModelStochLoss loss reg f g p x y = do
 -- function), generate a 'Grad' compatible with "Numeric.Opto" and
 -- "Numeric.Opto.Run".
 modelGrad
-    :: (MonadSample (a, b) m, Backprop p)
+    :: (Applicative m, Backprop p)
     => Loss b
     -> Regularizer p
     -> Model ('Just p) 'Nothing a b
-    -> Grad m p
-modelGrad loss reg f = pureSampling $ \(x,y) p -> gradModelLoss loss reg f p x y
+    -> Grad m (a, b) p
+modelGrad loss reg f = pureGrad $ \(x,y) p -> gradModelLoss loss reg f p x y
 
 -- | Using a model's stochastic prediction function (with a given loss
 -- function), generate a 'Grad' compatible with "Numeric.Opto" and
 -- "Numeric.Opto.Run".
 modelGradStoch
-    :: (MonadSample (a, b) m, PrimMonad m, Backprop p)
+    :: (PrimMonad m, Backprop p)
     => Loss b
     -> Regularizer p
     -> Model ('Just p) 'Nothing a b
     -> MWC.Gen (PrimState m)
-    -> Grad m p
-modelGradStoch loss reg f g = sampling $ \(x,y) p ->
+    -> Grad m (a, b) p
+modelGradStoch loss reg f g = \(x,y) p ->
       gradModelStochLoss loss reg f g p x y

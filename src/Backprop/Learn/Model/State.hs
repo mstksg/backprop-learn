@@ -24,6 +24,7 @@ import           Control.Monad.Primitive
 import           Control.Monad.Trans.State
 import           Data.Bifunctor
 import           Data.Foldable
+import           Data.Singletons
 import           Data.Type.Mayb
 import           Numeric.Backprop
 import qualified System.Random.MWC          as MWC
@@ -37,17 +38,19 @@ import qualified System.Random.MWC          as MWC
 -- Its parameters are:
 --
 -- *   If the input has no parameters, just the initial state.
--- *   If the input has a parameter, a ':&' of that parameter and initial state.
+-- *   If the input has a parameter, a ':#' of that parameter and initial state.
 trainState
     :: forall p s a b.
-     ( KnownMayb p
-     , KnownMayb s
+     -- ( KnownMayb p
+     -- , KnownMayb s
+     ( SingI p
+     , SingI s
      , MaybeC Backprop p
      , MaybeC Backprop s
      )
     => Model  p     s           a b
-    -> Model (p :&? s) 'Nothing a b
-trainState = withModelFunc $ \f (p :&? s) x n_ ->
+    -> Model (p :#? s) 'Nothing a b
+trainState = withModelFunc $ \f (p :#? s) x n_ ->
     (second . const) n_ <$> f p x s
 
 -- | Make a model stateless by pre-applying a fixed state (or a stochastic
@@ -63,10 +66,10 @@ deState
     -> Model p 'Nothing  a b
 deState s sStoch f = Model
     { runLearn      = \p x n_ ->
-        (second . const) n_ $ runLearn f p x (J_ (auto s))
+        (second . const) n_ $ runLearn f p x (PJust (auto s))
     , runLearnStoch = \g p x n_ -> do
         s' <- sStoch g
-        (second . const) n_ <$> runLearnStoch f g p x (J_ (auto s'))
+        (second . const) n_ <$> runLearnStoch f g p x (PJust (auto s'))
     }
 
 -- | 'deState', except the state is always the same even in stochastic
@@ -137,8 +140,10 @@ unrollFinal = withModelFunc $ \f p xs s0 ->
 -- See 'fcr' for an application.
 recurrent
     :: forall p s ab a b c.
-     ( KnownMayb s
-     , MaybeC Backprop s
+     -- ( KnownMayb s
+     ( MaybeC Backprop s
+     , SingI s
+     , SingI b
      , Backprop a
      , Backprop b
      )
@@ -146,10 +151,10 @@ recurrent
     -> (a -> b -> ab)                           -- ^ join
     -> BFunc c b                                -- ^ store state
     -> Model p  s              ab c
-    -> Model p (s :&? 'Just b) a  c
-recurrent spl joi sto = withModelFunc $ \f p x (s :&? y) -> do
-    (z, s') <- f p (isoVar2 joi spl x (fromJ_ y)) s
-    pure (z, s' :&? J_ (sto z))
+    -> Model p (s :#? 'Just b) a  c
+recurrent spl joi sto = withModelFunc $ \f p x (s :#? y) -> do
+    (z, s') <- f p (isoVar2 joi spl x (fromPJust y)) s
+    pure (z, s' :#? PJust (sto z))
 
 -- | Give a stateless model a "dummy" state.  For now, useful for using
 -- with combinators like 'deState' that require state.  However, 'deState'
@@ -163,4 +168,4 @@ dummyState
     => Model p 'Nothing   a b
     -> Model p s          a b
 dummyState = withModelFunc $ \f p x s ->
-    (second . const) s <$> f p x N_
+    (second . const) s <$> f p x PNothing

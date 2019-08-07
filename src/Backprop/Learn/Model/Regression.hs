@@ -5,6 +5,7 @@
 {-# LANGUAGE FlexibleContexts                         #-}
 {-# LANGUAGE FlexibleInstances                        #-}
 {-# LANGUAGE GADTs                                    #-}
+{-# LANGUAGE InstanceSigs                             #-}
 {-# LANGUAGE KindSignatures                           #-}
 {-# LANGUAGE MultiParamTypeClasses                    #-}
 {-# LANGUAGE PatternSynonyms                          #-}
@@ -46,6 +47,7 @@ import           Data.Kind
 import           Data.List
 import           Data.Maybe
 import           Data.Proxy
+import           Data.Singletons.TH
 import           Data.Type.Equality
 import           Data.Typeable
 import           GHC.Generics                          (Generic)
@@ -69,7 +71,7 @@ import qualified Numeric.LinearAlgebra.Static          as H
 import qualified System.Random.MWC                     as MWC
 
 -- | Linear Regression parameter
-data LRp i o = LRp
+data LRp (i :: Nat) (o :: Nat) = LRp
     { _lrAlpha :: !(R o)
     , _lrBeta  :: !(L o i)
     }
@@ -77,13 +79,18 @@ data LRp i o = LRp
 
 makeLenses ''LRp
 
+-- genSingletons [''LRp]
+
 instance NFData (LRp i o)
+instance (PrimMonad m, KnownNat i, KnownNat o) => Mutable m (LRp i o) where
+    type Ref m (LRp i o) = GRef m (LRp i o)
+    thawRef   = gThawRef
+    freezeRef = gFreezeRef
+    copyRef   = gCopyRef
 instance (KnownNat i, KnownNat o) => Initialize (LRp i o)
-instance (KnownNat i, KnownNat o) => Additive (LRp i o)
-instance (KnownNat i, KnownNat o) => Scaling Double (LRp i o)
+instance (KnownNat i, KnownNat o) => Linear Double (LRp i o)
 instance (KnownNat i, KnownNat o) => Metric Double (LRp i o)
-instance (KnownNat i, KnownNat o, Ref m (LRp i o) v) => AdditiveInPlace m v (LRp i o)
-instance (KnownNat i, KnownNat o, Ref m (LRp i o) v) => ScalingInPlace m v Double (LRp i o)
+instance (PrimMonad m, KnownNat i, KnownNat o) => LinearInPlace m Double (LRp i o)
 instance (KnownNat i, KnownNat o) => Bi.Binary (LRp i o)
 instance (KnownNat i, KnownNat o) => Backprop (LRp i o)
 
@@ -120,7 +127,7 @@ reshapeLRpOutput d g (LRp α β) =
 linReg
     :: (KnownNat i, KnownNat o)
     => Model ('Just (LRp i o)) 'Nothing (R i) (R o)
-linReg = modelStatelessD (\(J_ p) -> runLRp p)
+linReg = modelStatelessD (\(PJust p) -> runLRp p)
 
 logReg
     :: (KnownNat i, KnownNat o)
@@ -232,7 +239,7 @@ makeLenses ''ARIMAs
 arima
     :: forall p d q. (KnownNat p, KnownNat d, KnownNat q)
     => Model ('Just (ARIMAp p q)) ('Just (ARIMAs p d q)) Double Double
-arima = modelD $ \(J_ p) x (J_ s) ->
+arima = modelD $ \(PJust p) x (PJust s) ->
     let d :: L p (p + d)
         d = difference
         e  = x - (s ^^. arimaYPred)
@@ -249,7 +256,7 @@ arima = modelD $ \(J_ p) x (J_ s) ->
                 y
                 yHist'
                 eHist'
-    in  (y, J_ s')
+    in  (y, PJust s')
 
 autoregressive
     :: KnownNat p
@@ -364,24 +371,14 @@ instance Floating (ARIMAs p d q) where
     acosh = gAcosh
     atanh = gAtanh
 
-instance Additive (ARIMAp p q) where
-    (.+.)   = gAdd
-    addZero = gAddZero
-instance Additive (ARIMAs p d q) where
-    (.+.)   = gAdd
-    addZero = gAddZero
-
-instance (KnownNat p, KnownNat q) => Scaling Double (ARIMAp p q)
-instance (KnownNat p, KnownNat d, KnownNat q) => Scaling Double (ARIMAs p d q)
+instance (KnownNat p, KnownNat q) => Linear Double (ARIMAp p q)
+instance (KnownNat p, KnownNat d, KnownNat q) => Linear Double (ARIMAs p d q)
 
 instance (KnownNat p, KnownNat q) => Metric  Double (ARIMAp p q)
 instance (KnownNat p, KnownNat d, KnownNat q) => Metric  Double (ARIMAs p d q)
 
-instance (KnownNat p, KnownNat q, Ref m (ARIMAp p q) v) => AdditiveInPlace m v (ARIMAp p q)
-instance (KnownNat p, KnownNat d, KnownNat q, Ref m (ARIMAs p d q) v) => AdditiveInPlace m v (ARIMAs p d q)
-
-instance (KnownNat p, KnownNat q, Ref m (ARIMAp p q) v) => ScalingInPlace m v Double (ARIMAp p q)
-instance (KnownNat p, KnownNat d, KnownNat q, Ref m (ARIMAs p d q) v) => ScalingInPlace m v Double (ARIMAs p d q)
+instance (KnownNat p, KnownNat q, Mutable m (ARIMAp p q)) => LinearInPlace m Double (ARIMAp p q)
+instance (KnownNat p, KnownNat d, KnownNat q, Mutable m (ARIMAs p d q)) => LinearInPlace m Double (ARIMAs p d q)
 
 instance (KnownNat p, KnownNat q) => Initialize (ARIMAp p q)
 instance (KnownNat p, KnownNat d, KnownNat q) => Initialize (ARIMAs p d q)

@@ -130,5 +130,5 @@ oneHotR :: KnownNat n => Finite n -> R n
 oneHotR = vecR . oneHot
 
 -- | Could be in /hmatrix/.
-maxIndexR :: KnownNat n => R (n + 1) -> Finite (n + 1)
+maxIndexR :: R (n + 1) -> Finite (n + 1)
 maxIndexR = SVG.maxIndex . rVec

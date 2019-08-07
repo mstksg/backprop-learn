@@ -1,37 +1,34 @@
-{-# LANGUAGE AllowAmbiguousTypes   #-}
-{-# LANGUAGE CPP                   #-}
-{-# LANGUAGE ConstraintKinds       #-}
-{-# LANGUAGE DeriveDataTypeable    #-}
-{-# LANGUAGE DeriveFunctor         #-}
-{-# LANGUAGE DeriveGeneric         #-}
-{-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE GADTs                 #-}
-{-# LANGUAGE KindSignatures        #-}
-{-# LANGUAGE LambdaCase            #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE PatternSynonyms       #-}
-{-# LANGUAGE RankNTypes            #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE StandaloneDeriving    #-}
-{-# LANGUAGE TypeApplications      #-}
-{-# LANGUAGE TypeInType            #-}
-{-# LANGUAGE TypeOperators         #-}
-{-# LANGUAGE UndecidableInstances  #-}
-{-# LANGUAGE ViewPatterns          #-}
+{-# LANGUAGE AllowAmbiguousTypes        #-}
+{-# LANGUAGE CPP                        #-}
+{-# LANGUAGE ConstraintKinds            #-}
+{-# LANGUAGE DeriveDataTypeable         #-}
+{-# LANGUAGE DeriveFunctor              #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GADTs                      #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE KindSignatures             #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE PatternSynonyms            #-}
+{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TypeApplications           #-}
+{-# LANGUAGE TypeInType                 #-}
+{-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE UndecidableInstances       #-}
+{-# LANGUAGE ViewPatterns               #-}
 
 -- |
--- Module      : Numeric.Backprop.Tuple
+-- Module      : Data.Type.Tuple
 -- Copyright   : (c) Justin Le 2018
 -- License     : BSD3
 --
 -- Maintainer  : justin@jle.im
 -- Stability   : experimental
 -- Portability : non-portable
---
--- Canonical strict tuples (and unit) with 'Num' instances for usage with
--- /backprop/. This is here to solve the problem of orphan instances in
--- libraries and potential mismatched tuple types.
 --
 -- If you are writing a library that needs to export 'BVar's of tuples,
 -- consider using the tuples in this module so that your library can have
@@ -74,7 +71,7 @@ module Data.Type.Tuple (
   -- * Zero-tuples (unit)
     T0(..)
   -- * Two-tuples
-  , (:&)(..), pattern (:&&)
+  , (:#)(..), pattern (:##)
   -- ** Conversions
   -- $t2iso
   , t2Tup, tupT2
@@ -83,34 +80,47 @@ module Data.Type.Tuple (
   -- ** Lenses
   , t2_1, t2_2
   -- * N-Tuples
-  , T(..)
+  , T, TF(..), pattern (:&&)
   , indexT
   -- ** Conversions
-  -- $tiso
-  , tOnly, onlyT, tSplit, tAppend, tProd, prodT
+  -- -- $tiso
+  , tOnly, onlyT
+  -- , tSplit, tAppend
+  -- , tProd, prodT
   -- ** Lenses
-  , tIx, tHead, tTail, tTake, tDrop
+  -- , tIx
+  , tHead
+  , tTail
+  -- , tTake
+  -- , tDrop
   -- ** Internal Utility
-  , constT, mapT, zipT
+  -- , constT, mapT, zipT
   ) where
 
+-- import           Data.Type.Combinator
+-- import           Data.Type.Index
+-- import           Data.Type.Length
+-- import           Data.Type.Product
+-- import           Type.Class.Known
+-- import           Type.Family.List
 import           Control.DeepSeq
+import           Control.Monad.Primitive
 import           Data.Bifunctor
 import           Data.Data
 import           Data.Kind
-import           Data.Type.Combinator
-import           Data.Type.Index
-import           Data.Type.Length
-import           Data.Type.Product
+import           Data.Profunctor hiding     (rmap)
+import           Data.Type.List.Edit
+import           Data.Type.Universe
+import           Data.Vinyl.Core
 import           GHC.Generics               (Generic)
 import           Lens.Micro
 import           Lens.Micro.Internal hiding (Index)
 import           Numeric.Backprop hiding    (T2)
 import           Numeric.Opto.Ref
 import           Numeric.Opto.Update
-import           Type.Class.Known
-import           Type.Family.List
 import qualified Data.Binary                as Bi
+import qualified Data.Vinyl                 as V
+import qualified Data.Vinyl.TypeLevel       as V
 
 -- | Unit ('()') with 'Num', 'Fractional', and 'Floating' instances.
 --
@@ -129,9 +139,9 @@ data T0 = T0
 -- | Strict 2-tuple with 'Num', 'Fractional', and 'Floating' instances.
 --
 -- @since 0.1.1.0
-data a :& b = !a :& !b
+data a :# b = !a :# !b
   deriving (Show, Read, Eq, Ord, Generic, Functor, Data, Typeable)
-infixr 1 :&
+infixr 1 :#
 
 -- | Strict inductive N-tuple with a 'Num', 'Fractional', and 'Floating'
 -- instances.
@@ -147,53 +157,65 @@ infixr 1 :&
 -- numerical instances.
 --
 -- @since 0.1.5.0
-data T :: [Type] -> Type where
-    TNil :: T '[]
-    (:#) :: !a -> !(T as) -> T (a ': as)
-infixr 5 :#
+type T = Rec TF
 
--- | @since 0.1.5.1
-deriving instance ListC (Show <$> as) => Show (T as)
--- | @since 0.1.5.1
-deriving instance ListC (Eq <$> as) => Eq (T as)
--- | @since 0.1.5.1
-deriving instance (ListC (Eq <$> as), ListC (Ord <$> as)) => Ord (T as)
--- | @since 0.1.5.1
-deriving instance Typeable (T as)
+newtype TF a = TF { getTF :: a }
+  deriving (Show, Eq, Ord, Num, Fractional, Floating, Backprop, Generic, Typeable)
+
+_TF :: (Profunctor p, Functor f) => p a (f b) -> p (TF a) (f (TF b))
+_TF = dimap getTF (fmap TF)
+
+pattern (:&&) :: a -> T as -> T (a ': as)
+pattern x :&& xs = TF x :& xs
+{-# COMPLETE (:&&) #-}
+
+-- data T :: [Type] -> Type where
+--     TNil :: T '[]
+--     (:#) :: !a -> !(T as) -> T (a ': as)
+-- infixr 5 :#
+
+-- -- | @since 0.1.5.1
+-- deriving instance ListC (Show <$> as) => Show (T as)
+-- -- | @since 0.1.5.1
+-- deriving instance ListC (Eq <$> as) => Eq (T as)
+-- -- | @since 0.1.5.1
+-- deriving instance (ListC (Eq <$> as), ListC (Ord <$> as)) => Ord (T as)
+-- -- | @since 0.1.5.1
+-- deriving instance Typeable (T as)
 
 -- | @since 0.1.5.1
 deriving instance Typeable T0
 -- | @since 0.1.5.1
-deriving instance Typeable (a :& b)
+deriving instance Typeable (a :# b)
 
 instance NFData T0
-instance (NFData a, NFData b) => NFData (a :& b)
-instance ListC (NFData <$> as) => NFData (T as) where
-    rnf = \case
-      TNil    -> ()
-      x :# xs -> rnf x `seq` rnf xs
+instance (NFData a, NFData b) => NFData (a :# b)
+-- instance ListC (NFData <$> as) => NFData (T as) where
+--     rnf = \case
+--       RNil    -> ()
+--       x :& xs -> rnf x `seq` rnf xs
 
 -- TODO: optimize
 
 -- | @since 0.1.5.1
 instance Bi.Binary T0
 -- | @since 0.1.5.1
-instance (Bi.Binary a, Bi.Binary b) => Bi.Binary (a :& b)
+instance (Bi.Binary a, Bi.Binary b) => Bi.Binary (a :# b)
 
-instance Bifunctor (:&) where
-    bimap f g (x :& y) = f x :& g y
+instance Bifunctor (:#) where
+    bimap f g (x :# y) = f x :# g y
 
 -- | Convert to a Haskell tuple.
 --
 -- Forms an isomorphism with 'tupT2'.
-t2Tup :: (a :& b) -> (a, b)
-t2Tup (x :& y) = (x, y)
+t2Tup :: (a :# b) -> (a, b)
+t2Tup (x :# y) = (x, y)
 
 -- | Convert from Haskell tuple.
 --
 -- Forms an isomorphism with 't2Tup'.
-tupT2 :: (a, b) -> a :& b
-tupT2 (x, y) = x :& y
+tupT2 :: (a, b) -> a :# b
+tupT2 (x, y) = x :# y
 
 -- | A singleton 'T'
 --
@@ -201,7 +223,7 @@ tupT2 (x, y) = x :& y
 --
 -- @since 0.1.5.0
 onlyT :: a -> T '[a]
-onlyT = (:# TNil)
+onlyT = (:& RNil) . TF
 
 -- | Extract a singleton 'T'
 --
@@ -209,24 +231,24 @@ onlyT = (:# TNil)
 --
 -- @since 0.1.5.0
 tOnly :: T '[a] -> a
-tOnly (x :# _) = x
+tOnly (TF x :& _) = x
 
 -- | Uncurry a function to take in a 'T2' of its arguments
 --
 -- @since 0.1.2.0
-uncurryT2 :: (a -> b -> c) -> a :& b -> c
-uncurryT2 f (x :& y) = f x y
+uncurryT2 :: (a -> b -> c) -> a :# b -> c
+uncurryT2 f (x :# y) = f x y
 
 -- | Curry a function taking a 'T2' of its arguments
 --
 -- @since 0.1.2.0
-curryT2 :: (a :& b -> c) -> a -> b -> c
-curryT2 f x y = f (x :& y)
+curryT2 :: (a :# b -> c) -> a -> b -> c
+curryT2 f x y = f (x :# y)
 
-instance Field1 (a :& b) (a' :& b) a a' where
+instance Field1 (a :# b) (a' :# b) a a' where
     _1 = t2_1
 
-instance Field2 (a :& b) (a :& b') b b' where
+instance Field2 (a :# b) (a :# b') b b' where
     _2 = t2_2
 
 instance Field1 (T (a ': as)) (T (a ': as)) a a where
@@ -240,13 +262,13 @@ instance Field3 (T (a ': b ': c ': as)) (T (a ': b ': c ': as)) c c where
 
 -- | Lens into the first field of a 'T2'.  Also exported as '_1' from
 -- "Lens.Micro".
-t2_1 :: Lens (a :& b) (a' :& b) a a'
-t2_1 f (x :& y) = (:& y) <$> f x
+t2_1 :: Lens (a :# b) (a' :# b) a a'
+t2_1 f (x :# y) = (:# y) <$> f x
 
 -- | Lens into the second field of a 'T2'.  Also exported as '_2' from
 -- "Lens.Micro".
-t2_2 :: Lens (a :& b) (a :& b') b b'
-t2_2 f (x :& y) = (x :&) <$> f y
+t2_2 :: Lens (a :# b) (a :# b') b b'
+t2_2 f (x :# y) = (x :#) <$> f y
 
 -- | Index into a 'T'.
 --
@@ -256,76 +278,83 @@ t2_2 f (x :& y) = (x :&) <$> f y
 indexT :: Index as a -> T as -> a
 indexT = flip (^.) . tIx
 
+
+recIx :: forall f as a. Index as a -> Lens' (Rec f as) (f a)
+recIx = \case
+    IZ   -> \f -> \case
+      x :& xs -> (:& xs) <$> f x
+    IS i -> \f -> \case
+      x :& xs -> (x :&) <$> recIx i f xs
+
 -- | Lens into a given index of a 'T'.
 --
 -- @since 0.1.5.0
 tIx :: Index as a -> Lens' (T as) a
-tIx IZ     f (x :# xs) = (:# xs) <$> f x
-tIx (IS i) f (x :# xs) = (x :#)  <$> tIx i f xs
+tIx i = recIx i . _TF
 
 -- | Lens into the head of a 'T'
 --
 -- @since 0.1.5.0
 tHead :: Lens (T (a ': as)) (T (b ': as)) a b
-tHead f (x :# xs) = (:# xs) <$> f x
+tHead f (TF x :& xs) = (:& xs) . TF <$> f x
 
 -- | Lens into the tail of a 'T'
 --
 -- @since 0.1.5.0
 tTail :: Lens (T (a ': as)) (T (a ': bs)) (T as) (T bs)
-tTail f (x :# xs) = (x :#) <$> f xs
+tTail f (x :& xs) = (x :&) <$> f xs
 
--- | Append two 'T's.
---
--- Forms an isomorphism with 'tSplit'.
---
--- @since 0.1.5.0
-tAppend :: T as -> T bs -> T (as ++ bs)
-tAppend TNil      ys = ys
-tAppend (x :# xs) ys = x :# tAppend xs ys
-infixr 5 `tAppend`
+---- | Append two 'T's.
+----
+---- Forms an isomorphism with 'tSplit'.
+----
+---- @since 0.1.5.0
+--tAppend :: T as -> T bs -> T (as ++ bs)
+--tAppend TNil      ys = ys
+--tAppend (x :# xs) ys = x :# tAppend xs ys
+--infixr 5 `tAppend`
 
--- | Split a 'T'.  For splits known at compile-time, you can use 'known' to
--- derive the 'Length' automatically.
---
--- Forms an isomorphism with 'tAppend'.
---
--- @since 0.1.5.0
-tSplit :: Length as -> T (as ++ bs) -> (T as, T bs)
-tSplit LZ     xs        = (TNil, xs)
-tSplit (LS l) (x :# xs) = first (x :#) . tSplit l $ xs
+---- | Split a 'T'.  For splits known at compile-time, you can use 'known' to
+---- derive the 'Length' automatically.
+----
+---- Forms an isomorphism with 'tAppend'.
+----
+---- @since 0.1.5.0
+--tSplit :: Length as -> T (as ++ bs) -> (T as, T bs)
+--tSplit LZ     xs        = (TNil, xs)
+--tSplit (LS l) (x :# xs) = first (x :#) . tSplit l $ xs
 
--- | Lens into the initial portion of a 'T'.  For splits known at
--- compile-time, you can use 'known' to derive the 'Length' automatically.
---
--- @since 0.1.5.0
-tTake :: forall as bs cs. Length as -> Lens (T (as ++ bs)) (T (cs ++ bs)) (T as) (T cs)
-tTake l f (tSplit l->(xs,ys)) = flip (tAppend @cs @bs) ys <$> f xs
+---- | Lens into the initial portion of a 'T'.  For splits known at
+---- compile-time, you can use 'known' to derive the 'Length' automatically.
+----
+---- @since 0.1.5.0
+--tTake :: forall as bs cs. Length as -> Lens (T (as ++ bs)) (T (cs ++ bs)) (T as) (T cs)
+--tTake l f (tSplit l->(xs,ys)) = flip (tAppend @cs @bs) ys <$> f xs
 
--- | Lens into the ending portion of a 'T'.  For splits known at
--- compile-time, you can use 'known' to derive the 'Length' automatically.
---
--- @since 0.1.5.0
-tDrop :: forall as bs cs. Length as -> Lens (T (as ++ bs)) (T (as ++ cs)) (T bs) (T cs)
-tDrop l f (tSplit l->(xs,ys)) = tAppend xs <$> f ys
+---- | Lens into the ending portion of a 'T'.  For splits known at
+---- compile-time, you can use 'known' to derive the 'Length' automatically.
+----
+---- @since 0.1.5.0
+--tDrop :: forall as bs cs. Length as -> Lens (T (as ++ bs)) (T (as V.++ cs)) (T bs) (T cs)
+--tDrop l f (tSplit l->(xs,ys)) = tAppend xs <$> f ys
 
--- | Convert a 'T' to a 'Tuple'.
---
--- Forms an isomorphism with 'prodT'.
---
--- @since 0.1.5.0
-tProd :: T as -> Tuple as
-tProd TNil      = Ø
-tProd (x :# xs) = x ::< tProd xs
+---- | Convert a 'T' to a 'Tuple'.
+----
+---- Forms an isomorphism with 'prodT'.
+----
+---- @since 0.1.5.0
+--tProd :: T as -> Tuple as
+--tProd TNil      = Ø
+--tProd (x :# xs) = x ::< tProd xs
 
--- | Convert a 'Tuple' to a 'T'.
---
--- Forms an isomorphism with 'tProd'.
---
--- @since 0.1.5.0
-prodT :: Tuple as -> T as
-prodT Ø           = TNil
-prodT (I x :< xs) = x :# prodT xs
+---- | Convert a 'Tuple' to a 'T'.
+----
+---- Forms an isomorphism with 'tProd'.
+----
+---- @since 0.1.5.0
+--prodT :: Tuple as -> T as
+--prodT Ø           = TNil
+--prodT (I x :< xs) = x :# prodT xs
 
 
 instance Num T0 where
@@ -367,170 +396,170 @@ instance Monoid T0 where
     mempty = T0
     mappend = (<>)
 
-instance (Num a, Num b) => Num (a :& b) where
-    (x1 :& y1) + (x2 :& y2) = x1 + x2 :& y1 + y2
-    (x1 :& y1) - (x2 :& y2) = x1 - x2 :& y1 - y2
-    (x1 :& y1) * (x2 :& y2) = x1 * x2 :& y1 * y2
-    negate (x :& y)     = negate x :& negate y
-    abs    (x :& y)     = abs    x :& abs    y
-    signum (x :& y)     = signum x :& signum y
-    fromInteger x       = fromInteger x :& fromInteger x
+instance (Num a, Num b) => Num (a :# b) where
+    (x1 :# y1) + (x2 :# y2) = x1 + x2 :# y1 + y2
+    (x1 :# y1) - (x2 :# y2) = x1 - x2 :# y1 - y2
+    (x1 :# y1) * (x2 :# y2) = x1 * x2 :# y1 * y2
+    negate (x :# y)     = negate x :# negate y
+    abs    (x :# y)     = abs    x :# abs    y
+    signum (x :# y)     = signum x :# signum y
+    fromInteger x       = fromInteger x :# fromInteger x
 
-instance (Fractional a, Fractional b) => Fractional (a :& b) where
-    (x1 :& y1) / (x2 :& y2) = x1 / x2 :& y1 / y2
-    recip (x :& y)          = recip x :& recip y
-    fromRational x          = fromRational x :& fromRational x
+instance (Fractional a, Fractional b) => Fractional (a :# b) where
+    (x1 :# y1) / (x2 :# y2) = x1 / x2 :# y1 / y2
+    recip (x :# y)          = recip x :# recip y
+    fromRational x          = fromRational x :# fromRational x
 
-instance (Floating a, Floating b) => Floating (a :& b) where
-    pi                            = pi :& pi
-    (x1 :& y1) ** (x2 :& y2)      = x1 ** x2 :& y1 ** y2
-    logBase (x1 :& y1) (x2 :& y2) = logBase x1 x2 :& logBase y1 y2
-    exp   (x :& y)                = exp   x :& exp   y
-    log   (x :& y)                = log   x :& log   y
-    sqrt  (x :& y)                = sqrt  x :& sqrt  y
-    sin   (x :& y)                = sin   x :& sin   y
-    cos   (x :& y)                = cos   x :& cos   y
-    asin  (x :& y)                = asin  x :& asin  y
-    acos  (x :& y)                = acos  x :& acos  y
-    atan  (x :& y)                = atan  x :& atan  y
-    sinh  (x :& y)                = sinh  x :& sinh  y
-    cosh  (x :& y)                = cosh  x :& cosh  y
-    asinh (x :& y)                = asinh x :& asinh y
-    acosh (x :& y)                = acosh x :& acosh y
-    atanh (x :& y)                = atanh x :& atanh y
+instance (Floating a, Floating b) => Floating (a :# b) where
+    pi                            = pi :# pi
+    (x1 :# y1) ** (x2 :# y2)      = x1 ** x2 :# y1 ** y2
+    logBase (x1 :# y1) (x2 :# y2) = logBase x1 x2 :# logBase y1 y2
+    exp   (x :# y)                = exp   x :# exp   y
+    log   (x :# y)                = log   x :# log   y
+    sqrt  (x :# y)                = sqrt  x :# sqrt  y
+    sin   (x :# y)                = sin   x :# sin   y
+    cos   (x :# y)                = cos   x :# cos   y
+    asin  (x :# y)                = asin  x :# asin  y
+    acos  (x :# y)                = acos  x :# acos  y
+    atan  (x :# y)                = atan  x :# atan  y
+    sinh  (x :# y)                = sinh  x :# sinh  y
+    cosh  (x :# y)                = cosh  x :# cosh  y
+    asinh (x :# y)                = asinh x :# asinh y
+    acosh (x :# y)                = acosh x :# acosh y
+    atanh (x :# y)                = atanh x :# atanh y
 
-instance (Semigroup a, Semigroup b) => Semigroup (a :& b) where
-    (x1 :& y1) <> (x2 :& y2) = x1 <> x2 :& y1 <> y2
+instance (Semigroup a, Semigroup b) => Semigroup (a :# b) where
+    (x1 :# y1) <> (x2 :# y2) = x1 <> x2 :# y1 <> y2
 
-instance (Semigroup a, Semigroup b, Monoid a, Monoid b) => Monoid (a :& b) where
+instance (Semigroup a, Semigroup b, Monoid a, Monoid b) => Monoid (a :# b) where
     mappend = (<>)
-    mempty  = mempty :& mempty
+    mempty  = mempty :# mempty
 
--- | Initialize a 'T' with a Rank-N value.  Mostly used internally, but
--- provided in case useful.
---
--- Must be used with /TypeApplications/ to provide the Rank-N constraint.
---
--- @since 0.1.5.0
-constT
-    :: forall c as. ListC (c <$> as)
-    => (forall a. c a => a)
-    -> Length as
-    -> T as
-constT x = go
-  where
-    go :: forall bs. ListC (c <$> bs) => Length bs -> T bs
-    go LZ     = TNil
-    go (LS l) = x :# go l
+---- | Initialize a 'T' with a Rank-N value.  Mostly used internally, but
+---- provided in case useful.
+----
+---- Must be used with /TypeApplications/ to provide the Rank-N constraint.
+----
+---- @since 0.1.5.0
+--constT
+--    :: forall c as. ListC (c <$> as)
+--    => (forall a. c a => a)
+--    -> Length as
+--    -> T as
+--constT x = go
+--  where
+--    go :: forall bs. ListC (c <$> bs) => Length bs -> T bs
+--    go LZ     = TNil
+--    go (LS l) = x :# go l
 
--- | Map over a 'T' with a Rank-N function.  Mostly used internally, but
--- provided in case useful.
---
--- Must be used with /TypeApplications/ to provide the Rank-N constraint.
---
--- @since 0.1.5.0
-mapT
-    :: forall c as. ListC (c <$> as)
-    => (forall a. c a => a -> a)
-    -> T as
-    -> T as
-mapT f = go
-  where
-    go :: forall bs. ListC (c <$> bs) => T bs -> T bs
-    go TNil      = TNil
-    go (x :# xs) = f x :# go xs
+---- | Map over a 'T' with a Rank-N function.  Mostly used internally, but
+---- provided in case useful.
+----
+---- Must be used with /TypeApplications/ to provide the Rank-N constraint.
+----
+---- @since 0.1.5.0
+--mapT
+--    :: forall c as. ListC (c <$> as)
+--    => (forall a. c a => a -> a)
+--    -> T as
+--    -> T as
+--mapT f = go
+--  where
+--    go :: forall bs. ListC (c <$> bs) => T bs -> T bs
+--    go TNil      = TNil
+--    go (x :# xs) = f x :# go xs
 
--- | Map over a 'T' with a Rank-N function.  Mostly used internally, but
--- provided in case useful.
---
--- Must be used with /TypeApplications/ to provide the Rank-N constraint.
---
--- @since 0.1.5.0
-zipT
-    :: forall c as. ListC (c <$> as)
-    => (forall a. c a => a -> a -> a)
-    -> T as
-    -> T as
-    -> T as
-zipT f = go
-  where
-    go :: forall bs. ListC (c <$> bs) => T bs -> T bs -> T bs
-    go TNil      TNil      = TNil
-    go (x :# xs) (y :# ys) = f x y :# go xs ys
+---- | Map over a 'T' with a Rank-N function.  Mostly used internally, but
+---- provided in case useful.
+----
+---- Must be used with /TypeApplications/ to provide the Rank-N constraint.
+----
+---- @since 0.1.5.0
+--zipT
+--    :: forall c as. ListC (c <$> as)
+--    => (forall a. c a => a -> a -> a)
+--    -> T as
+--    -> T as
+--    -> T as
+--zipT f = go
+--  where
+--    go :: forall bs. ListC (c <$> bs) => T bs -> T bs -> T bs
+--    go TNil      TNil      = TNil
+--    go (x :# xs) (y :# ys) = f x y :# go xs ys
 
-instance (Known Length as, ListC (Num <$> as)) => Num (T as) where
-    (+)           = zipT @Num (+)
-    (-)           = zipT @Num (-)
-    (*)           = zipT @Num (*)
-    negate        = mapT @Num negate
-    abs           = mapT @Num abs
-    signum        = mapT @Num signum
-    fromInteger x = constT @Num (fromInteger x) known
+-- instance (Known Length as, ListC (Num <$> as)) => Num (T as) where
+--     (+)           = zipT @Num (+)
+--     (-)           = zipT @Num (-)
+--     (*)           = zipT @Num (*)
+--     negate        = mapT @Num negate
+--     abs           = mapT @Num abs
+--     signum        = mapT @Num signum
+--     fromInteger x = constT @Num (fromInteger x) known
 
-instance (Known Length as, ListC (Num <$> as), ListC (Fractional <$> as)) => Fractional (T as) where
-    (/)            = zipT @Fractional (/)
-    recip          = mapT @Fractional recip
-    fromRational x = constT @Fractional (fromRational x) known
+-- instance (Known Length as, ListC (Num <$> as), ListC (Fractional <$> as)) => Fractional (T as) where
+--     (/)            = zipT @Fractional (/)
+--     recip          = mapT @Fractional recip
+--     fromRational x = constT @Fractional (fromRational x) known
 
-instance (Known Length as, ListC (Num <$> as), ListC (Fractional <$> as), ListC (Floating <$> as))
-        => Floating (T as) where
-    pi      = constT @Floating pi known
-    (**)    = zipT @Floating (**)
-    logBase = zipT @Floating logBase
-    exp     = mapT @Floating exp
-    log     = mapT @Floating log
-    sqrt    = mapT @Floating sqrt
-    sin     = mapT @Floating sin
-    cos     = mapT @Floating cos
-    asin    = mapT @Floating asin
-    acos    = mapT @Floating acos
-    atan    = mapT @Floating atan
-    sinh    = mapT @Floating sinh
-    cosh    = mapT @Floating cosh
-    asinh   = mapT @Floating asinh
-    acosh   = mapT @Floating acosh
-    atanh   = mapT @Floating atanh
+-- instance (Known Length as, ListC (Num <$> as), ListC (Fractional <$> as), ListC (Floating <$> as))
+--         => Floating (T as) where
+--     pi      = constT @Floating pi known
+--     (**)    = zipT @Floating (**)
+--     logBase = zipT @Floating logBase
+--     exp     = mapT @Floating exp
+--     log     = mapT @Floating log
+--     sqrt    = mapT @Floating sqrt
+--     sin     = mapT @Floating sin
+--     cos     = mapT @Floating cos
+--     asin    = mapT @Floating asin
+--     acos    = mapT @Floating acos
+--     atan    = mapT @Floating atan
+--     sinh    = mapT @Floating sinh
+--     cosh    = mapT @Floating cosh
+--     asinh   = mapT @Floating asinh
+--     acosh   = mapT @Floating acosh
+--     atanh   = mapT @Floating atanh
 
-instance ListC (Semigroup <$> as) => Semigroup (T as) where
-    (<>) = zipT @Semigroup (<>)
+-- -- | @since 0.1.5.1
+-- instance Bi.Binary (T as) where
+--     put = getAp . rfoldMap _
+--     get = undefined
+    -- put = \case
+    --   TNil -> pure ()
+    --   x :# xs -> do
+    --     Bi.put x
+    --     Bi.put xs
+    -- get = getT known
 
-instance (Known Length as, ListC (Semigroup <$> as), ListC (Monoid <$> as)) => Monoid (T as) where
-    mempty  = constT @Monoid mempty known
-    mappend = (<>)
+-- getT :: V.RPureConstrained Bi.Binary as => Bi.Get (T as)
+-- getT = rpureConstrained @Bi.Binary Bi.get
 
--- | @since 0.1.5.1
-instance (Known Length as, ListC (Bi.Binary <$> as)) => Bi.Binary (T as) where
-    put = \case
-      TNil -> pure ()
-      x :# xs -> do
-        Bi.put x
-        Bi.put xs
-    get = getT known
+-- ListC (Bi.Binary <$> as) => Length as -> Bi.Get (T as)
+-- getT = \case
+--     LZ   -> pure TNil
+--     LS l -> do
+--       x  <- Bi.get
+--       xs <- getT l
+--       pure (x :# xs)
 
-getT :: ListC (Bi.Binary <$> as) => Length as -> Bi.Get (T as)
-getT = \case
-    LZ   -> pure TNil
-    LS l -> do
-      x  <- Bi.get
-      xs <- getT l
-      pure (x :# xs)
-
-instance (Backprop a, Backprop b) => Backprop (a :& b) where
-    zero (x :& y) = zero x :& zero y
-    add (x1 :& y1) (x2 :& y2) = add x1 x2 :& add y1 y2
-    one (x :& y) = one x :& one y
-instance (ListC (Backprop <$> as)) => Backprop (T as) where
-    zero = \case
-      TNil -> TNil
-      x :# xs -> zero x :# zero xs
-    add = \case
-      TNil -> \case
-        TNil -> TNil
-      x :# xs -> \case
-        y :# ys -> add x y :# add xs ys
-    one = \case
-      TNil -> TNil
-      x :# xs -> one x :# one xs
+instance (Backprop a, Backprop b) => Backprop (a :# b) where
+    zero (x :# y) = zero x :# zero y
+    add (x1 :# y1) (x2 :# y2) = add x1 x2 :# add y1 y2
+    one (x :# y) = one x :# one y
+-- instance RMap as => Backprop (T as) where
+--     zero = rmap zero
+-- instance (ListC (Backprop <$> as)) => Backprop (T as) where
+--     zero = \case
+--       TNil -> TNil
+--       x :# xs -> zero x :# zero xs
+--     add = \case
+--       TNil -> \case
+--         TNil -> TNil
+--       x :# xs -> \case
+--         y :# ys -> add x y :# add xs ys
+--     one = \case
+--       TNil -> TNil
+--       x :# xs -> one x :# one xs
 
 -- $t2iso
 --
@@ -550,62 +579,49 @@ instance (ListC (Backprop <$> as)) => Backprop (T as) where
 -- 'iso' 'onlyT' 'tOnly' :: 'Iso'' a (T '[a])
 -- @
 
-pattern (:&&)
+pattern (:##)
     :: (Backprop a, Backprop b, Reifies s W)
     => BVar s a
     -> BVar s b
-    -> BVar s (a :& b)
-pattern x :&& y <- (\xy -> (xy ^^. _1, xy ^^. _2) -> (x, y))
+    -> BVar s (a :# b)
+pattern x :## y <- (\xy -> (xy ^^. _1, xy ^^. _2) -> (x, y))
   where
-    (:&&) = isoVar2 (:&) t2Tup
-{-# COMPLETE (:&&) #-}
+    (:##) = isoVar2 (:#) t2Tup
+{-# COMPLETE (:##) #-}
 
-instance (Additive a, Additive b) => Additive (a :& b) where
-    (.+.)   = gAdd
-    addZero = gAddZero
-instance (ListC (Additive <$> as), Known Length as) => Additive (T as) where
-    (.+.)   = zipT @Additive (.+.)
-    addZero = constT @Additive addZero known
+instance PrimMonad m => Mutable m (a :# b)
+instance (Linear c a, Linear c b) => Linear c (a :# b)
+instance (Floating c, Ord c, Metric c a, Metric c b) => Metric c (a :# b)
+instance (PrimMonad m, LinearInPlace m c a, LinearInPlace m c b) => LinearInPlace m c (a :# b)
 
-instance (Scaling c a, Scaling c b) => Scaling c (a :& b)
+instance PrimMonad m => Mutable m (T as)
 
-instance (Metric c a, Metric c b, Ord c, Floating c) => Metric c (a :& b)
+-- instance Linear c a => Linear c (T '[a]) where
+--     (x :# TNil) .+. (y :# TNil) = (x .+. y) :# TNil
+--     zeroL = zeroL :# TNil
+--     c .* (x :# TNil) = (c .* x) :# TNil
+-- instance Metric c a => Metric c (T '[a]) where
+--     (x :# TNil) <.> (y :# TNil) = x <.> y
+--     norm_inf (x :# TNil)        = norm_inf x
+--     norm_0 (x :# TNil)          = norm_0 x
+--     norm_1 (x :# TNil)          = norm_1 x
+--     norm_2 (x :# TNil)          = norm_2 x
+--     quadrance (x :# TNil)       = quadrance x
 
-instance (Ref m (a :& b) v, Additive a, Additive b) => AdditiveInPlace m v (a :& b)
+-- instance (Linear c b, Linear c (T (a ': as))) => Linear c (T (b ': (a ': as))) where
+--     (x :# xs) .+. (y :# ys) = (x .+. y) :# (xs .+. ys)
+--     zeroL = zeroL :# zeroL
+--     c .* (x :# xs) = (c .* x) :# (c .* xs)
+-- instance ( Metric c b
+--          , Metric c (T (a ': as))
+--          , Ord c
+--          , Floating c
+--          )
+--       => Metric c (T (b ': (a ': as))) where
+--     (x :# xs) <.> (y :# ys) = (x <.> y) + (xs <.> ys)
+--     norm_inf (x :# xs)      = max (norm_inf x) (norm_inf xs)
+--     norm_0 (x :# xs)        = norm_0 x + norm_0 xs
+--     norm_1 (x :# xs)        = norm_1 x + norm_1 xs
+--     quadrance (x :# xs)     = quadrance x + quadrance xs
 
-instance (Ref m (a :& b) v, Scaling c a, Scaling c b) => ScalingInPlace m v c (a :& b)
 
-instance Scaling c a => Scaling c (T '[a]) where
-    c .* (x :# TNil) = (c .* x) :# TNil
-    scaleOne = scaleOne @c @a
-instance (Scaling c b, Scaling c (T (a ': as)), Additive a, ListC (Additive <$> as), Known Length as)
-        => Scaling c (T (b ': (a ': as))) where
-    c .* (x :# xs) = (c .* x) :# (c .* xs)
-    scaleOne = scaleOne @c @b
-
-instance Metric c a => Metric c (T '[a]) where
-    (x :# TNil) <.> (y :# TNil) = x <.> y
-    norm_inf (x :# TNil)        = norm_inf x
-    norm_0 (x :# TNil)          = norm_0 x
-    norm_1 (x :# TNil)          = norm_1 x
-    norm_2 (x :# TNil)          = norm_2 x
-    quadrance (x :# TNil)       = quadrance x
-
-instance ( Metric c b
-         , Metric c (T (a ': as))
-         , Scaling c (T (a ': as))
-         , Additive a
-         , ListC (Additive <$> as)
-         , Known Length as
-         , Ord c
-         , Floating c
-         )
-      => Metric c (T (b ': (a ': as))) where
-    (x :# xs) <.> (y :# ys) = (x <.> y) + (xs <.> ys)
-    norm_inf (x :# xs)      = max (norm_inf x) (norm_inf xs)
-    norm_0 (x :# xs)        = norm_0 x + norm_0 xs
-    norm_1 (x :# xs)        = norm_0 x + norm_0 xs
-    quadrance (x :# xs)     = quadrance x + quadrance xs
-
-instance (Ref m (T as) v, Additive (T as)) => AdditiveInPlace m v (T as)
-instance (Ref m (T as) v, Scaling c (T as)) => ScalingInPlace m v c (T as)

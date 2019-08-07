@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds  #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs            #-}
 {-# LANGUAGE KindSignatures   #-}
@@ -25,8 +26,8 @@ module Backprop.Learn.Model.Types (
     -- * Manipulating models as functions
   , ModelFuncM, withModelFunc0, withModelFunc, withModelFunc2
     -- * Utility
-  , Mayb(..), fromJ_, MaybeC, KnownMayb, knownMayb, I(..)
-  , HKD
+  , PMaybe(..), fromPJust, Learnables
+  -- , HKD
   ) where
 
 import           Control.Category
@@ -34,24 +35,26 @@ import           Control.Monad.Primitive
 import           Control.Monad.Trans.Reader
 import           Data.Functor.Identity
 import           Data.Kind
-import           Data.Type.Combinator
+import           Data.Singletons
 import           Data.Type.Mayb
+import           Data.Type.Tuple
+import           Data.Vinyl
 import           Numeric.Backprop
 import           Prelude hiding             ((.))
 import qualified System.Random.MWC          as MWC
 
 type ModelFunc p s a b = forall z. Reifies z W
-    => Mayb (BVar z) p
+    => PMaybe (BVar z) p
     -> BVar z a
-    -> Mayb (BVar z) s
-    -> (BVar z b, Mayb (BVar z) s)
+    -> PMaybe (BVar z) s
+    -> (BVar z b, PMaybe (BVar z) s)
 
 type ModelFuncStoch p s a b = forall m z. (PrimMonad m, Reifies z W)
     => MWC.Gen (PrimState m)
-    -> Mayb (BVar z) p
+    -> PMaybe (BVar z) p
     -> BVar z a
-    -> Mayb (BVar z) s
-    -> m (BVar z b, Mayb (BVar z) s)
+    -> PMaybe (BVar z) s
+    -> m (BVar z b, PMaybe (BVar z) s)
 
 -- | General parameterized model with potential state
 data Model :: Maybe Type -> Maybe Type -> Type -> Type -> Type where
@@ -66,13 +69,13 @@ modelD f = Model { runLearn      = f
                  }
 
 type ModelFuncStateless p a b = forall z. Reifies z W
-    => Mayb (BVar z) p
+    => PMaybe (BVar z) p
     -> BVar z a
     -> BVar z b
 
 type ModelFuncStochStateless p a b = forall m z. (PrimMonad m, Reifies z W)
     => MWC.Gen (PrimState m)
-    -> Mayb (BVar z) p
+    -> PMaybe (BVar z) p
     -> BVar z a
     -> m (BVar z b)
 
@@ -106,10 +109,10 @@ modelStatelessD f = ModelStateless
     }
 
 _runLearnStateless :: Model p 'Nothing a b -> MFS p a b
-_runLearnStateless md = MFS $ \p x -> fst $ runLearn md p x N_
+_runLearnStateless md = MFS $ \p x -> fst $ runLearn md p x PNothing
 
 _runLearnStochStateless :: Model p 'Nothing a b -> MFSS p a b
-_runLearnStochStateless md = MFSS $ \g p x -> fst <$> runLearnStoch md g p x N_
+_runLearnStochStateless md = MFSS $ \g p x -> fst <$> runLearnStoch md g p x PNothing
 
 type BFunc a b = forall z. Reifies z W
     => BVar z a
@@ -144,10 +147,10 @@ funcD f = Func { runFunc      = f
                }
 
 _runFunc :: Model 'Nothing 'Nothing a b -> BF a b
-_runFunc md = BF $ runLearnStateless md N_
+_runFunc md = BF $ runLearnStateless md PNothing
 
 _runFuncStoch :: Model 'Nothing 'Nothing a b -> BFS a b
-_runFuncStoch md = BFS $ flip (runLearnStochStateless md) N_
+_runFuncStoch md = BFS $ flip (runLearnStochStateless md) PNothing
 
 -- | Share parameter and sequence state
 instance Category (Model p s) where
@@ -161,10 +164,10 @@ instance Category (Model p s) where
       }
 
 type ModelFuncM m p s a b = forall z. Reifies z W
-    => Mayb (BVar z) p
+    => PMaybe (BVar z) p
     -> BVar z a
-    -> Mayb (BVar z) s
-    -> m (BVar z b, Mayb (BVar z) s)
+    -> PMaybe (BVar z) s
+    -> m (BVar z b, PMaybe (BVar z) s)
 
 withModelFunc0
     :: (forall m. Monad m => ModelFuncM m p s a b)
@@ -208,9 +211,15 @@ runLearnStochModelFuncM
     -> ModelFuncM (ReaderT (MWC.Gen (PrimState m)) m) p s a b
 runLearnStochModelFuncM m p x s = ReaderT $ \g -> runLearnStoch m g p x s
 
+-- | Combination of common constraints for type-level lists.
+type Learnables as = ( SingI as
+                     , ReifyConstraint Backprop TF as
+                     , RMap as
+                     , RApply as
+                     )
 
--- | Helper type family for HKD data types.  See
--- <http://reasonablypolymorphic.com/blog/higher-kinded-data>
-type family HKD f a where
-    HKD I a = a
-    HKD f a = f a
+-- -- | Helper type family for HKD data types.  See
+-- -- <http://reasonablypolymorphic.com/blog/higher-kinded-data>
+-- type family HKD f a where
+--     HKD I a = a
+--     HKD f a = f a
