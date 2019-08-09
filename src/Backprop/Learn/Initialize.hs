@@ -25,16 +25,17 @@ module Backprop.Learn.Initialize (
   , reshapeLCols
   ) where
 
+-- import           Data.Functor.Identity
+-- import           Data.List.NonEmpty               (NonEmpty(..))
 -- import           Data.Type.Length
+-- import           Data.Type.NonEmpty
 -- import           Type.Class.Known
 -- import           Type.Family.List
+-- import qualified Data.Vinyl.Functor               as V
 import           Control.Monad.Primitive
 import           Data.Complex
-import           Data.Functor.Identity
-import           Data.List.NonEmpty                  (NonEmpty(..))
 import           Data.Proxy
 import           Data.Type.Equality
-import           Data.Type.NonEmpty
 import           Data.Type.Tuple
 import           Data.Vinyl
 import           GHC.TypeLits.Compare
@@ -45,7 +46,6 @@ import           Statistics.Distribution
 import           Statistics.Distribution.Normal
 import qualified Data.Vector.Generic                 as VG
 import qualified Data.Vector.Generic.Sized           as SVG
-import qualified Data.Vinyl.Functor as V
 import qualified Numeric.LinearAlgebra.Static        as H
 import qualified System.Random.MWC                   as MWC
 

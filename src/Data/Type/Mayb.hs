@@ -35,28 +35,18 @@ module Data.Type.Mayb (
   , pattern MaybB
   ) where
 
--- import           Data.Type.Boolean
--- import           Data.Type.Combinator
--- import           Data.Type.Product
--- import           Type.Class.Higher
--- import           Type.Class.Known
--- import           Type.Class.Witness
--- import           Type.Family.Maybe    (type (<$>))
 import           Data.Bifunctor
 import           Data.Functor.Identity
 import           Data.Kind
 import           Data.Singletons
 import           Data.Singletons.Prelude.Bool
-import           Data.Singletons.Prelude.List
 import           Data.Singletons.Prelude.Maybe
+import           Data.Type.Functor.Product
 import           Data.Type.Tuple
-import           Data.Type.Universe
-import           Data.Type.Universe.Prod
 import           Data.Vinyl
 import           Numeric.Backprop
-import qualified Data.Vinyl.Functor as V
-import qualified Data.Vinyl.TypeLevel as V
-import qualified GHC.TypeLits         as TL
+import qualified Data.Vinyl.Functor            as V
+import qualified Data.Vinyl.TypeLevel          as V
 
 type MaybeC c m = V.AllConstrained c (MaybeToList m)
 
@@ -195,7 +185,7 @@ type family (a :: Maybe Type) :#? (b :: Maybe Type) :: Maybe Type where
 infixr 1 :#?
 
 pattern (:#?)
-    :: (MaybeC Backprop a, MaybeC Backprop b, Reifies s W, SingI a, SingI b)
+    :: (MaybeC Backprop a, MaybeC Backprop b, Reifies s W, PureProd Maybe a, PureProd Maybe b)
     => PMaybe (BVar s) a
     -> PMaybe (BVar s) b
     -> PMaybe (BVar s) (a :#? b)
@@ -218,17 +208,17 @@ tupMaybe f = \case
       PJust y -> PJust (f x y)
 
 splitTupMaybe
-    :: forall f a b. (SingI a, SingI b)
+    :: forall f a b. (PureProd Maybe a, PureProd Maybe b)
     => (forall a' b'. (a ~ 'Just a', b ~ 'Just b') => f (a' :# b') -> (f a', f b'))
     -> PMaybe f (a :#? b)
     -> (PMaybe f a, PMaybe f b)
-splitTupMaybe f = case singProd (sing @a) of
-    PNothing -> case singProd (sing @b) of
+splitTupMaybe f = case pureShape @_ @a of
+    PNothing -> case pureShape @_ @b of
       PNothing -> \case
         PNothing -> (PNothing, PNothing)
       PJust _ -> \case
         PJust y -> (PNothing, PJust y)
-    PJust _ -> case singProd (sing @b) of
+    PJust _ -> case pureShape @_ @b of
       PNothing -> \case
         PJust x -> (PJust x, PNothing)
       PJust _ -> \case
@@ -242,27 +232,19 @@ boolMayb :: Sing b -> PMaybe P (BoolMayb b)
 boolMayb SFalse = PNothing
 boolMayb STrue  = PJust P
 
-instance ReifyConstraint Backprop f (MaybeToList as) => Backprop (PMaybe f as) where
-    zero = \case
-      PNothing -> PNothing
-      PJust x  -> case reifyConstraint @Backprop (x :& RNil) of
-        V.Compose (Dict _) :& RNil -> PJust (zero x)
+instance ReifyConstraintProd Maybe Backprop f as => Backprop (PMaybe f as) where
+    zero = mapProd (\(V.Compose (Dict x)) -> zero x)
+         . reifyConstraintProd @_ @Backprop
     {-# INLINE zero #-}
-    add = \case
-      PNothing -> \case
-        PNothing -> PNothing
-      PJust x -> \case
-        PJust y -> case reifyConstraint @Backprop (x :& RNil) of
-          V.Compose (Dict _) :& RNil -> PJust (add x y)
+    add xs = zipWithProd (\x (V.Compose (Dict y)) -> add x y) xs
+           . reifyConstraintProd @_ @Backprop
     {-# INLINE add #-}
-    one = \case
-      PNothing -> PNothing
-      PJust x  -> case reifyConstraint @Backprop (x :& RNil) of
-        V.Compose (Dict _) :& RNil -> PJust (one x)
+    one  = mapProd (\(V.Compose (Dict x)) -> one x)
+         . reifyConstraintProd @_ @Backprop
     {-# INLINE one #-}
 
 pattern MaybB
-    :: (Reifies s W, MaybeC Backprop a, SingI a)
+    :: (Reifies s W, MaybeC Backprop a, SingI a, PureProd Maybe a)
     => PMaybe (BVar s) a
     -> BVar s (PMaybe Identity a)
 pattern MaybB v <- (_mb->v)
@@ -272,10 +254,10 @@ pattern MaybB v <- (_mb->v)
       PJust x  -> isoVar (PJust . Identity) (runIdentity . fromPJust) x
 {-# COMPLETE MaybB #-}
 
-_mb :: forall a s. (MaybeC Backprop a, SingI a, Reifies s W)
+_mb :: forall a s. (MaybeC Backprop a, PureProd Maybe a, Reifies s W)
     => BVar s (PMaybe Identity a)
     -> PMaybe (BVar s) a
-_mb v = case singProd (sing @a) of
+_mb v = case pureShape @_ @a of
     PJust _  -> PJust $ isoVar (runIdentity . fromPJust) (PJust . Identity) v
     PNothing -> PNothing
 {-# INLINE _mb #-}

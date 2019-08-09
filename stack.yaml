@@ -70,9 +70,11 @@ extra-deps:
 - github: mstksg/backprop
   commit: 106371536e66d7e5e67f83f4f530c576f9ebf567
 - github: mstksg/decidable
-  commit: 5028ea8f78195467bbbb38ed219b2509f974e163
+  commit: 81e7469efdd8d1cf1f15fe4204a0b41bf3005377
 - github: mstksg/list-witnesses
-  commit: eae99a2808e231502197a9cf7f71358e9f3f0c68
+  commit: 190f7c839b60dca5bafab3e72aa4b00ea86ce1be
+- github: mstksg/functor-products
+  commit: 476b961bb007d7ee9aa0e60500c1473bc4a34e73
 
 # Override default flag values for local packages and extra-deps
 flags: {}

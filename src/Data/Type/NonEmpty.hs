@@ -25,15 +25,16 @@ module Data.Type.NonEmpty (
 -- import           Data.Type.Length
 -- import           Type.Class.Known
 -- import           Type.Family.List
-import           Control.DeepSeq
-import           Data.Kind
-import           Data.List.NonEmpty  (NonEmpty(..))
-import           Data.Type.Tuple
-import           Lens.Micro
-import           Numeric.Backprop    (Backprop(..))
-import           Numeric.Opto.Ref
-import           Numeric.Opto.Update
-import qualified Data.Binary         as Bi
+
+-- import           Control.DeepSeq
+-- import           Data.Kind
+-- import           Data.List.NonEmpty  (NonEmpty(..))
+-- import           Data.Type.Tuple
+-- import           Lens.Micro
+-- import           Numeric.Backprop    (Backprop(..))
+-- import           Numeric.Opto.Ref
+-- import           Numeric.Opto.Update
+-- import qualified Data.Binary         as Bi
 
 -- data NETup :: NonEmpty Type -> Type where
 --     NET :: !a -> !(T as) -> NETup (a ':| as)

@@ -32,10 +32,6 @@ module Backprop.Learn.Model.Combinator (
   , forkModel, feedback, feedbackTrace
   ) where
 
--- import           Data.Type.Length
--- import           Type.Class.Known
--- import           Type.Class.Witness
--- import           Type.Family.List           as List
 import           Backprop.Learn.Model.Types
 import           Control.Applicative
 import           Control.Category
@@ -43,13 +39,12 @@ import           Control.Monad
 import           Control.Monad.Trans.State
 import           Data.Bifunctor
 import           Data.Singletons
-import           Data.Singletons
 import           Data.Singletons.Prelude.List
 import           Data.Singletons.Prelude.Maybe
+import           Data.Type.Functor.Product
 import           Data.Type.List.Sublist
 import           Data.Type.Mayb                as Mayb
 import           Data.Type.Tuple
-import           Data.Type.Universe.Prod
 import           Data.Vinyl
 import           GHC.TypeNats
 import           Numeric.Backprop
@@ -59,10 +54,10 @@ import qualified Data.Vector.Sized             as SV
 -- | Compose two 'Model's one after the other.
 (<~)
     :: forall p q s t a b c.
-     ( SingI p
-     , SingI q
-     , SingI s
-     , SingI t
+     ( PureProd Maybe p
+     , PureProd Maybe q
+     , PureProd Maybe s
+     , PureProd Maybe t
      , MaybeC Backprop p
      , MaybeC Backprop q
      , MaybeC Backprop s
@@ -80,10 +75,10 @@ infixr 8 <~
 -- | Compose two 'Model's one after the other, in reverse composition order
 (~>)
     :: forall p q s t a b c.
-     ( SingI p
-     , SingI q
-     , SingI s
-     , SingI t
+     ( PureProd Maybe p
+     , PureProd Maybe q
+     , PureProd Maybe s
+     , PureProd Maybe t
      , MaybeC Backprop p
      , MaybeC Backprop q
      , MaybeC Backprop s
@@ -153,8 +148,8 @@ infixr 5 #:
     -> LModel        qs         ts  a b
     -> LModel (ps ++ qs) (ss ++ ts) a c
 (#++) = withModelFunc2 $ \f g (PJust psqs) x (PJust ssts) ->
-        withAppend (sing @ps) (sing @qs) $ \spsqs apsqs@AppendWit ->
-        withAppend (sing @ss) (sing @ts) $ \sssts assts@AppendWit -> do
+        withAppend (sing @ps) (sing @qs) $ \_ apsqs@AppendWit ->
+        withAppend (sing @ss) (sing @ts) $ \_ assts@AppendWit -> do
     (y, ts) <- second fromPJust
            <$> g (PJust (psqs ^^. suffixLens (appendToSuffix apsqs)))
                  x
@@ -212,10 +207,10 @@ liftLM = withModelFunc $ \f (PJust ps) x ssM@(PJust ss) ->
 -- with a model to provide the back loop.
 feedback
     :: forall p q s t a b.
-     ( SingI p
-     , SingI q
-     , SingI s
-     , SingI t
+     ( PureProd Maybe p
+     , PureProd Maybe q
+     , PureProd Maybe s
+     , PureProd Maybe t
      , MaybeC Backprop p
      , MaybeC Backprop q
      , MaybeC Backprop s
@@ -238,10 +233,10 @@ feedback n = withModelFunc2 $ \feed back (p :#? q) x0 (s0 :#? t0) ->
 -- | 'feedback', but tracing and observing all of the intermediate values.
 feedbackTrace
     :: forall n p q s t a b.
-     ( SingI p
-     , SingI q
-     , SingI s
-     , SingI t
+     ( PureProd Maybe p
+     , PureProd Maybe q
+     , PureProd Maybe s
+     , PureProd Maybe t
      , MaybeC Backprop p
      , MaybeC Backprop q
      , MaybeC Backprop s
@@ -263,10 +258,10 @@ feedbackTrace = withModelFunc2 $ \feed back (p :#? q) x0 (s0 :#? t0) ->
 
 forkModel
     :: forall p q s t a b c.
-     ( SingI p
-     , SingI q
-     , SingI s
-     , SingI t
+     ( PureProd Maybe p
+     , PureProd Maybe q
+     , PureProd Maybe s
+     , PureProd Maybe t
      , MaybeC Backprop p
      , MaybeC Backprop q
      , MaybeC Backprop s

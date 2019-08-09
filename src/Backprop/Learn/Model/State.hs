@@ -24,7 +24,7 @@ import           Control.Monad.Primitive
 import           Control.Monad.Trans.State
 import           Data.Bifunctor
 import           Data.Foldable
-import           Data.Singletons
+import           Data.Type.Functor.Product
 import           Data.Type.Mayb
 import           Numeric.Backprop
 import qualified System.Random.MWC          as MWC
@@ -43,8 +43,8 @@ trainState
     :: forall p s a b.
      -- ( KnownMayb p
      -- , KnownMayb s
-     ( SingI p
-     , SingI s
+     ( PureProd Maybe p
+     , PureProd Maybe s
      , MaybeC Backprop p
      , MaybeC Backprop s
      )
@@ -142,8 +142,7 @@ recurrent
     :: forall p s ab a b c.
      -- ( KnownMayb s
      ( MaybeC Backprop s
-     , SingI s
-     , SingI b
+     , PureProd Maybe s
      , Backprop a
      , Backprop b
      )

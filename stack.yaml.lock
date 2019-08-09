@@ -47,33 +47,47 @@ packages:
   original:
     url: https://github.com/mstksg/backprop/archive/106371536e66d7e5e67f83f4f530c576f9ebf567.tar.gz
 - completed:
-    size: 32706
-    url: https://github.com/mstksg/decidable/archive/5028ea8f78195467bbbb38ed219b2509f974e163.tar.gz
+    size: 23983
+    url: https://github.com/mstksg/decidable/archive/81e7469efdd8d1cf1f15fe4204a0b41bf3005377.tar.gz
     cabal-file:
-      size: 1785
-      sha256: f8b7a2635d2cfbf7846cded6e1b18beef2d3990becc1c839316abc11a8c8a553
+      size: 1766
+      sha256: 8cae7057a33911752b8f7b20b463041f1b205afc6b59857ac0b2d1a5727d0421
     name: decidable
     version: 0.1.5.0
-    sha256: ffcb66dfcd35e4161ebd205b6b2299c84281bf11747c8075df369d7e1de4a0fd
+    sha256: 4e2033b3aece1e08c9e7f8611a5206165e0677327481121f353fa39a5fb7d39f
     pantry-tree:
-      size: 1115
-      sha256: 47c8467d9a89cde35a83320a61e4ffc12d44d9bf69933ee393ae5669398636d1
+      size: 968
+      sha256: 1bfcd3fd519d26652a2e739b6d202fcd76c5995118a154c381d32d0787d34942
   original:
-    url: https://github.com/mstksg/decidable/archive/5028ea8f78195467bbbb38ed219b2509f974e163.tar.gz
+    url: https://github.com/mstksg/decidable/archive/81e7469efdd8d1cf1f15fe4204a0b41bf3005377.tar.gz
 - completed:
-    size: 15830
-    url: https://github.com/mstksg/list-witnesses/archive/eae99a2808e231502197a9cf7f71358e9f3f0c68.tar.gz
+    size: 16287
+    url: https://github.com/mstksg/list-witnesses/archive/190f7c839b60dca5bafab3e72aa4b00ea86ce1be.tar.gz
     cabal-file:
-      size: 1649
-      sha256: 01e8c1b734d74c5816b9e8fdb52074f59583c3573d2a4106ee06dd3ea3003757
+      size: 1672
+      sha256: f6ffc653e9d654494d8978e9cf286bb7cddd48df8a98a365152efe3167033782
     name: list-witnesses
     version: 0.1.2.0
-    sha256: f6a2185d1ee44b5a112e876eff6eb0a3101b0a5e45be39839ec4511fc192c7fe
+    sha256: 4f1e9538e4652700ceabcf6583c2ea45239781c4b9b7bee5138904174738bafc
     pantry-tree:
-      size: 597
-      sha256: 1e4b5c336f54ca4ee108de936ef1b1ae77db3f49b74303d7acd28be42cdbd3a1
+      size: 598
+      sha256: c33d5705514d350c4d1a10c4b47735bb9694653cca69783ed9f94f4ce44422b1
   original:
-    url: https://github.com/mstksg/list-witnesses/archive/eae99a2808e231502197a9cf7f71358e9f3f0c68.tar.gz
+    url: https://github.com/mstksg/list-witnesses/archive/190f7c839b60dca5bafab3e72aa4b00ea86ce1be.tar.gz
+- completed:
+    size: 8366
+    url: https://github.com/mstksg/functor-products/archive/476b961bb007d7ee9aa0e60500c1473bc4a34e73.tar.gz
+    cabal-file:
+      size: 1140
+      sha256: de5ef87f6154dfdb5e8ca9d609e12959e93b28c2467a0e655dea1e9f67b33818
+    name: functor-products
+    version: 0.1.0.0
+    sha256: 6d271ac81804a3cca1eb4f92acbb93092bce292809d62061340268fe4d09976e
+    pantry-tree:
+      size: 477
+      sha256: 479ea6650a95cb50e909ef1df9534228a255a1b49b1b167193eac1b3fcbaedc8
+  original:
+    url: https://github.com/mstksg/functor-products/archive/476b961bb007d7ee9aa0e60500c1473bc4a34e73.tar.gz
 snapshots:
 - completed:
     size: 515171

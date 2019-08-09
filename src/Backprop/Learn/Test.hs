@@ -30,6 +30,7 @@ import           Control.Monad.Primitive
 import           Data.Bifunctor
 import           Data.Bitraversable
 import           Data.Function
+import           Data.Functor.Identity
 import           Data.Profunctor
 import           Data.Proxy
 import           GHC.TypeNats
@@ -101,7 +102,7 @@ lmapTest f t x y = t (f x) (f y)
 testModel
     :: Test b
     -> Model p 'Nothing a b
-    -> Mayb I p
+    -> PMaybe Identity p
     -> a
     -> b
     -> Double
@@ -112,7 +113,7 @@ testModelStoch
     => Test b
     -> Model p 'Nothing a b
     -> MWC.Gen (PrimState m)
-    -> Mayb I p
+    -> PMaybe Identity p
     -> a
     -> b
     -> m Double
@@ -141,7 +142,7 @@ corr = do
 testModelCov
     :: (Foldable t, Fractional b)
     => Model p 'Nothing a b
-    -> Mayb I p
+    -> PMaybe Identity p
     -> t (a, b)
     -> b
 testModelCov f p = L.fold $ (lmap . first) (runModelStateless f p) cov
@@ -149,7 +150,7 @@ testModelCov f p = L.fold $ (lmap . first) (runModelStateless f p) cov
 testModelCorr
     :: (Foldable t, Floating b)
     => Model p 'Nothing a b
-    -> Mayb I p
+    -> PMaybe Identity p
     -> t (a, b)
     -> b
 testModelCorr f p = L.fold $ (lmap . first) (runModelStateless f p) corr
@@ -158,7 +159,7 @@ testModelAll
     :: Foldable t
     => Test b
     -> Model p 'Nothing a b
-    -> Mayb I p
+    -> PMaybe Identity p
     -> t (a, b)
     -> Double
 testModelAll t f p = L.fold $ lmap (uncurry (testModel t f p)) L.mean
@@ -175,7 +176,7 @@ testModelStochAll
     => Test b
     -> Model p 'Nothing a b
     -> MWC.Gen (PrimState m)
-    -> Mayb I p
+    -> PMaybe Identity p
     -> t (a, b)
     -> m Double
 testModelStochAll t f g p = L.foldM $ L.premapM (uncurry (testModelStoch t f g p))
@@ -185,7 +186,7 @@ testModelStochCov
     :: (Foldable t, PrimMonad m, Fractional b)
     => Model p 'Nothing a b
     -> MWC.Gen (PrimState m)
-    -> Mayb I p
+    -> PMaybe Identity p
     -> t (a, b)
     -> m b
 testModelStochCov f g p = L.foldM $ (L.premapM . flip bitraverse pure)
@@ -196,7 +197,7 @@ testModelStochCorr
     :: (Foldable t, PrimMonad m, Floating b)
     => Model p 'Nothing a b
     -> MWC.Gen (PrimState m)
-    -> Mayb I p
+    -> PMaybe Identity p
     -> t (a, b)
     -> m b
 testModelStochCorr f g p = L.foldM $ (L.premapM . flip bitraverse pure)

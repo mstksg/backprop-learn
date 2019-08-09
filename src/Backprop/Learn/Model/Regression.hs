@@ -36,6 +36,7 @@ module Backprop.Learn.Model.Regression (
   , arimaPhi, arimaTheta, arimaConstant, arimaYPred, arimaYHist, arimaEHist
   ) where
 
+-- import           Data.Singletons.TH
 import           Backprop.Learn.Initialize
 import           Backprop.Learn.Model.Combinator
 import           Backprop.Learn.Model.Function
@@ -47,7 +48,6 @@ import           Data.Kind
 import           Data.List
 import           Data.Maybe
 import           Data.Proxy
-import           Data.Singletons.TH
 import           Data.Type.Equality
 import           Data.Typeable
 import           GHC.Generics                          (Generic)

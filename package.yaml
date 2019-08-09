@@ -34,15 +34,18 @@ dependencies:
 - bytestring
 - conduit
 - containers
+- decidable
 - deepseq
 - finite-typelits
 - foldl >= 1.4
+- functor-products
 - ghc-typelits-extra
 - ghc-typelits-knownnat
 - ghc-typelits-natnormalise
 - hmatrix
 - hmatrix-backprop >= 0.1.2.2
 - hmatrix-vector-sized
+- list-witnesses
 - microlens
 - microlens-th
 - mwc-random
@@ -51,16 +54,13 @@ dependencies:
 - opto
 - primitive
 - profunctors
-- statistics
-- decidable
-- transformers
-# - type-combinators
-- typelits-witnesses
-- list-witnesses
 - singletons
+- statistics
+- transformers
+- typelits-witnesses
 - vector >= 0.12.0.2
-- vinyl
 - vector-sized
+- vinyl
 
 library:
   source-dirs: src

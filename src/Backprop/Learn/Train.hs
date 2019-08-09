@@ -39,7 +39,7 @@ gradModelLoss
     -> b
     -> p
 gradModelLoss loss reg f p x y = gradBP (\p' ->
-        loss y (runLearnStateless f (J_ p') (constVar x)) + reg p'
+        loss y (runLearnStateless f (PJust p') (constVar x)) + reg p'
     ) p
 
 -- | Stochastic gradient of model with respect to loss function and target
@@ -57,7 +57,7 @@ gradModelStochLoss loss reg f g p x y = do
     seed <- MWC.uniformVector @_ @Word32 @VU.Vector g 2
     pure $ gradBP (\p' -> runST $ do
         g' <- MWC.initialize seed
-        lo <- loss y <$> runLearnStochStateless f g' (J_ p') (constVar x)
+        lo <- loss y <$> runLearnStochStateless f g' (PJust p') (constVar x)
         pure (lo + reg p')
       ) p
 

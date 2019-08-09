@@ -97,19 +97,11 @@ module Data.Type.Tuple (
   -- , constT, mapT, zipT
   ) where
 
--- import           Data.Type.Combinator
--- import           Data.Type.Index
--- import           Data.Type.Length
--- import           Data.Type.Product
--- import           Type.Class.Known
--- import           Type.Family.List
 import           Control.DeepSeq
 import           Control.Monad.Primitive
 import           Data.Bifunctor
 import           Data.Data
-import           Data.Kind
 import           Data.Profunctor hiding     (rmap)
-import           Data.Type.List.Edit
 import           Data.Type.Universe
 import           Data.Vinyl.Core
 import           GHC.Generics               (Generic)
@@ -119,8 +111,6 @@ import           Numeric.Backprop hiding    (T2)
 import           Numeric.Opto.Ref
 import           Numeric.Opto.Update
 import qualified Data.Binary                as Bi
-import qualified Data.Vinyl                 as V
-import qualified Data.Vinyl.TypeLevel       as V
 
 -- | Unit ('()') with 'Num', 'Fractional', and 'Floating' instances.
 --

@@ -83,14 +83,14 @@ instance (KnownNat i, KnownNat o) => Backprop (LSTMp i o)
 lstm'
     :: (KnownNat i, KnownNat o)
     => Model ('Just (LSTMp i o)) ('Just (R o)) (R (i + o)) (R o)
-lstm' = modelD $ \(J_ p) x (J_ s) ->
+lstm' = modelD $ \(PJust p) x (PJust s) ->
     let forget = logistic $ runLRp (p ^^. lstmForget) x
         input  = logistic $ runLRp (p ^^. lstmInput ) x
         update = tanh     $ runLRp (p ^^. lstmUpdate) x
         s'     = forget * s + input * update
         o      = logistic $ runLRp (p ^^. lstmOutput) x
         h      = o * tanh s'
-    in  (h, J_ s')
+    in  (h, PJust s')
 
 -- | Long-term short-term memory layer
 --
@@ -98,7 +98,7 @@ lstm' = modelD $ \(J_ p) x (J_ s) ->
 --
 lstm
     :: (KnownNat i, KnownNat o)
-    => Model ('Just (LSTMp i o)) ('Just (R o :& R o)) (R i) (R o)
+    => Model ('Just (LSTMp i o)) ('Just (R o :# R o)) (R i) (R o)
 lstm = recurrent H.split (H.#) id lstm'
 
 reshapeLSTMpInput
@@ -197,7 +197,7 @@ instance (KnownNat i, KnownNat o) => Initialize (GRUp i o) where
 gru'
     :: forall i o. (KnownNat i, KnownNat o)
     => Model ('Just (GRUp i o)) 'Nothing (R (i + o)) (R o)
-gru' = modelStatelessD $ \(J_ p) x ->
+gru' = modelStatelessD $ \(PJust p) x ->
     let z      = logistic $ runLRp (p ^^. gruMemory) x
         r      = logistic $ runLRp (p ^^. gruUpdate) x
         r'     = 1 # r
