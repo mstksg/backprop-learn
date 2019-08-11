@@ -111,15 +111,17 @@ type LModel ps ss a b = Model ('Just (T ps)) ('Just (T ss)) a b
      , RApply ss
      , RMap ps
      , RApply ps
+     , PureProd Maybe p
+     , PureProd Maybe s
      )
     => Model         p                           s        b c
     -> LModel                   ps                    ss  a b
     -> LModel (MaybeToList p ++ ps) (MaybeToList s ++ ss) a c
 (#:) = withModelFunc2 $ \f fs (PJust pps) x (PJust sss) -> do
-    let (p, ps) = case singProd (sing @p) of
+    let (p, ps) = case pureShape @_ @p of
           PNothing   -> (PNothing, pps)
           PJust _ -> (PJust (pps ^^. tHead), pps ^^. tTail)
-        (s, ss) = case singProd (sing @s) of
+        (s, ss) = case pureShape @_ @s of
           PNothing   -> (PNothing, sss)
           PJust _ -> (PJust (sss ^^. tHead), sss ^^. tTail)
     (y, ss') <- fs (PJust ps) x (PJust ss)
@@ -146,8 +148,8 @@ infixr 5 #:
     -> LModel        qs         ts  a b
     -> LModel (ps ++ qs) (ss ++ ts) a c
 (#++) = withModelFunc2 $ \f g (PJust psqs) x (PJust ssts) ->
-        withAppend (sing @ps) (sing @qs) $ \_ apsqs@AppendWit ->
-        withAppend (sing @ss) (sing @ts) $ \_ assts@AppendWit -> do
+        withAppend (pureShape @_ @ps) (pureShape @_ @qs) $ \_ apsqs@AppendWit ->
+        withAppend (pureShape @_ @ss) (pureShape @_ @ts) $ \_ assts@AppendWit -> do
     (y, ts) <- second fromPJust
            <$> g (PJust (psqs ^^. suffixLens (appendToSuffix apsqs)))
                  x

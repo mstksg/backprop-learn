@@ -213,7 +213,7 @@ runLearnStochModelFuncM
 runLearnStochModelFuncM m p x s = ReaderT $ \g -> runLearnStoch m g p x s
 
 -- | Combination of common constraints for type-level lists.
-type Learnables as = ( PureProd [] as
+type Learnables as = ( RecApplicative as
                      , ReifyConstraint Backprop TF as
                      , RMap as
                      , RApply as

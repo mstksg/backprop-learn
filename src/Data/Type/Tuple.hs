@@ -114,6 +114,7 @@ import           Numeric.Backprop hiding    (T2)
 import           Numeric.Opto.Ref
 import           Numeric.Opto.Update
 import qualified Data.Binary                as Bi
+import qualified Data.Functor.Contravariant as Co
 import qualified Data.Vinyl.Functor         as V
 
 -- | Unit ('()') with 'Num', 'Fractional', and 'Floating' instances.
@@ -154,7 +155,7 @@ infixr 1 :#
 type T = Rec TF
 
 newtype TF a = TF { getTF :: a }
-  deriving (Show, Eq, Ord, Num, Fractional, Floating, Backprop, Generic, Typeable)
+  deriving (Show, Eq, Ord, Num, Fractional, Floating, Backprop, Generic, Typeable, NFData)
 
 _TF :: (Profunctor p, Functor f) => p a (f b) -> p (TF a) (f (TF b))
 _TF = dimap getTF (fmap TF)
@@ -472,7 +473,7 @@ zipT
     -> T as
 zipT f = rapply . rzipWith coerce (rpureConstrained @c @as @TripleEndo (TE f))
 
-newtype TripleEndo a = TE { runTE :: a -> a -> a }
+newtype TripleEndo a = TE (a -> a -> a)
 
 instance (RPureConstrained Num as, RMap as, RApply as) => Num (Rec TF as) where
     (+)           = zipT @Num (+)
@@ -580,6 +581,16 @@ instance (Linear c a, Linear c b) => Linear c (a :# b)
 instance (Floating c, Ord c, Metric c a, Metric c b) => Metric c (a :# b)
 instance (PrimMonad m, LinearInPlace m c a, LinearInPlace m c b) => LinearInPlace m c (a :# b)
 
+instance RPureConstrained NFData as => NFData (Rec TF as) where
+    rnf = go (rpureConstrained @NFData (Co.Op rnf))
+      where
+        go :: Rec (Co.Op ()) bs -> Rec TF bs -> ()
+        go = \case
+          RNil -> \case
+            RNil -> ()
+          Co.Op r :& rs -> \case
+            TF x :& xs -> r x `seq` go rs xs
+
 instance Mutable m a => Mutable m (TF a) where
     type Ref m (TF a) = TF (Ref m a)
 
@@ -589,7 +600,7 @@ instance Mutable m a => Mutable m (TF a) where
 
 instance Linear c a => Linear c (TF a)
 instance (Ord c, Floating c, Metric c a) => Metric c (TF a)
-instance (Mutable m a, Ord c, Floating c, LinearInPlace m c a) => LinearInPlace m c (TF a) where
+instance (Mutable m a, LinearInPlace m c a) => LinearInPlace m c (TF a) where
     TF v .+.= TF x = v .+.= x
     TF v .*= c = v .*= c
     TF v .*+= (c, TF x) = v .*+= (c, x)

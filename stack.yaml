@@ -72,9 +72,9 @@ extra-deps:
 - github: mstksg/decidable
   commit: 81e7469efdd8d1cf1f15fe4204a0b41bf3005377
 - github: mstksg/list-witnesses
-  commit: 190f7c839b60dca5bafab3e72aa4b00ea86ce1be
+  commit: 35998dea6cb2cd4c2751e5308648a808259eac24
 - github: mstksg/functor-products
-  commit: ca2fea856426bcf819c2c6ffa9df2d3c7f8002d8
+  commit: fcddcfa0358da8fc04c74eb73dc8b56f0e1a495f
 
 # Override default flag values for local packages and extra-deps
 flags: {}

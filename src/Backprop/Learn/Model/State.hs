@@ -41,8 +41,6 @@ import qualified System.Random.MWC          as MWC
 -- *   If the input has a parameter, a ':#' of that parameter and initial state.
 trainState
     :: forall p s a b.
-     -- ( KnownMayb p
-     -- , KnownMayb s
      ( PureProd Maybe p
      , PureProd Maybe s
      , AllConstrainedProd Backprop p

@@ -22,6 +22,7 @@ import           Data.Char
 import           Data.Conduit
 import           Data.Default
 import           Data.Foldable
+import           Data.Functor.Identity
 import           Data.Primitive.MutVar
 import           Data.Proxy
 import           Data.Time
@@ -78,37 +79,37 @@ main = MWC.withSystemRandom @IO $ \g -> do
 
     p0 <- initParamNormal model 0.2 g
 
-    let report n b = undefined
-          -- liftIO $ printf "(Batch %d)\n" (b :: Int)
-          -- t0 <- liftIO getCurrentTime
-          -- C.drop (n - 1)
-          -- mp <- mapM (liftIO . evaluate . force) =<< await
-          -- t1 <- liftIO getCurrentTime
-          -- case mp of
-          --   Nothing -> liftIO $ putStrLn "Done!"
-          --   Just p@(p' :# s') -> do
-          --     chnk <- lift . state $ (,[])
-          --     liftIO $ do
-          --       printf "Trained on %d points in %s.\n"
-          --         (length chnk)
-          --         (show (t1 `diffUTCTime` t0))
-          --       let trainScore = testModelAll maxIxTest model (PJust p) chnk
-          --       printf "Training error:   %.3f%%\n" ((1 - trainScore) * 100)
+    let report n b = do
+          liftIO $ printf "(Batch %d)\n" (b :: Int)
+          t0 <- liftIO getCurrentTime
+          C.drop (n - 1)
+          mp <- mapM (liftIO . evaluate . force) =<< await
+          t1 <- liftIO getCurrentTime
+          case mp of
+            Nothing -> liftIO $ putStrLn "Done!"
+            Just p@(p' :# s') -> do
+              chnk <- lift . state $ (,[])
+              liftIO $ do
+                printf "Trained on %d points in %s.\n"
+                  (length chnk)
+                  (show (t1 `diffUTCTime` t0))
+                let trainScore = testModelAll maxIxTest model (PJustI p) chnk
+                printf "Training error:   %.3f%%\n" ((1 - trainScore) * 100)
 
-          --       forM_ (take 15 chnk) $ \(x,y) -> do
-          --         let primed = primeModel model0 (PJust p') x (PJust s')
-          --         testOut <- fmap reverse . flip execStateT [] $
-          --             iterateModelM ( fmap (oneHotR . fromIntegral)
-          --                           . (>>= \r -> r <$ modify (r:))    -- trace
-          --                           . (`MWC.categorical` g)
-          --                           . SVS.fromSized
-          --                           . rVec
-          --                           )
-          --                   100 model0 (PJust p') y primed
-          --         printf "%s|%s\n"
-          --           (sanitize . (`S.elemAt` charMap) . fromIntegral . maxIndexR <$> (toList x ++ [y]))
-          --           (sanitize . (`S.elemAt` charMap) <$> testOut)
-          --     report n (b + 1)
+                forM_ (take 15 chnk) $ \(x,y) -> do
+                  let primed = primeModel model0 (PJustI p') x (PJustI s')
+                  testOut <- fmap reverse . flip execStateT [] $
+                      iterateModelM ( fmap (oneHotR . fromIntegral)
+                                    . (>>= \r -> r <$ modify (r:))    -- trace
+                                    . (`MWC.categorical` g)
+                                    . SVS.fromSized
+                                    . rVec
+                                    )
+                            100 model0 (PJustI p') y primed
+                  printf "%s|%s\n"
+                    (sanitize . (`S.elemAt` charMap) . fromIntegral . maxIndexR <$> (toList x ++ [y]))
+                    (sanitize . (`S.elemAt` charMap) <$> testOut)
+              report n (b + 1)
 
     C.runResourceT . flip evalStateT []
         . runConduit

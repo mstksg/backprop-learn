@@ -61,6 +61,7 @@ dependencies:
 - vector >= 0.12.0.2
 - vector-sized
 - vinyl
+- contravariant
 
 library:
   source-dirs: src
