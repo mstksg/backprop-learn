@@ -56,7 +56,7 @@ import qualified System.Random.MWC                as MWC
 
 -- TODO: this can be more efficient by breaking out into separate functions
 runModel
-    :: forall p s a b. (MaybeC Backprop s, Backprop b)
+    :: forall p s a b. (AllConstrainedProd Backprop s, Backprop b)
     => Model p s a b
     -> PMaybe Identity p
     -> a
@@ -77,7 +77,7 @@ runModel f mp x ms = evalBP0 go
 
 -- TODO: this can be more efficient by breaking out into separate functions
 runModelStoch
-    :: forall p s a b m. (MaybeC Backprop s, Backprop b, PrimMonad m)
+    :: forall p s a b m. (AllConstrainedProd Backprop s, Backprop b, PrimMonad m)
     => Model p s a b
     -> MWC.Gen (PrimState m)
     -> PMaybe Identity p
@@ -131,7 +131,7 @@ runModelStochStateless f g mp x = do
         ) p x
 
 gradModel
-    :: (Backprop a, Backprop b, MaybeC Backprop p)
+    :: (Backprop a, Backprop b, AllConstrainedProd Backprop p)
     => Model p 'Nothing a b
     -> PMaybe Identity p
     -> a
@@ -141,7 +141,7 @@ gradModel f = \case
     PJust (Identity p) -> first (PJust . Identity) . gradBP2 (runLearnStateless f . PJust) p
 
 gradModelStoch
-    :: (Backprop a, Backprop b, MaybeC Backprop p, PrimMonad m)
+    :: (Backprop a, Backprop b, AllConstrainedProd Backprop p, PrimMonad m)
     => Model p 'Nothing a b
     -> MWC.Gen (PrimState m)
     -> PMaybe Identity p
@@ -160,7 +160,7 @@ gradModelStoch f g mp x = do
         ) p x
 
 iterateModel
-    :: (Backprop b, MaybeC Backprop s)
+    :: (Backprop b, AllConstrainedProd Backprop s)
     => (b -> a)         -- ^ loop
     -> Int              -- ^ num times
     -> Model p s a b
@@ -171,7 +171,7 @@ iterateModel
 iterateModel l n f p x = runIdentity . iterateModelM (Identity . l) n f p x
 
 iterateModel_
-    :: (Backprop b, MaybeC Backprop s)
+    :: (Backprop b, AllConstrainedProd Backprop s)
     => (b -> a)         -- ^ loop
     -> Model p s a b
     -> PMaybe Identity p
@@ -185,7 +185,7 @@ iterateModel_ l f p = go
         (y, s') = runModel f p x s
 
 selfPrime
-    :: (Backprop b, MaybeC Backprop s)
+    :: (Backprop b, AllConstrainedProd Backprop s)
     => (b -> a)         -- ^ loop
     -> Model p s a b
     -> PMaybe Identity p
@@ -199,7 +199,7 @@ selfPrime l f p = go
         (y, s') = runModel f p x s
 
 iterateModelM
-    :: (Backprop b, MaybeC Backprop s, Monad m)
+    :: (Backprop b, AllConstrainedProd Backprop s, Monad m)
     => (b -> m a)           -- ^ loop
     -> Int                  -- ^ num times
     -> Model p s a b
@@ -217,7 +217,7 @@ iterateModelM l n f p = go 0
       | otherwise = pure ([], s)
 
 iterateModelM_
-    :: (Backprop b, MaybeC Backprop s, Monad m)
+    :: (Backprop b, AllConstrainedProd Backprop s, Monad m)
     => (b -> m a)           -- ^ loop
     -> Int                  -- ^ num times
     -> Model p s a b
@@ -228,7 +228,7 @@ iterateModelM_
 iterateModelM_ l n f p x = fmap fst . iterateModelM l n f p x
 
 selfPrimeM
-    :: (Backprop b, MaybeC Backprop s, Monad m)
+    :: (Backprop b, AllConstrainedProd Backprop s, Monad m)
     => (b -> m a)           -- ^ loop
     -> Int                  -- ^ num times
     -> Model p s a b
@@ -239,7 +239,7 @@ selfPrimeM
 selfPrimeM l n f p x = fmap snd . iterateModelM l n f p x
 
 iterateModelStoch
-    :: (Backprop b, MaybeC Backprop s, PrimMonad m)
+    :: (Backprop b, AllConstrainedProd Backprop s, PrimMonad m)
     => (b -> m a)           -- ^ loop
     -> Int                  -- ^ num times
     -> Model p s a b
@@ -258,7 +258,7 @@ iterateModelStoch l n f g p = go 0
       | otherwise = pure ([], s)
 
 iterateModelStoch_
-    :: (Backprop b, MaybeC Backprop s, PrimMonad m)
+    :: (Backprop b, AllConstrainedProd Backprop s, PrimMonad m)
     => (b -> m a)           -- ^ loop
     -> Int                  -- ^ num times
     -> Model p s a b
@@ -270,7 +270,7 @@ iterateModelStoch_
 iterateModelStoch_ l n f g p x = fmap fst . iterateModelStoch l n f g p x
 
 scanModel
-    :: (Traversable t, Backprop b, MaybeC Backprop s)
+    :: (Traversable t, Backprop b, AllConstrainedProd Backprop s)
     => Model p s a b
     -> PMaybe Identity p
     -> t a
@@ -279,7 +279,7 @@ scanModel
 scanModel f p = runState . traverse (state . runModel f p)
 
 scanModel_
-    :: (Traversable t, Backprop b, MaybeC Backprop s)
+    :: (Traversable t, Backprop b, AllConstrainedProd Backprop s)
     => Model p s a b
     -> PMaybe Identity p
     -> t a
@@ -288,7 +288,7 @@ scanModel_
 scanModel_ f p xs = fst . scanModel f p xs
 
 primeModel
-    :: (Foldable t, Backprop b, MaybeC Backprop s)
+    :: (Foldable t, Backprop b, AllConstrainedProd Backprop s)
     => Model p s a b
     -> PMaybe Identity p
     -> t a
@@ -297,7 +297,7 @@ primeModel
 primeModel f p = execState . traverse_ (state . runModel f p)
 
 scanModelStoch
-    :: (Traversable t, Backprop b, MaybeC Backprop s, PrimMonad m)
+    :: (Traversable t, Backprop b, AllConstrainedProd Backprop s, PrimMonad m)
     => Model p s a b
     -> MWC.Gen (PrimState m)
     -> PMaybe Identity p
@@ -307,7 +307,7 @@ scanModelStoch
 scanModelStoch f g p = runStateT . traverse (StateT . runModelStoch f g p)
 
 scanModelStoch_
-    :: (Traversable t, Backprop b, MaybeC Backprop s, PrimMonad m)
+    :: (Traversable t, Backprop b, AllConstrainedProd Backprop s, PrimMonad m)
     => Model p s a b
     -> MWC.Gen (PrimState m)
     -> PMaybe Identity p
@@ -317,7 +317,7 @@ scanModelStoch_
 scanModelStoch_ f g p xs = fmap fst . scanModelStoch f g p xs
 
 primeModelStoch
-    :: (Foldable t, Backprop b, MaybeC Backprop s, PrimMonad m)
+    :: (Foldable t, Backprop b, AllConstrainedProd Backprop s, PrimMonad m)
     => Model p s a b
     -> MWC.Gen (PrimState m)
     -> PMaybe Identity p

@@ -12,6 +12,7 @@
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 
 import           Backprop.Learn
+import           Control.Concurrent.STM
 import           Control.DeepSeq
 import           Control.Exception
 import           Control.Monad
@@ -52,40 +53,40 @@ main = MWC.withSystemRandom $ \g -> do
                             (datadir </> "t10k-labels-idx1-ubyte")
     putStrLn "Loaded data."
     net0 <- initParamNormal mnistNet 0.2 g
+    sampleQueue <- atomically $ newTBQueue 25000
 
-    let report n b = do
-          liftIO $ printf "(Batch %d)\n" (b :: Int)
-          t0 <- liftIO getCurrentTime
-          C.drop (n - 1)
+    let o :: PrimMonad m => Opto m (R 784, R 10) Net
+        o = adam def $
+              modelGradStoch crossEntropy noReg mnistNet g
+
+        report b = do
+          yield $ printf "(Batch %d)\n" (b :: Int)
+          t0   <- liftIO getCurrentTime
+          _    <- liftIO . atomically $ flushTBQueue sampleQueue
           net' <- mapM (liftIO . evaluate . force) =<< await
-          t1 <- liftIO getCurrentTime
+          chnk <- liftIO . atomically $ flushTBQueue sampleQueue
+          t1   <- liftIO getCurrentTime
           case net' of
-            Nothing  -> liftIO $ putStrLn "Done!"
+            Nothing  -> yield "Done!\n"
             Just net -> do
-              chnk <- lift . state $ (,[])
-              liftIO $ do
-                printf "Trained on %d points in %s.\n"
-                  (length chnk)
-                  (show (t1 `diffUTCTime` t0))
-                let trainScore = testModelAll maxIxTest mnistNet (J_I net) chnk
-                    testScore  = testModelAll maxIxTest mnistNet (J_I net) test
-                printf "Training error:   %.2f%%\n" ((1 - trainScore) * 100)
-                printf "Validation error: %.2f%%\n" ((1 - testScore ) * 100)
+              yield $ printf "Trained on %d points in %s.\n"
+                             (length chnk)
+                             (show (t1 `diffUTCTime` t0))
+              let trainScore = testNet chnk net
+                  testScore  = testNet test net
+              yield $ printf "Training error:   %.2f%%\n" ((1 - trainScore) * 100)
+              yield $ printf "Validation error: %.2f%%\n" ((1 - testScore ) * 100)
 
-    flip evalStateT []
-        . runConduit
-        $ forM_ [0..] (\e -> liftIO (printf "[Epoch %d]\n" (e :: Int))
-                          >> C.yieldMany train .| shuffling g
-                      )
-       .| C.iterM (modify . (:))      -- add to state stack for train eval
-       .| runOptoConduit_
-            (RO' Nothing Nothing)
-            net0
-            (adam @_ @(MutVar _ _) def
-              (modelGradStoch crossEntropy noReg mnistNet g)
-            )
-       .| mapM_ (report 2500) [0..]
-       .| C.sinkNull
+    runConduit $ forM_ [0..] (\e -> liftIO (printf "[Epoch %d]\n" (e :: Int))
+                                 >> C.yieldMany train .| shuffling g
+                             )
+              .| C.iterM (automatically . writeTBQUeue sampleQueue)
+              .| optoConduit def net0 o
+              .| forever (C.drop 2499 *> (mapM_ yield =<< await))
+              .| mapM_ report [0..]
+              .| C.map T.pack
+              .| C.encodeUtf8
+              .| C.stdout
 
 loadMNIST
     :: FilePath

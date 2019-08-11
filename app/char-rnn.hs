@@ -27,10 +27,13 @@ import           Data.Proxy
 import           Data.Time
 import           Data.Type.Equality
 import           Data.Type.Tuple
+import           Data.Type.Tuple
 import           GHC.TypeNats
 import           Numeric.LinearAlgebra.Static.Backprop
 import           Numeric.LinearAlgebra.Static.Vector
 import           Numeric.Opto
+import           Numeric.Opto
+import           Numeric.Opto.Run.Simple
 import           System.Environment
 import           Text.Printf
 import qualified Conduit                               as C
@@ -75,37 +78,37 @@ main = MWC.withSystemRandom @IO $ \g -> do
 
     p0 <- initParamNormal model 0.2 g
 
-    let report n b = do
-          liftIO $ printf "(Batch %d)\n" (b :: Int)
-          t0 <- liftIO getCurrentTime
-          C.drop (n - 1)
-          mp <- mapM (liftIO . evaluate . force) =<< await
-          t1 <- liftIO getCurrentTime
-          case mp of
-            Nothing -> liftIO $ putStrLn "Done!"
-            Just p@(p' :& s') -> do
-              chnk <- lift . state $ (,[])
-              liftIO $ do
-                printf "Trained on %d points in %s.\n"
-                  (length chnk)
-                  (show (t1 `diffUTCTime` t0))
-                let trainScore = testModelAll maxIxTest model (J_I p) chnk
-                printf "Training error:   %.3f%%\n" ((1 - trainScore) * 100)
+    let report n b = undefined
+          -- liftIO $ printf "(Batch %d)\n" (b :: Int)
+          -- t0 <- liftIO getCurrentTime
+          -- C.drop (n - 1)
+          -- mp <- mapM (liftIO . evaluate . force) =<< await
+          -- t1 <- liftIO getCurrentTime
+          -- case mp of
+          --   Nothing -> liftIO $ putStrLn "Done!"
+          --   Just p@(p' :# s') -> do
+          --     chnk <- lift . state $ (,[])
+          --     liftIO $ do
+          --       printf "Trained on %d points in %s.\n"
+          --         (length chnk)
+          --         (show (t1 `diffUTCTime` t0))
+          --       let trainScore = testModelAll maxIxTest model (PJust p) chnk
+          --       printf "Training error:   %.3f%%\n" ((1 - trainScore) * 100)
 
-                forM_ (take 15 chnk) $ \(x,y) -> do
-                  let primed = primeModel model0 (J_I p') x (J_I s')
-                  testOut <- fmap reverse . flip execStateT [] $
-                      iterateModelM ( fmap (oneHotR . fromIntegral)
-                                    . (>>= \r -> r <$ modify (r:))    -- trace
-                                    . (`MWC.categorical` g)
-                                    . SVS.fromSized
-                                    . rVec
-                                    )
-                            100 model0 (J_I p') y primed
-                  printf "%s|%s\n"
-                    (sanitize . (`S.elemAt` charMap) . fromIntegral . maxIndexR <$> (toList x ++ [y]))
-                    (sanitize . (`S.elemAt` charMap) <$> testOut)
-              report n (b + 1)
+          --       forM_ (take 15 chnk) $ \(x,y) -> do
+          --         let primed = primeModel model0 (PJust p') x (PJust s')
+          --         testOut <- fmap reverse . flip execStateT [] $
+          --             iterateModelM ( fmap (oneHotR . fromIntegral)
+          --                           . (>>= \r -> r <$ modify (r:))    -- trace
+          --                           . (`MWC.categorical` g)
+          --                           . SVS.fromSized
+          --                           . rVec
+          --                           )
+          --                   100 model0 (PJust p') y primed
+          --         printf "%s|%s\n"
+          --           (sanitize . (`S.elemAt` charMap) . fromIntegral . maxIndexR <$> (toList x ++ [y]))
+          --           (sanitize . (`S.elemAt` charMap) <$> testOut)
+          --     report n (b + 1)
 
     C.runResourceT . flip evalStateT []
         . runConduit
@@ -117,14 +120,73 @@ main = MWC.withSystemRandom @IO $ \g -> do
                   )
        .| skipSampling 0.02 g
        .| C.iterM (modify . (:))
-       .| runOptoConduit_
-            (RO' Nothing Nothing)
+       .| optoConduit
+            def
             p0
-            (adam @_ @(MutVar _ _) def
-               (modelGradStoch crossEntropy noReg model g)
-            )
+            (adam def (modelGradStoch crossEntropy noReg model g))
        .| report 2500 0
        .| C.sinkNull
+
+
+    -- simpleRunner
+    --     def
+    --     train
+    --     SOSingle
+    --     def
+    --     model0
+    --     adam
+    --     g
+
+    -- let report n b = do
+    --       liftIO $ printf "(Batch %d)\n" (b :: Int)
+    --       t0 <- liftIO getCurrentTime
+    --       C.drop (n - 1)
+    --       mp <- mapM (liftIO . evaluate . force) =<< await
+    --       t1 <- liftIO getCurrentTime
+    --       case mp of
+    --         Nothing -> liftIO $ putStrLn "Done!"
+    --         Just p@(p' :# s') -> do
+    --           chnk <- lift . state $ (,[])
+    --           liftIO $ do
+    --             printf "Trained on %d points in %s.\n"
+    --               (length chnk)
+    --               (show (t1 `diffUTCTime` t0))
+    --             let trainScore = testModelAll maxIxTest model (PJust p) chnk
+    --             printf "Training error:   %.3f%%\n" ((1 - trainScore) * 100)
+
+    --             forM_ (take 15 chnk) $ \(x,y) -> do
+    --               let primed = primeModel model0 (PJust p') x (PJust s')
+    --               testOut <- fmap reverse . flip execStateT [] $
+    --                   iterateModelM ( fmap (oneHotR . fromIntegral)
+    --                                 . (>>= \r -> r <$ modify (r:))    -- trace
+    --                                 . (`MWC.categorical` g)
+    --                                 . SVS.fromSized
+    --                                 . rVec
+    --                                 )
+    --                         100 model0 (PJust p') y primed
+    --               printf "%s|%s\n"
+    --                 (sanitize . (`S.elemAt` charMap) . fromIntegral . maxIndexR <$> (toList x ++ [y]))
+    --                 (sanitize . (`S.elemAt` charMap) <$> testOut)
+    --           report n (b + 1)
+
+    -- C.runResourceT . flip evalStateT []
+    --     . runConduit
+    --     $ forever ( C.sourceFile sourceFile
+    --              .| C.decodeUtf8
+    --              .| C.concatMap T.unpack
+    --              .| C.map (oneHotChar charMap)
+    --              .| leadings
+    --               )
+    --    .| skipSampling 0.02 g
+    --    .| C.iterM (modify . (:))
+    --    .| runOptoConduit_
+    --         (RO' Nothing Nothing)
+    --         p0
+    --         (adam @_ @(MutVar _ _) def
+    --            (modelGradStoch crossEntropy noReg model g)
+    --         )
+    --    .| report 2500 0
+    --    .| C.sinkNull
 
 sanitize :: Char -> Char
 sanitize c | isPrint c = c

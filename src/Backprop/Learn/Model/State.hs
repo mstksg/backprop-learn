@@ -45,8 +45,8 @@ trainState
      -- , KnownMayb s
      ( PureProd Maybe p
      , PureProd Maybe s
-     , MaybeC Backprop p
-     , MaybeC Backprop s
+     , AllConstrainedProd Backprop p
+     , AllConstrainedProd Backprop s
      )
     => Model  p     s           a b
     -> Model (p :#? s) 'Nothing a b
@@ -141,7 +141,7 @@ unrollFinal = withModelFunc $ \f p xs s0 ->
 recurrent
     :: forall p s ab a b c.
      -- ( KnownMayb s
-     ( MaybeC Backprop s
+     ( AllConstrainedProd Backprop s
      , PureProd Maybe s
      , Backprop a
      , Backprop b

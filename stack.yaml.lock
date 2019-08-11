@@ -19,19 +19,19 @@ packages:
   original:
     url: https://github.com/mstksg/type-combinators/archive/50334ab6bc3e5c3aee53c881a027f687fde13fa4.tar.gz
 - completed:
-    size: 23657
-    url: https://github.com/mstksg/opto/archive/8ec2930c4c47be1bf90a753c34d44fe683947c44.tar.gz
+    size: 27056
+    url: https://github.com/mstksg/opto/archive/45809e7cd5d3457cd618cb8c574dc84b339cd65c.tar.gz
     cabal-file:
-      size: 2290
-      sha256: ae779f5bef8f5e3e131ff4f6bab6105f400d2e201942109109433e07e04db805
+      size: 2371
+      sha256: 0c79a503a209b39df3fc2a3411953efc39d0e26cadf70b5600a8a1afffff8c7a
     name: opto
     version: 0.1.0.0
-    sha256: eb512c0f6232d599961fdec6798d690c6cc4f366c3f3bbe203a136545aee3810
+    sha256: 0923afece7e9ccf47949fb6404a44a5ab444b2a8ef18d6b0111cb70a77cd6078
     pantry-tree:
-      size: 1143
-      sha256: 6bd194362327cb70cf3e3f75e47c90bae406f45853b2121e8ba381baff0ae5fb
+      size: 1215
+      sha256: 54a1c5f0d7dac736630cf73f39ecd9a835df7cfb61faecd13f4e17d6e8592d30
   original:
-    url: https://github.com/mstksg/opto/archive/8ec2930c4c47be1bf90a753c34d44fe683947c44.tar.gz
+    url: https://github.com/mstksg/opto/archive/45809e7cd5d3457cd618cb8c574dc84b339cd65c.tar.gz
 - completed:
     size: 347752
     url: https://github.com/mstksg/backprop/archive/106371536e66d7e5e67f83f4f530c576f9ebf567.tar.gz
@@ -75,19 +75,19 @@ packages:
   original:
     url: https://github.com/mstksg/list-witnesses/archive/190f7c839b60dca5bafab3e72aa4b00ea86ce1be.tar.gz
 - completed:
-    size: 8366
-    url: https://github.com/mstksg/functor-products/archive/476b961bb007d7ee9aa0e60500c1473bc4a34e73.tar.gz
+    size: 8428
+    url: https://github.com/mstksg/functor-products/archive/ca2fea856426bcf819c2c6ffa9df2d3c7f8002d8.tar.gz
     cabal-file:
       size: 1140
       sha256: de5ef87f6154dfdb5e8ca9d609e12959e93b28c2467a0e655dea1e9f67b33818
     name: functor-products
     version: 0.1.0.0
-    sha256: 6d271ac81804a3cca1eb4f92acbb93092bce292809d62061340268fe4d09976e
+    sha256: e262a548a5dd58deeaaf5df7d02055de2703f365592a66066f9cec1715d8bb17
     pantry-tree:
       size: 477
-      sha256: 479ea6650a95cb50e909ef1df9534228a255a1b49b1b167193eac1b3fcbaedc8
+      sha256: b888efdb733981ecc52728c307e4ca26749019ec1c5ff3b2e145f3e7807fbbbd
   original:
-    url: https://github.com/mstksg/functor-products/archive/476b961bb007d7ee9aa0e60500c1473bc4a34e73.tar.gz
+    url: https://github.com/mstksg/functor-products/archive/ca2fea856426bcf819c2c6ffa9df2d3c7f8002d8.tar.gz
 snapshots:
 - completed:
     size: 515171

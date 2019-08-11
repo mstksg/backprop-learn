@@ -20,10 +20,10 @@
 {-# LANGUAGE ViewPatterns               #-}
 
 module Data.Type.Mayb (
-    MaybeC
+    -- MaybeC
     -- , MaybeToList, ListToMaybe
   -- , Mayb(.., J_I), fromJ_
-  , PMaybe(..,PJustI), fromPJust
+    PMaybe(..,PJustI), fromPJust
   , maybToList, listToMayb
   -- , P(..), KnownMayb, knownMayb
   -- , zipMayb
@@ -48,23 +48,6 @@ import           Numeric.Backprop
 import qualified Data.Vinyl.Functor            as V
 import qualified Data.Vinyl.TypeLevel          as V
 
-type MaybeC c m = V.AllConstrained c (MaybeToList m)
-
--- type family MaybeC (c :: k -> Constraint) (m :: Maybe k) :: Constraint where
---     MaybeC c ('Just a) = c a
---     MaybeC c 'Nothing  = ()
-
--- type family KnownMayb (m :: Maybe k) :: Constraint where
-
-
--- type family MaybeToList (m :: Maybe k) = (l :: [k]) | l -> m where
---     MaybeToList 'Nothing  = '[]
---     MaybeToList ('Just a) = '[a]
-
--- type family ConsMaybe (ml :: (Maybe k, [k])) = (l :: (Bool, [k])) | l -> ml where
---     ConsMaybe '( 'Nothing, as) = '( 'False, as      )
---     ConsMaybe '( 'Just a , as) = '( 'True , a ': as )
-
 maybToList
     :: PMaybe f m
     -> Rec f (MaybeToList m)
@@ -77,25 +60,6 @@ listToMayb
 listToMayb RNil     = PNothing
 listToMayb (x :& _) = PJust x
 
--- class MaybeWit (c :: k -> Constraint) (m :: Maybe k) where
---     maybeWit :: Mayb (Wit1 c) m
-
--- instance (MaybeC c m, Known (Mayb P) m) => MaybeWit c m where
---     maybeWit = case known @_ @(Mayb P) @m of
---         PJust _ -> PJust Wit1
---         PNothing   -> PNothing
-
--- type KnownMayb = Known (Mayb P)
-
--- knownMayb :: KnownMayb p => PMaybe P p
--- knownMayb = known
-
--- data Mayb :: (k -> Type) -> Maybe k -> Type where
---     PNothing :: Mayb f 'Nothing
---     J_ :: !(f a) -> Mayb f ('Just a)
-
--- deriving instance MaybeC Show (f <$> m) => Show (Mayb f m)
-
 data P :: k -> Type where
     P :: P a
 
@@ -105,58 +69,6 @@ fromPJust (PJust x) = x
 pattern PJustI :: a -> PMaybe Identity ('Just a)
 pattern PJustI x = PJust (Identity x)
 
--- instance Known P k where
---     known = P
-
--- instance Known (Mayb f) 'Nothing where
---     known = PNothing
-
--- instance Known f a => Known (Mayb f) ('Just a) where
---     type KnownC (Mayb f) ('Just a) = Known f a
---     known = PJust known
-
--- instance Functor1 Mayb where
---     map1 f (PJust x) = PJust (f x)
---     map1 _ PNothing     = PNothing
-
--- zipMayb
---     :: (forall a. f a -> g a -> h a)
---     -> Mayb f m
---     -> Mayb g m
---     -> Mayb h m
--- zipMayb f (PJust x) (PJust y) = PJust (f x y)
--- zipMayb _ PNothing     PNothing     = PNothing
-
--- zipMayb3
---     :: (forall a. f a -> g a -> h a -> i a)
---     -> Mayb f m
---     -> Mayb g m
---     -> Mayb h m
---     -> Mayb i m
--- zipMayb3 f (PJust x) (PJust y) (PJust z) = PJust (f x y z)
--- zipMayb3 _ PNothing     PNothing     PNothing = PNothing
-
--- m2  :: forall c f m. MaybeC c (f <$> m)
---     => (forall a. c (f a) => f a -> f a -> f a)
---     -> PMaybe f m
---     -> PMaybe f m
---     -> PMaybe f m
--- m2 f (PJust x) (PJust y) = PJust (f x y)
--- m2 _ PNothing     PNothing     = PNothing
-
--- m1  :: forall c f m. MaybeC c (f <$> m)
---     => (forall a. c (f a) => f a -> f a)
---     -> Mayb f m
---     -> Mayb f m
--- m1 f (PJust x) = PJust (f x)
--- m1 _ PNothing     = PNothing
-
--- m0  :: forall c f m. (MaybeC c (f <$> m))
---     => (forall a. c (f a) => f a)
---     -> PMaybe P m
---     -> PMaybe f m
--- m0 x (PJust _) = PJust x
--- m0 _ PNothing     = PNothing
 
 -- instance (Known (Mayb P) m, MaybeC Num (f <$> m)) => Num (Mayb f m) where
 --     (+) = m2 @Num (+)
@@ -185,7 +97,7 @@ type family (a :: Maybe Type) :#? (b :: Maybe Type) :: Maybe Type where
 infixr 1 :#?
 
 pattern (:#?)
-    :: (MaybeC Backprop a, MaybeC Backprop b, Reifies s W, PureProd Maybe a, PureProd Maybe b)
+    :: (AllConstrainedProd Backprop a, AllConstrainedProd Backprop b, Reifies s W, PureProd Maybe a, PureProd Maybe b)
     => PMaybe (BVar s) a
     -> PMaybe (BVar s) b
     -> PMaybe (BVar s) (a :#? b)
@@ -244,7 +156,7 @@ instance ReifyConstraintProd Maybe Backprop f as => Backprop (PMaybe f as) where
     {-# INLINE one #-}
 
 pattern MaybB
-    :: (Reifies s W, MaybeC Backprop a, SingI a, PureProd Maybe a)
+    :: (Reifies s W, AllConstrainedProd Backprop a, SingI a, PureProd Maybe a)
     => PMaybe (BVar s) a
     -> BVar s (PMaybe Identity a)
 pattern MaybB v <- (_mb->v)
@@ -254,12 +166,10 @@ pattern MaybB v <- (_mb->v)
       PJust x  -> isoVar (PJust . Identity) (runIdentity . fromPJust) x
 {-# COMPLETE MaybB #-}
 
-_mb :: forall a s. (MaybeC Backprop a, PureProd Maybe a, Reifies s W)
+_mb :: forall a s. (AllConstrainedProd Backprop a, PureProd Maybe a, Reifies s W)
     => BVar s (PMaybe Identity a)
     -> PMaybe (BVar s) a
 _mb v = case pureShape @_ @a of
     PJust _  -> PJust $ isoVar (runIdentity . fromPJust) (PJust . Identity) v
     PNothing -> PNothing
 {-# INLINE _mb #-}
-
--- deriving instance Backprop a => Backprop (I a)

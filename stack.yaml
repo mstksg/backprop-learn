@@ -66,7 +66,7 @@ extra-deps:
 - github: mstksg/type-combinators
   commit: 50334ab6bc3e5c3aee53c881a027f687fde13fa4
 - github: mstksg/opto
-  commit: 8ec2930c4c47be1bf90a753c34d44fe683947c44
+  commit: 45809e7cd5d3457cd618cb8c574dc84b339cd65c
 - github: mstksg/backprop
   commit: 106371536e66d7e5e67f83f4f530c576f9ebf567
 - github: mstksg/decidable
@@ -74,7 +74,7 @@ extra-deps:
 - github: mstksg/list-witnesses
   commit: 190f7c839b60dca5bafab3e72aa4b00ea86ce1be
 - github: mstksg/functor-products
-  commit: 476b961bb007d7ee9aa0e60500c1473bc4a34e73
+  commit: ca2fea856426bcf819c2c6ffa9df2d3c7f8002d8
 
 # Override default flag values for local packages and extra-deps
 flags: {}

@@ -16,6 +16,7 @@
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TypeApplications           #-}
+{-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeInType                 #-}
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE UndecidableInstances       #-}
@@ -100,8 +101,10 @@ module Data.Type.Tuple (
 import           Control.DeepSeq
 import           Control.Monad.Primitive
 import           Data.Bifunctor
+import           Data.Coerce
 import           Data.Data
 import           Data.Profunctor hiding     (rmap)
+import           Data.Semigroup
 import           Data.Type.Universe
 import           Data.Vinyl.Core
 import           GHC.Generics               (Generic)
@@ -111,6 +114,7 @@ import           Numeric.Backprop hiding    (T2)
 import           Numeric.Opto.Ref
 import           Numeric.Opto.Update
 import qualified Data.Binary                as Bi
+import qualified Data.Vinyl.Functor         as V
 
 -- | Unit ('()') with 'Num', 'Fractional', and 'Floating' instances.
 --
@@ -425,90 +429,82 @@ instance (Semigroup a, Semigroup b, Monoid a, Monoid b) => Monoid (a :# b) where
     mappend = (<>)
     mempty  = mempty :# mempty
 
----- | Initialize a 'T' with a Rank-N value.  Mostly used internally, but
----- provided in case useful.
-----
----- Must be used with /TypeApplications/ to provide the Rank-N constraint.
-----
----- @since 0.1.5.0
---constT
---    :: forall c as. ListC (c <$> as)
---    => (forall a. c a => a)
---    -> Length as
---    -> T as
---constT x = go
---  where
---    go :: forall bs. ListC (c <$> bs) => Length bs -> T bs
---    go LZ     = TNil
---    go (LS l) = x :# go l
+-- | Initialize a 'T' with a Rank-N value.  Mostly used internally, but
+-- provided in case useful.
+--
+-- Must be used with /TypeApplications/ to provide the Rank-N constraint.
+--
+-- @since 0.1.5.0
+constT
+    :: forall c as. RPureConstrained c as
+    => (forall a. c a => a)
+    -> T as
+constT x = rpureConstrained @c (TF x)
 
----- | Map over a 'T' with a Rank-N function.  Mostly used internally, but
----- provided in case useful.
-----
----- Must be used with /TypeApplications/ to provide the Rank-N constraint.
-----
----- @since 0.1.5.0
---mapT
---    :: forall c as. ListC (c <$> as)
---    => (forall a. c a => a -> a)
---    -> T as
---    -> T as
---mapT f = go
---  where
---    go :: forall bs. ListC (c <$> bs) => T bs -> T bs
---    go TNil      = TNil
---    go (x :# xs) = f x :# go xs
+-- | Map over a 'T' with a Rank-N function.  Mostly used internally, but
+-- provided in case useful.
+--
+-- Must be used with /TypeApplications/ to provide the Rank-N constraint.
+--
+-- @since 0.1.5.0
+mapT
+    :: forall c as. (RPureConstrained c as, RMap as, RApply as)
+    => (forall a. c a => a -> a)
+    -> T as
+    -> T as
+mapT f = rzipWith coerce (rpureConstrained @c @as @Endo (Endo f))
+  -- where
+  --   go :: forall bs. ListC (c <$> bs) => T bs -> T bs
+  --   go TNil      = TNil
+  --   go (x :# xs) = f x :# go xs
 
----- | Map over a 'T' with a Rank-N function.  Mostly used internally, but
----- provided in case useful.
-----
----- Must be used with /TypeApplications/ to provide the Rank-N constraint.
-----
----- @since 0.1.5.0
---zipT
---    :: forall c as. ListC (c <$> as)
---    => (forall a. c a => a -> a -> a)
---    -> T as
---    -> T as
---    -> T as
---zipT f = go
---  where
---    go :: forall bs. ListC (c <$> bs) => T bs -> T bs -> T bs
---    go TNil      TNil      = TNil
---    go (x :# xs) (y :# ys) = f x y :# go xs ys
+-- | Map over a 'T' with a Rank-N function.  Mostly used internally, but
+-- provided in case useful.
+--
+-- Must be used with /TypeApplications/ to provide the Rank-N constraint.
+--
+-- @since 0.1.5.0
+zipT
+    :: forall c as. (RPureConstrained c as, RMap as, RApply as)
+    => (forall a. c a => a -> a -> a)
+    -> T as
+    -> T as
+    -> T as
+zipT f = rapply . rzipWith coerce (rpureConstrained @c @as @TripleEndo (TE f))
 
--- instance (Known Length as, ListC (Num <$> as)) => Num (T as) where
---     (+)           = zipT @Num (+)
---     (-)           = zipT @Num (-)
---     (*)           = zipT @Num (*)
---     negate        = mapT @Num negate
---     abs           = mapT @Num abs
---     signum        = mapT @Num signum
---     fromInteger x = constT @Num (fromInteger x) known
+newtype TripleEndo a = TE { runTE :: a -> a -> a }
 
--- instance (Known Length as, ListC (Num <$> as), ListC (Fractional <$> as)) => Fractional (T as) where
---     (/)            = zipT @Fractional (/)
---     recip          = mapT @Fractional recip
---     fromRational x = constT @Fractional (fromRational x) known
+instance (RPureConstrained Num as, RMap as, RApply as) => Num (Rec TF as) where
+    (+)           = zipT @Num (+)
+    (-)           = zipT @Num (-)
+    (*)           = zipT @Num (*)
+    negate        = mapT @Num negate
+    abs           = mapT @Num abs
+    signum        = mapT @Num signum
+    fromInteger x = constT @Num (fromInteger x)
 
--- instance (Known Length as, ListC (Num <$> as), ListC (Fractional <$> as), ListC (Floating <$> as))
---         => Floating (T as) where
---     pi      = constT @Floating pi known
---     (**)    = zipT @Floating (**)
---     logBase = zipT @Floating logBase
---     exp     = mapT @Floating exp
---     log     = mapT @Floating log
---     sqrt    = mapT @Floating sqrt
---     sin     = mapT @Floating sin
---     cos     = mapT @Floating cos
---     asin    = mapT @Floating asin
---     acos    = mapT @Floating acos
---     atan    = mapT @Floating atan
---     sinh    = mapT @Floating sinh
---     cosh    = mapT @Floating cosh
---     asinh   = mapT @Floating asinh
---     acosh   = mapT @Floating acosh
---     atanh   = mapT @Floating atanh
+instance (RPureConstrained Num as, RPureConstrained Fractional as, RMap as, RApply as) => Fractional (T as) where
+    (/)            = zipT @Fractional (/)
+    recip          = mapT @Fractional recip
+    fromRational x = constT @Fractional (fromRational x)
+
+instance (RPureConstrained Num as, RPureConstrained Fractional as, RPureConstrained Floating as, RMap as, RApply as) => Floating (T as) where
+    pi      = constT @Floating pi
+    (**)    = zipT @Floating (**)
+    logBase = zipT @Floating logBase
+    exp     = mapT @Floating exp
+    log     = mapT @Floating log
+    sqrt    = mapT @Floating sqrt
+    sin     = mapT @Floating sin
+    cos     = mapT @Floating cos
+    asin    = mapT @Floating asin
+    acos    = mapT @Floating acos
+    atan    = mapT @Floating atan
+    sinh    = mapT @Floating sinh
+    cosh    = mapT @Floating cosh
+    asinh   = mapT @Floating asinh
+    acosh   = mapT @Floating acosh
+    atanh   = mapT @Floating atanh
 
 -- -- | @since 0.1.5.1
 -- instance Bi.Binary (T as) where
@@ -584,7 +580,21 @@ instance (Linear c a, Linear c b) => Linear c (a :# b)
 instance (Floating c, Ord c, Metric c a, Metric c b) => Metric c (a :# b)
 instance (PrimMonad m, LinearInPlace m c a, LinearInPlace m c b) => LinearInPlace m c (a :# b)
 
-instance PrimMonad m => Mutable m (T as)
+instance Mutable m a => Mutable m (TF a) where
+    type Ref m (TF a) = TF (Ref m a)
+
+    thawRef = fmap coerce . thawRef @m @a . coerce
+    freezeRef = fmap coerce . freezeRef @m @a . coerce
+    copyRef v = copyRef @m @a (coerce v) . coerce
+
+instance Linear c a => Linear c (TF a)
+instance (Ord c, Floating c, Metric c a) => Metric c (TF a)
+instance (Mutable m a, Ord c, Floating c, LinearInPlace m c a) => LinearInPlace m c (TF a) where
+    TF v .+.= TF x = v .+.= x
+    TF v .*= c = v .*= c
+    TF v .*+= (c, TF x) = v .*+= (c, x)
+
+-- instance PrimMonad m => Mutable m (T as)
 
 -- instance Linear c a => Linear c (T '[a]) where
 --     (x :# TNil) .+. (y :# TNil) = (x .+. y) :# TNil

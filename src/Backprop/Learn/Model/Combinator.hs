@@ -58,10 +58,10 @@ import qualified Data.Vector.Sized             as SV
      , PureProd Maybe q
      , PureProd Maybe s
      , PureProd Maybe t
-     , MaybeC Backprop p
-     , MaybeC Backprop q
-     , MaybeC Backprop s
-     , MaybeC Backprop t
+     , AllConstrainedProd Backprop p
+     , AllConstrainedProd Backprop q
+     , AllConstrainedProd Backprop s
+     , AllConstrainedProd Backprop t
      )
     => Model  p         s        b c
     -> Model        q         t  a b
@@ -79,10 +79,10 @@ infixr 8 <~
      , PureProd Maybe q
      , PureProd Maybe s
      , PureProd Maybe t
-     , MaybeC Backprop p
-     , MaybeC Backprop q
-     , MaybeC Backprop s
-     , MaybeC Backprop t
+     , AllConstrainedProd Backprop p
+     , AllConstrainedProd Backprop q
+     , AllConstrainedProd Backprop s
+     , AllConstrainedProd Backprop t
      )
     => Model  p         s        a b
     -> Model        q         t  b c
@@ -103,10 +103,8 @@ type LModel ps ss a b = Model ('Just (T ps)) ('Just (T ss)) a b
 --
 (#:)
     :: forall p ps s ss a b c.
-     ( SingI p
-     , SingI s
-     , MaybeC Backprop p
-     , MaybeC Backprop s
+     ( AllConstrainedProd Backprop p
+     , AllConstrainedProd Backprop s
      , ReifyConstraint Backprop TF ps
      , ReifyConstraint Backprop TF ss
      , RMap ss
@@ -182,9 +180,9 @@ nilLM = id
 liftLM
     :: forall p s a b.
      ( SingI p
-     , MaybeC Backprop p
+     , AllConstrainedProd Backprop p
      , SingI s
-     , MaybeC Backprop s
+     , AllConstrainedProd Backprop s
      )
     => Model p s a b
     -> LModel (MaybeToList p) (MaybeToList s) a b
@@ -211,10 +209,10 @@ feedback
      , PureProd Maybe q
      , PureProd Maybe s
      , PureProd Maybe t
-     , MaybeC Backprop p
-     , MaybeC Backprop q
-     , MaybeC Backprop s
-     , MaybeC Backprop t
+     , AllConstrainedProd Backprop p
+     , AllConstrainedProd Backprop q
+     , AllConstrainedProd Backprop s
+     , AllConstrainedProd Backprop t
      )
     => Int                                -- ^ times
     -> Model  p         s        a b      -- ^ feed
@@ -237,10 +235,10 @@ feedbackTrace
      , PureProd Maybe q
      , PureProd Maybe s
      , PureProd Maybe t
-     , MaybeC Backprop p
-     , MaybeC Backprop q
-     , MaybeC Backprop s
-     , MaybeC Backprop t
+     , AllConstrainedProd Backprop p
+     , AllConstrainedProd Backprop q
+     , AllConstrainedProd Backprop s
+     , AllConstrainedProd Backprop t
      , KnownNat n
      , Backprop b
      )
@@ -262,10 +260,10 @@ forkModel
      , PureProd Maybe q
      , PureProd Maybe s
      , PureProd Maybe t
-     , MaybeC Backprop p
-     , MaybeC Backprop q
-     , MaybeC Backprop s
-     , MaybeC Backprop t
+     , AllConstrainedProd Backprop p
+     , AllConstrainedProd Backprop q
+     , AllConstrainedProd Backprop s
+     , AllConstrainedProd Backprop t
      , Backprop b
      , Backprop c
      )

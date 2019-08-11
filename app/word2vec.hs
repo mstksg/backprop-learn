@@ -79,7 +79,7 @@ main = MWC.withSystemRandom @IO $ \g -> do
           t1 <- liftIO getCurrentTime
           case mp of
             Nothing -> liftIO $ putStrLn "Done!"
-            Just p@(_ :& pEnc) -> do
+            Just p@(_ :# pEnc) -> do
               chnk <- lift . state $ (,[])
               liftIO $ do
                 printf "Trained on %d points in %s.\n"

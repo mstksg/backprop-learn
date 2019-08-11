@@ -36,6 +36,7 @@ import           Control.Monad.Trans.Reader
 import           Data.Functor.Identity
 import           Data.Kind
 import           Data.Singletons
+import           Data.Type.Functor.Product
 import           Data.Type.Mayb
 import           Data.Type.Tuple
 import           Data.Vinyl
@@ -212,7 +213,7 @@ runLearnStochModelFuncM
 runLearnStochModelFuncM m p x s = ReaderT $ \g -> runLearnStoch m g p x s
 
 -- | Combination of common constraints for type-level lists.
-type Learnables as = ( SingI as
+type Learnables as = ( PureProd [] as
                      , ReifyConstraint Backprop TF as
                      , RMap as
                      , RApply as
