@@ -6,6 +6,7 @@
 {-# LANGUAGE KindSignatures                           #-}
 {-# LANGUAGE LambdaCase                               #-}
 {-# LANGUAGE PartialTypeSignatures                    #-}
+{-# LANGUAGE QuantifiedConstraints                    #-}
 {-# LANGUAGE RankNTypes                               #-}
 {-# LANGUAGE RecordWildCards                          #-}
 {-# LANGUAGE ScopedTypeVariables                      #-}
@@ -64,6 +65,8 @@ data Mode = CSimulate (Maybe Int)
                         , Initialize s
                         , Backprop p
                         , Backprop s
+                        , forall m. PrimMonad m => LinearInPlace m Double p
+                        , forall m. PrimMonad m => LinearInPlace m Double s
                         )
                         => CLearn (ModelPick p s)
 
@@ -71,11 +74,11 @@ data ModelPick :: Type -> Type -> Type where
     MARIMA :: Sing p -> Sing d -> Sing q
            -> ModelPick (ARIMAp p q) (ARIMAs p d q)
     MFCRNN :: Sing h
-           -> ModelPick (LRp h 1 :& LRp (1 + h) h) (R h)
+           -> ModelPick (LRp h 1 :# LRp (1 + h) h) (R h)
     MLSTM  :: Sing h
-           -> ModelPick (LRp h 1 :& LSTMp 1 h)     (R h :& R h)
+           -> ModelPick (LRp h 1 :# LSTMp 1 h)     (R h :# R h)
     MGRU   :: Sing h
-           -> ModelPick (LRp h 1 :& GRUp 1 h)      (R h)
+           -> ModelPick (LRp h 1 :# GRUp 1 h)      (R h)
 
 data Process = PSin
 
@@ -127,6 +130,8 @@ noisyConduit
 noisyConduit σ g = C.mapM $ \x ->
     (x + ) <$> genContVar (normalDistr 0 σ) g
 
+-- type Context = ConduitT (Vector)
+
 main :: IO ()
 main = MWC.withSystemRandom @IO $ \g -> do
     O{..} <- execParser $ info (parseOpt <**> helper)
@@ -165,7 +170,7 @@ main = MWC.withSystemRandom @IO $ \g -> do
                     printf "Trained on %d points in %s.\n"
                       (length chnk)
                       (show (t1 `diffUTCTime` t0))
-                    let trainScore = testModelAll absErrorTest unrolled (J_I p) chnk
+                    let trainScore = testModelAll absErrorTest unrolled (PJustI p) chnk
                     printf "Training error:   %.8f\n" trainScore
                   report n (b + 1)
 
@@ -175,12 +180,8 @@ main = MWC.withSystemRandom @IO $ \g -> do
            .| leadings
            .| skipSampling 0.05 g
            .| C.iterM (modify . (:))
-           .| runOptoConduit_
-                (RO' Nothing Nothing)
-                p0
-                (adam @_ @(MutVar _ _) def
-                   (modelGrad squaredError noReg unrolled)
-                )
+           .| optoConduit def p0
+                (adam def (modelGrad squaredError noReg unrolled))
            .| report oInterval 0
            .| C.sinkNull
 

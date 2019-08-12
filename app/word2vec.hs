@@ -85,12 +85,12 @@ main = MWC.withSystemRandom @IO $ \g -> do
                 printf "Trained on %d points in %s.\n"
                   (length chnk)
                   (show (t1 `diffUTCTime` t0))
-                let trainScore = testModelAll maxIxTest model (J_I p) chnk
+                let trainScore = testModelAll maxIxTest model (PJustI p) chnk
                 printf "Training error:   %.3f%%\n" ((1 - trainScore) * 100)
 
                 testWords <- tokenize <$> readFile testFile
                 let tests = flip map testWords $ \w ->
-                       let v = maybe 0 (runModelStateless enc (J_I pEnc))
+                       let v = maybe 0 (runModelStateless enc (PJustI pEnc))
                                 $ oneHotWord wordSet w
                        in  intercalate "," $ map (printf "%0.4f") (VS.toList (H.extract v))
 
@@ -111,12 +111,8 @@ main = MWC.withSystemRandom @IO $ \g -> do
                   )
        .| skipSampling 0.02 g
        .| C.iterM (modify . (:))
-       .| runOptoConduit_
-            (RO' Nothing Nothing)
-            p0
-            (adam @_ @(MutVar _ _) def
-               (modelGradStoch crossEntropy noReg model g)
-            )
+       .| optoConduit def p0
+                (adam def (modelGradStoch crossEntropy noReg model g))
        .| report 500 0
        .| C.sinkNull
 

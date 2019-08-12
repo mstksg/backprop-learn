@@ -371,6 +371,18 @@ instance Floating (ARIMAs p d q) where
     acosh = gAcosh
     atanh = gAtanh
 
+instance (PrimMonad m, KnownNat p, KnownNat q) => Mutable m (ARIMAp p q) where
+    type Ref m (ARIMAp p q) = GRef m (ARIMAp p q)
+    thawRef = gThawRef
+    freezeRef = gFreezeRef
+    copyRef = gCopyRef
+
+instance (PrimMonad m, KnownNat p, KnownNat d, KnownNat q) => Mutable m (ARIMAs p d q) where
+    type Ref m (ARIMAs p d q) = GRef m (ARIMAs p d q)
+    thawRef = gThawRef
+    freezeRef = gFreezeRef
+    copyRef = gCopyRef
+
 instance (KnownNat p, KnownNat q) => Linear Double (ARIMAp p q)
 instance (KnownNat p, KnownNat d, KnownNat q) => Linear Double (ARIMAs p d q)
 
