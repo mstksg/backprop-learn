@@ -12,20 +12,10 @@
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 
 import           Backprop.Learn
-import           Control.Concurrent.STM
-import           Control.DeepSeq
-import           Control.Exception
-import           Control.Monad
-import           Control.Monad.IO.Class
-import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.Maybe
-import           Control.Monad.Trans.State
 import           Data.Bitraversable
-import           Data.Conduit
 import           Data.Default
 import           Data.IDX
-import           Data.Primitive.MutVar
-import           Data.Time
 import           Data.Traversable
 import           Data.Tuple
 import           Numeric.LinearAlgebra.Static.Backprop
@@ -34,7 +24,6 @@ import           Numeric.Opto.Run.Simple
 import           System.Environment
 import           System.FilePath
 import           Text.Printf
-import qualified Data.Conduit.Combinators              as C
 import qualified Data.Vector.Generic                   as VG
 import qualified Numeric.LinearAlgebra                 as HM
 import qualified Numeric.LinearAlgebra.Static          as H
@@ -61,7 +50,7 @@ main = MWC.withSystemRandom $ \g -> do
                  }
         runTest chnk net = printf "Error: %.2f%%" ((1 - score) * 100)
           where
-            score = testModelAll maxIxTest mnistNet (PJustI net) chnk
+            score = testModelAll maxIxTest mnistNet (TJust net) chnk
 
     simpleRunner so train SOSingle def net0
       (adam def $ modelGradStoch crossEntropy noReg mnistNet g)

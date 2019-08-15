@@ -25,46 +25,45 @@ ghc-options:
 - -Wincomplete-record-updates
 - -Wredundant-constraints
 - -O0
-# - -fprint-explicit-kinds
 
 dependencies:
-- backprop >= 0.2.5
 - base >=4.7 && <5
-- binary
-- bytestring
-- conduit
-- containers
-- decidable
-- deepseq
-- finite-typelits
-- foldl >= 1.4
-- functor-products
-- ghc-typelits-extra
-- ghc-typelits-knownnat
-- ghc-typelits-natnormalise
-- hmatrix
-- hmatrix-backprop >= 0.1.2.2
-- hmatrix-vector-sized
-- list-witnesses
-- microlens
-- microlens-th
-- mwc-random
-- one-liner
-- one-liner-instances
-- opto
-- primitive
-- profunctors
-- singletons
-- statistics
-- transformers
-- typelits-witnesses
-- vector >= 0.12.0.2
-- vector-sized
-- vinyl
-- contravariant
 
 library:
   source-dirs: src
+  dependencies:
+  - backprop >= 0.2.6.3
+  - binary
+  - bytestring
+  - conduit
+  - containers
+  - decidable >= 0.2
+  - deepseq
+  - finite-typelits
+  - foldl >= 1.4
+  - functor-products
+  - ghc-typelits-extra
+  - ghc-typelits-knownnat
+  - ghc-typelits-natnormalise
+  - hmatrix
+  - hmatrix-backprop >= 0.1.2.2
+  - hmatrix-vector-sized
+  - list-witnesses
+  - microlens
+  - microlens-th
+  - mwc-random
+  - one-liner
+  - one-liner-instances
+  - opto
+  - primitive
+  - profunctors
+  - singletons
+  - statistics
+  - transformers
+  - typelits-witnesses
+  - vector >= 0.12.0.2
+  - vector-sized
+  - vinyl
 
 _exec: &exec
   source-dirs: app
@@ -83,33 +82,81 @@ executables:
     - backprop-learn
     - data-default
     - filepath
+    - ghc-typelits-extra
+    - ghc-typelits-knownnat
+    - ghc-typelits-natnormalise
+    - hmatrix
+    - hmatrix-backprop >= 0.1.2.2
     - mnist-idx
-    - time
-    - stm
+    - mwc-random
+    - opto
+    - transformers
+    - vector >= 0.12.0.2
   backprop-learn-series:
     <<: *exec
     main: series.hs
     dependencies:
+    - backprop >= 0.2.6.3
     - backprop-learn
+    - conduit
     - data-default
-    - filepath
+    - deepseq
+    - ghc-typelits-extra
+    - ghc-typelits-knownnat
+    - ghc-typelits-natnormalise
+    - hmatrix
+    - hmatrix-backprop >= 0.1.2.2
+    - mwc-random
+    - opto
     - optparse-applicative
-    - time
+    - primitive
     - singletons
+    - singletons
+    - statistics
+    - time
+    - transformers
+    - typelits-witnesses
+    - vector-sized
   backprop-learn-char-rnn:
     <<: *exec
     main: char-rnn.hs
     dependencies:
     - backprop-learn
+    - conduit
+    - containers
     - data-default
-    - time
+    - deepseq
+    - ghc-typelits-extra
+    - ghc-typelits-knownnat
+    - ghc-typelits-natnormalise
+    - hmatrix
+    - hmatrix-backprop >= 0.1.2.2
+    - hmatrix-vector-sized
+    - mwc-random
+    - opto
     - text
+    - time
+    - transformers
+    - vector-sized
   backprop-learn-word2vec:
     <<: *exec
     main: word2vec.hs
     dependencies:
     - backprop-learn
+    - conduit
+    - containers
     - data-default
-    - time
+    - deepseq
+    - ghc-typelits-extra
+    - ghc-typelits-knownnat
+    - ghc-typelits-natnormalise
+    - hmatrix
+    - hmatrix-backprop >= 0.1.2.2
+    - mwc-random
+    - opto
     - text
+    - time
+    - transformers
+    - vector >= 0.12.0.2
+    - vector-sized
 

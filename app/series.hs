@@ -32,7 +32,6 @@ import           Data.Char
 import           Data.Conduit
 import           Data.Default
 import           Data.Kind
-import           Data.Primitive.MutVar
 import           Data.Proxy
 import           Data.Singletons
 import           Data.Singletons.TypeLits
@@ -170,7 +169,7 @@ main = MWC.withSystemRandom @IO $ \g -> do
                     printf "Trained on %d points in %s.\n"
                       (length chnk)
                       (show (t1 `diffUTCTime` t0))
-                    let trainScore = testModelAll absErrorTest unrolled (PJustI p) chnk
+                    let trainScore = testModelAll absErrorTest unrolled (TJust p) chnk
                     printf "Training error:   %.8f\n" trainScore
                   report n (b + 1)
 

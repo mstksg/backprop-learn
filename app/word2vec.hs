@@ -19,7 +19,6 @@ import           Data.Char
 import           Data.Conduit
 import           Data.Default
 import           Data.List
-import           Data.Primitive.MutVar
 import           Data.Proxy
 import           Data.Time
 import           Data.Type.Tuple
@@ -85,12 +84,12 @@ main = MWC.withSystemRandom @IO $ \g -> do
                 printf "Trained on %d points in %s.\n"
                   (length chnk)
                   (show (t1 `diffUTCTime` t0))
-                let trainScore = testModelAll maxIxTest model (PJustI p) chnk
+                let trainScore = testModelAll maxIxTest model (TJust p) chnk
                 printf "Training error:   %.3f%%\n" ((1 - trainScore) * 100)
 
                 testWords <- tokenize <$> readFile testFile
                 let tests = flip map testWords $ \w ->
-                       let v = maybe 0 (runModelStateless enc (PJustI pEnc))
+                       let v = maybe 0 (runModelStateless enc (TJust pEnc))
                                 $ oneHotWord wordSet w
                        in  intercalate "," $ map (printf "%0.4f") (VS.toList (H.extract v))
 

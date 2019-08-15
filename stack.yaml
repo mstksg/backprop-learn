@@ -63,24 +63,36 @@ packages:
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps:
-- github: mstksg/type-combinators
-  commit: 50334ab6bc3e5c3aee53c881a027f687fde13fa4
+# - github: mstksg/type-combinators
+#   commit: 50334ab6bc3e5c3aee53c881a027f687fde13fa4
 - github: mstksg/opto
   commit: 45809e7cd5d3457cd618cb8c574dc84b339cd65c
-- github: mstksg/backprop
-  commit: 106371536e66d7e5e67f83f4f530c576f9ebf567
-- github: mstksg/decidable
-  commit: 81e7469efdd8d1cf1f15fe4204a0b41bf3005377
-- github: mstksg/list-witnesses
-  commit: 35998dea6cb2cd4c2751e5308648a808259eac24
-- github: mstksg/functor-products
-  commit: fcddcfa0358da8fc04c74eb73dc8b56f0e1a495f
+# - github: mstksg/backprop
+#   commit: 106371536e66d7e5e67f83f4f530c576f9ebf567
+- decidable-0.2.0.0
+- list-witnesses-0.1.2.0
+- functor-products-0.1.0.0
+- backprop-0.2.6.3
+# - github: mstksg/decidable
+#   commit: 81e7469efdd8d1cf1f15fe4204a0b41bf3005377
+# - github: mstksg/list-witnesses
+#   commit: 35998dea6cb2cd4c2751e5308648a808259eac24
+# - github: mstksg/functor-products
+#   commit: fcddcfa0358da8fc04c74eb73dc8b56f0e1a495f
 
 # Override default flag values for local packages and extra-deps
 flags: {}
 
 # Extra package databases containing global packages
 extra-package-dbs: []
+
+ghc-options:
+  "$locals": -ddump-to-file -ddump-hi
+
+build:
+  haddock-arguments:
+    haddock-args:
+    - --optghc=-fdefer-type-errors
 
 # Control whether we use the GHC we find on the path
 # system-ghc: true

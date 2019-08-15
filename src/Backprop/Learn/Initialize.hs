@@ -25,13 +25,6 @@ module Backprop.Learn.Initialize (
   , reshapeLCols
   ) where
 
--- import           Data.Functor.Identity
--- import           Data.List.NonEmpty               (NonEmpty(..))
--- import           Data.Type.Length
--- import           Data.Type.NonEmpty
--- import           Type.Class.Known
--- import           Type.Family.List
--- import qualified Data.Vinyl.Functor               as V
 import           Control.Monad.Primitive
 import           Data.Complex
 import           Data.Proxy
@@ -73,6 +66,8 @@ gInitialize
     -> m p
 gInitialize d g = createA' @Initialize (initialize d g)
 
+-- | Helper over 'inititialize' for a gaussian distribution centered around
+-- zero.
 initializeNormal
     :: (Initialize p, PrimMonad m)
     => Double                               -- ^ standard deviation
@@ -103,8 +98,6 @@ instance (Initialize a, Initialize b) => Initialize (a :# b)
 instance RPureConstrained Initialize as => Initialize (T as) where
     initialize d g = rtraverse (fmap TF)
                    $ rpureConstrained @Initialize (initialize d g)
--- instance (ListC (Initialize <$> as), Known Length as) => Initialize (T as) where
---     initialize d g = constTA @Initialize (initialize d g) known
 
 -- instance (Initialize a, ListC (Initialize <$> as), Known Length as) => Initialize (NETup (a ':| as)) where
 --     initialize d g = NET <$> initialize d g
@@ -126,17 +119,6 @@ instance (KnownNat n, KnownNat m) => Initialize (H.L n m) where
     initialize d = fmap vecL . initialize d
 instance (KnownNat n, KnownNat m) => Initialize (H.M n m) where
     initialize d = fmap vecM . initialize d
-
--- constTA
---     :: forall c as f. (ReifyConstraint c g as, Applicative f)
---     => (forall a. c a => f (g a))
---     -> Sing as
---     -> f (Rec f as)
--- constTA x = go
---   where
---     go :: forall bs. ListC (c <$> bs) => Length bs -> f (T bs)
---     go LZ     = pure TNil
---     go (LS l) = (:#) <$> x <*> go l
 
 -- | Reshape a vector to have a different amount of items  If the matrix is
 -- grown, new weights are initialized according to the given distribution.

@@ -13,3 +13,5 @@
 /backprop-learn.cabal
 
 /testout
+
+*.dump-hi

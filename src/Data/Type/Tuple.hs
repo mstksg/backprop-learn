@@ -92,10 +92,11 @@ module Data.Type.Tuple (
   -- , tIx
   , tHead
   , tTail
-  -- , tTake
-  -- , tDrop
-  -- ** Internal Utility
-  -- , constT, mapT, zipT
+  -- * Maybe
+  , TMaybe
+  , PMaybe(..,TJust), fromPJust
+  , type (:#?), pattern (:#?), splitTupMaybe, tupMaybe
+  , pattern MaybB
   ) where
 
 import           Control.DeepSeq
@@ -103,10 +104,12 @@ import           Control.Monad.Primitive
 import           Data.Bifunctor
 import           Data.Coerce
 import           Data.Data
+import           Data.Kind
 import           Data.Profunctor hiding     (rmap)
 import           Data.Semigroup
-import           Data.Type.Universe
+import           Data.Type.Functor.Product
 import           Data.Vinyl.Core
+import           GHC.Generics               ((:*:)(..))
 import           GHC.Generics               (Generic)
 import           Lens.Micro
 import           Lens.Micro.Internal hiding (Index)
@@ -157,26 +160,14 @@ type T = Rec TF
 newtype TF a = TF { getTF :: a }
   deriving (Show, Eq, Ord, Num, Fractional, Floating, Backprop, Generic, Typeable, NFData)
 
+type TMaybe = PMaybe TF
+
 _TF :: (Profunctor p, Functor f) => p a (f b) -> p (TF a) (f (TF b))
 _TF = dimap getTF (fmap TF)
 
 pattern (:&&) :: a -> T as -> T (a ': as)
 pattern x :&& xs = TF x :& xs
 {-# COMPLETE (:&&) #-}
-
--- data T :: [Type] -> Type where
---     TNil :: T '[]
---     (:#) :: !a -> !(T as) -> T (a ': as)
--- infixr 5 :#
-
--- -- | @since 0.1.5.1
--- deriving instance ListC (Show <$> as) => Show (T as)
--- -- | @since 0.1.5.1
--- deriving instance ListC (Eq <$> as) => Eq (T as)
--- -- | @since 0.1.5.1
--- deriving instance (ListC (Eq <$> as), ListC (Ord <$> as)) => Ord (T as)
--- -- | @since 0.1.5.1
--- deriving instance Typeable (T as)
 
 -- | @since 0.1.5.1
 deriving instance Typeable T0
@@ -185,10 +176,6 @@ deriving instance Typeable (a :# b)
 
 instance NFData T0
 instance (NFData a, NFData b) => NFData (a :# b)
--- instance ListC (NFData <$> as) => NFData (T as) where
---     rnf = \case
---       RNil    -> ()
---       x :& xs -> rnf x `seq` rnf xs
 
 -- TODO: optimize
 
@@ -298,59 +285,6 @@ tHead f (TF x :& xs) = (:& xs) . TF <$> f x
 -- @since 0.1.5.0
 tTail :: Lens (T (a ': as)) (T (a ': bs)) (T as) (T bs)
 tTail f (x :& xs) = (x :&) <$> f xs
-
----- | Append two 'T's.
-----
----- Forms an isomorphism with 'tSplit'.
-----
----- @since 0.1.5.0
---tAppend :: T as -> T bs -> T (as ++ bs)
---tAppend TNil      ys = ys
---tAppend (x :# xs) ys = x :# tAppend xs ys
---infixr 5 `tAppend`
-
----- | Split a 'T'.  For splits known at compile-time, you can use 'known' to
----- derive the 'Length' automatically.
-----
----- Forms an isomorphism with 'tAppend'.
-----
----- @since 0.1.5.0
---tSplit :: Length as -> T (as ++ bs) -> (T as, T bs)
---tSplit LZ     xs        = (TNil, xs)
---tSplit (LS l) (x :# xs) = first (x :#) . tSplit l $ xs
-
----- | Lens into the initial portion of a 'T'.  For splits known at
----- compile-time, you can use 'known' to derive the 'Length' automatically.
-----
----- @since 0.1.5.0
---tTake :: forall as bs cs. Length as -> Lens (T (as ++ bs)) (T (cs ++ bs)) (T as) (T cs)
---tTake l f (tSplit l->(xs,ys)) = flip (tAppend @cs @bs) ys <$> f xs
-
----- | Lens into the ending portion of a 'T'.  For splits known at
----- compile-time, you can use 'known' to derive the 'Length' automatically.
-----
----- @since 0.1.5.0
---tDrop :: forall as bs cs. Length as -> Lens (T (as ++ bs)) (T (as V.++ cs)) (T bs) (T cs)
---tDrop l f (tSplit l->(xs,ys)) = tAppend xs <$> f ys
-
----- | Convert a 'T' to a 'Tuple'.
-----
----- Forms an isomorphism with 'prodT'.
-----
----- @since 0.1.5.0
---tProd :: T as -> Tuple as
---tProd TNil      = Ø
---tProd (x :# xs) = x ::< tProd xs
-
----- | Convert a 'Tuple' to a 'T'.
-----
----- Forms an isomorphism with 'tProd'.
-----
----- @since 0.1.5.0
---prodT :: Tuple as -> T as
---prodT Ø           = TNil
---prodT (I x :< xs) = x :# prodT xs
-
 
 instance Num T0 where
     _ + _         = T0
@@ -507,64 +441,10 @@ instance (RPureConstrained Num as, RPureConstrained Fractional as, RPureConstrai
     acosh   = mapT @Floating acosh
     atanh   = mapT @Floating atanh
 
--- -- | @since 0.1.5.1
--- instance Bi.Binary (T as) where
---     put = getAp . rfoldMap _
---     get = undefined
-    -- put = \case
-    --   TNil -> pure ()
-    --   x :# xs -> do
-    --     Bi.put x
-    --     Bi.put xs
-    -- get = getT known
-
--- getT :: V.RPureConstrained Bi.Binary as => Bi.Get (T as)
--- getT = rpureConstrained @Bi.Binary Bi.get
-
--- ListC (Bi.Binary <$> as) => Length as -> Bi.Get (T as)
--- getT = \case
---     LZ   -> pure TNil
---     LS l -> do
---       x  <- Bi.get
---       xs <- getT l
---       pure (x :# xs)
-
 instance (Backprop a, Backprop b) => Backprop (a :# b) where
     zero (x :# y) = zero x :# zero y
     add (x1 :# y1) (x2 :# y2) = add x1 x2 :# add y1 y2
     one (x :# y) = one x :# one y
--- instance RMap as => Backprop (T as) where
---     zero = rmap zero
--- instance (ListC (Backprop <$> as)) => Backprop (T as) where
---     zero = \case
---       TNil -> TNil
---       x :# xs -> zero x :# zero xs
---     add = \case
---       TNil -> \case
---         TNil -> TNil
---       x :# xs -> \case
---         y :# ys -> add x y :# add xs ys
---     one = \case
---       TNil -> TNil
---       x :# xs -> one x :# one xs
-
--- $t2iso
---
--- If using /lens/, the two conversion functions can be chained with prisms
--- and traversals and other optics using:
---
--- @
--- 'iso' 'tupT2' 't2Tup' :: 'Iso'' (a, b) ('T2' a b)
--- @
-
--- $tiso
---
--- If using /lens/, the two conversion functions can be chained with prisms
--- and traversals and other optics using:
---
--- @
--- 'iso' 'onlyT' 'tOnly' :: 'Iso'' a (T '[a])
--- @
 
 pattern (:##)
     :: (Backprop a, Backprop b, Reifies s W)
@@ -591,6 +471,13 @@ instance RPureConstrained NFData as => NFData (Rec TF as) where
           Co.Op r :& rs -> \case
             TF x :& xs -> r x `seq` go rs xs
 
+instance (RPureConstrained Bi.Binary as, RMap as, RApply as, RecordToList as) => Bi.Binary (Rec TF as) where
+    put = sequence_ @[]
+        . recordToList
+        . rzipWith (\(Co.Op p) (TF x) -> V.Const (p x))
+            (rpureConstrained @Bi.Binary (Co.Op Bi.put))
+    get = rtraverse coerce $ rpureConstrained @Bi.Binary Bi.get
+
 instance Mutable m a => Mutable m (TF a) where
     type Ref m (TF a) = TF (Ref m a)
 
@@ -605,34 +492,83 @@ instance (Mutable m a, LinearInPlace m c a) => LinearInPlace m c (TF a) where
     TF v .*= c = v .*= c
     TF v .*+= (c, TF x) = v .*+= (c, x)
 
--- instance PrimMonad m => Mutable m (T as)
+fromPJust :: PMaybe f ('Just a) -> f a
+fromPJust (PJust x) = x
 
--- instance Linear c a => Linear c (T '[a]) where
---     (x :# TNil) .+. (y :# TNil) = (x .+. y) :# TNil
---     zeroL = zeroL :# TNil
---     c .* (x :# TNil) = (c .* x) :# TNil
--- instance Metric c a => Metric c (T '[a]) where
---     (x :# TNil) <.> (y :# TNil) = x <.> y
---     norm_inf (x :# TNil)        = norm_inf x
---     norm_0 (x :# TNil)          = norm_0 x
---     norm_1 (x :# TNil)          = norm_1 x
---     norm_2 (x :# TNil)          = norm_2 x
---     quadrance (x :# TNil)       = quadrance x
+pattern TJust :: a -> TMaybe ('Just a)
+pattern TJust x = PJust (TF x)
 
--- instance (Linear c b, Linear c (T (a ': as))) => Linear c (T (b ': (a ': as))) where
---     (x :# xs) .+. (y :# ys) = (x .+. y) :# (xs .+. ys)
---     zeroL = zeroL :# zeroL
---     c .* (x :# xs) = (c .* x) :# (c .* xs)
--- instance ( Metric c b
---          , Metric c (T (a ': as))
---          , Ord c
---          , Floating c
---          )
---       => Metric c (T (b ': (a ': as))) where
---     (x :# xs) <.> (y :# ys) = (x <.> y) + (xs <.> ys)
---     norm_inf (x :# xs)      = max (norm_inf x) (norm_inf xs)
---     norm_0 (x :# xs)        = norm_0 x + norm_0 xs
---     norm_1 (x :# xs)        = norm_1 x + norm_1 xs
---     quadrance (x :# xs)     = quadrance x + quadrance xs
+type family (a :: Maybe Type) :#? (b :: Maybe Type) :: Maybe Type where
+    'Nothing :#? 'Nothing = 'Nothing
+    'Nothing :#? 'Just b  = 'Just b
+    'Just a  :#? 'Nothing = 'Just a
+    'Just a  :#? 'Just b  = 'Just (a :# b)
+infixr 1 :#?
 
+pattern (:#?)
+    :: (AllConstrainedProd Backprop a, AllConstrainedProd Backprop b, Reifies s W, PureProd Maybe a, PureProd Maybe b)
+    => PMaybe (BVar s) a
+    -> PMaybe (BVar s) b
+    -> PMaybe (BVar s) (a :#? b)
+pattern x :#? y <- (splitTupMaybe (\(v :## u) -> (v, u))->(x, y))
+  where
+    (:#?) = tupMaybe (:##)
 
+tupMaybe
+    :: forall f a b. ()
+    => (forall a' b'. (a ~ 'Just a', b ~ 'Just b') => f a' -> f b' -> f (a' :# b'))
+    -> PMaybe f a
+    -> PMaybe f b
+    -> PMaybe f (a :#? b)
+tupMaybe f = \case
+    PNothing   -> \case
+      PNothing   -> PNothing
+      PJust y -> PJust y
+    PJust x -> \case
+      PNothing   -> PJust x
+      PJust y -> PJust (f x y)
+
+splitTupMaybe
+    :: forall f a b. (PureProd Maybe a, PureProd Maybe b)
+    => (forall a' b'. (a ~ 'Just a', b ~ 'Just b') => f (a' :# b') -> (f a', f b'))
+    -> PMaybe f (a :#? b)
+    -> (PMaybe f a, PMaybe f b)
+splitTupMaybe f = case pureShape @_ @a of
+    PNothing -> case pureShape @_ @b of
+      PNothing -> \case
+        PNothing -> (PNothing, PNothing)
+      PJust _ -> \case
+        PJust y -> (PNothing, PJust y)
+    PJust _ -> case pureShape @_ @b of
+      PNothing -> \case
+        PJust x -> (PJust x, PNothing)
+      PJust _ -> \case
+        PJust xy -> bimap PJust PJust . f $ xy
+
+instance PureProdC Maybe Backprop as => Backprop (TMaybe as) where
+    zero   = zipWithProd coerce (pureProdC @_ @Backprop (Endo zero))
+    {-# INLINE zero #-}
+    add xs = zipWithProd (\a (x :*: y) -> coerce a x y) (pureProdC @_ @Backprop (TE add))
+           . zipProd xs
+    {-# INLINE add #-}
+    one    = zipWithProd coerce (pureProdC @_ @Backprop (Endo one))
+    {-# INLINE one #-}
+
+pattern MaybB
+    :: (Reifies s W, AllConstrainedProd Backprop a, PureProd Maybe a)
+    => PMaybe (BVar s) a
+    -> BVar s (TMaybe a)
+pattern MaybB v <- (_mb->v)
+  where
+    MaybB = \case
+      PNothing -> auto PNothing
+      PJust x  -> isoVar (PJust . TF) (getTF . fromPJust) x
+{-# COMPLETE MaybB #-}
+
+_mb :: forall a s. (AllConstrainedProd Backprop a, PureProd Maybe a, Reifies s W)
+    => BVar s (TMaybe a)
+    -> PMaybe (BVar s) a
+_mb v = case pureShape @_ @a of
+    PJust _  -> PJust $ isoVar (getTF . fromPJust) (PJust . TF) v
+    PNothing -> PNothing
+{-# INLINE _mb #-}

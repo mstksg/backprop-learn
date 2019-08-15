@@ -43,7 +43,6 @@ import           Data.Singletons.Prelude.List
 import           Data.Singletons.Prelude.Maybe
 import           Data.Type.Functor.Product
 import           Data.Type.List.Sublist
-import           Data.Type.Mayb                as Mayb
 import           Data.Type.Tuple
 import           Data.Vinyl
 import           GHC.TypeNats

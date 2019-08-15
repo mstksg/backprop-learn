@@ -25,7 +25,7 @@ import           Control.Monad.Trans.State
 import           Data.Bifunctor
 import           Data.Foldable
 import           Data.Type.Functor.Product
-import           Data.Type.Mayb
+import           Data.Type.Tuple
 import           Numeric.Backprop
 import qualified System.Random.MWC          as MWC
 

@@ -26,7 +26,7 @@ module Backprop.Learn.Model.Types (
     -- * Manipulating models as functions
   , ModelFuncM, withModelFunc0, withModelFunc, withModelFunc2
     -- * Utility
-  , PMaybe(..), fromPJust, Learnables
+  , PMaybe(..), TMaybe, fromPJust, Learnables
   -- , HKD
   ) where
 
@@ -35,9 +35,7 @@ import           Control.Monad.Primitive
 import           Control.Monad.Trans.Reader
 import           Data.Functor.Identity
 import           Data.Kind
-import           Data.Singletons
 import           Data.Type.Functor.Product
-import           Data.Type.Mayb
 import           Data.Type.Tuple
 import           Data.Vinyl
 import           Numeric.Backprop

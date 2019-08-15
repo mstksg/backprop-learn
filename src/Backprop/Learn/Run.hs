@@ -24,10 +24,8 @@ import           Data.Bool
 import           Data.Conduit
 import           Data.Finite
 import           Data.Foldable
-import           Data.Functor.Identity
 import           Data.Proxy
 import           Data.Type.Functor.Product
-import           Data.Type.Mayb
 import           GHC.TypeNats
 import           Numeric.LinearAlgebra.Static
 import           Numeric.LinearAlgebra.Static.Vector
@@ -82,9 +80,9 @@ conseq n = void . runMaybeT $ do
 conduitModel
     :: (Backprop b, AllConstrainedProd Backprop s, Monad m)
     => Model p s a b
-    -> PMaybe Identity p
-    -> PMaybe Identity s
-    -> ConduitT a b m (PMaybe Identity s)
+    -> TMaybe p
+    -> TMaybe s
+    -> ConduitT a b m (TMaybe s)
 conduitModel f p = go
   where
     go s = do
@@ -100,9 +98,9 @@ conduitModelStoch
     :: (Backprop b, AllConstrainedProd Backprop s, PrimMonad m)
     => Model p s a b
     -> MWC.Gen (PrimState m)
-    -> PMaybe Identity p
-    -> PMaybe Identity s
-    -> ConduitT a b m (PMaybe Identity s)
+    -> TMaybe p
+    -> TMaybe s
+    -> ConduitT a b m (TMaybe s)
 conduitModelStoch f g p = go
   where
     go s = do
