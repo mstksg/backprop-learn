@@ -5,19 +5,19 @@
 
 packages:
 - completed:
-    size: 27056
-    url: https://github.com/mstksg/opto/archive/45809e7cd5d3457cd618cb8c574dc84b339cd65c.tar.gz
+    size: 27278
+    url: https://github.com/mstksg/opto/archive/e82cf2aaf39843771a4cf198f84351ecbb796b74.tar.gz
     cabal-file:
       size: 2371
       sha256: 0c79a503a209b39df3fc2a3411953efc39d0e26cadf70b5600a8a1afffff8c7a
     name: opto
     version: 0.1.0.0
-    sha256: 0923afece7e9ccf47949fb6404a44a5ab444b2a8ef18d6b0111cb70a77cd6078
+    sha256: 04096307f374c06767c17b00c482cb1e0390e7bf8d6b4ee4b8ac507e3681c85e
     pantry-tree:
       size: 1215
-      sha256: 54a1c5f0d7dac736630cf73f39ecd9a835df7cfb61faecd13f4e17d6e8592d30
+      sha256: e13d602cc5e93afb35785405d5380f90394c78b55302feeeed038fa2d1de6a5a
   original:
-    url: https://github.com/mstksg/opto/archive/45809e7cd5d3457cd618cb8c574dc84b339cd65c.tar.gz
+    url: https://github.com/mstksg/opto/archive/e82cf2aaf39843771a4cf198f84351ecbb796b74.tar.gz
 - completed:
     hackage: decidable-0.2.0.0@sha256:26ed0030afd612d7cb25e7ed56db905f7d1bfc2ecf7bc78dc5bb11c6daf0fc95,1766
     pantry-tree:

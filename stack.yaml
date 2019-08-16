@@ -66,7 +66,7 @@ extra-deps:
 # - github: mstksg/type-combinators
 #   commit: 50334ab6bc3e5c3aee53c881a027f687fde13fa4
 - github: mstksg/opto
-  commit: 45809e7cd5d3457cd618cb8c574dc84b339cd65c
+  commit: e82cf2aaf39843771a4cf198f84351ecbb796b74
 # - github: mstksg/backprop
 #   commit: 106371536e66d7e5e67f83f4f530c576f9ebf567
 - decidable-0.2.0.0

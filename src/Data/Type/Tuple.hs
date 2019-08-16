@@ -169,6 +169,8 @@ pattern (:&&) :: a -> T as -> T (a ': as)
 pattern x :&& xs = TF x :& xs
 {-# COMPLETE (:&&) #-}
 
+infixr 5 :&&
+
 -- | @since 0.1.5.1
 deriving instance Typeable T0
 -- | @since 0.1.5.1
