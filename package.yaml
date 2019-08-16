@@ -24,10 +24,17 @@ ghc-options:
 - -Wcompat
 - -Wincomplete-record-updates
 - -Wredundant-constraints
-- -O0
+# - -O0
 
 dependencies:
 - base >=4.7 && <5
+- ghc-typelits-extra
+- ghc-typelits-knownnat
+- mwc-random
+- ghc-typelits-natnormalise
+- hmatrix
+- hmatrix-backprop >= 0.1.2.2
+- opto
 
 library:
   source-dirs: src
@@ -37,24 +44,16 @@ library:
   - bytestring
   - conduit
   - containers
-  - decidable >= 0.2
   - deepseq
   - finite-typelits
   - foldl >= 1.4
   - functor-products
-  - ghc-typelits-extra
-  - ghc-typelits-knownnat
-  - ghc-typelits-natnormalise
-  - hmatrix
-  - hmatrix-backprop >= 0.1.2.2
   - hmatrix-vector-sized
-  - list-witnesses
+  - list-witnesses >= 0.1.2
   - microlens
   - microlens-th
-  - mwc-random
   - one-liner
   - one-liner-instances
-  - opto
   - primitive
   - profunctors
   - singletons
@@ -72,7 +71,6 @@ _exec: &exec
   - -rtsopts
   - -with-rtsopts=-N
   - -O2
-  - -Wall
 
 executables:
   backprop-learn-mnist:
@@ -82,14 +80,7 @@ executables:
     - backprop-learn
     - data-default
     - filepath
-    - ghc-typelits-extra
-    - ghc-typelits-knownnat
-    - ghc-typelits-natnormalise
-    - hmatrix
-    - hmatrix-backprop >= 0.1.2.2
     - mnist-idx
-    - mwc-random
-    - opto
     - transformers
     - vector >= 0.12.0.2
   backprop-learn-series:
@@ -101,13 +92,7 @@ executables:
     - conduit
     - data-default
     - deepseq
-    - ghc-typelits-extra
-    - ghc-typelits-knownnat
-    - ghc-typelits-natnormalise
-    - hmatrix
     - hmatrix-backprop >= 0.1.2.2
-    - mwc-random
-    - opto
     - optparse-applicative
     - primitive
     - singletons
@@ -126,14 +111,7 @@ executables:
     - containers
     - data-default
     - deepseq
-    - ghc-typelits-extra
-    - ghc-typelits-knownnat
-    - ghc-typelits-natnormalise
-    - hmatrix
-    - hmatrix-backprop >= 0.1.2.2
     - hmatrix-vector-sized
-    - mwc-random
-    - opto
     - text
     - time
     - transformers
@@ -147,13 +125,7 @@ executables:
     - containers
     - data-default
     - deepseq
-    - ghc-typelits-extra
-    - ghc-typelits-knownnat
-    - ghc-typelits-natnormalise
     - hmatrix
-    - hmatrix-backprop >= 0.1.2.2
-    - mwc-random
-    - opto
     - text
     - time
     - transformers
