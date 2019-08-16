@@ -161,6 +161,7 @@ newtype TF a
 TF :: a -> TF a
 [getTF] :: TF a -> a
 pattern (:&&) :: a -> T as -> T (a : as)
+infixr 5 :&&
 
 -- | Index into a <a>T</a>.
 --   
@@ -804,8 +805,8 @@ data LRp (i :: Nat) (o :: Nat)
 LRp :: !R o -> !L o i -> LRp
 [_lrAlpha] :: LRp -> !R o
 [_lrBeta] :: LRp -> !L o i
-lrAlpha :: forall i_a1uxM o_a1uxN. Lens' (LRp i_a1uxM o_a1uxN) (R o_a1uxN)
-lrBeta :: forall i_a1uxM o_a1uxN i_a1uM0. Lens (LRp i_a1uxM o_a1uxN) (LRp i_a1uM0 o_a1uxN) (L o_a1uxN i_a1uxM) (L o_a1uxN i_a1uM0)
+lrAlpha :: forall i_a1uDY o_a1uDZ. Lens' (LRp i_a1uDY o_a1uDZ) (R o_a1uDZ)
+lrBeta :: forall i_a1uDY o_a1uDZ i_a1uSc. Lens (LRp i_a1uDY o_a1uDZ) (LRp i_a1uSc o_a1uDZ) (L o_a1uDZ i_a1uDY) (L o_a1uDZ i_a1uSc)
 runLRp :: (KnownNat i, KnownNat o, Reifies s W) => BVar s (LRp i o) -> BVar s (R i) -> BVar s (R o)
 
 -- | Reshape an <a>LRp</a> to take more or less inputs. If more, new
@@ -846,12 +847,12 @@ data ARIMAp :: Nat -> Nat -> Type
 -- | <tt>ARIMA</tt> state
 data ARIMAs :: Nat -> Nat -> Nat -> Type
 [ARIMAs] :: {_arimaYPred :: !Double, _arimaYHist :: !R (p + d), _arimaEHist :: !R q} -> ARIMAs p d q
-arimaPhi :: forall a_a1uS3 b_a1uS4 a_a1vix. Lens (ARIMAp a_a1uS3 b_a1uS4) (ARIMAp a_a1vix b_a1uS4) (R a_a1uS3) (R a_a1vix)
-arimaTheta :: forall a_a1uS3 b_a1uS4 b_a1viy. Lens (ARIMAp a_a1uS3 b_a1uS4) (ARIMAp a_a1uS3 b_a1viy) (R b_a1uS4) (R b_a1viy)
-arimaConstant :: forall a_a1uS3 b_a1uS4. Lens' (ARIMAp a_a1uS3 b_a1uS4) Double
-arimaYPred :: forall a_a1vjn b_a1vjo c_a1vjp. Lens' (ARIMAs a_a1vjn b_a1vjo c_a1vjp) Double
-arimaYHist :: forall a_a1vjn b_a1vjo c_a1vjp a_a1vqj b_a1vqk. Lens (ARIMAs a_a1vjn b_a1vjo c_a1vjp) (ARIMAs a_a1vqj b_a1vqk c_a1vjp) (R ((+) a_a1vjn b_a1vjo)) (R ((+) a_a1vqj b_a1vqk))
-arimaEHist :: forall a_a1vjn b_a1vjo c_a1vjp c_a1vqi. Lens (ARIMAs a_a1vjn b_a1vjo c_a1vjp) (ARIMAs a_a1vjn b_a1vjo c_a1vqi) (R c_a1vjp) (R c_a1vqi)
+arimaPhi :: forall a_a1uYf b_a1uYg a_a1voJ. Lens (ARIMAp a_a1uYf b_a1uYg) (ARIMAp a_a1voJ b_a1uYg) (R a_a1uYf) (R a_a1voJ)
+arimaTheta :: forall a_a1uYf b_a1uYg b_a1voK. Lens (ARIMAp a_a1uYf b_a1uYg) (ARIMAp a_a1uYf b_a1voK) (R b_a1uYg) (R b_a1voK)
+arimaConstant :: forall a_a1uYf b_a1uYg. Lens' (ARIMAp a_a1uYf b_a1uYg) Double
+arimaYPred :: forall a_a1vpz b_a1vpA c_a1vpB. Lens' (ARIMAs a_a1vpz b_a1vpA c_a1vpB) Double
+arimaYHist :: forall a_a1vpz b_a1vpA c_a1vpB a_a1vwv b_a1vww. Lens (ARIMAs a_a1vpz b_a1vpA c_a1vpB) (ARIMAs a_a1vwv b_a1vww c_a1vpB) (R ((+) a_a1vpz b_a1vpA)) (R ((+) a_a1vwv b_a1vww))
+arimaEHist :: forall a_a1vpz b_a1vpA c_a1vpB c_a1vwu. Lens (ARIMAs a_a1vpz b_a1vpA c_a1vpB) (ARIMAs a_a1vpz b_a1vpA c_a1vwu) (R c_a1vpB) (R c_a1vwu)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARIMAp p q)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARIMAs p d q)
 instance GHC.Num.Num (Backprop.Learn.Model.Regression.ARIMAp p q)
@@ -945,10 +946,10 @@ LSTMp :: !FCp (i + o) o -> !FCp (i + o) o -> !FCp (i + o) o -> !FCp (i + o) o ->
 [_lstmInput] :: LSTMp -> !FCp (i + o) o
 [_lstmUpdate] :: LSTMp -> !FCp (i + o) o
 [_lstmOutput] :: LSTMp -> !FCp (i + o) o
-lstmForget :: forall i_a1Wvk o_a1Wvl. Lens' (LSTMp i_a1Wvk o_a1Wvl) (FCp ((+) i_a1Wvk o_a1Wvl) o_a1Wvl)
-lstmInput :: forall i_a1Wvk o_a1Wvl. Lens' (LSTMp i_a1Wvk o_a1Wvl) (FCp ((+) i_a1Wvk o_a1Wvl) o_a1Wvl)
-lstmUpdate :: forall i_a1Wvk o_a1Wvl. Lens' (LSTMp i_a1Wvk o_a1Wvl) (FCp ((+) i_a1Wvk o_a1Wvl) o_a1Wvl)
-lstmOutput :: forall i_a1Wvk o_a1Wvl. Lens' (LSTMp i_a1Wvk o_a1Wvl) (FCp ((+) i_a1Wvk o_a1Wvl) o_a1Wvl)
+lstmForget :: forall i_a1WzJ o_a1WzK. Lens' (LSTMp i_a1WzJ o_a1WzK) (FCp ((+) i_a1WzJ o_a1WzK) o_a1WzK)
+lstmInput :: forall i_a1WzJ o_a1WzK. Lens' (LSTMp i_a1WzJ o_a1WzK) (FCp ((+) i_a1WzJ o_a1WzK) o_a1WzK)
+lstmUpdate :: forall i_a1WzJ o_a1WzK. Lens' (LSTMp i_a1WzJ o_a1WzK) (FCp ((+) i_a1WzJ o_a1WzK) o_a1WzK)
+lstmOutput :: forall i_a1WzJ o_a1WzK. Lens' (LSTMp i_a1WzJ o_a1WzK) (FCp ((+) i_a1WzJ o_a1WzK) o_a1WzK)
 reshapeLSTMpInput :: (ContGen d, PrimMonad m, KnownNat i, KnownNat i', KnownNat o) => d -> Gen (PrimState m) -> LSTMp i o -> m (LSTMp i' o)
 reshapeLSTMpOutput :: (ContGen d, PrimMonad m, KnownNat i, KnownNat o, KnownNat o') => d -> Gen (PrimState m) -> LSTMp i o -> m (LSTMp i o')
 
@@ -963,9 +964,9 @@ GRUp :: !FCp (i + o) o -> !FCp (i + o) o -> !FCp (i + o) o -> GRUp
 [_gruMemory] :: GRUp -> !FCp (i + o) o
 [_gruUpdate] :: GRUp -> !FCp (i + o) o
 [_gruOutput] :: GRUp -> !FCp (i + o) o
-gruMemory :: forall i_a1WC5 o_a1WC6. Lens' (GRUp i_a1WC5 o_a1WC6) (FCp ((+) i_a1WC5 o_a1WC6) o_a1WC6)
-gruUpdate :: forall i_a1WC5 o_a1WC6. Lens' (GRUp i_a1WC5 o_a1WC6) (FCp ((+) i_a1WC5 o_a1WC6) o_a1WC6)
-gruOutput :: forall i_a1WC5 o_a1WC6. Lens' (GRUp i_a1WC5 o_a1WC6) (FCp ((+) i_a1WC5 o_a1WC6) o_a1WC6)
+gruMemory :: forall i_a1WGu o_a1WGv. Lens' (GRUp i_a1WGu o_a1WGv) (FCp ((+) i_a1WGu o_a1WGv) o_a1WGv)
+gruUpdate :: forall i_a1WGu o_a1WGv. Lens' (GRUp i_a1WGu o_a1WGv) (FCp ((+) i_a1WGu o_a1WGv) o_a1WGv)
+gruOutput :: forall i_a1WGu o_a1WGv. Lens' (GRUp i_a1WGu o_a1WGv) (FCp ((+) i_a1WGu o_a1WGv) o_a1WGv)
 instance Control.DeepSeq.NFData (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
 instance (Control.Monad.Primitive.PrimMonad m, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Ref.Mutable m (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Linear GHC.Types.Double (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
