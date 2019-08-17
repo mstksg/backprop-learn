@@ -106,6 +106,8 @@ instance RPureConstrained Initialize as => Initialize (T as) where
 instance Initialize ()
 instance (Initialize a, Initialize b) => Initialize (a, b)
 instance (Initialize a, Initialize b, Initialize c) => Initialize (a, b, c)
+instance (Initialize a, Initialize b, Initialize c, Initialize d) => Initialize (a, b, c, d)
+instance (Initialize a, Initialize b, Initialize c, Initialize d, Initialize e) => Initialize (a, b, c, d, e)
 
 instance (VG.Vector v a, KnownNat n, Initialize a) => Initialize (SVG.Vector v n a) where
     initialize d = SVG.replicateM . initialize d

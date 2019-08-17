@@ -185,6 +185,7 @@ instance (NFData a, NFData b) => NFData (a :# b)
 instance Bi.Binary T0
 -- | @since 0.1.5.1
 instance (Bi.Binary a, Bi.Binary b) => Bi.Binary (a :# b)
+instance Bi.Binary a => Bi.Binary (TF a)
 
 instance Bifunctor (:#) where
     bimap f g (x :# y) = f x :# g y
@@ -458,10 +459,15 @@ pattern x :## y <- (\xy -> (xy ^^. _1, xy ^^. _2) -> (x, y))
     (:##) = isoVar2 (:#) t2Tup
 {-# COMPLETE (:##) #-}
 
-instance PrimMonad m => Mutable m (a :# b)
+instance (Mutable m a, Mutable m b) => Mutable m (a :# b) where
+    type Ref m (a :# b) = GRef m (a :# b)
+    thawRef = gThawRef
+    freezeRef = gFreezeRef
+    copyRef = gCopyRef
 instance (Linear c a, Linear c b) => Linear c (a :# b)
 instance (Floating c, Ord c, Metric c a, Metric c b) => Metric c (a :# b)
-instance (PrimMonad m, LinearInPlace m c a, LinearInPlace m c b) => LinearInPlace m c (a :# b)
+instance (LinearInPlace m c a, LinearInPlace m c b) => LinearInPlace m c (a :# b)
+
 
 instance RPureConstrained NFData as => NFData (Rec TF as) where
     rnf = go (rpureConstrained @NFData (Co.Op rnf))

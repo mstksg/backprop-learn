@@ -1,7 +1,9 @@
 {-# LANGUAGE AllowAmbiguousTypes                      #-}
 {-# LANGUAGE ApplicativeDo                            #-}
+{-# LANGUAGE DeriveAnyClass                           #-}
 {-# LANGUAGE DeriveDataTypeable                       #-}
 {-# LANGUAGE DeriveGeneric                            #-}
+{-# LANGUAGE DerivingVia                              #-}
 {-# LANGUAGE FlexibleContexts                         #-}
 {-# LANGUAGE FlexibleInstances                        #-}
 {-# LANGUAGE GADTs                                    #-}
@@ -36,11 +38,12 @@ module Backprop.Learn.Model.Regression (
   , arimaPhi, arimaTheta, arimaConstant, arimaYPred, arimaYHist, arimaEHist
   ) where
 
--- import           Data.Singletons.TH
 import           Backprop.Learn.Initialize
 import           Backprop.Learn.Model.Combinator
 import           Backprop.Learn.Model.Function
 import           Backprop.Learn.Model.Types
+import           Backprop.Learn.Regularize
+import           Control.Applicative
 import           Control.DeepSeq
 import           Control.Monad.Primitive
 import           Data.Finite
@@ -53,6 +56,8 @@ import           Data.Typeable
 import           GHC.Generics                          (Generic)
 import           GHC.TypeLits.Compare
 import           GHC.TypeNats
+import           Lens.Micro
+import           Lens.Micro.Extras
 import           Lens.Micro.TH
 import           Numeric.Backprop
 import           Numeric.LinearAlgebra.Static.Backprop
@@ -75,24 +80,33 @@ data LRp (i :: Nat) (o :: Nat) = LRp
     { _lrAlpha :: !(R o)
     , _lrBeta  :: !(L o i)
     }
-  deriving (Generic, Typeable, Show)
+  deriving stock     (Generic, Typeable, Show)
+  deriving anyclass  (NFData, Linear Double, Metric Double, Bi.Binary, Initialize, Backprop)
+
+deriving via (GNum (LRp i o)) instance (KnownNat i, KnownNat o) => Num (LRp i o)
+deriving via (GNum (LRp i o)) instance (KnownNat i, KnownNat o) => Fractional (LRp i o)
+deriving via (GNum (LRp i o)) instance (KnownNat i, KnownNat o) => Floating (LRp i o)
 
 makeLenses ''LRp
 
--- genSingletons [''LRp]
-
-instance NFData (LRp i o)
 instance (PrimMonad m, KnownNat i, KnownNat o) => Mutable m (LRp i o) where
     type Ref m (LRp i o) = GRef m (LRp i o)
     thawRef   = gThawRef
     freezeRef = gFreezeRef
     copyRef   = gCopyRef
-instance (KnownNat i, KnownNat o) => Initialize (LRp i o)
-instance (KnownNat i, KnownNat o) => Linear Double (LRp i o)
-instance (KnownNat i, KnownNat o) => Metric Double (LRp i o)
 instance (PrimMonad m, KnownNat i, KnownNat o) => LinearInPlace m Double (LRp i o)
-instance (KnownNat i, KnownNat o) => Bi.Binary (LRp i o)
-instance (KnownNat i, KnownNat o) => Backprop (LRp i o)
+
+instance (KnownNat i, KnownNat o) => Regularize (LRp i o) where
+    rnorm_1 = rnorm_1 . _lrBeta
+    rnorm_2 = rnorm_2 . _lrBeta
+    lasso r LRp{..} = LRp { _lrAlpha = 0
+                          , _lrBeta  = lasso r _lrBeta
+                          }
+    ridge r LRp{..} = LRp { _lrAlpha = 0
+                          , _lrBeta  = ridge r _lrBeta
+                          }
+
+instance (KnownNat i, KnownNat o, PrimMonad m) => Learnable m (LRp i o)
 
 runLRp
     :: (KnownNat i, KnownNat o, Reifies s W)
@@ -182,37 +196,6 @@ permuteLRpOutput is LRp{..} =
     α = rVec _lrAlpha
     β = lRows _lrBeta
 
-instance (KnownNat i, KnownNat o) => Num (LRp i o) where
-    (+)         = gPlus
-    (-)         = gMinus
-    (*)         = gTimes
-    negate      = gNegate
-    abs         = gAbs
-    signum      = gSignum
-    fromInteger = gFromInteger
-
-instance (KnownNat i, KnownNat o) => Fractional (LRp i o) where
-    (/)          = gDivide
-    recip        = gRecip
-    fromRational = gFromRational
-
-instance (KnownNat i, KnownNat o) => Floating (LRp i o) where
-    pi    = gPi
-    sqrt  = gSqrt
-    exp   = gExp
-    log   = gLog
-    sin   = gSin
-    cos   = gCos
-    tan   = gTan
-    asin  = gAsin
-    acos  = gAcos
-    atan  = gAtan
-    sinh  = gSinh
-    cosh  = gCosh
-    asinh = gAsinh
-    acosh = gAcosh
-    atanh = gAtanh
-
 -- | 'ARIMA' parmaeters
 data ARIMAp :: Nat -> Nat -> Type where
     ARIMAp :: { _arimaPhi      :: !(R p)
@@ -220,7 +203,12 @@ data ARIMAp :: Nat -> Nat -> Type where
               , _arimaConstant :: !Double
               }
            -> ARIMAp p q
-  deriving (Generic, Typeable, Show)
+  deriving stock     (Generic, Typeable, Show)
+  deriving anyclass  (NFData, Linear Double, Metric Double, Initialize, Backprop, Bi.Binary)
+
+deriving via (GNum (ARIMAp p q)) instance Num (ARIMAp p q)
+deriving via (GNum (ARIMAp p q)) instance Fractional (ARIMAp p q)
+deriving via (GNum (ARIMAp p q)) instance Floating (ARIMAp p q)
 
 makeLenses ''ARIMAp
 
@@ -231,10 +219,15 @@ data ARIMAs :: Nat -> Nat -> Nat -> Type where
               , _arimaEHist :: !(R q)
               }
           -> ARIMAs p d q
-  deriving (Generic, Typeable, Show)
+  deriving stock     (Generic, Typeable, Show)
+  deriving anyclass  (NFData, Linear Double, Metric Double, Initialize, Backprop, Bi.Binary)
+
+deriving via (NoRegularize (ARIMAs p d q)) instance Regularize (ARIMAs p d q)
+deriving via (GNum (ARIMAs p d q)) instance Num (ARIMAs p d q)
+deriving via (GNum (ARIMAs p d q)) instance Fractional (ARIMAs p d q)
+deriving via (GNum (ARIMAs p d q)) instance Floating (ARIMAs p d q)
 
 makeLenses ''ARIMAs
-
 
 arima
     :: forall p d q. (KnownNat p, KnownNat d, KnownNat q)
@@ -308,69 +301,6 @@ difference = fromJust . H.create $ difference' (n + m) n
     n = fromIntegral $ natVal (Proxy @n)
     m = fromIntegral $ natVal (Proxy @m)
 
-instance NFData (ARIMAp p q)
-instance NFData (ARIMAs p d q)
-
-instance Num (ARIMAp p q) where
-    (+)         = gPlus
-    (-)         = gMinus
-    (*)         = gTimes
-    negate      = gNegate
-    abs         = gAbs
-    signum      = gSignum
-    fromInteger = gFromInteger
-
-instance Num (ARIMAs p d q) where
-    (+)         = gPlus
-    (-)         = gMinus
-    (*)         = gTimes
-    negate      = gNegate
-    abs         = gAbs
-    signum      = gSignum
-    fromInteger = gFromInteger
-
-instance Fractional (ARIMAp p q) where
-    (/)          = gDivide
-    recip        = gRecip
-    fromRational = gFromRational
-
-instance Fractional (ARIMAs p d q) where
-    (/)          = gDivide
-    recip        = gRecip
-    fromRational = gFromRational
-
-instance Floating (ARIMAp p q) where
-    pi    = gPi
-    sqrt  = gSqrt
-    exp   = gExp
-    log   = gLog
-    sin   = gSin
-    cos   = gCos
-    asin  = gAsin
-    acos  = gAcos
-    atan  = gAtan
-    sinh  = gSinh
-    cosh  = gCosh
-    asinh = gAsinh
-    acosh = gAcosh
-    atanh = gAtanh
-
-instance Floating (ARIMAs p d q) where
-    pi    = gPi
-    sqrt  = gSqrt
-    exp   = gExp
-    log   = gLog
-    sin   = gSin
-    cos   = gCos
-    asin  = gAsin
-    acos  = gAcos
-    atan  = gAtan
-    sinh  = gSinh
-    cosh  = gCosh
-    asinh = gAsinh
-    acosh = gAcosh
-    atanh = gAtanh
-
 instance (PrimMonad m, KnownNat p, KnownNat q) => Mutable m (ARIMAp p q) where
     type Ref m (ARIMAp p q) = GRef m (ARIMAp p q)
     thawRef = gThawRef
@@ -383,20 +313,20 @@ instance (PrimMonad m, KnownNat p, KnownNat d, KnownNat q) => Mutable m (ARIMAs 
     freezeRef = gFreezeRef
     copyRef = gCopyRef
 
-instance (KnownNat p, KnownNat q) => Linear Double (ARIMAp p q)
-instance (KnownNat p, KnownNat d, KnownNat q) => Linear Double (ARIMAs p d q)
+instance (KnownNat p, KnownNat q, PrimMonad m)  => LinearInPlace m Double (ARIMAp p q)
+instance (KnownNat p, KnownNat d, KnownNat q, PrimMonad m) => LinearInPlace m Double (ARIMAs p d q)
 
-instance (KnownNat p, KnownNat q) => Metric  Double (ARIMAp p q)
-instance (KnownNat p, KnownNat d, KnownNat q) => Metric  Double (ARIMAs p d q)
+instance (KnownNat p, KnownNat q) => Regularize (ARIMAp p q) where
+    rnorm_1 ARIMAp{..} = rnorm_1 _arimaPhi + rnorm_1 _arimaTheta
+    rnorm_2 ARIMAp{..} = rnorm_2 _arimaPhi + rnorm_2 _arimaTheta
+    lasso r ARIMAp{..} = ARIMAp { _arimaPhi      = lasso r _arimaPhi
+                                , _arimaTheta    = lasso r _arimaTheta
+                                , _arimaConstant = 0
+                                }
+    ridge r ARIMAp{..} = ARIMAp { _arimaPhi      = ridge r _arimaPhi
+                                , _arimaTheta    = ridge r _arimaTheta
+                                , _arimaConstant = 0
+                                }
 
-instance (KnownNat p, KnownNat q, Mutable m (ARIMAp p q)) => LinearInPlace m Double (ARIMAp p q)
-instance (KnownNat p, KnownNat d, KnownNat q, Mutable m (ARIMAs p d q)) => LinearInPlace m Double (ARIMAs p d q)
-
-instance (KnownNat p, KnownNat q) => Initialize (ARIMAp p q)
-instance (KnownNat p, KnownNat d, KnownNat q) => Initialize (ARIMAs p d q)
-
-instance (KnownNat p, KnownNat q) => Bi.Binary (ARIMAp p q)
-instance (KnownNat p, KnownNat d, KnownNat q) => Bi.Binary (ARIMAs p d q)
-
-instance (KnownNat p, KnownNat q) => Backprop (ARIMAp p q)
-instance (KnownNat p, KnownNat d, KnownNat q) => Backprop (ARIMAs p d q)
+instance (KnownNat p, KnownNat q, PrimMonad m) => Learnable m (ARIMAp p q)
+instance (KnownNat p, KnownNat d, KnownNat q, PrimMonad m) => Learnable m (ARIMAs p d q)

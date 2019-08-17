@@ -1,46 +1,58 @@
-{-# LANGUAGE ConstraintKinds  #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GADTs            #-}
-{-# LANGUAGE KindSignatures   #-}
-{-# LANGUAGE PatternSynonyms  #-}
-{-# LANGUAGE RankNTypes       #-}
-{-# LANGUAGE TupleSections    #-}
-{-# LANGUAGE TypeFamilies     #-}
-{-# LANGUAGE TypeInType       #-}
-{-# LANGUAGE ViewPatterns     #-}
+{-# LANGUAGE ConstraintKinds       #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PatternSynonyms       #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE TupleSections         #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeInType            #-}
+{-# LANGUAGE UndecidableInstances  #-}
+{-# LANGUAGE ViewPatterns          #-}
 
 module Backprop.Learn.Model.Types (
-    -- * Model type
+  -- * Model type
     ModelFunc, ModelFuncStoch
   , Model(..)
   , modelD
-    -- * Specialized Models
-    -- ** Stateless
+  -- * Specialized Models
+  -- ** Stateless
   , ModelFuncStateless, ModelFuncStochStateless
   , ModelStateless, pattern ModelStateless, runLearnStateless, runLearnStochStateless
   , modelStatelessD
-    -- ** Stateless and Parameterless
+  -- ** Stateless and Parameterless
   , BFunc, BFuncStoch
   , Func, pattern Func, runFunc, runFuncStoch
   , funcD
-    -- * Manipulating models as functions
+  -- * Manipulating models as functions
   , ModelFuncM, withModelFunc0, withModelFunc, withModelFunc2
-    -- * Utility
-  , PMaybe(..), TMaybe, fromPJust, Learnables
+  -- * Utility
+  , PMaybe(..), TMaybe, fromPJust, Learnables, Learnable
   -- , HKD
   ) where
 
+import           Backprop.Learn.Initialize
+import           Backprop.Learn.Regularize
 import           Control.Category
+import           Control.DeepSeq
 import           Control.Monad.Primitive
+import           Numeric.Opto.Update
 import           Control.Monad.Trans.Reader
 import           Data.Functor.Identity
 import           Data.Kind
 import           Data.Type.Functor.Product
 import           Data.Type.Tuple
 import           Data.Vinyl
+import           GHC.TypeNats
 import           Numeric.Backprop
-import           Prelude hiding             ((.))
-import qualified System.Random.MWC          as MWC
+import           Prelude hiding               ((.))
+import qualified Data.Binary                  as Bi
+import qualified Data.Vector.Generic          as VG
+import qualified Data.Vector.Generic.Sized    as SVG
+import qualified Numeric.LinearAlgebra.Static as H
+import qualified System.Random.MWC            as MWC
 
 type ModelFunc p s a b = forall z. Reifies z W
     => PMaybe (BVar z) p
@@ -217,8 +229,17 @@ type Learnables as = ( RecApplicative as
                      , RApply as
                      )
 
--- -- | Helper type family for HKD data types.  See
--- -- <http://reasonablypolymorphic.com/blog/higher-kinded-data>
--- type family HKD f a where
---     HKD I a = a
---     HKD f a = f a
+-- | Helpful utility class for ensuring that a parameter or state type is
+-- Learnable
+class ( Initialize a, Regularize a, Bi.Binary a, NFData a, LinearInPlace m Double a )
+        => Learnable m a
+
+instance (Initialize a, Regularize a, Bi.Binary a, NFData a, LinearInPlace m Double a)
+    => Learnable m (TF a)
+instance (Initialize a, Initialize b, Regularize a, Regularize b, Bi.Binary a, Bi.Binary b, NFData a, NFData b, LinearInPlace m Double a, LinearInPlace m Double b)
+    => Learnable m (a :# b)
+
+instance (RPureConstrained Initialize as, RPureConstrained Regularize as, RPureConstrained Bi.Binary as, RPureConstrained NFData as, ReifyConstraint Backprop TF as, RMap as, RApply as, RFoldMap as, RecordToList as, LinearInPlace m Double (Rec TF as))
+        => Learnable m (Rec TF as)
+instance (KnownNat n, PrimMonad m) => Learnable m (H.R n)
+instance (KnownNat n, KnownNat o, PrimMonad m) => Learnable m (H.L n o)
