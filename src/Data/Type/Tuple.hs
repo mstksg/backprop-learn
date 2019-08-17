@@ -100,7 +100,6 @@ module Data.Type.Tuple (
   ) where
 
 import           Control.DeepSeq
-import           Control.Monad.Primitive
 import           Data.Bifunctor
 import           Data.Coerce
 import           Data.Data

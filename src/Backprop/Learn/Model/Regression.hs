@@ -43,7 +43,6 @@ import           Backprop.Learn.Model.Combinator
 import           Backprop.Learn.Model.Function
 import           Backprop.Learn.Model.Types
 import           Backprop.Learn.Regularize
-import           Control.Applicative
 import           Control.DeepSeq
 import           Control.Monad.Primitive
 import           Data.Finite
@@ -56,8 +55,6 @@ import           Data.Typeable
 import           GHC.Generics                          (Generic)
 import           GHC.TypeLits.Compare
 import           GHC.TypeNats
-import           Lens.Micro
-import           Lens.Micro.Extras
 import           Lens.Micro.TH
 import           Numeric.Backprop
 import           Numeric.LinearAlgebra.Static.Backprop

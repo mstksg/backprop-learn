@@ -1,6 +1,8 @@
 {-# LANGUAGE DataKinds                                #-}
+{-# LANGUAGE DeriveAnyClass                           #-}
 {-# LANGUAGE DeriveDataTypeable                       #-}
 {-# LANGUAGE DeriveGeneric                            #-}
+{-# LANGUAGE DerivingVia                              #-}
 {-# LANGUAGE FlexibleInstances                        #-}
 {-# LANGUAGE GADTs                                    #-}
 {-# LANGUAGE KindSignatures                           #-}
@@ -9,6 +11,7 @@
 {-# LANGUAGE RankNTypes                               #-}
 {-# LANGUAGE RecordWildCards                          #-}
 {-# LANGUAGE ScopedTypeVariables                      #-}
+{-# LANGUAGE StandaloneDeriving                       #-}
 {-# LANGUAGE TemplateHaskell                          #-}
 {-# LANGUAGE TypeApplications                         #-}
 {-# LANGUAGE TypeFamilies                             #-}
@@ -64,21 +67,23 @@ data LSTMp (i :: Nat) (o :: Nat) =
           , _lstmUpdate :: !(FCp (i + o) o)
           , _lstmOutput :: !(FCp (i + o) o)
           }
-  deriving (Generic, Typeable, Show)
+  deriving stock     (Generic, Typeable, Show)
+  deriving anyclass  (NFData, Linear Double, Metric Double, Bi.Binary, Regularize, Backprop)
+
+deriving via (GNum (LSTMp i o)) instance (KnownNat i, KnownNat o) => Num (LSTMp i o)
+deriving via (GNum (LSTMp i o)) instance (KnownNat i, KnownNat o) => Fractional (LSTMp i o)
+deriving via (GNum (LSTMp i o)) instance (KnownNat i, KnownNat o) => Floating (LSTMp i o)
 
 makeLenses ''LSTMp
 
-instance NFData (LSTMp i o)
 instance (PrimMonad m, KnownNat i, KnownNat o) => Mutable m (LSTMp i o) where
     type Ref m (LSTMp i o) = GRef m (LSTMp i o)
     thawRef   = gThawRef
     freezeRef = gFreezeRef
     copyRef   = gCopyRef
-instance (KnownNat i, KnownNat o) => Linear Double (LSTMp i o)
-instance (KnownNat i, KnownNat o) => Metric Double (LSTMp i o)
 instance (PrimMonad m, KnownNat i, KnownNat o) => LinearInPlace m Double (LSTMp i o)
-instance (KnownNat i, KnownNat o) => Bi.Binary (LSTMp i o)
-instance (KnownNat i, KnownNat o) => Backprop (LSTMp i o)
+
+instance (PrimMonad m, KnownNat i, KnownNat o) => Learnable m (LSTMp i o)
 
 lstm'
     :: (KnownNat i, KnownNat o)
@@ -137,62 +142,29 @@ instance (KnownNat i, KnownNat o) => Initialize (LSTMp i o) where
                            <*> initialize d g
                            <*> initialize d g
 
-instance (KnownNat i, KnownNat o) => Num (LSTMp i o) where
-    (+)         = gPlus
-    (-)         = gMinus
-    (*)         = gTimes
-    negate      = gNegate
-    abs         = gAbs
-    signum      = gSignum
-    fromInteger = gFromInteger
-
-instance (KnownNat i, KnownNat o) => Fractional (LSTMp i o) where
-    (/)          = gDivide
-    recip        = gRecip
-    fromRational = gFromRational
-
-instance (KnownNat i, KnownNat o) => Floating (LSTMp i o) where
-    pi    = gPi
-    sqrt  = gSqrt
-    exp   = gExp
-    log   = gLog
-    sin   = gSin
-    cos   = gCos
-    asin  = gAsin
-    acos  = gAcos
-    atan  = gAtan
-    sinh  = gSinh
-    cosh  = gCosh
-    asinh = gAsinh
-    acosh = gAcosh
-    atanh = gAtanh
-
 -- | 'GRU' layer parmateters
 data GRUp (i :: Nat) (o :: Nat) =
     GRUp { _gruMemory :: !(FCp (i + o) o)
          , _gruUpdate :: !(FCp (i + o) o)
          , _gruOutput :: !(FCp (i + o) o)
          }
-  deriving (Generic, Typeable, Show)
+  deriving stock     (Generic, Typeable, Show)
+  deriving anyclass  (NFData, Linear Double, Metric Double, Bi.Binary, Initialize, Regularize, Backprop)
+
+deriving via (GNum (GRUp i o)) instance (KnownNat i, KnownNat o) => Num (GRUp i o)
+deriving via (GNum (GRUp i o)) instance (KnownNat i, KnownNat o) => Fractional (GRUp i o)
+deriving via (GNum (GRUp i o)) instance (KnownNat i, KnownNat o) => Floating (GRUp i o)
 
 makeLenses ''GRUp
 
-instance NFData (GRUp i o)
 instance (PrimMonad m, KnownNat i, KnownNat o) => Mutable m (GRUp i o) where
     type Ref m (GRUp i o) = GRef m (GRUp i o)
     thawRef   = gThawRef
     freezeRef = gFreezeRef
     copyRef   = gCopyRef
-instance (KnownNat i, KnownNat o) => Linear Double (GRUp i o)
-instance (KnownNat i, KnownNat o) => Metric Double (GRUp i o)
 instance (KnownNat i, KnownNat o, Mutable m (GRUp i o)) => LinearInPlace m Double (GRUp i o)
-instance (KnownNat i, KnownNat o) => Bi.Binary (GRUp i o)
-instance (KnownNat i, KnownNat o) => Backprop (GRUp i o)
 
-instance (KnownNat i, KnownNat o) => Initialize (GRUp i o) where
-    initialize d g = GRUp <$> initialize d g
-                          <*> initialize d g
-                          <*> initialize d g
+instance (KnownNat i, KnownNat o, PrimMonad m) => Learnable m (GRUp i o)
 
 gru'
     :: forall i o. (KnownNat i, KnownNat o)
@@ -211,33 +183,3 @@ gru' = modelStatelessD $ \(PJust p) x ->
 gru :: (KnownNat i, KnownNat o)
     => Model ('Just (GRUp i o)) ('Just (R o)) (R i) (R o)
 gru = recurrent H.split (H.#) id gru'
-
-instance (KnownNat i, KnownNat o) => Num (GRUp i o) where
-    (+)         = gPlus
-    (-)         = gMinus
-    (*)         = gTimes
-    negate      = gNegate
-    abs         = gAbs
-    signum      = gSignum
-    fromInteger = gFromInteger
-
-instance (KnownNat i, KnownNat o) => Fractional (GRUp i o) where
-    (/)          = gDivide
-    recip        = gRecip
-    fromRational = gFromRational
-
-instance (KnownNat i, KnownNat o) => Floating (GRUp i o) where
-    pi    = gPi
-    sqrt  = gSqrt
-    exp   = gExp
-    log   = gLog
-    sin   = gSin
-    cos   = gCos
-    asin  = gAsin
-    acos  = gAcos
-    atan  = gAtan
-    sinh  = gSinh
-    cosh  = gCosh
-    asinh = gAsinh
-    acosh = gAcosh
-    atanh = gAtanh

@@ -9,6 +9,7 @@
 {-# LANGUAGE TupleSections         #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeInType            #-}
+{-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE UndecidableInstances  #-}
 {-# LANGUAGE ViewPatterns          #-}
 
@@ -30,6 +31,7 @@ module Backprop.Learn.Model.Types (
   , ModelFuncM, withModelFunc0, withModelFunc, withModelFunc2
   -- * Utility
   , PMaybe(..), TMaybe, fromPJust, Learnables, Learnable
+  , Regularize(..), Initialize(..)
   -- , HKD
   ) where
 
@@ -38,7 +40,6 @@ import           Backprop.Learn.Regularize
 import           Control.Category
 import           Control.DeepSeq
 import           Control.Monad.Primitive
-import           Numeric.Opto.Update
 import           Control.Monad.Trans.Reader
 import           Data.Functor.Identity
 import           Data.Kind
@@ -47,10 +48,9 @@ import           Data.Type.Tuple
 import           Data.Vinyl
 import           GHC.TypeNats
 import           Numeric.Backprop
+import           Numeric.Opto.Update
 import           Prelude hiding               ((.))
 import qualified Data.Binary                  as Bi
-import qualified Data.Vector.Generic          as VG
-import qualified Data.Vector.Generic.Sized    as SVG
 import qualified Numeric.LinearAlgebra.Static as H
 import qualified System.Random.MWC            as MWC
 
