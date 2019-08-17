@@ -8,56 +8,6 @@
 @package backprop-learn
 @version 0.1.0.0
 
-module Backprop.Learn.Regularize
-
--- | A regularizer on parameters
-type Regularizer p = forall s. Reifies s W => BVar s p -> BVar s Double
-class Backprop p => Regularize p
-
--- | L1 regularization
---   
---   &lt;math&gt;
---   
---   Note that typically bias terms (terms that add to inputs) are not
---   regularized. Only "weight" terms that scale inputs are typically
---   regularized.
-l1Reg :: Regularize p => Double -> Regularizer p
-
--- | L1 regularization
---   
---   &lt;math&gt;
---   
---   Note that typically bias terms (terms that add to inputs) are not
---   regularized. Only "weight" terms that scale inputs are typically
---   regularized.
-l1Reg :: (Regularize p, ADT p, Constraints p Regularize) => Double -> Regularizer p
-
--- | L2 regularization
---   
---   &lt;math&gt;
---   
---   Note that typically bias terms (terms that add to inputs) are not
---   regularized. Only "weight" terms that scale inputs are typically
---   regularized.
-l2Reg :: Regularize p => Double -> Regularizer p
-
--- | No regularization
-noReg :: Regularizer p
-
--- | Defalt L2 regularization for instances of <a>Metric</a>. This will
---   count all terms, including any potential bias terms.
-l2RegDefault :: (Metric Double p, Backprop p) => Double -> Regularizer p
-
--- | Defalt L1 regularization for instances of <a>Metric</a>. This will
---   count all terms, including any potential bias terms.
-l1RegDefault :: (Num p, Metric Double p, Backprop p) => Double -> Regularizer p
-
--- | Add together two regularizers
-addReg :: Regularizer p -> Regularizer p -> Regularizer p
-
--- | Scale a regularizer's influence
-scaleReg :: Double -> Regularizer p -> Regularizer p
-
 
 -- | If you are writing a library that needs to export <a>BVar</a>s of
 --   tuples, consider using the tuples in this module so that your library
@@ -231,6 +181,7 @@ instance Lens.Micro.Internal.Field2 (Data.Type.Tuple.T (a : b : as)) (Data.Type.
 instance Lens.Micro.Internal.Field3 (Data.Type.Tuple.T (a : b : c : as)) (Data.Type.Tuple.T (a : b : c : as)) c c
 instance (Data.Vinyl.Core.RPureConstrained GHC.Num.Num as, Data.Vinyl.Core.RPureConstrained GHC.Real.Fractional as, Data.Vinyl.Core.RMap as, Data.Vinyl.Core.RApply as) => GHC.Real.Fractional (Data.Type.Tuple.T as)
 instance (Data.Vinyl.Core.RPureConstrained GHC.Num.Num as, Data.Vinyl.Core.RPureConstrained GHC.Real.Fractional as, Data.Vinyl.Core.RPureConstrained GHC.Float.Floating as, Data.Vinyl.Core.RMap as, Data.Vinyl.Core.RApply as) => GHC.Float.Floating (Data.Type.Tuple.T as)
+instance Data.Binary.Class.Binary a => Data.Binary.Class.Binary (Data.Type.Tuple.TF a)
 instance (Data.Vinyl.Core.RPureConstrained GHC.Num.Num as, Data.Vinyl.Core.RMap as, Data.Vinyl.Core.RApply as) => GHC.Num.Num (Data.Vinyl.Core.Rec Data.Type.Tuple.TF as)
 instance Data.Vinyl.Core.RPureConstrained Control.DeepSeq.NFData as => Control.DeepSeq.NFData (Data.Vinyl.Core.Rec Data.Type.Tuple.TF as)
 instance (Data.Vinyl.Core.RPureConstrained Data.Binary.Class.Binary as, Data.Vinyl.Core.RMap as, Data.Vinyl.Core.RApply as, Data.Vinyl.Core.RecordToList as) => Data.Binary.Class.Binary (Data.Vinyl.Core.Rec Data.Type.Tuple.TF as)
@@ -249,10 +200,10 @@ instance (GHC.Float.Floating a, GHC.Float.Floating b) => GHC.Float.Floating (a D
 instance (GHC.Base.Semigroup a, GHC.Base.Semigroup b) => GHC.Base.Semigroup (a Data.Type.Tuple.:# b)
 instance (GHC.Base.Semigroup a, GHC.Base.Semigroup b, GHC.Base.Monoid a, GHC.Base.Monoid b) => GHC.Base.Monoid (a Data.Type.Tuple.:# b)
 instance (Numeric.Backprop.Class.Backprop a, Numeric.Backprop.Class.Backprop b) => Numeric.Backprop.Class.Backprop (a Data.Type.Tuple.:# b)
-instance Control.Monad.Primitive.PrimMonad m => Numeric.Opto.Ref.Mutable m (a Data.Type.Tuple.:# b)
+instance (Numeric.Opto.Ref.Mutable m a, Numeric.Opto.Ref.Mutable m b) => Numeric.Opto.Ref.Mutable m (a Data.Type.Tuple.:# b)
 instance (Numeric.Opto.Update.Linear c a, Numeric.Opto.Update.Linear c b) => Numeric.Opto.Update.Linear c (a Data.Type.Tuple.:# b)
 instance (GHC.Float.Floating c, GHC.Classes.Ord c, Numeric.Opto.Update.Metric c a, Numeric.Opto.Update.Metric c b) => Numeric.Opto.Update.Metric c (a Data.Type.Tuple.:# b)
-instance (Control.Monad.Primitive.PrimMonad m, Numeric.Opto.Update.LinearInPlace m c a, Numeric.Opto.Update.LinearInPlace m c b) => Numeric.Opto.Update.LinearInPlace m c (a Data.Type.Tuple.:# b)
+instance (Numeric.Opto.Update.LinearInPlace m c a, Numeric.Opto.Update.LinearInPlace m c b) => Numeric.Opto.Update.LinearInPlace m c (a Data.Type.Tuple.:# b)
 instance Control.DeepSeq.NFData Data.Type.Tuple.T0
 instance Data.Binary.Class.Binary Data.Type.Tuple.T0
 instance GHC.Num.Num Data.Type.Tuple.T0
@@ -261,173 +212,262 @@ instance GHC.Float.Floating Data.Type.Tuple.T0
 instance GHC.Base.Semigroup Data.Type.Tuple.T0
 instance GHC.Base.Monoid Data.Type.Tuple.T0
 
-module Backprop.Learn.Model.Types
-type ModelFunc p s a b = forall z. Reifies z W => PMaybe (BVar z) p -> BVar z a -> PMaybe (BVar z) s -> (BVar z b, PMaybe (BVar z) s)
-type ModelFuncStoch p s a b = forall m z. (PrimMonad m, Reifies z W) => Gen (PrimState m) -> PMaybe (BVar z) p -> BVar z a -> PMaybe (BVar z) s -> m (BVar z b, PMaybe (BVar z) s)
+module Backprop.Learn.Regularize
 
--- | General parameterized model with potential state
-data Model :: Maybe Type -> Maybe Type -> Type -> Type -> Type
-[Model] :: {runLearn :: ModelFunc p s a b, runLearnStoch :: ModelFuncStoch p s a b} -> Model p s a b
+-- | A regularizer on parameters
+type Regularizer p = forall s. Reifies s W => BVar s p -> BVar s Double
 
--- | Construct a deterministic model, with no stochastic component.
-modelD :: ModelFunc p s a b -> Model p s a b
-type ModelFuncStateless p a b = forall z. Reifies z W => PMaybe (BVar z) p -> BVar z a -> BVar z b
-type ModelFuncStochStateless p a b = forall m z. (PrimMonad m, Reifies z W) => Gen (PrimState m) -> PMaybe (BVar z) p -> BVar z a -> m (BVar z b)
-
--- | Parameterized model with no state
-type ModelStateless p = Model p  'Nothing
-
--- | Construct a <a>ModelStateless</a>.
-pattern ModelStateless :: ModelFuncStateless p a b -> ModelFuncStochStateless p a b -> ModelStateless p a b
-runLearnStateless :: () => ModelStateless p a b -> forall z. Reifies z W => PMaybe (BVar z) p -> BVar z a -> BVar z b
-runLearnStochStateless :: () => ModelStateless p a b -> forall (m :: Type -> Type) z. (PrimMonad m, Reifies z W) => Gen (PrimState m) -> PMaybe (BVar z) p -> BVar z a -> m (BVar z b)
-
--- | Construct a deterministic stateless model, with no stochastic
---   component.
-modelStatelessD :: ModelFuncStateless p a b -> ModelStateless p a b
-type BFunc a b = forall z. Reifies z W => BVar z a -> BVar z b
-type BFuncStoch a b = forall m z. (PrimMonad m, Reifies z W) => Gen (PrimState m) -> BVar z a -> m (BVar z b)
-type Func = Model  'Nothing  'Nothing
-
--- | Unparameterized model with no state
-pattern Func :: BFunc a b -> BFuncStoch a b -> Func a b
-runFunc :: () => Func a b -> forall z. Reifies z W => BVar z a -> BVar z b
-runFuncStoch :: () => Func a b -> forall (m :: Type -> Type) z. (PrimMonad m, Reifies z W) => Gen (PrimState m) -> BVar z a -> m (BVar z b)
-
--- | Construct an deterministic unparameterized stateless model, with no
---   stochastic component.
-funcD :: BFunc a b -> Func a b
-type ModelFuncM m p s a b = forall z. Reifies z W => PMaybe (BVar z) p -> BVar z a -> PMaybe (BVar z) s -> m (BVar z b, PMaybe (BVar z) s)
-withModelFunc0 :: (forall m. Monad m => ModelFuncM m p s a b) -> Model p s a b
-withModelFunc :: (forall m. Monad m => ModelFuncM m p s a b -> ModelFuncM m q t c d) -> Model p s a b -> Model q t c d
-withModelFunc2 :: (forall m. Monad m => ModelFuncM m p s a b -> ModelFuncM m q t c d -> ModelFuncM m r u e f) -> Model p s a b -> Model q t c d -> Model r u e f
-
--- | A <tt><a>PMaybe</a> f 'Nothing</tt> contains nothing, and a
---   <tt><a>PMaybe</a> f ('Just a)</tt> contains an <tt>f a</tt>.
+-- | A class for data types that support regularization during training.
 --   
---   In practice this can be useful to write polymorphic
---   functions/abstractions that contain an argument that can be "turned
---   off" for different instances.
-data PMaybe (a :: k -> Type) (b :: Maybe k) :: forall k. () => k -> Type -> Maybe k -> Type
-[PNothing] :: forall k (a :: k -> Type) (b :: Maybe k). () => PMaybe a (Nothing :: Maybe k)
-[PJust] :: forall k (a :: k -> Type) (b :: Maybe k) (a1 :: k). () => a a1 -> PMaybe a (Just a1)
-pattern TJust :: a -> TMaybe ( 'Just a)
-type TMaybe = PMaybe TF
-fromPJust :: PMaybe f ( 'Just a) -> f a
-
--- | Combination of common constraints for type-level lists.
-type Learnables as = (RecApplicative as, ReifyConstraint Backprop TF as, RMap as, RApply as)
-instance Control.Category.Category (Backprop.Learn.Model.Types.Model p s)
-
-module Backprop.Learn.Model.Parameter
-
--- | Fix a part of a parameter as constant, preventing backpropagation
---   through it and not training it.
+--   This class is somewhat similar to <tt><a>Metric</a>
+--   <a>Double</a></tt>, in that it supports summing the components and
+--   summing squared components. However, the main difference is that when
+--   summing components, we only consider components that we want to
+--   regularize.
 --   
---   Treats a <tt>pq</tt> parameter as essentialyl a <tt>(p, q)</tt>,
---   witnessed through the split and join functions.
+--   Often, this doesn't include bias terms (terms that "add" to inputs),
+--   and only includes terms that "scale" inputs, like components in a
+--   weight matrix of a feed-forward neural network layer.
 --   
---   Takes the fixed value of <tt>q</tt>, as well as a stochastic mode
---   version with fixed distribution.
-deParam :: forall p q pq s a b. (Backprop p, Backprop q) => (pq -> (p, q)) -> (p -> q -> pq) -> q -> (forall m. PrimMonad m => Gen (PrimState m) -> m q) -> Model ( 'Just pq) s a b -> Model ( 'Just p) s a b
+--   However, if all of your components are to be regularized, you can use
+--   <a>norm_1</a>, <a>norm_2</a>, <a>lassoLinear</a>, and
+--   <a>ridgeLinear</a> as sensible implementations, or use DerivingVia
+--   with <a>RegularizeMetric</a>:
+--   
+--   <pre>
+--   data MyType = ...
+--     deriving Regularize via (RegularizeMetric MyType)
+--   </pre>
+--   
+--   You can also derive an instance where <i>no</i> are regularized, using
+--   <a>NoRegularize</a>:
+--   
+--   <pre>
+--   data MyType = ...
+--     deriving Regularize via (NoRegularize MyType)
+--   </pre>
+--   
+--   The default implementations are based on <tt>Generics</tt>, and work
+--   for types that are records of items that are all instances of
+--   <a>Regularize</a>.
+class Backprop p => Regularize p
 
--- | <a>deParam</a>, but with no special stochastic mode version.
-deParamD :: (Backprop p, Backprop q) => (pq -> (p, q)) -> (p -> q -> pq) -> q -> Model ( 'Just pq) s a b -> Model ( 'Just p) s a b
+-- | Like <a>norm_1</a>: sums all of the weights in <tt>p</tt>, but only
+--   the ones you want to regularize:
+--   
+--   &lt;math&gt;
+--   
+--   Note that typically bias terms (terms that add to inputs) are not
+--   regularized. Only "weight" terms that scale inputs are typically
+--   regularized.
+--   
+--   If <tt>p</tt> is an instance of <a>Metric</a>, then you can set
+--   <tt><a>rnorm_1</a> = <a>norm_1</a></tt>. However, this would count
+--   <i>all</i> terms in <tt>p</tt>, even potential bias terms.
+rnorm_1 :: Regularize p => p -> Double
 
--- | Pre-applies a function to a parameter before a model sees it.
---   Essentially something like <tt>lmap</tt> for parameters.
+-- | Like <a>norm_1</a>: sums all of the weights in <tt>p</tt>, but only
+--   the ones you want to regularize:
 --   
---   Takes a determinstic function and also a stochastic function for
---   stochastic mode.
-reParam :: (forall z. Reifies z W => PMaybe (BVar z) q -> PMaybe (BVar z) p) -> (forall m z. (PrimMonad m, Reifies z W) => Gen (PrimState m) -> PMaybe (BVar z) q -> m (PMaybe (BVar z) p)) -> Model p s a b -> Model q s a b
+--   &lt;math&gt;
+--   
+--   Note that typically bias terms (terms that add to inputs) are not
+--   regularized. Only "weight" terms that scale inputs are typically
+--   regularized.
+--   
+--   If <tt>p</tt> is an instance of <a>Metric</a>, then you can set
+--   <tt><a>rnorm_1</a> = <a>norm_1</a></tt>. However, this would count
+--   <i>all</i> terms in <tt>p</tt>, even potential bias terms.
+rnorm_1 :: (Regularize p, ADT p, Constraints p Regularize) => p -> Double
 
--- | <a>reParam</a>, but with no special stochastic mode function.
-reParamD :: (forall z. Reifies z W => PMaybe (BVar z) q -> PMaybe (BVar z) p) -> Model p s a b -> Model q s a b
+-- | Like <a>norm_2</a>: sums all of the <i>squares</i> of the weights n
+--   <tt>p</tt>, but only the ones you want to regularize:
+--   
+--   &lt;math&gt;
+--   
+--   Note that typically bias terms (terms that add to inputs) are not
+--   regularized. Only "weight" terms that scale inputs are typically
+--   regularized.
+--   
+--   If <tt>p</tt> is an instance of <a>Metric</a>, then you can set
+--   <tt><a>rnorm_2</a> = <a>norm_2</a></tt>. However, this would count
+--   <i>all</i> terms in <tt>p</tt>, even potential bias terms.
+rnorm_2 :: Regularize p => p -> Double
 
--- | Give an unparameterized model a "dummy" parameter. Useful for usage
---   with combinators like <a>.</a> from that require all input models to
---   share a common parameterization.
-dummyParam :: Model  'Nothing s a b -> Model p s a b
+-- | Like <a>norm_2</a>: sums all of the <i>squares</i> of the weights n
+--   <tt>p</tt>, but only the ones you want to regularize:
+--   
+--   &lt;math&gt;
+--   
+--   Note that typically bias terms (terms that add to inputs) are not
+--   regularized. Only "weight" terms that scale inputs are typically
+--   regularized.
+--   
+--   If <tt>p</tt> is an instance of <a>Metric</a>, then you can set
+--   <tt><a>rnorm_2</a> = <a>norm_2</a></tt>. However, this would count
+--   <i>all</i> terms in <tt>p</tt>, even potential bias terms.
+rnorm_2 :: (Regularize p, ADT p, Constraints p Regularize) => p -> Double
 
-module Backprop.Learn.Model.State
+-- | <tt><a>lasso</a> r p</tt> sets all regularized components (that is,
+--   components summed by <a>rnorm_1</a>) in <tt>p</tt> to be either
+--   <tt>r</tt> if that component was positive, or <tt>-r</tt> if that
+--   component was negative. Behavior is not defined if the component is
+--   exactly zero, but either <tt>r</tt> or <tt>-r</tt> are sensible
+--   possibilities.
+--   
+--   It must set all <i>non-regularized</i> components (like bias terms, or
+--   whatever items that <a>rnorm_1</a> ignores) to zero.
+--   
+--   If <tt>p</tt> is an instance of <tt><a>Linear</a> <a>Double</a></tt>
+--   and <a>Num</a>, then you can set <tt><a>lasso</a> =
+--   <a>lassoLinear</a></tt>. However, this is only valid if <a>rnorm_1</a>
+--   counts <i>all</i> terms in <tt>p</tt>, including potential bias terms.
+lasso :: Regularize p => Double -> p -> p
 
--- | Make a model stateless by converting the state to a trained parameter,
---   and dropping the modified state from the result.
+-- | <tt><a>lasso</a> r p</tt> sets all regularized components (that is,
+--   components summed by <a>rnorm_1</a>) in <tt>p</tt> to be either
+--   <tt>r</tt> if that component was positive, or <tt>-r</tt> if that
+--   component was negative. Behavior is not defined if the component is
+--   exactly zero, but either <tt>r</tt> or <tt>-r</tt> are sensible
+--   possibilities.
 --   
---   One of the ways to make a model stateless for training purposes.
---   Useful when used after <tt>Unroll</tt>. See <tt>DeState</tt>, as well.
+--   It must set all <i>non-regularized</i> components (like bias terms, or
+--   whatever items that <a>rnorm_1</a> ignores) to zero.
 --   
---   Its parameters are:
---   
---   <ul>
---   <li>If the input has no parameters, just the initial state.</li>
---   <li>If the input has a parameter, a <a>:#</a> of that parameter and
---   initial state.</li>
---   </ul>
-trainState :: forall p s a b. (PureProd Maybe p, PureProd Maybe s, AllConstrainedProd Backprop p, AllConstrainedProd Backprop s) => Model p s a b -> Model (p :#? s)  'Nothing a b
+--   If <tt>p</tt> is an instance of <tt><a>Linear</a> <a>Double</a></tt>
+--   and <a>Num</a>, then you can set <tt><a>lasso</a> =
+--   <a>lassoLinear</a></tt>. However, this is only valid if <a>rnorm_1</a>
+--   counts <i>all</i> terms in <tt>p</tt>, including potential bias terms.
+lasso :: (Regularize p, ADT p, Constraints p Regularize) => Double -> p -> p
 
--- | Make a model stateless by pre-applying a fixed state (or a stochastic
---   one with fixed stribution) and dropping the modified state from the
---   result.
+-- | <tt><a>ridge</a> r p</tt> scales all regularized components (that is,
+--   components summed by <a>rnorm_2</a>) in <tt>p</tt> by <tt>r</tt>.
 --   
---   One of the ways to make a model stateless for training purposes.
---   Useful when used after <tt>Unroll</tt>. See <tt>TrainState</tt>, as
---   well.
-deState :: s -> (forall m. PrimMonad m => Gen (PrimState m) -> m s) -> Model p ( 'Just s) a b -> Model p  'Nothing a b
+--   It must set all <i>non-regularized</i> components (like bias terms, or
+--   whatever items that <a>rnorm_2</a> ignores) to zero.
+--   
+--   If <tt>p</tt> is an instance of <tt><a>Linear</a> <a>Double</a></tt>
+--   and <a>Num</a>, then you can set <tt><a>ridge</a> =
+--   <a>ridgeLinear</a></tt>. However, this is only valid if <a>rnorm_2</a>
+--   counts <i>all</i> terms in <tt>p</tt>, including potential bias terms.
+ridge :: Regularize p => Double -> p -> p
 
--- | <a>deState</a>, except the state is always the same even in stochastic
---   mode.
-deStateD :: s -> Model p ( 'Just s) a b -> Model p  'Nothing a b
+-- | <tt><a>ridge</a> r p</tt> scales all regularized components (that is,
+--   components summed by <a>rnorm_2</a>) in <tt>p</tt> by <tt>r</tt>.
+--   
+--   It must set all <i>non-regularized</i> components (like bias terms, or
+--   whatever items that <a>rnorm_2</a> ignores) to zero.
+--   
+--   If <tt>p</tt> is an instance of <tt><a>Linear</a> <a>Double</a></tt>
+--   and <a>Num</a>, then you can set <tt><a>ridge</a> =
+--   <a>ridgeLinear</a></tt>. However, this is only valid if <a>rnorm_2</a>
+--   counts <i>all</i> terms in <tt>p</tt>, including potential bias terms.
+ridge :: (Regularize p, ADT p, Constraints p Regularize) => Double -> p -> p
 
--- | <a>deState</a> with a constant state of 0.
-zeroState :: Num s => Model p ( 'Just s) a b -> Model p  'Nothing a b
+-- | Backpropagatable L1 regularization; also known as lasso
+--   regularization.
+--   
+--   &lt;math&gt;
+--   
+--   Note that typically bias terms (terms that add to inputs) are not
+--   regularized. Only "weight" terms that scale inputs are typically
+--   regularized.
+l1Reg :: Regularize p => Double -> Regularizer p
 
--- | Give a stateless model a "dummy" state. For now, useful for using with
---   combinators like <a>deState</a> that require state. However,
---   <a>deState</a> could also be made more lenient (to accept non stateful
---   models) in the future.
+-- | Backpropagatable L2 regularization; also known as ridge
+--   regularization.
 --   
---   Also useful for usage with combinators like <a>.</a> from
---   <a>Control.Category</a> that requires all input models to share common
---   state.
-dummyState :: forall s p a b. () => Model p  'Nothing a b -> Model p s a b
+--   &lt;math&gt;
+--   
+--   Note that typically bias terms (terms that add to inputs) are not
+--   regularized. Only "weight" terms that scale inputs are typically
+--   regularized.
+l2Reg :: Regularize p => Double -> Regularizer p
 
--- | Unroll a (usually) stateful model into one taking a vector of
---   sequential inputs.
---   
---   Basically applies the model to every item of input and returns all of
---   the results, but propagating the state between every step.
---   
---   Useful when used before <a>trainState</a> or <a>deState</a>. See
---   <tt>unrollTrainState</tt> and <tt>unrollDeState</tt>.
---   
---   Compare to <tt>feedbackTrace</tt>, which, instead of receiving a
---   vector of sequential inputs, receives a single input and uses its
---   output as the next input.
-unroll :: (Traversable t, Backprop a, Backprop b) => Model p s a b -> Model p s (t a) (t b)
+-- | No regularization
+noReg :: Regularizer p
 
--- | Version of <a>unroll</a> that only keeps the "final" result, dropping
---   all of the intermediate results.
+-- | L2 regularization for instances of <a>Metric</a>. This will count all
+--   terms, including any potential bias terms.
 --   
---   Turns a stateful model into one that runs the model repeatedly on
---   multiple inputs sequentially and outputs the final result after seeing
---   all items.
---   
---   Note will be partial if given an empty sequence.
-unrollFinal :: (Traversable t, Backprop a) => Model p s a b -> Model p s (t a) b
+--   This is what <a>l2Reg</a> would be for a type <tt>p</tt> if you
+--   declare an instance of <a>Regularize</a> with <tt><a>rnorm_2</a> =
+--   <a>norm_2</a></tt>, and <tt><a>ridge</a> = <a>ridgeLinear</a></tt>.
+l2RegMetric :: (Metric Double p, Backprop p) => Double -> Regularizer p
 
--- | Fix a part of a parameter of a model to be (a function of) the
---   <i>previous</i> ouput of the model itself.
+-- | L1 regularization for instances of <a>Metric</a>. This will count all
+--   terms, including any potential bias terms.
 --   
---   Essentially, takes a &lt;math&gt; into a <i>stateful</i> &lt;math&gt;,
---   where the Y is given by a function of the <i>previous output</i> of
---   the model.
---   
---   Essentially makes a model "recurrent": it receives its previous output
---   as input.
---   
---   See <tt>fcr</tt> for an application.
-recurrent :: forall p s ab a b c. (AllConstrainedProd Backprop s, PureProd Maybe s, Backprop a, Backprop b) => (ab -> (a, b)) -> (a -> b -> ab) -> BFunc c b -> Model p s ab c -> Model p (s :#?  'Just b) a c
+--   This is what <a>l1Reg</a> would be for a type <tt>p</tt> if you
+--   declare an instance of <a>Regularize</a> with <tt><a>rnorm_1</a> =
+--   <a>norm_1</a></tt>, and <tt><a>lasso</a> = <a>lassoLinear</a></tt>.
+l1RegMetric :: (Num p, Metric Double p, Backprop p) => Double -> Regularizer p
+
+-- | Newtype wrapper (meant to be used with DerivingVia) to derive an
+--   instance of <a>Regularize</a> that uses its <a>Metric</a> instance,
+--   and regularizes every component of a data type, including any
+--   potential bias terms.
+newtype RegularizeMetric a
+RegularizeMetric :: a -> RegularizeMetric a
+
+-- | Newtype wrapper (meant to be used with DerivingVia) to derive an
+--   instance of <a>Regularize</a> that does not regularize any part of the
+--   type.
+newtype NoRegularize a
+NoRegularize :: a -> NoRegularize a
+
+-- | A default implementation of <a>lasso</a> for instances of
+--   <tt><a>Linear</a> <a>Double</a></tt> and <a>Num</a>. However, this is
+--   only valid if the corresponding <a>rnorm_1</a> counts <i>all</i> terms
+--   in <tt>p</tt>, including potential bias terms.
+lassoLinear :: (Linear Double p, Num p) => Double -> p -> p
+
+-- | A default implementation of <a>ridge</a> for instances of
+--   <tt><a>Linear</a> <a>Double</a></tt>. However, this is only valid if
+--   the corresponding <a>rnorm_2</a> counts <i>all</i> terms in
+--   <tt>p</tt>, including potential bias terms.
+ridgeLinear :: Linear Double p => Double -> p -> p
+grnorm_1 :: (ADT p, Constraints p Regularize) => p -> Double
+grnorm_2 :: (ADT p, Constraints p Regularize) => p -> Double
+glasso :: (ADT p, Constraints p Regularize) => Double -> p -> p
+gridge :: (ADT p, Constraints p Regularize) => Double -> p -> p
+
+-- | Add together two regularizers
+addReg :: Regularizer p -> Regularizer p -> Regularizer p
+
+-- | Scale a regularizer's influence
+scaleReg :: Double -> Regularizer p -> Regularizer p
+instance Numeric.Backprop.Class.Backprop a => Numeric.Backprop.Class.Backprop (Backprop.Learn.Regularize.NoRegularize a)
+instance GHC.Base.Functor Backprop.Learn.Regularize.NoRegularize
+instance GHC.Generics.Generic (Backprop.Learn.Regularize.NoRegularize a)
+instance GHC.Read.Read a => GHC.Read.Read (Backprop.Learn.Regularize.NoRegularize a)
+instance GHC.Classes.Ord a => GHC.Classes.Ord (Backprop.Learn.Regularize.NoRegularize a)
+instance GHC.Classes.Eq a => GHC.Classes.Eq (Backprop.Learn.Regularize.NoRegularize a)
+instance GHC.Show.Show a => GHC.Show.Show (Backprop.Learn.Regularize.NoRegularize a)
+instance Numeric.Backprop.Class.Backprop a => Numeric.Backprop.Class.Backprop (Backprop.Learn.Regularize.RegularizeMetric a)
+instance GHC.Base.Functor Backprop.Learn.Regularize.RegularizeMetric
+instance GHC.Generics.Generic (Backprop.Learn.Regularize.RegularizeMetric a)
+instance GHC.Read.Read a => GHC.Read.Read (Backprop.Learn.Regularize.RegularizeMetric a)
+instance GHC.Classes.Ord a => GHC.Classes.Ord (Backprop.Learn.Regularize.RegularizeMetric a)
+instance GHC.Classes.Eq a => GHC.Classes.Eq (Backprop.Learn.Regularize.RegularizeMetric a)
+instance GHC.Show.Show a => GHC.Show.Show (Backprop.Learn.Regularize.RegularizeMetric a)
+instance GHC.TypeNats.KnownNat n => Backprop.Learn.Regularize.Regularize (Internal.Static.R n)
+instance (GHC.TypeNats.KnownNat n, GHC.TypeNats.KnownNat m) => Backprop.Learn.Regularize.Regularize (Internal.Static.L n m)
+instance Numeric.Backprop.Class.Backprop a => Backprop.Learn.Regularize.Regularize (Backprop.Learn.Regularize.NoRegularize a)
+instance (Numeric.Opto.Update.Metric GHC.Types.Double p, GHC.Num.Num p, Numeric.Backprop.Class.Backprop p) => Backprop.Learn.Regularize.Regularize (Backprop.Learn.Regularize.RegularizeMetric p)
+instance Backprop.Learn.Regularize.Regularize GHC.Types.Double
+instance Backprop.Learn.Regularize.Regularize GHC.Types.Float
+instance GHC.Real.Integral a => Backprop.Learn.Regularize.Regularize (GHC.Real.Ratio a)
+instance Backprop.Learn.Regularize.Regularize ()
+instance (Backprop.Learn.Regularize.Regularize a, Backprop.Learn.Regularize.Regularize b) => Backprop.Learn.Regularize.Regularize (a, b)
+instance (Backprop.Learn.Regularize.Regularize a, Backprop.Learn.Regularize.Regularize b, Backprop.Learn.Regularize.Regularize c) => Backprop.Learn.Regularize.Regularize (a, b, c)
+instance (Backprop.Learn.Regularize.Regularize a, Backprop.Learn.Regularize.Regularize b, Backprop.Learn.Regularize.Regularize c, Backprop.Learn.Regularize.Regularize d) => Backprop.Learn.Regularize.Regularize (a, b, c, d)
+instance (Backprop.Learn.Regularize.Regularize a, Backprop.Learn.Regularize.Regularize b, Backprop.Learn.Regularize.Regularize c, Backprop.Learn.Regularize.Regularize d, Backprop.Learn.Regularize.Regularize e) => Backprop.Learn.Regularize.Regularize (a, b, c, d, e)
+instance (Backprop.Learn.Regularize.Regularize a, Backprop.Learn.Regularize.Regularize b) => Backprop.Learn.Regularize.Regularize (a Data.Type.Tuple.:# b)
+instance Backprop.Learn.Regularize.Regularize a => Backprop.Learn.Regularize.Regularize (Data.Type.Tuple.TF a)
+instance (Data.Vinyl.Core.RPureConstrained Backprop.Learn.Regularize.Regularize as, Data.Vinyl.Core.ReifyConstraint Numeric.Backprop.Class.Backprop Data.Type.Tuple.TF as, Data.Vinyl.Core.RMap as, Data.Vinyl.Core.RApply as, Data.Vinyl.Core.RFoldMap as) => Backprop.Learn.Regularize.Regularize (Data.Vinyl.Core.Rec Data.Type.Tuple.TF as)
+instance (Data.Type.Functor.Product.PureProdC GHC.Maybe.Maybe Numeric.Backprop.Class.Backprop as, Data.Type.Functor.Product.PureProdC GHC.Maybe.Maybe Backprop.Learn.Regularize.Regularize as) => Backprop.Learn.Regularize.Regularize (Data.Type.Functor.Product.PMaybe Data.Type.Tuple.TF as)
+instance (Data.Vector.Generic.Base.Vector v a, Backprop.Learn.Regularize.Regularize a, Numeric.Backprop.Class.Backprop (Data.Vector.Generic.Sized.Internal.Vector v n a)) => Backprop.Learn.Regularize.Regularize (Data.Vector.Generic.Sized.Internal.Vector v n a)
 
 module Backprop.Learn.Model.Function
 meanModel :: (Backprop (t a), Foldable t, Functor t, Fractional a, Reifies s W) => BVar s (t a) -> BVar s a
@@ -626,78 +666,6 @@ maxout :: (KnownNat n, Reifies s W) => BVar s (R n) -> BVar s Double
 --   <a>http://www.ericlwilkinson.com/blog/2014/11/19/deep-learning-sparse-autoencoders</a>
 kSparse :: forall n s. (Reifies s W, KnownNat n) => Int -> BVar s (R n) -> BVar s (R n)
 
-module Backprop.Learn.Model.Stochastic
-
--- | Dropout layer. Parameterized by dropout percentage (should be between
---   0 and 1).
---   
---   0 corresponds to no dropout, 1 corresponds to complete dropout of all
---   nodes every time.
-dropout :: KnownNat n => Double -> Model  'Nothing  'Nothing (R n) (R n)
-
--- | Random leaky rectified linear unit
-rreLU :: (ContGen d, Mean d, KnownNat n) => d -> Model  'Nothing  'Nothing (R n) (R n)
-
--- | Inject random noise. Usually used between neural network layers, or at
---   the very beginning to pre-process input.
---   
---   In non-stochastic mode, this adds the mean of the distribution.
-injectNoise :: (ContGen d, Mean d, Fractional a) => d -> Model  'Nothing  'Nothing a a
-
--- | Multply by random noise. Can be used to implement dropout-like
---   behavior.
---   
---   In non-stochastic mode, this scales by the mean of the distribution.
-applyNoise :: (ContGen d, Mean d, Fractional a) => d -> Model  'Nothing  'Nothing a a
-
--- | <a>injectNoise</a> lifted to <a>R</a>
-injectNoiseR :: (ContGen d, Mean d, KnownNat n) => d -> Model  'Nothing  'Nothing (R n) (R n)
-
--- | <a>applyNoise</a> lifted to <a>R</a>
-applyNoiseR :: (ContGen d, Mean d, KnownNat n) => d -> Model  'Nothing  'Nothing (R n) (R n)
-
-module Backprop.Learn.Model.Combinator
-
--- | Compose two <a>Model</a>s one after the other, in reverse composition
---   order
-(~>) :: forall p q s t a b c. (PureProd Maybe p, PureProd Maybe q, PureProd Maybe s, PureProd Maybe t, AllConstrainedProd Backprop p, AllConstrainedProd Backprop q, AllConstrainedProd Backprop s, AllConstrainedProd Backprop t) => Model p s a b -> Model q t b c -> Model (p :#? q) (s :#? t) a c
-infixr 8 ~>
-
--- | Compose two <a>Model</a>s one after the other.
-(<~) :: forall p q s t a b c. (PureProd Maybe p, PureProd Maybe q, PureProd Maybe s, PureProd Maybe t, AllConstrainedProd Backprop p, AllConstrainedProd Backprop q, AllConstrainedProd Backprop s, AllConstrainedProd Backprop t) => Model p s b c -> Model q t a b -> Model (p :#? q) (s :#? t) a c
-infixr 8 <~
-
--- | <a>Model</a> where parameters and states are heterogeneous lists
---   (<a>T</a>), making for more seamless composition.
-type LModel ps ss a b = Model ( 'Just (T ps)) ( 'Just (T ss)) a b
-
--- | <tt>Cons</tt> a model to the end of a chain of <a>LModel</a>
---   compositions. Can be used with <a>nilLM</a>.
-(#:) :: forall p ps s ss a b c. (AllConstrainedProd Backprop p, AllConstrainedProd Backprop s, ReifyConstraint Backprop TF ps, ReifyConstraint Backprop TF ss, RMap ss, RApply ss, RMap ps, RApply ps, PureProd Maybe p, PureProd Maybe s) => Model p s b c -> LModel ps ss a b -> LModel (MaybeToList p ++ ps) (MaybeToList s ++ ss) a c
-infixr 5 #:
-
--- | Identity of <a>#++</a>
-nilLM :: Model ( 'Just (T '[])) ( 'Just (T '[])) a a
-
--- | Compose two <a>LModel</a>s
-(#++) :: forall ps qs ss ts a b c. (Learnables ps, Learnables qs, Learnables ss, Learnables ts, Learnables (ps ++ qs), Learnables (ss ++ ts)) => LModel ps ss b c -> LModel qs ts a b -> LModel (ps ++ qs) (ss ++ ts) a c
-infixr 5 #++
-
--- | Lift a normal <a>Model</a> to a <a>LModel</a> with a singleton list
---   parameter/state if '<a>Just</a>, or an empty list if '<a>Nothing</a>.
---   Essentially prepares a model to be used with <tt>#~</tt> and
---   <a>nilLM</a>.
-liftLM :: forall p s a b. (SingI p, AllConstrainedProd Backprop p, SingI s, AllConstrainedProd Backprop s) => Model p s a b -> LModel (MaybeToList p) (MaybeToList s) a b
-forkModel :: forall p q s t a b c. (PureProd Maybe p, PureProd Maybe q, PureProd Maybe s, PureProd Maybe t, AllConstrainedProd Backprop p, AllConstrainedProd Backprop q, AllConstrainedProd Backprop s, AllConstrainedProd Backprop t, Backprop b, Backprop c) => Model p s a b -> Model q t a c -> Model (p :#? q) (s :#? t) a (b :# c)
-
--- | Return a model that loops a model ("feed") repeatedly onto itself,
---   with a model to provide the back loop.
-feedback :: forall p q s t a b. (PureProd Maybe p, PureProd Maybe q, PureProd Maybe s, PureProd Maybe t, AllConstrainedProd Backprop p, AllConstrainedProd Backprop q, AllConstrainedProd Backprop s, AllConstrainedProd Backprop t) => Int -> Model p s a b -> Model q t b a -> Model (p :#? q) (s :#? t) a b
-
--- | <a>feedback</a>, but tracing and observing all of the intermediate
---   values.
-feedbackTrace :: forall n p q s t a b. (PureProd Maybe p, PureProd Maybe q, PureProd Maybe s, PureProd Maybe t, AllConstrainedProd Backprop p, AllConstrainedProd Backprop q, AllConstrainedProd Backprop s, AllConstrainedProd Backprop t, KnownNat n, Backprop b) => Model p s a b -> Model q t b a -> Model (p :#? q) (s :#? t) a (ABP (Vector n) b)
-
 module Backprop.Learn.Loss
 type Loss a = forall s. Reifies s W => a -> BVar s a -> BVar s Double
 crossEntropy :: KnownNat n => Loss (R n)
@@ -720,7 +688,8 @@ t2Loss :: (Backprop a, Backprop b) => Loss a -> Loss b -> Loss (a :# b)
 -- | A regularizer on parameters
 type Regularizer p = forall s. Reifies s W => BVar s p -> BVar s Double
 
--- | L2 regularization
+-- | Backpropagatable L2 regularization; also known as ridge
+--   regularization.
 --   
 --   &lt;math&gt;
 --   
@@ -729,7 +698,8 @@ type Regularizer p = forall s. Reifies s W => BVar s p -> BVar s Double
 --   regularized.
 l2Reg :: Regularize p => Double -> Regularizer p
 
--- | L1 regularization
+-- | Backpropagatable L1 regularization; also known as lasso
+--   regularization.
 --   
 --   &lt;math&gt;
 --   
@@ -790,11 +760,416 @@ instance Data.Vinyl.Core.RPureConstrained Backprop.Learn.Initialize.Initialize a
 instance Backprop.Learn.Initialize.Initialize ()
 instance (Backprop.Learn.Initialize.Initialize a, Backprop.Learn.Initialize.Initialize b) => Backprop.Learn.Initialize.Initialize (a, b)
 instance (Backprop.Learn.Initialize.Initialize a, Backprop.Learn.Initialize.Initialize b, Backprop.Learn.Initialize.Initialize c) => Backprop.Learn.Initialize.Initialize (a, b, c)
+instance (Backprop.Learn.Initialize.Initialize a, Backprop.Learn.Initialize.Initialize b, Backprop.Learn.Initialize.Initialize c, Backprop.Learn.Initialize.Initialize d) => Backprop.Learn.Initialize.Initialize (a, b, c, d)
+instance (Backprop.Learn.Initialize.Initialize a, Backprop.Learn.Initialize.Initialize b, Backprop.Learn.Initialize.Initialize c, Backprop.Learn.Initialize.Initialize d, Backprop.Learn.Initialize.Initialize e) => Backprop.Learn.Initialize.Initialize (a, b, c, d, e)
 instance (Data.Vector.Generic.Base.Vector v a, GHC.TypeNats.KnownNat n, Backprop.Learn.Initialize.Initialize a) => Backprop.Learn.Initialize.Initialize (Data.Vector.Generic.Sized.Internal.Vector v n a)
 instance GHC.TypeNats.KnownNat n => Backprop.Learn.Initialize.Initialize (Internal.Static.R n)
 instance GHC.TypeNats.KnownNat n => Backprop.Learn.Initialize.Initialize (Internal.Static.C n)
 instance (GHC.TypeNats.KnownNat n, GHC.TypeNats.KnownNat m) => Backprop.Learn.Initialize.Initialize (Internal.Static.L n m)
 instance (GHC.TypeNats.KnownNat n, GHC.TypeNats.KnownNat m) => Backprop.Learn.Initialize.Initialize (Internal.Static.M n m)
+
+module Backprop.Learn.Model.Types
+type ModelFunc p s a b = forall z. Reifies z W => PMaybe (BVar z) p -> BVar z a -> PMaybe (BVar z) s -> (BVar z b, PMaybe (BVar z) s)
+type ModelFuncStoch p s a b = forall m z. (PrimMonad m, Reifies z W) => Gen (PrimState m) -> PMaybe (BVar z) p -> BVar z a -> PMaybe (BVar z) s -> m (BVar z b, PMaybe (BVar z) s)
+
+-- | General parameterized model with potential state
+data Model :: Maybe Type -> Maybe Type -> Type -> Type -> Type
+[Model] :: {runLearn :: ModelFunc p s a b, runLearnStoch :: ModelFuncStoch p s a b} -> Model p s a b
+
+-- | Construct a deterministic model, with no stochastic component.
+modelD :: ModelFunc p s a b -> Model p s a b
+type ModelFuncStateless p a b = forall z. Reifies z W => PMaybe (BVar z) p -> BVar z a -> BVar z b
+type ModelFuncStochStateless p a b = forall m z. (PrimMonad m, Reifies z W) => Gen (PrimState m) -> PMaybe (BVar z) p -> BVar z a -> m (BVar z b)
+
+-- | Parameterized model with no state
+type ModelStateless p = Model p  'Nothing
+
+-- | Construct a <a>ModelStateless</a>.
+pattern ModelStateless :: ModelFuncStateless p a b -> ModelFuncStochStateless p a b -> ModelStateless p a b
+runLearnStateless :: () => ModelStateless p a b -> forall z. Reifies z W => PMaybe (BVar z) p -> BVar z a -> BVar z b
+runLearnStochStateless :: () => ModelStateless p a b -> forall (m :: Type -> Type) z. (PrimMonad m, Reifies z W) => Gen (PrimState m) -> PMaybe (BVar z) p -> BVar z a -> m (BVar z b)
+
+-- | Construct a deterministic stateless model, with no stochastic
+--   component.
+modelStatelessD :: ModelFuncStateless p a b -> ModelStateless p a b
+type BFunc a b = forall z. Reifies z W => BVar z a -> BVar z b
+type BFuncStoch a b = forall m z. (PrimMonad m, Reifies z W) => Gen (PrimState m) -> BVar z a -> m (BVar z b)
+type Func = Model  'Nothing  'Nothing
+
+-- | Unparameterized model with no state
+pattern Func :: BFunc a b -> BFuncStoch a b -> Func a b
+runFunc :: () => Func a b -> forall z. Reifies z W => BVar z a -> BVar z b
+runFuncStoch :: () => Func a b -> forall (m :: Type -> Type) z. (PrimMonad m, Reifies z W) => Gen (PrimState m) -> BVar z a -> m (BVar z b)
+
+-- | Construct an deterministic unparameterized stateless model, with no
+--   stochastic component.
+funcD :: BFunc a b -> Func a b
+type ModelFuncM m p s a b = forall z. Reifies z W => PMaybe (BVar z) p -> BVar z a -> PMaybe (BVar z) s -> m (BVar z b, PMaybe (BVar z) s)
+withModelFunc0 :: (forall m. Monad m => ModelFuncM m p s a b) -> Model p s a b
+withModelFunc :: (forall m. Monad m => ModelFuncM m p s a b -> ModelFuncM m q t c d) -> Model p s a b -> Model q t c d
+withModelFunc2 :: (forall m. Monad m => ModelFuncM m p s a b -> ModelFuncM m q t c d -> ModelFuncM m r u e f) -> Model p s a b -> Model q t c d -> Model r u e f
+
+-- | A <tt><a>PMaybe</a> f 'Nothing</tt> contains nothing, and a
+--   <tt><a>PMaybe</a> f ('Just a)</tt> contains an <tt>f a</tt>.
+--   
+--   In practice this can be useful to write polymorphic
+--   functions/abstractions that contain an argument that can be "turned
+--   off" for different instances.
+data PMaybe (a :: k -> Type) (b :: Maybe k) :: forall k. () => k -> Type -> Maybe k -> Type
+[PNothing] :: forall k (a :: k -> Type) (b :: Maybe k). () => PMaybe a (Nothing :: Maybe k)
+[PJust] :: forall k (a :: k -> Type) (b :: Maybe k) (a1 :: k). () => a a1 -> PMaybe a (Just a1)
+pattern TJust :: a -> TMaybe ( 'Just a)
+type TMaybe = PMaybe TF
+fromPJust :: PMaybe f ( 'Just a) -> f a
+
+-- | Combination of common constraints for type-level lists.
+type Learnables as = (RecApplicative as, ReifyConstraint Backprop TF as, RMap as, RApply as)
+
+-- | Helpful utility class for ensuring that a parameter or state type is
+--   Learnable
+class (Initialize a, Regularize a, Binary a, NFData a, LinearInPlace m Double a) => Learnable m a
+
+-- | A class for data types that support regularization during training.
+--   
+--   This class is somewhat similar to <tt><a>Metric</a>
+--   <a>Double</a></tt>, in that it supports summing the components and
+--   summing squared components. However, the main difference is that when
+--   summing components, we only consider components that we want to
+--   regularize.
+--   
+--   Often, this doesn't include bias terms (terms that "add" to inputs),
+--   and only includes terms that "scale" inputs, like components in a
+--   weight matrix of a feed-forward neural network layer.
+--   
+--   However, if all of your components are to be regularized, you can use
+--   <a>norm_1</a>, <a>norm_2</a>, <a>lassoLinear</a>, and
+--   <a>ridgeLinear</a> as sensible implementations, or use DerivingVia
+--   with <a>RegularizeMetric</a>:
+--   
+--   <pre>
+--   data MyType = ...
+--     deriving Regularize via (RegularizeMetric MyType)
+--   </pre>
+--   
+--   You can also derive an instance where <i>no</i> are regularized, using
+--   <a>NoRegularize</a>:
+--   
+--   <pre>
+--   data MyType = ...
+--     deriving Regularize via (NoRegularize MyType)
+--   </pre>
+--   
+--   The default implementations are based on <tt>Generics</tt>, and work
+--   for types that are records of items that are all instances of
+--   <a>Regularize</a>.
+class Backprop p => Regularize p
+
+-- | Like <a>norm_1</a>: sums all of the weights in <tt>p</tt>, but only
+--   the ones you want to regularize:
+--   
+--   &lt;math&gt;
+--   
+--   Note that typically bias terms (terms that add to inputs) are not
+--   regularized. Only "weight" terms that scale inputs are typically
+--   regularized.
+--   
+--   If <tt>p</tt> is an instance of <a>Metric</a>, then you can set
+--   <tt><a>rnorm_1</a> = <a>norm_1</a></tt>. However, this would count
+--   <i>all</i> terms in <tt>p</tt>, even potential bias terms.
+rnorm_1 :: Regularize p => p -> Double
+
+-- | Like <a>norm_1</a>: sums all of the weights in <tt>p</tt>, but only
+--   the ones you want to regularize:
+--   
+--   &lt;math&gt;
+--   
+--   Note that typically bias terms (terms that add to inputs) are not
+--   regularized. Only "weight" terms that scale inputs are typically
+--   regularized.
+--   
+--   If <tt>p</tt> is an instance of <a>Metric</a>, then you can set
+--   <tt><a>rnorm_1</a> = <a>norm_1</a></tt>. However, this would count
+--   <i>all</i> terms in <tt>p</tt>, even potential bias terms.
+rnorm_1 :: (Regularize p, ADT p, Constraints p Regularize) => p -> Double
+
+-- | Like <a>norm_2</a>: sums all of the <i>squares</i> of the weights n
+--   <tt>p</tt>, but only the ones you want to regularize:
+--   
+--   &lt;math&gt;
+--   
+--   Note that typically bias terms (terms that add to inputs) are not
+--   regularized. Only "weight" terms that scale inputs are typically
+--   regularized.
+--   
+--   If <tt>p</tt> is an instance of <a>Metric</a>, then you can set
+--   <tt><a>rnorm_2</a> = <a>norm_2</a></tt>. However, this would count
+--   <i>all</i> terms in <tt>p</tt>, even potential bias terms.
+rnorm_2 :: Regularize p => p -> Double
+
+-- | Like <a>norm_2</a>: sums all of the <i>squares</i> of the weights n
+--   <tt>p</tt>, but only the ones you want to regularize:
+--   
+--   &lt;math&gt;
+--   
+--   Note that typically bias terms (terms that add to inputs) are not
+--   regularized. Only "weight" terms that scale inputs are typically
+--   regularized.
+--   
+--   If <tt>p</tt> is an instance of <a>Metric</a>, then you can set
+--   <tt><a>rnorm_2</a> = <a>norm_2</a></tt>. However, this would count
+--   <i>all</i> terms in <tt>p</tt>, even potential bias terms.
+rnorm_2 :: (Regularize p, ADT p, Constraints p Regularize) => p -> Double
+
+-- | <tt><a>lasso</a> r p</tt> sets all regularized components (that is,
+--   components summed by <a>rnorm_1</a>) in <tt>p</tt> to be either
+--   <tt>r</tt> if that component was positive, or <tt>-r</tt> if that
+--   component was negative. Behavior is not defined if the component is
+--   exactly zero, but either <tt>r</tt> or <tt>-r</tt> are sensible
+--   possibilities.
+--   
+--   It must set all <i>non-regularized</i> components (like bias terms, or
+--   whatever items that <a>rnorm_1</a> ignores) to zero.
+--   
+--   If <tt>p</tt> is an instance of <tt><a>Linear</a> <a>Double</a></tt>
+--   and <a>Num</a>, then you can set <tt><a>lasso</a> =
+--   <a>lassoLinear</a></tt>. However, this is only valid if <a>rnorm_1</a>
+--   counts <i>all</i> terms in <tt>p</tt>, including potential bias terms.
+lasso :: Regularize p => Double -> p -> p
+
+-- | <tt><a>lasso</a> r p</tt> sets all regularized components (that is,
+--   components summed by <a>rnorm_1</a>) in <tt>p</tt> to be either
+--   <tt>r</tt> if that component was positive, or <tt>-r</tt> if that
+--   component was negative. Behavior is not defined if the component is
+--   exactly zero, but either <tt>r</tt> or <tt>-r</tt> are sensible
+--   possibilities.
+--   
+--   It must set all <i>non-regularized</i> components (like bias terms, or
+--   whatever items that <a>rnorm_1</a> ignores) to zero.
+--   
+--   If <tt>p</tt> is an instance of <tt><a>Linear</a> <a>Double</a></tt>
+--   and <a>Num</a>, then you can set <tt><a>lasso</a> =
+--   <a>lassoLinear</a></tt>. However, this is only valid if <a>rnorm_1</a>
+--   counts <i>all</i> terms in <tt>p</tt>, including potential bias terms.
+lasso :: (Regularize p, ADT p, Constraints p Regularize) => Double -> p -> p
+
+-- | <tt><a>ridge</a> r p</tt> scales all regularized components (that is,
+--   components summed by <a>rnorm_2</a>) in <tt>p</tt> by <tt>r</tt>.
+--   
+--   It must set all <i>non-regularized</i> components (like bias terms, or
+--   whatever items that <a>rnorm_2</a> ignores) to zero.
+--   
+--   If <tt>p</tt> is an instance of <tt><a>Linear</a> <a>Double</a></tt>
+--   and <a>Num</a>, then you can set <tt><a>ridge</a> =
+--   <a>ridgeLinear</a></tt>. However, this is only valid if <a>rnorm_2</a>
+--   counts <i>all</i> terms in <tt>p</tt>, including potential bias terms.
+ridge :: Regularize p => Double -> p -> p
+
+-- | <tt><a>ridge</a> r p</tt> scales all regularized components (that is,
+--   components summed by <a>rnorm_2</a>) in <tt>p</tt> by <tt>r</tt>.
+--   
+--   It must set all <i>non-regularized</i> components (like bias terms, or
+--   whatever items that <a>rnorm_2</a> ignores) to zero.
+--   
+--   If <tt>p</tt> is an instance of <tt><a>Linear</a> <a>Double</a></tt>
+--   and <a>Num</a>, then you can set <tt><a>ridge</a> =
+--   <a>ridgeLinear</a></tt>. However, this is only valid if <a>rnorm_2</a>
+--   counts <i>all</i> terms in <tt>p</tt>, including potential bias terms.
+ridge :: (Regularize p, ADT p, Constraints p Regularize) => Double -> p -> p
+
+-- | Class for types that are basically a bunch of <a>Double</a>s, which
+--   can be initialized with a given identical and independent
+--   distribution.
+class Initialize p
+initialize :: (Initialize p, ContGen d, PrimMonad m) => d -> Gen (PrimState m) -> m p
+initialize :: (Initialize p, ADTRecord p, Constraints p Initialize, ContGen d, PrimMonad m) => d -> Gen (PrimState m) -> m p
+instance (Backprop.Learn.Initialize.Initialize a, Backprop.Learn.Regularize.Regularize a, Data.Binary.Class.Binary a, Control.DeepSeq.NFData a, Numeric.Opto.Update.LinearInPlace m GHC.Types.Double a) => Backprop.Learn.Model.Types.Learnable m (Data.Type.Tuple.TF a)
+instance (Backprop.Learn.Initialize.Initialize a, Backprop.Learn.Initialize.Initialize b, Backprop.Learn.Regularize.Regularize a, Backprop.Learn.Regularize.Regularize b, Data.Binary.Class.Binary a, Data.Binary.Class.Binary b, Control.DeepSeq.NFData a, Control.DeepSeq.NFData b, Numeric.Opto.Update.LinearInPlace m GHC.Types.Double a, Numeric.Opto.Update.LinearInPlace m GHC.Types.Double b) => Backprop.Learn.Model.Types.Learnable m (a Data.Type.Tuple.:# b)
+instance (Data.Vinyl.Core.RPureConstrained Backprop.Learn.Initialize.Initialize as, Data.Vinyl.Core.RPureConstrained Backprop.Learn.Regularize.Regularize as, Data.Vinyl.Core.RPureConstrained Data.Binary.Class.Binary as, Data.Vinyl.Core.RPureConstrained Control.DeepSeq.NFData as, Data.Vinyl.Core.ReifyConstraint Numeric.Backprop.Class.Backprop Data.Type.Tuple.TF as, Data.Vinyl.Core.RMap as, Data.Vinyl.Core.RApply as, Data.Vinyl.Core.RFoldMap as, Data.Vinyl.Core.RecordToList as, Numeric.Opto.Update.LinearInPlace m GHC.Types.Double (Data.Vinyl.Core.Rec Data.Type.Tuple.TF as)) => Backprop.Learn.Model.Types.Learnable m (Data.Vinyl.Core.Rec Data.Type.Tuple.TF as)
+instance (GHC.TypeNats.KnownNat n, Control.Monad.Primitive.PrimMonad m) => Backprop.Learn.Model.Types.Learnable m (Internal.Static.R n)
+instance (GHC.TypeNats.KnownNat n, GHC.TypeNats.KnownNat o, Control.Monad.Primitive.PrimMonad m) => Backprop.Learn.Model.Types.Learnable m (Internal.Static.L n o)
+instance Control.Category.Category (Backprop.Learn.Model.Types.Model p s)
+
+module Backprop.Learn.Model.Stochastic
+
+-- | Dropout layer. Parameterized by dropout percentage (should be between
+--   0 and 1).
+--   
+--   0 corresponds to no dropout, 1 corresponds to complete dropout of all
+--   nodes every time.
+dropout :: KnownNat n => Double -> Model  'Nothing  'Nothing (R n) (R n)
+
+-- | Random leaky rectified linear unit
+rreLU :: (ContGen d, Mean d, KnownNat n) => d -> Model  'Nothing  'Nothing (R n) (R n)
+
+-- | Inject random noise. Usually used between neural network layers, or at
+--   the very beginning to pre-process input.
+--   
+--   In non-stochastic mode, this adds the mean of the distribution.
+injectNoise :: (ContGen d, Mean d, Fractional a) => d -> Model  'Nothing  'Nothing a a
+
+-- | Multply by random noise. Can be used to implement dropout-like
+--   behavior.
+--   
+--   In non-stochastic mode, this scales by the mean of the distribution.
+applyNoise :: (ContGen d, Mean d, Fractional a) => d -> Model  'Nothing  'Nothing a a
+
+-- | <a>injectNoise</a> lifted to <a>R</a>
+injectNoiseR :: (ContGen d, Mean d, KnownNat n) => d -> Model  'Nothing  'Nothing (R n) (R n)
+
+-- | <a>applyNoise</a> lifted to <a>R</a>
+applyNoiseR :: (ContGen d, Mean d, KnownNat n) => d -> Model  'Nothing  'Nothing (R n) (R n)
+
+module Backprop.Learn.Model.State
+
+-- | Make a model stateless by converting the state to a trained parameter,
+--   and dropping the modified state from the result.
+--   
+--   One of the ways to make a model stateless for training purposes.
+--   Useful when used after <tt>Unroll</tt>. See <tt>DeState</tt>, as well.
+--   
+--   Its parameters are:
+--   
+--   <ul>
+--   <li>If the input has no parameters, just the initial state.</li>
+--   <li>If the input has a parameter, a <a>:#</a> of that parameter and
+--   initial state.</li>
+--   </ul>
+trainState :: forall p s a b. (PureProd Maybe p, PureProd Maybe s, AllConstrainedProd Backprop p, AllConstrainedProd Backprop s) => Model p s a b -> Model (p :#? s)  'Nothing a b
+
+-- | Make a model stateless by pre-applying a fixed state (or a stochastic
+--   one with fixed stribution) and dropping the modified state from the
+--   result.
+--   
+--   One of the ways to make a model stateless for training purposes.
+--   Useful when used after <tt>Unroll</tt>. See <tt>TrainState</tt>, as
+--   well.
+deState :: s -> (forall m. PrimMonad m => Gen (PrimState m) -> m s) -> Model p ( 'Just s) a b -> Model p  'Nothing a b
+
+-- | <a>deState</a>, except the state is always the same even in stochastic
+--   mode.
+deStateD :: s -> Model p ( 'Just s) a b -> Model p  'Nothing a b
+
+-- | <a>deState</a> with a constant state of 0.
+zeroState :: Num s => Model p ( 'Just s) a b -> Model p  'Nothing a b
+
+-- | Give a stateless model a "dummy" state. For now, useful for using with
+--   combinators like <a>deState</a> that require state. However,
+--   <a>deState</a> could also be made more lenient (to accept non stateful
+--   models) in the future.
+--   
+--   Also useful for usage with combinators like <a>.</a> from
+--   <a>Control.Category</a> that requires all input models to share common
+--   state.
+dummyState :: forall s p a b. () => Model p  'Nothing a b -> Model p s a b
+
+-- | Unroll a (usually) stateful model into one taking a vector of
+--   sequential inputs.
+--   
+--   Basically applies the model to every item of input and returns all of
+--   the results, but propagating the state between every step.
+--   
+--   Useful when used before <a>trainState</a> or <a>deState</a>. See
+--   <tt>unrollTrainState</tt> and <tt>unrollDeState</tt>.
+--   
+--   Compare to <tt>feedbackTrace</tt>, which, instead of receiving a
+--   vector of sequential inputs, receives a single input and uses its
+--   output as the next input.
+unroll :: (Traversable t, Backprop a, Backprop b) => Model p s a b -> Model p s (t a) (t b)
+
+-- | Version of <a>unroll</a> that only keeps the "final" result, dropping
+--   all of the intermediate results.
+--   
+--   Turns a stateful model into one that runs the model repeatedly on
+--   multiple inputs sequentially and outputs the final result after seeing
+--   all items.
+--   
+--   Note will be partial if given an empty sequence.
+unrollFinal :: (Traversable t, Backprop a) => Model p s a b -> Model p s (t a) b
+
+-- | Fix a part of a parameter of a model to be (a function of) the
+--   <i>previous</i> ouput of the model itself.
+--   
+--   Essentially, takes a &lt;math&gt; into a <i>stateful</i> &lt;math&gt;,
+--   where the Y is given by a function of the <i>previous output</i> of
+--   the model.
+--   
+--   Essentially makes a model "recurrent": it receives its previous output
+--   as input.
+--   
+--   See <tt>fcr</tt> for an application.
+recurrent :: forall p s ab a b c. (AllConstrainedProd Backprop s, PureProd Maybe s, Backprop a, Backprop b) => (ab -> (a, b)) -> (a -> b -> ab) -> BFunc c b -> Model p s ab c -> Model p (s :#?  'Just b) a c
+
+module Backprop.Learn.Model.Parameter
+
+-- | Fix a part of a parameter as constant, preventing backpropagation
+--   through it and not training it.
+--   
+--   Treats a <tt>pq</tt> parameter as essentialyl a <tt>(p, q)</tt>,
+--   witnessed through the split and join functions.
+--   
+--   Takes the fixed value of <tt>q</tt>, as well as a stochastic mode
+--   version with fixed distribution.
+deParam :: forall p q pq s a b. (Backprop p, Backprop q) => (pq -> (p, q)) -> (p -> q -> pq) -> q -> (forall m. PrimMonad m => Gen (PrimState m) -> m q) -> Model ( 'Just pq) s a b -> Model ( 'Just p) s a b
+
+-- | <a>deParam</a>, but with no special stochastic mode version.
+deParamD :: (Backprop p, Backprop q) => (pq -> (p, q)) -> (p -> q -> pq) -> q -> Model ( 'Just pq) s a b -> Model ( 'Just p) s a b
+
+-- | Pre-applies a function to a parameter before a model sees it.
+--   Essentially something like <tt>lmap</tt> for parameters.
+--   
+--   Takes a determinstic function and also a stochastic function for
+--   stochastic mode.
+reParam :: (forall z. Reifies z W => PMaybe (BVar z) q -> PMaybe (BVar z) p) -> (forall m z. (PrimMonad m, Reifies z W) => Gen (PrimState m) -> PMaybe (BVar z) q -> m (PMaybe (BVar z) p)) -> Model p s a b -> Model q s a b
+
+-- | <a>reParam</a>, but with no special stochastic mode function.
+reParamD :: (forall z. Reifies z W => PMaybe (BVar z) q -> PMaybe (BVar z) p) -> Model p s a b -> Model q s a b
+
+-- | Give an unparameterized model a "dummy" parameter. Useful for usage
+--   with combinators like <a>.</a> from that require all input models to
+--   share a common parameterization.
+dummyParam :: Model  'Nothing s a b -> Model p s a b
+
+module Backprop.Learn.Model.Combinator
+
+-- | Compose two <a>Model</a>s one after the other, in reverse composition
+--   order
+(~>) :: forall p q s t a b c. (PureProd Maybe p, PureProd Maybe q, PureProd Maybe s, PureProd Maybe t, AllConstrainedProd Backprop p, AllConstrainedProd Backprop q, AllConstrainedProd Backprop s, AllConstrainedProd Backprop t) => Model p s a b -> Model q t b c -> Model (p :#? q) (s :#? t) a c
+infixr 8 ~>
+
+-- | Compose two <a>Model</a>s one after the other.
+(<~) :: forall p q s t a b c. (PureProd Maybe p, PureProd Maybe q, PureProd Maybe s, PureProd Maybe t, AllConstrainedProd Backprop p, AllConstrainedProd Backprop q, AllConstrainedProd Backprop s, AllConstrainedProd Backprop t) => Model p s b c -> Model q t a b -> Model (p :#? q) (s :#? t) a c
+infixr 8 <~
+
+-- | <a>Model</a> where parameters and states are heterogeneous lists
+--   (<a>T</a>), making for more seamless composition.
+type LModel ps ss a b = Model ( 'Just (T ps)) ( 'Just (T ss)) a b
+
+-- | <tt>Cons</tt> a model to the end of a chain of <a>LModel</a>
+--   compositions. Can be used with <a>nilLM</a>.
+(#:) :: forall p ps s ss a b c. (AllConstrainedProd Backprop p, AllConstrainedProd Backprop s, ReifyConstraint Backprop TF ps, ReifyConstraint Backprop TF ss, RMap ss, RApply ss, RMap ps, RApply ps, PureProd Maybe p, PureProd Maybe s) => Model p s b c -> LModel ps ss a b -> LModel (MaybeToList p ++ ps) (MaybeToList s ++ ss) a c
+infixr 5 #:
+
+-- | Identity of <a>#++</a>
+nilLM :: Model ( 'Just (T '[])) ( 'Just (T '[])) a a
+
+-- | Compose two <a>LModel</a>s
+(#++) :: forall ps qs ss ts a b c. (Learnables ps, Learnables qs, Learnables ss, Learnables ts, Learnables (ps ++ qs), Learnables (ss ++ ts)) => LModel ps ss b c -> LModel qs ts a b -> LModel (ps ++ qs) (ss ++ ts) a c
+infixr 5 #++
+
+-- | Lift a normal <a>Model</a> to a <a>LModel</a> with a singleton list
+--   parameter/state if '<a>Just</a>, or an empty list if '<a>Nothing</a>.
+--   Essentially prepares a model to be used with <tt>#~</tt> and
+--   <a>nilLM</a>.
+liftLM :: forall p s a b. (SingI p, AllConstrainedProd Backprop p, SingI s, AllConstrainedProd Backprop s) => Model p s a b -> LModel (MaybeToList p) (MaybeToList s) a b
+forkModel :: forall p q s t a b c. (PureProd Maybe p, PureProd Maybe q, PureProd Maybe s, PureProd Maybe t, AllConstrainedProd Backprop p, AllConstrainedProd Backprop q, AllConstrainedProd Backprop s, AllConstrainedProd Backprop t, Backprop b, Backprop c) => Model p s a b -> Model q t a c -> Model (p :#? q) (s :#? t) a (b :# c)
+
+-- | Return a model that loops a model ("feed") repeatedly onto itself,
+--   with a model to provide the back loop.
+feedback :: forall p q s t a b. (PureProd Maybe p, PureProd Maybe q, PureProd Maybe s, PureProd Maybe t, AllConstrainedProd Backprop p, AllConstrainedProd Backprop q, AllConstrainedProd Backprop s, AllConstrainedProd Backprop t) => Int -> Model p s a b -> Model q t b a -> Model (p :#? q) (s :#? t) a b
+
+-- | <a>feedback</a>, but tracing and observing all of the intermediate
+--   values.
+feedbackTrace :: forall n p q s t a b. (PureProd Maybe p, PureProd Maybe q, PureProd Maybe s, PureProd Maybe t, AllConstrainedProd Backprop p, AllConstrainedProd Backprop q, AllConstrainedProd Backprop s, AllConstrainedProd Backprop t, KnownNat n, Backprop b) => Model p s a b -> Model q t b a -> Model (p :#? q) (s :#? t) a (ABP (Vector n) b)
 
 module Backprop.Learn.Model.Regression
 linReg :: (KnownNat i, KnownNat o) => Model ( 'Just (LRp i o))  'Nothing (R i) (R o)
@@ -805,8 +1180,8 @@ data LRp (i :: Nat) (o :: Nat)
 LRp :: !R o -> !L o i -> LRp
 [_lrAlpha] :: LRp -> !R o
 [_lrBeta] :: LRp -> !L o i
-lrAlpha :: forall i_a1uDY o_a1uDZ. Lens' (LRp i_a1uDY o_a1uDZ) (R o_a1uDZ)
-lrBeta :: forall i_a1uDY o_a1uDZ i_a1uSc. Lens (LRp i_a1uDY o_a1uDZ) (LRp i_a1uSc o_a1uDZ) (L o_a1uDZ i_a1uDY) (L o_a1uDZ i_a1uSc)
+lrAlpha :: forall i_a1EXz o_a1EXA. Lens' (LRp i_a1EXz o_a1EXA) (R o_a1EXA)
+lrBeta :: forall i_a1EXz o_a1EXA i_a1FB1. Lens (LRp i_a1EXz o_a1EXA) (LRp i_a1FB1 o_a1EXA) (L o_a1EXA i_a1EXz) (L o_a1EXA i_a1FB1)
 runLRp :: (KnownNat i, KnownNat o, Reifies s W) => BVar s (LRp i o) -> BVar s (R i) -> BVar s (R o)
 
 -- | Reshape an <a>LRp</a> to take more or less inputs. If more, new
@@ -847,51 +1222,57 @@ data ARIMAp :: Nat -> Nat -> Type
 -- | <tt>ARIMA</tt> state
 data ARIMAs :: Nat -> Nat -> Nat -> Type
 [ARIMAs] :: {_arimaYPred :: !Double, _arimaYHist :: !R (p + d), _arimaEHist :: !R q} -> ARIMAs p d q
-arimaPhi :: forall a_a1uYf b_a1uYg a_a1voJ. Lens (ARIMAp a_a1uYf b_a1uYg) (ARIMAp a_a1voJ b_a1uYg) (R a_a1uYf) (R a_a1voJ)
-arimaTheta :: forall a_a1uYf b_a1uYg b_a1voK. Lens (ARIMAp a_a1uYf b_a1uYg) (ARIMAp a_a1uYf b_a1voK) (R b_a1uYg) (R b_a1voK)
-arimaConstant :: forall a_a1uYf b_a1uYg. Lens' (ARIMAp a_a1uYf b_a1uYg) Double
-arimaYPred :: forall a_a1vpz b_a1vpA c_a1vpB. Lens' (ARIMAs a_a1vpz b_a1vpA c_a1vpB) Double
-arimaYHist :: forall a_a1vpz b_a1vpA c_a1vpB a_a1vwv b_a1vww. Lens (ARIMAs a_a1vpz b_a1vpA c_a1vpB) (ARIMAs a_a1vwv b_a1vww c_a1vpB) (R ((+) a_a1vpz b_a1vpA)) (R ((+) a_a1vwv b_a1vww))
-arimaEHist :: forall a_a1vpz b_a1vpA c_a1vpB c_a1vwu. Lens (ARIMAs a_a1vpz b_a1vpA c_a1vpB) (ARIMAs a_a1vpz b_a1vpA c_a1vwu) (R c_a1vpB) (R c_a1vwu)
-instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARIMAp p q)
-instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARIMAs p d q)
-instance GHC.Num.Num (Backprop.Learn.Model.Regression.ARIMAp p q)
-instance GHC.Num.Num (Backprop.Learn.Model.Regression.ARIMAs p d q)
-instance GHC.Real.Fractional (Backprop.Learn.Model.Regression.ARIMAp p q)
-instance GHC.Real.Fractional (Backprop.Learn.Model.Regression.ARIMAs p d q)
-instance GHC.Float.Floating (Backprop.Learn.Model.Regression.ARIMAp p q)
-instance GHC.Float.Floating (Backprop.Learn.Model.Regression.ARIMAs p d q)
+arimaPhi :: forall a_a1FF2 b_a1FF3 a_a1GoS. Lens (ARIMAp a_a1FF2 b_a1FF3) (ARIMAp a_a1GoS b_a1FF3) (R a_a1FF2) (R a_a1GoS)
+arimaTheta :: forall a_a1FF2 b_a1FF3 b_a1GoT. Lens (ARIMAp a_a1FF2 b_a1FF3) (ARIMAp a_a1FF2 b_a1GoT) (R b_a1FF3) (R b_a1GoT)
+arimaConstant :: forall a_a1FF2 b_a1FF3. Lens' (ARIMAp a_a1FF2 b_a1FF3) Double
+arimaYPred :: forall a_a1GpU b_a1GpV c_a1GpW. Lens' (ARIMAs a_a1GpU b_a1GpV c_a1GpW) Double
+arimaYHist :: forall a_a1GpU b_a1GpV c_a1GpW a_a1H0h b_a1H0i. Lens (ARIMAs a_a1GpU b_a1GpV c_a1GpW) (ARIMAs a_a1H0h b_a1H0i c_a1GpW) (R ((+) a_a1GpU b_a1GpV)) (R ((+) a_a1H0h b_a1H0i))
+arimaEHist :: forall a_a1GpU b_a1GpV c_a1GpW c_a1H0g. Lens (ARIMAs a_a1GpU b_a1GpV c_a1GpW) (ARIMAs a_a1GpU b_a1GpV c_a1H0g) (R c_a1GpW) (R c_a1H0g)
 instance (Control.Monad.Primitive.PrimMonad m, GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Numeric.Opto.Ref.Mutable m (Backprop.Learn.Model.Regression.ARIMAp p q)
 instance (Control.Monad.Primitive.PrimMonad m, GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q) => Numeric.Opto.Ref.Mutable m (Backprop.Learn.Model.Regression.ARIMAs p d q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Numeric.Opto.Update.Linear GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAp p q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q) => Numeric.Opto.Update.Linear GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAs p d q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAp p q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q) => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAs p d q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Mutable m (Backprop.Learn.Model.Regression.ARIMAp p q)) => Numeric.Opto.Update.LinearInPlace m GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAp p q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q, Numeric.Opto.Ref.Mutable m (Backprop.Learn.Model.Regression.ARIMAs p d q)) => Numeric.Opto.Update.LinearInPlace m GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAs p d q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Backprop.Learn.Initialize.Initialize (Backprop.Learn.Model.Regression.ARIMAp p q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q) => Backprop.Learn.Initialize.Initialize (Backprop.Learn.Model.Regression.ARIMAs p d q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Data.Binary.Class.Binary (Backprop.Learn.Model.Regression.ARIMAp p q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q) => Data.Binary.Class.Binary (Backprop.Learn.Model.Regression.ARIMAs p d q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Regression.ARIMAp p q)
-instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q) => Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Regression.ARIMAs p d q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q, Control.Monad.Primitive.PrimMonad m) => Numeric.Opto.Update.LinearInPlace m GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAp p q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q, Control.Monad.Primitive.PrimMonad m) => Numeric.Opto.Update.LinearInPlace m GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAs p d q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Backprop.Learn.Regularize.Regularize (Backprop.Learn.Model.Regression.ARIMAp p q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q, Control.Monad.Primitive.PrimMonad m) => Backprop.Learn.Model.Types.Learnable m (Backprop.Learn.Model.Regression.ARIMAp p q)
+instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q, Control.Monad.Primitive.PrimMonad m) => Backprop.Learn.Model.Types.Learnable m (Backprop.Learn.Model.Regression.ARIMAs p d q)
+instance GHC.TypeNats.KnownNat c => Data.Binary.Class.Binary (Backprop.Learn.Model.Regression.ARIMAs a b c)
+instance Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Regression.ARIMAs a b c)
+instance GHC.TypeNats.KnownNat c => Backprop.Learn.Initialize.Initialize (Backprop.Learn.Model.Regression.ARIMAs a b c)
+instance GHC.TypeNats.KnownNat c => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAs a b c)
+instance GHC.TypeNats.KnownNat c => Numeric.Opto.Update.Linear GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAs a b c)
+instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARIMAs a b c)
 instance GHC.TypeNats.KnownNat c => GHC.Show.Show (Backprop.Learn.Model.Regression.ARIMAs a b c)
 instance GHC.Generics.Generic (Backprop.Learn.Model.Regression.ARIMAs a b c)
+instance Backprop.Learn.Regularize.Regularize (Backprop.Learn.Model.Regression.ARIMAs p d q)
+instance GHC.Num.Num (Backprop.Learn.Model.Regression.ARIMAs p d q)
+instance GHC.Real.Fractional (Backprop.Learn.Model.Regression.ARIMAs p d q)
+instance GHC.Float.Floating (Backprop.Learn.Model.Regression.ARIMAs p d q)
+instance (GHC.TypeNats.KnownNat a, GHC.TypeNats.KnownNat b) => Data.Binary.Class.Binary (Backprop.Learn.Model.Regression.ARIMAp a b)
+instance Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Regression.ARIMAp a b)
+instance (GHC.TypeNats.KnownNat a, GHC.TypeNats.KnownNat b) => Backprop.Learn.Initialize.Initialize (Backprop.Learn.Model.Regression.ARIMAp a b)
+instance (GHC.TypeNats.KnownNat a, GHC.TypeNats.KnownNat b) => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAp a b)
+instance (GHC.TypeNats.KnownNat a, GHC.TypeNats.KnownNat b) => Numeric.Opto.Update.Linear GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAp a b)
+instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.ARIMAp a b)
 instance (GHC.TypeNats.KnownNat a, GHC.TypeNats.KnownNat b) => GHC.Show.Show (Backprop.Learn.Model.Regression.ARIMAp a b)
 instance GHC.Generics.Generic (Backprop.Learn.Model.Regression.ARIMAp a b)
-instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.LRp i o)
+instance GHC.Num.Num (Backprop.Learn.Model.Regression.ARIMAp p q)
+instance GHC.Real.Fractional (Backprop.Learn.Model.Regression.ARIMAp p q)
+instance GHC.Float.Floating (Backprop.Learn.Model.Regression.ARIMAp p q)
 instance (Control.Monad.Primitive.PrimMonad m, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Ref.Mutable m (Backprop.Learn.Model.Regression.LRp i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Initialize.Initialize (Backprop.Learn.Model.Regression.LRp i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Linear GHC.Types.Double (Backprop.Learn.Model.Regression.LRp i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Regression.LRp i o)
 instance (Control.Monad.Primitive.PrimMonad m, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.LinearInPlace m GHC.Types.Double (Backprop.Learn.Model.Regression.LRp i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Data.Binary.Class.Binary (Backprop.Learn.Model.Regression.LRp i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Regression.LRp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Regularize.Regularize (Backprop.Learn.Model.Regression.LRp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, Control.Monad.Primitive.PrimMonad m) => Backprop.Learn.Model.Types.Learnable m (Backprop.Learn.Model.Regression.LRp i o)
+instance (GHC.TypeNats.KnownNat o, GHC.TypeNats.KnownNat i) => Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Regression.LRp i o)
+instance (GHC.TypeNats.KnownNat o, GHC.TypeNats.KnownNat i) => Backprop.Learn.Initialize.Initialize (Backprop.Learn.Model.Regression.LRp i o)
+instance (GHC.TypeNats.KnownNat o, GHC.TypeNats.KnownNat i) => Data.Binary.Class.Binary (Backprop.Learn.Model.Regression.LRp i o)
+instance (GHC.TypeNats.KnownNat o, GHC.TypeNats.KnownNat i) => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Regression.LRp i o)
+instance (GHC.TypeNats.KnownNat o, GHC.TypeNats.KnownNat i) => Numeric.Opto.Update.Linear GHC.Types.Double (Backprop.Learn.Model.Regression.LRp i o)
+instance Control.DeepSeq.NFData (Backprop.Learn.Model.Regression.LRp i o)
+instance (GHC.TypeNats.KnownNat o, GHC.TypeNats.KnownNat i) => GHC.Show.Show (Backprop.Learn.Model.Regression.LRp i o)
+instance GHC.Generics.Generic (Backprop.Learn.Model.Regression.LRp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Model.Regression.LRp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Real.Fractional (Backprop.Learn.Model.Regression.LRp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Float.Floating (Backprop.Learn.Model.Regression.LRp i o)
-instance (GHC.TypeNats.KnownNat o, GHC.TypeNats.KnownNat i) => GHC.Show.Show (Backprop.Learn.Model.Regression.LRp i o)
-instance GHC.Generics.Generic (Backprop.Learn.Model.Regression.LRp i o)
 
 module Backprop.Learn.Model.Neural
 
@@ -946,10 +1327,10 @@ LSTMp :: !FCp (i + o) o -> !FCp (i + o) o -> !FCp (i + o) o -> !FCp (i + o) o ->
 [_lstmInput] :: LSTMp -> !FCp (i + o) o
 [_lstmUpdate] :: LSTMp -> !FCp (i + o) o
 [_lstmOutput] :: LSTMp -> !FCp (i + o) o
-lstmForget :: forall i_a1WzJ o_a1WzK. Lens' (LSTMp i_a1WzJ o_a1WzK) (FCp ((+) i_a1WzJ o_a1WzK) o_a1WzK)
-lstmInput :: forall i_a1WzJ o_a1WzK. Lens' (LSTMp i_a1WzJ o_a1WzK) (FCp ((+) i_a1WzJ o_a1WzK) o_a1WzK)
-lstmUpdate :: forall i_a1WzJ o_a1WzK. Lens' (LSTMp i_a1WzJ o_a1WzK) (FCp ((+) i_a1WzJ o_a1WzK) o_a1WzK)
-lstmOutput :: forall i_a1WzJ o_a1WzK. Lens' (LSTMp i_a1WzJ o_a1WzK) (FCp ((+) i_a1WzJ o_a1WzK) o_a1WzK)
+lstmForget :: forall i_a2htc o_a2htd. Lens' (LSTMp i_a2htc o_a2htd) (FCp ((+) i_a2htc o_a2htd) o_a2htd)
+lstmInput :: forall i_a2htc o_a2htd. Lens' (LSTMp i_a2htc o_a2htd) (FCp ((+) i_a2htc o_a2htd) o_a2htd)
+lstmUpdate :: forall i_a2htc o_a2htd. Lens' (LSTMp i_a2htc o_a2htd) (FCp ((+) i_a2htc o_a2htd) o_a2htd)
+lstmOutput :: forall i_a2htc o_a2htd. Lens' (LSTMp i_a2htc o_a2htd) (FCp ((+) i_a2htc o_a2htd) o_a2htd)
 reshapeLSTMpInput :: (ContGen d, PrimMonad m, KnownNat i, KnownNat i', KnownNat o) => d -> Gen (PrimState m) -> LSTMp i o -> m (LSTMp i' o)
 reshapeLSTMpOutput :: (ContGen d, PrimMonad m, KnownNat i, KnownNat o, KnownNat o') => d -> Gen (PrimState m) -> LSTMp i o -> m (LSTMp i o')
 
@@ -964,35 +1345,39 @@ GRUp :: !FCp (i + o) o -> !FCp (i + o) o -> !FCp (i + o) o -> GRUp
 [_gruMemory] :: GRUp -> !FCp (i + o) o
 [_gruUpdate] :: GRUp -> !FCp (i + o) o
 [_gruOutput] :: GRUp -> !FCp (i + o) o
-gruMemory :: forall i_a1WGu o_a1WGv. Lens' (GRUp i_a1WGu o_a1WGv) (FCp ((+) i_a1WGu o_a1WGv) o_a1WGv)
-gruUpdate :: forall i_a1WGu o_a1WGv. Lens' (GRUp i_a1WGu o_a1WGv) (FCp ((+) i_a1WGu o_a1WGv) o_a1WGv)
-gruOutput :: forall i_a1WGu o_a1WGv. Lens' (GRUp i_a1WGu o_a1WGv) (FCp ((+) i_a1WGu o_a1WGv) o_a1WGv)
-instance Control.DeepSeq.NFData (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
+gruMemory :: forall i_a2i1a o_a2i1b. Lens' (GRUp i_a2i1a o_a2i1b) (FCp ((+) i_a2i1a o_a2i1b) o_a2i1b)
+gruUpdate :: forall i_a2i1a o_a2i1b. Lens' (GRUp i_a2i1a o_a2i1b) (FCp ((+) i_a2i1a o_a2i1b) o_a2i1b)
+gruOutput :: forall i_a2i1a o_a2i1b. Lens' (GRUp i_a2i1a o_a2i1b) (FCp ((+) i_a2i1a o_a2i1b) o_a2i1b)
 instance (Control.Monad.Primitive.PrimMonad m, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Ref.Mutable m (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Linear GHC.Types.Double (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, Numeric.Opto.Ref.Mutable m (Backprop.Learn.Model.Neural.LSTM.GRUp i o)) => Numeric.Opto.Update.LinearInPlace m GHC.Types.Double (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Data.Binary.Class.Binary (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Initialize.Initialize (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
+instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, Control.Monad.Primitive.PrimMonad m) => Backprop.Learn.Model.Types.Learnable m (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
+instance GHC.TypeNats.KnownNat o => Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
+instance GHC.TypeNats.KnownNat o => Backprop.Learn.Regularize.Regularize (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
+instance GHC.TypeNats.KnownNat o => Backprop.Learn.Initialize.Initialize (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
+instance GHC.TypeNats.KnownNat o => Data.Binary.Class.Binary (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
+instance GHC.TypeNats.KnownNat o => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
+instance GHC.TypeNats.KnownNat o => Numeric.Opto.Update.Linear GHC.Types.Double (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
+instance Control.DeepSeq.NFData (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
+instance GHC.TypeNats.KnownNat o => GHC.Show.Show (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
+instance GHC.Generics.Generic (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Real.Fractional (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Float.Floating (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
-instance GHC.TypeNats.KnownNat o => GHC.Show.Show (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
-instance GHC.Generics.Generic (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
-instance Control.DeepSeq.NFData (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 instance (Control.Monad.Primitive.PrimMonad m, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Ref.Mutable m (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Linear GHC.Types.Double (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 instance (Control.Monad.Primitive.PrimMonad m, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Update.LinearInPlace m GHC.Types.Double (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Data.Binary.Class.Binary (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
-instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
+instance (Control.Monad.Primitive.PrimMonad m, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Model.Types.Learnable m (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Backprop.Learn.Initialize.Initialize (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
+instance GHC.TypeNats.KnownNat o => Numeric.Backprop.Class.Backprop (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
+instance GHC.TypeNats.KnownNat o => Backprop.Learn.Regularize.Regularize (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
+instance GHC.TypeNats.KnownNat o => Data.Binary.Class.Binary (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
+instance GHC.TypeNats.KnownNat o => Numeric.Opto.Update.Metric GHC.Types.Double (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
+instance GHC.TypeNats.KnownNat o => Numeric.Opto.Update.Linear GHC.Types.Double (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
+instance Control.DeepSeq.NFData (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
+instance GHC.TypeNats.KnownNat o => GHC.Show.Show (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
+instance GHC.Generics.Generic (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Num.Num (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Real.Fractional (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => GHC.Float.Floating (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
-instance GHC.TypeNats.KnownNat o => GHC.Show.Show (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
-instance GHC.Generics.Generic (Backprop.Learn.Model.Neural.LSTM.LSTMp i o)
 
 module Backprop.Learn.Model
 
