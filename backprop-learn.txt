@@ -390,6 +390,10 @@ noReg :: Regularizer p
 -- | L2 regularization for instances of <a>Metric</a>. This will count all
 --   terms, including any potential bias terms.
 --   
+--   You can always use this as a regularizer instead of <a>l2Reg</a>, if
+--   you want to ignore the default behavior for a type, or if your type
+--   has no instance.
+--   
 --   This is what <a>l2Reg</a> would be for a type <tt>p</tt> if you
 --   declare an instance of <a>Regularize</a> with <tt><a>rnorm_2</a> =
 --   <a>norm_2</a></tt>, and <tt><a>ridge</a> = <a>ridgeLinear</a></tt>.
@@ -397,6 +401,10 @@ l2RegMetric :: (Metric Double p, Backprop p) => Double -> Regularizer p
 
 -- | L1 regularization for instances of <a>Metric</a>. This will count all
 --   terms, including any potential bias terms.
+--   
+--   You can always use this as a regularizer instead of <a>l2Reg</a>, if
+--   you want to ignore the default behavior for a type, or if your type
+--   has no instance.
 --   
 --   This is what <a>l1Reg</a> would be for a type <tt>p</tt> if you
 --   declare an instance of <a>Regularize</a> with <tt><a>rnorm_1</a> =
@@ -1180,8 +1188,8 @@ data LRp (i :: Nat) (o :: Nat)
 LRp :: !R o -> !L o i -> LRp
 [_lrAlpha] :: LRp -> !R o
 [_lrBeta] :: LRp -> !L o i
-lrAlpha :: forall i_a1EXz o_a1EXA. Lens' (LRp i_a1EXz o_a1EXA) (R o_a1EXA)
-lrBeta :: forall i_a1EXz o_a1EXA i_a1FB1. Lens (LRp i_a1EXz o_a1EXA) (LRp i_a1FB1 o_a1EXA) (L o_a1EXA i_a1EXz) (L o_a1EXA i_a1FB1)
+lrAlpha :: forall i_a1F1n o_a1F1o. Lens' (LRp i_a1F1n o_a1F1o) (R o_a1F1o)
+lrBeta :: forall i_a1F1n o_a1F1o i_a1FEP. Lens (LRp i_a1F1n o_a1F1o) (LRp i_a1FEP o_a1F1o) (L o_a1F1o i_a1F1n) (L o_a1F1o i_a1FEP)
 runLRp :: (KnownNat i, KnownNat o, Reifies s W) => BVar s (LRp i o) -> BVar s (R i) -> BVar s (R o)
 
 -- | Reshape an <a>LRp</a> to take more or less inputs. If more, new
@@ -1206,10 +1214,10 @@ expandLRpOutput :: (PrimMonad m, ContGen d, KnownNat i, KnownNat o, KnownNat p) 
 --   
 --   Removed inputs will simply have their contributions removed from each
 --   output.
-premuteLRpInput :: Vector i' (Finite i) -> LRp i o -> LRp i' o
+premuteLRpInput :: (KnownNat i, KnownNat o) => Vector i' (Finite i) -> LRp i o -> LRp i' o
 
 -- | Premute (or remove) outputs
-permuteLRpOutput :: Vector o' (Finite o) -> LRp i o -> LRp i o'
+permuteLRpOutput :: (KnownNat i, KnownNat o) => Vector o' (Finite o) -> LRp i o -> LRp i o'
 arima :: forall p d q. (KnownNat p, KnownNat d, KnownNat q) => Model ( 'Just (ARIMAp p q)) ( 'Just (ARIMAs p d q)) Double Double
 autoregressive :: KnownNat p => Model ( 'Just (ARIMAp p 0)) ( 'Just (ARIMAs p 0 0)) Double Double
 movingAverage :: KnownNat q => Model ( 'Just (ARIMAp 0 q)) ( 'Just (ARIMAs 0 0 q)) Double Double
@@ -1222,12 +1230,12 @@ data ARIMAp :: Nat -> Nat -> Type
 -- | <tt>ARIMA</tt> state
 data ARIMAs :: Nat -> Nat -> Nat -> Type
 [ARIMAs] :: {_arimaYPred :: !Double, _arimaYHist :: !R (p + d), _arimaEHist :: !R q} -> ARIMAs p d q
-arimaPhi :: forall a_a1FF2 b_a1FF3 a_a1GoS. Lens (ARIMAp a_a1FF2 b_a1FF3) (ARIMAp a_a1GoS b_a1FF3) (R a_a1FF2) (R a_a1GoS)
-arimaTheta :: forall a_a1FF2 b_a1FF3 b_a1GoT. Lens (ARIMAp a_a1FF2 b_a1FF3) (ARIMAp a_a1FF2 b_a1GoT) (R b_a1FF3) (R b_a1GoT)
-arimaConstant :: forall a_a1FF2 b_a1FF3. Lens' (ARIMAp a_a1FF2 b_a1FF3) Double
-arimaYPred :: forall a_a1GpU b_a1GpV c_a1GpW. Lens' (ARIMAs a_a1GpU b_a1GpV c_a1GpW) Double
-arimaYHist :: forall a_a1GpU b_a1GpV c_a1GpW a_a1H0h b_a1H0i. Lens (ARIMAs a_a1GpU b_a1GpV c_a1GpW) (ARIMAs a_a1H0h b_a1H0i c_a1GpW) (R ((+) a_a1GpU b_a1GpV)) (R ((+) a_a1H0h b_a1H0i))
-arimaEHist :: forall a_a1GpU b_a1GpV c_a1GpW c_a1H0g. Lens (ARIMAs a_a1GpU b_a1GpV c_a1GpW) (ARIMAs a_a1GpU b_a1GpV c_a1H0g) (R c_a1GpW) (R c_a1H0g)
+arimaPhi :: forall a_a1FIQ b_a1FIR a_a1Gt3. Lens (ARIMAp a_a1FIQ b_a1FIR) (ARIMAp a_a1Gt3 b_a1FIR) (R a_a1FIQ) (R a_a1Gt3)
+arimaTheta :: forall a_a1FIQ b_a1FIR b_a1Gt4. Lens (ARIMAp a_a1FIQ b_a1FIR) (ARIMAp a_a1FIQ b_a1Gt4) (R b_a1FIR) (R b_a1Gt4)
+arimaConstant :: forall a_a1FIQ b_a1FIR. Lens' (ARIMAp a_a1FIQ b_a1FIR) Double
+arimaYPred :: forall a_a1Gu5 b_a1Gu6 c_a1Gu7. Lens' (ARIMAs a_a1Gu5 b_a1Gu6 c_a1Gu7) Double
+arimaYHist :: forall a_a1Gu5 b_a1Gu6 c_a1Gu7 a_a1H4s b_a1H4t. Lens (ARIMAs a_a1Gu5 b_a1Gu6 c_a1Gu7) (ARIMAs a_a1H4s b_a1H4t c_a1Gu7) (R ((+) a_a1Gu5 b_a1Gu6)) (R ((+) a_a1H4s b_a1H4t))
+arimaEHist :: forall a_a1Gu5 b_a1Gu6 c_a1Gu7 c_a1H4r. Lens (ARIMAs a_a1Gu5 b_a1Gu6 c_a1Gu7) (ARIMAs a_a1Gu5 b_a1Gu6 c_a1H4r) (R c_a1Gu7) (R c_a1H4r)
 instance (Control.Monad.Primitive.PrimMonad m, GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q) => Numeric.Opto.Ref.Mutable m (Backprop.Learn.Model.Regression.ARIMAp p q)
 instance (Control.Monad.Primitive.PrimMonad m, GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat d, GHC.TypeNats.KnownNat q) => Numeric.Opto.Ref.Mutable m (Backprop.Learn.Model.Regression.ARIMAs p d q)
 instance (GHC.TypeNats.KnownNat p, GHC.TypeNats.KnownNat q, Control.Monad.Primitive.PrimMonad m) => Numeric.Opto.Update.LinearInPlace m GHC.Types.Double (Backprop.Learn.Model.Regression.ARIMAp p q)
@@ -1327,12 +1335,16 @@ LSTMp :: !FCp (i + o) o -> !FCp (i + o) o -> !FCp (i + o) o -> !FCp (i + o) o ->
 [_lstmInput] :: LSTMp -> !FCp (i + o) o
 [_lstmUpdate] :: LSTMp -> !FCp (i + o) o
 [_lstmOutput] :: LSTMp -> !FCp (i + o) o
-lstmForget :: forall i_a2htc o_a2htd. Lens' (LSTMp i_a2htc o_a2htd) (FCp ((+) i_a2htc o_a2htd) o_a2htd)
-lstmInput :: forall i_a2htc o_a2htd. Lens' (LSTMp i_a2htc o_a2htd) (FCp ((+) i_a2htc o_a2htd) o_a2htd)
-lstmUpdate :: forall i_a2htc o_a2htd. Lens' (LSTMp i_a2htc o_a2htd) (FCp ((+) i_a2htc o_a2htd) o_a2htd)
-lstmOutput :: forall i_a2htc o_a2htd. Lens' (LSTMp i_a2htc o_a2htd) (FCp ((+) i_a2htc o_a2htd) o_a2htd)
+lstmForget :: forall i_a2hAt o_a2hAu. Lens' (LSTMp i_a2hAt o_a2hAu) (FCp ((+) i_a2hAt o_a2hAu) o_a2hAu)
+lstmInput :: forall i_a2hAt o_a2hAu. Lens' (LSTMp i_a2hAt o_a2hAu) (FCp ((+) i_a2hAt o_a2hAu) o_a2hAu)
+lstmUpdate :: forall i_a2hAt o_a2hAu. Lens' (LSTMp i_a2hAt o_a2hAu) (FCp ((+) i_a2hAt o_a2hAu) o_a2hAu)
+lstmOutput :: forall i_a2hAt o_a2hAu. Lens' (LSTMp i_a2hAt o_a2hAu) (FCp ((+) i_a2hAt o_a2hAu) o_a2hAu)
 reshapeLSTMpInput :: (ContGen d, PrimMonad m, KnownNat i, KnownNat i', KnownNat o) => d -> Gen (PrimState m) -> LSTMp i o -> m (LSTMp i' o)
 reshapeLSTMpOutput :: (ContGen d, PrimMonad m, KnownNat i, KnownNat o, KnownNat o') => d -> Gen (PrimState m) -> LSTMp i o -> m (LSTMp i o')
+
+-- | Stateless version of <a>lstm</a> that takes the "previous input" as a
+--   part of the input vector.
+lstm' :: (KnownNat i, KnownNat o) => Model ( 'Just (LSTMp i o)) ( 'Just (R o)) (R (i + o)) (R o)
 
 -- | Gated Recurrent Unit
 --   
@@ -1345,9 +1357,13 @@ GRUp :: !FCp (i + o) o -> !FCp (i + o) o -> !FCp (i + o) o -> GRUp
 [_gruMemory] :: GRUp -> !FCp (i + o) o
 [_gruUpdate] :: GRUp -> !FCp (i + o) o
 [_gruOutput] :: GRUp -> !FCp (i + o) o
-gruMemory :: forall i_a2i1a o_a2i1b. Lens' (GRUp i_a2i1a o_a2i1b) (FCp ((+) i_a2i1a o_a2i1b) o_a2i1b)
-gruUpdate :: forall i_a2i1a o_a2i1b. Lens' (GRUp i_a2i1a o_a2i1b) (FCp ((+) i_a2i1a o_a2i1b) o_a2i1b)
-gruOutput :: forall i_a2i1a o_a2i1b. Lens' (GRUp i_a2i1a o_a2i1b) (FCp ((+) i_a2i1a o_a2i1b) o_a2i1b)
+gruMemory :: forall i_a2i8r o_a2i8s. Lens' (GRUp i_a2i8r o_a2i8s) (FCp ((+) i_a2i8r o_a2i8s) o_a2i8s)
+gruUpdate :: forall i_a2i8r o_a2i8s. Lens' (GRUp i_a2i8r o_a2i8s) (FCp ((+) i_a2i8r o_a2i8s) o_a2i8s)
+gruOutput :: forall i_a2i8r o_a2i8s. Lens' (GRUp i_a2i8r o_a2i8s) (FCp ((+) i_a2i8r o_a2i8s) o_a2i8s)
+
+-- | Stateless version of <a>gru</a> that takes the "previous input" as a
+--   part of the input vector.
+gru' :: forall i o. (KnownNat i, KnownNat o) => Model ( 'Just (GRUp i o))  'Nothing (R (i + o)) (R o)
 instance (Control.Monad.Primitive.PrimMonad m, GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o) => Numeric.Opto.Ref.Mutable m (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, Numeric.Opto.Ref.Mutable m (Backprop.Learn.Model.Neural.LSTM.GRUp i o)) => Numeric.Opto.Update.LinearInPlace m GHC.Types.Double (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
 instance (GHC.TypeNats.KnownNat i, GHC.TypeNats.KnownNat o, Control.Monad.Primitive.PrimMonad m) => Backprop.Learn.Model.Types.Learnable m (Backprop.Learn.Model.Neural.LSTM.GRUp i o)
@@ -1630,6 +1646,6 @@ oneHotR :: KnownNat n => Finite n -> R n
 maxIndex :: (Vector v a, Ord a) => Vector v (n + 1) a -> Finite (n + 1)
 
 -- | Could be in <i>hmatrix</i>.
-maxIndexR :: R (n + 1) -> Finite (n + 1)
+maxIndexR :: KnownNat n => R (n + 1) -> Finite (n + 1)
 
 module Backprop.Learn
