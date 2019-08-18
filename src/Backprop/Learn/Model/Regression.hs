@@ -173,7 +173,8 @@ expandLRpOutput LRp{..} d g = do
 -- Removed inputs will simply have their contributions removed from each
 -- output.
 premuteLRpInput
-    :: SV.Vector i' (Finite i)
+    :: (KnownNat i, KnownNat o)
+    => SV.Vector i' (Finite i)
     -> LRp i o
     -> LRp i' o
 premuteLRpInput is p = p { _lrBeta = colsL . fmap (β `SV.index`) $ is }
@@ -182,7 +183,8 @@ premuteLRpInput is p = p { _lrBeta = colsL . fmap (β `SV.index`) $ is }
 
 -- | Premute (or remove) outputs
 permuteLRpOutput
-    :: SV.Vector o' (Finite o)
+    :: (KnownNat i, KnownNat o)
+    => SV.Vector o' (Finite o)
     -> LRp i o
     -> LRp i o'
 permuteLRpOutput is LRp{..} =

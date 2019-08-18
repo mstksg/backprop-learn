@@ -27,9 +27,11 @@ module Backprop.Learn.Model.Neural.LSTM (
   , LSTMp(..), lstmForget, lstmInput, lstmUpdate, lstmOutput
   , reshapeLSTMpInput
   , reshapeLSTMpOutput
+  , lstm'
     -- * GRU
   , gru
   , GRUp(..), gruMemory, gruUpdate, gruOutput
+  , gru'
   ) where
 
 import           Backprop.Learn.Initialize
@@ -85,6 +87,8 @@ instance (PrimMonad m, KnownNat i, KnownNat o) => LinearInPlace m Double (LSTMp 
 
 instance (PrimMonad m, KnownNat i, KnownNat o) => Learnable m (LSTMp i o)
 
+-- | Stateless version of 'lstm' that takes the "previous input" as a part
+-- of the input vector.
 lstm'
     :: (KnownNat i, KnownNat o)
     => Model ('Just (LSTMp i o)) ('Just (R o)) (R (i + o)) (R o)
@@ -166,6 +170,8 @@ instance (KnownNat i, KnownNat o, Mutable m (GRUp i o)) => LinearInPlace m Doubl
 
 instance (KnownNat i, KnownNat o, PrimMonad m) => Learnable m (GRUp i o)
 
+-- | Stateless version of 'gru' that takes the "previous input" as a part
+-- of the input vector.
 gru'
     :: forall i o. (KnownNat i, KnownNat o)
     => Model ('Just (GRUp i o)) 'Nothing (R (i + o)) (R o)

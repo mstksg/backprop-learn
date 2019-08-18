@@ -1,9 +1,10 @@
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE DataKinds                                #-}
+{-# LANGUAGE RankNTypes                               #-}
+{-# LANGUAGE ScopedTypeVariables                      #-}
+{-# LANGUAGE TupleSections                            #-}
+{-# LANGUAGE TypeApplications                         #-}
+{-# LANGUAGE TypeOperators                            #-}
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
 module Backprop.Learn.Run (
     consecutives
@@ -131,5 +132,5 @@ oneHotR :: KnownNat n => Finite n -> R n
 oneHotR = vecR . oneHot
 
 -- | Could be in /hmatrix/.
-maxIndexR :: R (n + 1) -> Finite (n + 1)
+maxIndexR :: KnownNat n => R (n + 1) -> Finite (n + 1)
 maxIndexR = SVG.maxIndex . rVec

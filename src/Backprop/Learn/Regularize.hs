@@ -221,6 +221,10 @@ ridgeLinear = (.*)
 -- | L2 regularization for instances of 'Metric'.  This will count
 -- all terms, including any potential bias terms.
 --
+-- You can always use this as a regularizer instead of 'l2Reg', if you want
+-- to ignore the default behavior for a type, or if your type has no
+-- instance.
+--
 -- This is what 'l2Reg' would be for a type @p@ if you declare an instance
 -- of 'Regularize' with @'rnorm_2' = 'norm_2'@, and @'ridge'
 -- = 'ridgeLinear'@.
@@ -233,6 +237,10 @@ l2RegMetric λ = liftOp1 . op1 $ \x ->
 
 -- | L1 regularization for instances of 'Metric'.  This will count
 -- all terms, including any potential bias terms.
+--
+-- You can always use this as a regularizer instead of 'l2Reg', if you want
+-- to ignore the default behavior for a type, or if your type has no
+-- instance.
 --
 -- This is what 'l1Reg' would be for a type @p@ if you declare an instance
 -- of 'Regularize' with @'rnorm_1' = 'norm_1'@, and @'lasso'

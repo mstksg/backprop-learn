@@ -30,10 +30,10 @@ dependencies:
 - base >=4.7 && <5
 - ghc-typelits-extra
 - ghc-typelits-knownnat
-- mwc-random
 - ghc-typelits-natnormalise
 - hmatrix
-- hmatrix-backprop >= 0.1.2.2
+- hmatrix-backprop >= 0.1.3
+- mwc-random
 - opto
 
 library:
@@ -48,7 +48,7 @@ library:
   - finite-typelits
   - foldl >= 1.4
   - functor-products
-  - hmatrix-vector-sized
+  - hmatrix-vector-sized >= 0.1.2
   - list-witnesses >= 0.1.2
   - microlens
   - microlens-th
@@ -92,7 +92,7 @@ executables:
     - conduit
     - data-default
     - deepseq
-    - hmatrix-backprop >= 0.1.2.2
+    - hmatrix-backprop >= 0.1.3
     - optparse-applicative
     - primitive
     - singletons

@@ -5,19 +5,26 @@
 
 packages:
 - completed:
-    size: 27278
-    url: https://github.com/mstksg/opto/archive/e82cf2aaf39843771a4cf198f84351ecbb796b74.tar.gz
+    size: 26685
+    url: https://github.com/mstksg/opto/archive/def9e41adc1123385037f92ead38c92cb6454dd2.tar.gz
     cabal-file:
-      size: 2371
-      sha256: 0c79a503a209b39df3fc2a3411953efc39d0e26cadf70b5600a8a1afffff8c7a
+      size: 2442
+      sha256: 163eeb672b5afc9f7147275d786060a80308c31e57a84d94ebbb62c74c059ee8
     name: opto
     version: 0.1.0.0
-    sha256: 04096307f374c06767c17b00c482cb1e0390e7bf8d6b4ee4b8ac507e3681c85e
+    sha256: 627e8bf47074ae57b1ffa843810177c2df72fe3993de59aa2f8c68c6722b67f8
     pantry-tree:
       size: 1215
-      sha256: e13d602cc5e93afb35785405d5380f90394c78b55302feeeed038fa2d1de6a5a
+      sha256: f3dedce3dc9e88ec9fe99f0b69b8893fb2047e8c780d901e5832cfd2e1f52aae
   original:
-    url: https://github.com/mstksg/opto/archive/e82cf2aaf39843771a4cf198f84351ecbb796b74.tar.gz
+    url: https://github.com/mstksg/opto/archive/def9e41adc1123385037f92ead38c92cb6454dd2.tar.gz
+- completed:
+    hackage: backprop-0.2.6.3@sha256:a38430a6b4539cebd3c41d4fad9c48c2654fad6f6455d3b119882e7bf4804cfc,2805
+    pantry-tree:
+      size: 2123
+      sha256: 433f277d8d4a0ad480fe2f0e8f71bd1f2cc71604b1fd11a15e8c86c81424648f
+  original:
+    hackage: backprop-0.2.6.3
 - completed:
     hackage: decidable-0.2.0.0@sha256:26ed0030afd612d7cb25e7ed56db905f7d1bfc2ecf7bc78dc5bb11c6daf0fc95,1766
     pantry-tree:
@@ -26,13 +33,6 @@ packages:
   original:
     hackage: decidable-0.2.0.0
 - completed:
-    hackage: list-witnesses-0.1.2.0@sha256:5f18b7fcbe7915c3e75a19184926ab3344970cfecdc4d7a53d4d1d15865f99fc,1670
-    pantry-tree:
-      size: 398
-      sha256: b0d76ba71b1e125f2804942b794ed22a15b5a0577359141565cc096f7dccc427
-  original:
-    hackage: list-witnesses-0.1.2.0
-- completed:
     hackage: functor-products-0.1.0.0@sha256:cc5e526b5f3694d33a89044578e4fe74e4e05dd01d5d96bc57be06d6d98a1883,1455
     pantry-tree:
       size: 408
@@ -40,15 +40,29 @@ packages:
   original:
     hackage: functor-products-0.1.0.0
 - completed:
-    hackage: backprop-0.2.6.3@sha256:a38430a6b4539cebd3c41d4fad9c48c2654fad6f6455d3b119882e7bf4804cfc,2805
+    hackage: hmatrix-vector-sized-0.1.2.0@sha256:5b13ea0d371c54293e8a2159d3cea1f1466b8908331e1a1956c26b8732ca67a3,1881
     pantry-tree:
-      size: 2123
-      sha256: 433f277d8d4a0ad480fe2f0e8f71bd1f2cc71604b1fd11a15e8c86c81424648f
+      size: 402
+      sha256: 38bbeddbc873627d95d789a55d12104e8fe376f80cf9ae3ef3ca4ca282e5b177
   original:
-    hackage: backprop-0.2.6.3
+    hackage: hmatrix-vector-sized-0.1.2.0
+- completed:
+    hackage: hmatrix-backprop-0.1.3.0@sha256:eff786a68b34d44df9bd461c5890d0d876684f34e5fd4b6078a67263d21279f1,2294
+    pantry-tree:
+      size: 455
+      sha256: 30892afe2120ad983d39bbda594a9d18b4d44572ba9d032e271455ba1b00091d
+  original:
+    hackage: hmatrix-backprop-0.1.3.0
+- completed:
+    hackage: list-witnesses-0.1.2.0@sha256:5f18b7fcbe7915c3e75a19184926ab3344970cfecdc4d7a53d4d1d15865f99fc,1670
+    pantry-tree:
+      size: 398
+      sha256: b0d76ba71b1e125f2804942b794ed22a15b5a0577359141565cc096f7dccc427
+  original:
+    hackage: list-witnesses-0.1.2.0
 snapshots:
 - completed:
-    size: 515171
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/nightly/2019/7/2.yaml
-    sha256: 18fc764cb294e7e0325e4887ded87b6d3e6b5f65555768ea26722548e5145495
-  original: nightly-2019-07-02
+    size: 523869
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/nightly/2019/8/12.yaml
+    sha256: 8fd2b13ede8b2d67b44fd11f68f741101dfefd68e4d62f4b0319c1574896a065
+  original: nightly-2019-08-12

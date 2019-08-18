@@ -15,7 +15,7 @@
 # resolver:
 #  name: custom-snapshot
 #  location: "./custom-snapshot.yaml"
-resolver: nightly-2019-07-02
+resolver: nightly-2019-08-12
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -65,14 +65,21 @@ packages:
 extra-deps:
 # - github: mstksg/type-combinators
 #   commit: 50334ab6bc3e5c3aee53c881a027f687fde13fa4
-- github: mstksg/opto
-  commit: e82cf2aaf39843771a4cf198f84351ecbb796b74
 # - github: mstksg/backprop
 #   commit: 106371536e66d7e5e67f83f4f530c576f9ebf567
-- decidable-0.2.0.0
-- list-witnesses-0.1.2.0
-- functor-products-0.1.0.0
+# - github: mstksg/hmatrix
+#   commit: 05cf4e72dc71f2e29432c6aa6218970fddbd450e
+#   subdirs:
+#   - packages/base
+# - ../opto
+- github: mstksg/opto
+  commit: def9e41adc1123385037f92ead38c92cb6454dd2
 - backprop-0.2.6.3
+- decidable-0.2.0.0
+- functor-products-0.1.0.0
+- hmatrix-vector-sized-0.1.2.0
+- hmatrix-backprop-0.1.3.0
+- list-witnesses-0.1.2.0
 # - github: mstksg/decidable
 #   commit: 81e7469efdd8d1cf1f15fe4204a0b41bf3005377
 # - github: mstksg/list-witnesses
