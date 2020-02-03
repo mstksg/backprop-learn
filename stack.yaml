@@ -15,7 +15,7 @@
 # resolver:
 #  name: custom-snapshot
 #  location: "./custom-snapshot.yaml"
-resolver: nightly-2019-08-12
+resolver: nightly-2020-01-30
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -37,55 +37,22 @@ resolver: nightly-2019-08-12
 # will not be run. This is useful for tweaking upstream packages.
 packages:
 - '.'
-# - location:
-#     git: https://github.com/haskell/vector.git
-#     commit: cc5460dfb7a2fb099760155ca46f96c05a1b81b7
-#   extra-dep: true
-# - location: ../hmatrix-backprop
-#   extra-dep: true
-# - location:
-#     git: https://github.com/mstksg/backprop.git
-#     commit: 145b8c2a9facb115893941d662f66e5b579b2c06
-#   extra-dep: true
-# - location:
-#     git: https://github.com/mstksg/hmatrix-backprop.git
-#     commit: d8944893dc105f24e587abaca615363932a62e81
-#   extra-dep: true
-# - location:
-#     git: https://github.com/mstksg/type-combinators-singletons.git
-#     commit: 8bd05539987692ee745f0d78b83e5d72c7af21c4
-#   extra-dep: true
-# - location:
-#     git: https://github.com/mstksg/generics-lift.git
-#     commit: c8a127d522f47efbf4cce55c9276a1d19cd6a211
-#   extra-dep: true
 
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps:
-# - github: mstksg/type-combinators
-#   commit: 50334ab6bc3e5c3aee53c881a027f687fde13fa4
-# - github: mstksg/backprop
-#   commit: 106371536e66d7e5e67f83f4f530c576f9ebf567
-# - github: mstksg/hmatrix
-#   commit: 05cf4e72dc71f2e29432c6aa6218970fddbd450e
-#   subdirs:
-#   - packages/base
-# - ../opto
 - github: mstksg/opto
   commit: def9e41adc1123385037f92ead38c92cb6454dd2
 - backprop-0.2.6.3
-- decidable-0.2.0.0
-- functor-products-0.1.0.0
+- decidable-0.3.0.0
+- functor-products-0.1.1.0
 - hmatrix-vector-sized-0.1.2.0
 - hmatrix-backprop-0.1.3.0
-- list-witnesses-0.1.2.0
-# - github: mstksg/decidable
-#   commit: 81e7469efdd8d1cf1f15fe4204a0b41bf3005377
-# - github: mstksg/list-witnesses
-#   commit: 35998dea6cb2cd4c2751e5308648a808259eac24
-# - github: mstksg/functor-products
-#   commit: fcddcfa0358da8fc04c74eb73dc8b56f0e1a495f
+- list-witnesses-0.1.3.2
+- typelits-witnesses-0.4.0.0
+- vinyl-0.12.0
+- dependent-sum-0.6.2.0
+- constraints-extras-0.3.0.2
 
 # Override default flag values for local packages and extra-deps
 flags: {}
